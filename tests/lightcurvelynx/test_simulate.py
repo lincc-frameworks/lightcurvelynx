@@ -1,12 +1,14 @@
 import numpy as np
 import pytest
-from lightcurvelynx.astro_utils.passbands import PassbandGroup
+from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
+from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.simulate import (
+    SimulationInfo,
     compute_noise_free_lightcurves,
     compute_single_noise_free_lightcurve,
     get_time_windows,
@@ -38,6 +40,62 @@ def test_get_time_windows():
 
     with pytest.raises(ValueError):
         get_time_windows(0.0, (1.0, 2.0, 3.0))
+
+
+def test_simulation_info():
+    """Test that we can create and split SimulationInfo objects."""
+    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0, node_label="source")
+
+    # Create a completely fake passband group and obstable for testing.
+    pb_group = PassbandGroup(
+        [
+            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "a"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "b"),
+        ]
+    )
+
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+    }
+    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    ops_data = FakeObsTable(values, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0)
+
+    sim_info = SimulationInfo(
+        model=model,
+        num_samples=100,
+        obstable=ops_data,
+        passbands=pb_group,
+        time_window_offset=(-5.0, 10.0),  # A keyword argument to test
+        rng=np.random.default_rng(12345),
+    )
+    assert sim_info.num_samples == 100
+    assert sim_info.kwargs["time_window_offset"] == (-5.0, 10.0)
+
+    # Test splitting into batches.
+    batches = sim_info.split(num_batches=3)
+    assert len(batches) == 3
+    assert batches[0].num_samples == 34
+    assert batches[1].num_samples == 34
+    assert batches[2].num_samples == 32
+
+    # We propagate all the keyword parameters.
+    assert batches[0].kwargs["time_window_offset"] == (-5.0, 10.0)
+    assert batches[1].kwargs["time_window_offset"] == (-5.0, 10.0)
+    assert batches[2].kwargs["time_window_offset"] == (-5.0, 10.0)
+
+    # They have different RNGs with different sampling states.
+    assert batches[0].rng is not batches[1].rng
+    assert batches[0].rng is not batches[2].rng
+    assert batches[1].rng is not batches[2].rng
+    sample0 = batches[0].rng.integers(0, 100000)
+    sample1 = batches[1].rng.integers(0, 100000)
+    sample2 = batches[2].rng.integers(0, 100000)
+    assert sample0 != sample1
+    assert sample0 != sample2
+    assert sample1 != sample2
 
 
 def test_simulate_lightcurves(test_data_dir):

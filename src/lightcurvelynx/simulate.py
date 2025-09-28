@@ -9,6 +9,111 @@ from lightcurvelynx.astro_utils.noise_model import apply_noise
 from lightcurvelynx.models.physical_model import BandfluxModel
 
 
+class SimulationInfo:
+    """A class to hold all the information (data and configuration) for a simulation
+    run. This includes the model, the surveys, the passbands, etc. This object
+    is used so we have have a single object to pass around to multiprocessing functions.
+
+    Attributes
+    ----------
+    model : BasePhysicalModel
+        The model to draw from. This may have its own parameters which
+        will be randomly sampled with each draw.
+    num_samples : int
+        The number of samples.
+    obstable : ObsTable or List of ObsTable
+        The ObsTable(s) from which to extract information for the samples.
+    passbands : PassbandGroup or List of PassbandGroup
+        The passbands to use for generating the bandfluxes.
+    rng : numpy.random._generator.Generator, optional
+        A given numpy random number generator to use for this computation. If not
+        provided, the function uses the node's random number generator.
+    kwargs : dict
+        Additional keyword arguments to pass to the simulation function.
+    """
+
+    def __init__(
+        self,
+        model,
+        num_samples,
+        obstable,
+        passbands,
+        *,
+        rng=None,
+        **kwargs,
+    ):
+        self.model = model
+        self.num_samples = num_samples
+        self.obstable = obstable
+        self.passbands = passbands
+        self.rng = rng
+        self.kwargs = kwargs
+
+        if self.num_samples <= 0:
+            raise ValueError("Number of samples must be a positive integer.")
+
+    def split(self, num_batches=None, batch_size=None):
+        """Split the simulation info into multiple batches for parallel processing.
+
+        Parameters
+        ----------
+        num_batches : int, optional
+            The number of batches to split the simulation into. If None, batch_size
+            must be provided.
+        batch_size : int, optional
+            The size of each batch. If None, num_batches must be provided.
+
+        Returns
+        -------
+        batches : list of SimulationInfo
+            A list of SimulationInfo objects, one for each batch.
+        """
+        if num_batches is None and batch_size is None:
+            raise ValueError("Either num_batches or batch_size must be provided.")
+        if num_batches is not None and batch_size is not None:
+            raise ValueError("Either num_batches or batch_size must be provided, but not both.")
+
+        if num_batches is not None:
+            if num_batches <= 0:
+                raise ValueError("num_batches must be a positive integer.")
+            if num_batches > self.num_samples:
+                num_batches = self.num_samples
+            batch_size = np.ceil(self.num_samples / num_batches).astype(int)
+        else:
+            if batch_size <= 0:
+                raise ValueError("batch_size must be a positive integer.")
+            num_batches = np.ceil(self.num_samples / batch_size).astype(int)
+
+        batches = []
+        end_idx = 0
+        for _ in range(num_batches):
+            # Compute the bounds of the batch.
+            start_idx = end_idx
+            end_idx = min(start_idx + batch_size, self.num_samples)
+            batch_num_samples = end_idx - start_idx
+            if batch_num_samples <= 0:
+                break
+
+            # If given a RNG, match sure we create a unique RNG for each batch.
+            batch_rng = None
+            if self.rng is not None:
+                seed = self.rng.integers(0, 2**32 - 1)
+                batch_rng = np.random.default_rng(seed)
+
+            # Create a subset of the batch. Most information is the same (references to the
+            # same objects), except for the number of samples and the RNG.
+            batch_info = SimulationInfo(
+                model=self.model,
+                num_samples=batch_num_samples,
+                obstable=self.obstable,
+                passbands=self.passbands,
+                rng=batch_rng,
+                **self.kwargs,
+            )
+            batches.append(batch_info)
+        return batches
+
+
 def get_time_windows(t0, time_window_offset):
     """Get the time windows for each sample state based on the time window offset.
 
