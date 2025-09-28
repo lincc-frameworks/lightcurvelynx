@@ -3,9 +3,60 @@ columns and filtering on those columns."""
 
 import numpy as np
 import numpy.ma as ma
+import pandas as pd
 from nested_pandas import NestedFrame
 
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
+
+
+def concat_results(results_list):
+    """Concatenate a list of results into a single NestedFrame.
+
+    Parameters
+    ----------
+    results_list : list of nested_pandas.NestedFrame
+        The list of DataFrames to concatenate.
+
+    Returns
+    -------
+    nested_pandas.NestedFrame
+        The concatenated DataFrame.
+    """
+    if len(results_list) == 0:
+        raise ValueError("results_list is empty.")
+
+    # Create initial NestedFrame with the structure of the first element.
+    outer_cols = [col for col in results_list[0].columns if col != "lightcurve"]
+    inner_cols = [col for col in results_list[0]["lightcurve"].nest.fields]
+
+    # Flatten each NestedFrame and update their IDs to be unique.
+    flattened_list = []
+    next_idx = 0
+    for res in results_list:
+        if len(res) == 0:
+            continue
+        if "lightcurve" not in res.columns or "id" not in res.columns:
+            raise ValueError("All results must have 'lightcurve' and 'id' columns.")
+
+        res = res.explode("lightcurve", ignore_index=False)
+
+        # Update the indices to be unique across all results.
+        inds = res.index.to_numpy() + next_idx
+        res["id"] = inds
+        res["new_index"] = inds
+        next_idx += np.max(inds) + 1
+
+        flattened_list.append(res)
+
+    # Concatenate the flattened DataFrames.
+    result = pd.concat(flattened_list, ignore_index=True)
+    del flattened_list
+
+    # Re-nest and return the concatenated DataFrame.
+    result = NestedFrame.from_flat(
+        result, base_columns=outer_cols, nested_columns=inner_cols, on="new_index", name="lightcurve"
+    )
+    return result
 
 
 def results_drop_empty(results):
