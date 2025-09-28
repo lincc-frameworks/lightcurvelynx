@@ -38,13 +38,14 @@ def concat_results(results_list):
         if "lightcurve" not in res.columns or "id" not in res.columns:
             raise ValueError("All results must have 'lightcurve' and 'id' columns.")
 
+        num_results = len(res)
         res = res.explode("lightcurve", ignore_index=False)
 
         # Update the indices to be unique across all results.
         inds = res.index.to_numpy() + next_idx
         res["id"] = inds
         res["new_index"] = inds
-        next_idx += np.max(inds) + 1
+        next_idx += num_results
 
         flattened_list.append(res)
 
