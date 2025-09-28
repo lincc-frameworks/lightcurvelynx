@@ -72,7 +72,7 @@ def test_simulation_info():
         rng=np.random.default_rng(12345),
     )
     assert sim_info.num_samples == 100
-    assert sim_info.kwargs["time_window_offset"] == (-5.0, 10.0)
+    assert sim_info.time_window_offset == (-5.0, 10.0)
 
     # Test splitting into batches.
     batches = sim_info.split(num_batches=3)
@@ -82,9 +82,9 @@ def test_simulation_info():
     assert batches[2].num_samples == 32
 
     # We propagate all the keyword parameters.
-    assert batches[0].kwargs["time_window_offset"] == (-5.0, 10.0)
-    assert batches[1].kwargs["time_window_offset"] == (-5.0, 10.0)
-    assert batches[2].kwargs["time_window_offset"] == (-5.0, 10.0)
+    assert batches[0].time_window_offset == (-5.0, 10.0)
+    assert batches[1].time_window_offset == (-5.0, 10.0)
+    assert batches[2].time_window_offset == (-5.0, 10.0)
 
     # They have different RNGs with different sampling states.
     assert batches[0].rng is not batches[1].rng

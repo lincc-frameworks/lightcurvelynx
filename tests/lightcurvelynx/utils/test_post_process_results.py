@@ -4,12 +4,71 @@ import pytest
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
 from lightcurvelynx.utils.post_process_results import (
     augment_single_lightcurve,
+    concat_results,
     lightcurve_compute_mag,
     lightcurve_compute_snr,
     results_augment_lightcurves,
     results_drop_empty,
 )
 from nested_pandas import NestedFrame
+
+
+def test_concat_results():
+    """Test the concat_results function."""
+    # Create two NestedFrames to concatenate.
+    outer_dict_1 = {
+        "id": [0, 1, 2],
+        "ra": [10.0, 20.0, 30.0],
+        "dec": [-10.0, 0.0, 10.0],
+        "z": [0.1, 0.2, 0.3],
+    }
+    inner_dict_1 = {
+        "mjd": [59000, 59001, 59002, 59000, 59001, 59000],
+        "flux": [10.0, 12.0, 11.0, 15.0, 14.0, 13.0],
+        "fluxerr": [1.0, 1.0, 1.0, 1.5, 1.5, 1.0],
+        "filter": ["g", "r", "i", "g", "r", "i"],
+    }
+    nested_inds_1 = [0, 0, 0, 1, 1, 2]
+    res1 = NestedFrame(data=outer_dict_1, index=[0, 1, 2])
+    nested_1 = pd.DataFrame(data=inner_dict_1, index=nested_inds_1)
+    res1 = res1.add_nested(nested_1, "lightcurve")
+
+    outer_dict_2 = {
+        "id": [3, 4],
+        "ra": [40.0, 50.0],
+        "dec": [-40.0, -50.0],
+        "nobs": [2, 0],
+        "z": [0.4, 0.5],
+    }
+    inner_dict_2 = {
+        "mjd": [59000, 59001, 59001],
+        "flux": [20.0, 22.0, 21.0],
+        "fluxerr": [2.0, 2.0, 2.0],
+        "filter": ["g", "r", "i"],
+    }
+    nested_inds_2 = [0, 1, 1]
+    res2 = NestedFrame(data=outer_dict_2, index=[0, 1])
+    nested_2 = pd.DataFrame(data=inner_dict_2, index=nested_inds_2)
+    res2 = res2.add_nested(nested_2, "lightcurve")
+
+    # Concatenate the results.
+    results = concat_results([res1, res2])
+    assert len(results) == 5
+    assert results.columns.tolist() == ["id", "ra", "dec", "z", "lightcurve"]
+
+    # Check the outer columns.
+    assert results["id"].tolist() == [0, 1, 2, 3, 4]
+    assert np.array_equal(results["ra"], [10.0, 20.0, 30.0, 40.0, 50.0])
+    assert np.array_equal(results["dec"], [-10.0, 0.0, 10.0, -40.0, -50.0])
+    assert np.array_equal(results["z"], [0.1, 0.2, 0.3, 0.4, 0.5])
+
+    # Check one of the inner columns.
+    assert results["lightcurve"].nest.fields == ["mjd", "flux", "fluxerr", "filter"]
+    assert np.allclose(results["lightcurve"][0]["flux"], [10.0, 12.0, 11.0])
+    assert np.allclose(results["lightcurve"][1]["flux"], [15.0, 14.0])
+    assert np.allclose(results["lightcurve"][2]["flux"], [13.0])
+    assert np.allclose(results["lightcurve"][3]["flux"], [20.0])
+    assert np.allclose(results["lightcurve"][4]["flux"], [22.0, 21.0])
 
 
 def _allclose(a, b, rtol=1e-05, atol=1e-08):
