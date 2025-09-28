@@ -1,8 +1,11 @@
+from multiprocessing import Pool
+
 import numpy as np
 import pytest
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
+from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
@@ -216,6 +219,55 @@ def test_simulate_bandfluxes(test_data_dir):
     assert len(results) == 2
     assert np.allclose(results["lightcurve"][0]["flux_perfect"], [1.0, 3.0, 3.0, 5.0])
     assert np.allclose(results["lightcurve"][1]["flux_perfect"], [1.0, 3.0, 3.0, 5.0])
+
+
+def test_simulate_parallel(test_data_dir):
+    """Test an end to end run of simulating the light curves."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    ra0 = opsim_db["ra"].values[0]
+    dec0 = opsim_db["dec"].values[0]
+    source = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
+        t0=0.0,
+        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
+        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    with Pool(processes=2) as pool:
+        results = simulate_lightcurves(
+            source,
+            100,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            pool=pool,
+            batch_size=10,
+        )
+    assert len(results) == 100
+    assert np.all(results["nobs"].values >= 1)
+    assert np.all(results["ra"].values >= ra0 - 0.5)
+    assert np.all(results["ra"].values <= ra0 + 0.5)
+    assert np.all(results["dec"].values >= dec0 - 0.5)
+    assert np.all(results["dec"].values <= dec0 + 0.5)
+
+    for idx in range(100):
+        num_obs = results["nobs"][idx]
+        assert num_obs >= 1
+        assert len(results["lightcurve"][idx]["flux"]) == num_obs
 
 
 def test_simulate_single_lightcurve(test_data_dir):

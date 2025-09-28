@@ -64,6 +64,7 @@ class SimulationInfo:
         param_cols=None,
         apply_obs_mask=False,
         time_window_offset=None,
+        sample_offset=0,
         rng=None,
         **kwargs,
     ):
@@ -75,6 +76,7 @@ class SimulationInfo:
         self.time_window_offset = time_window_offset
         self.obstable_save_cols = obstable_save_cols
         self.param_cols = param_cols
+        self.sample_offset = sample_offset
         self.rng = rng
         self.kwargs = kwargs
 
@@ -140,6 +142,7 @@ class SimulationInfo:
                 param_cols=self.param_cols,
                 apply_obs_mask=self.apply_obs_mask,
                 time_window_offset=self.time_window_offset,
+                sample_offset=self.sample_offset + start_idx,
                 rng=batch_rng,
                 **self.kwargs,
             )
