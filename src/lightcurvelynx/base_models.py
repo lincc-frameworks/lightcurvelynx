@@ -166,7 +166,7 @@ class ParameterSource:
         self.value = param_name
 
 
-class AttributeNode:
+class AttributeIndicatorNode:
     """A class to wrap a single attribute of an object."""
 
     def __init__(self, attr_name, parent):
@@ -423,7 +423,7 @@ class ParameterizedNode:
             value = kwargs[name]
 
         if callable(value):
-            if isinstance(value, AttributeNode):
+            if isinstance(value, AttributeIndicatorNode):
                 # Case 1a: This is an attribute of a ParameterizedNode.
                 # We set the parameter's value in this node as the extraction of the
                 # parameter's value in the parent node.
@@ -522,14 +522,14 @@ class ParameterizedNode:
         if allow_gradient is not None:
             self.setters[name].allow_gradient = allow_gradient
 
-        # Create an AttributeNode to represent this parameter.
+        # Create an AttributeIndicatorNode to represent this parameter.
         # This node allows us to reference the parameter as object.parameter_name
         # for chaining without copying the value. For example, if my_node_1, is a
         # ParameterizedNode with a parameter x, we can do:
         #   my_node_2 = ParameterizedNode(y=my_node_1.x)
         # and my_node_2 will know to use the sampled values of x from my_node_1
         # (as opposed to the setter for x).
-        setattr(self, name, AttributeNode(name, self))
+        setattr(self, name, AttributeIndicatorNode(name, self))
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Placeholder for a general compute function, which is called at the end
