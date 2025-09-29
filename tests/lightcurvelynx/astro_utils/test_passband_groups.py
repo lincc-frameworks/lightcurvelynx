@@ -612,3 +612,27 @@ def test_passband_group_calculate_in_band_wave_indices(passbands_dir, tmp_path):
     toy_c_inds = toy_passband_group._in_band_wave_indices["TOY_c"]
     assert toy_c_inds == slice(17, 28)
     np.testing.assert_allclose(passband_C.waves, toy_passband_group.waves[toy_c_inds])
+
+
+def test_write_and_read_passband_group(passbands_dir, tmp_path):
+    """Test that we can write a PassbandGroup to a file and read it back in."""
+    file_path = tmp_path / "test_passband_group.csv"
+
+    # We can't read the file if it does not exist.
+    with pytest.raises(FileNotFoundError):
+        _ = PassbandGroup.from_file(file_path)
+
+    pb_group = create_lsst_passband_group(passbands_dir)
+    pb_group.to_file(file_path)
+    assert file_path.is_file()
+
+    # We can read the file back in.
+    pb_group2 = PassbandGroup.from_file(file_path)
+    assert pb_group2 is not None
+    for key in pb_group.passbands:
+        assert key in pb_group2.passbands
+        assert pb_group.passbands[key] == pb_group2.passbands[key]
+
+    # We get an error if we try to overwrite an existing file without permission.
+    with pytest.raises(FileExistsError):
+        pb_group.to_file(file_path, overwrite=False)

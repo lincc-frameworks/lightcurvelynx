@@ -31,6 +31,39 @@ def create_toy_passband(path, transmission_table, filter_name="a", **kwargs):
     return Passband.from_file(survey, filter_name, table_path=table_path, **kwargs)
 
 
+def test_trim_transmission_by_quantile():
+    """Test that we can trim a transmission table by quantile."""
+    waves = np.arange(1000, 1999, 10).astype(float)
+    values = np.ones_like(waves)
+    transmission_table = np.column_stack((waves, values))
+    assert transmission_table.shape == (100, 2)
+
+    # Time quantile of zero does nothing.
+    untrimmed_table = Passband.trim_transmission_by_quantile(transmission_table, 0.0)
+    assert untrimmed_table.shape == (100, 2)
+    assert np.allclose(untrimmed_table, transmission_table)
+
+    # Trim the transmission table to the central 80% of rows (0.1 quantile on each side)
+    trimmed_table = Passband.trim_transmission_by_quantile(transmission_table, 0.1)
+    assert trimmed_table.shape == (82, 2)
+    assert np.allclose(trimmed_table[:, 0], waves[8:90])
+    assert np.allclose(trimmed_table[:, 1], values[8:90])
+
+
+def test_normalize_transmission():
+    """Test that we can normalize a transmission table."""
+    waves = np.arange(1000, 1999, 10).astype(float)
+    values = np.ones_like(waves)
+    transmission_table = np.column_stack((waves, values))
+    assert transmission_table.shape == (100, 2)
+
+    # Compute the system response from the throughput table
+    system_response = Passband.compute_system_response_table(transmission_table)
+    assert transmission_table.shape == (100, 2)
+    assert np.all(np.diff(system_response[:, 1]) <= 0.0)  # Should be non-increasing
+    assert np.isclose(np.trapz(system_response[:, 1], x=system_response[:, 0]), 1.0)  # Area should be 1.0
+
+
 def test_passband_str(passbands_dir, tmp_path):
     """Test the __str__ method of the Passband class."""
     # Test an LSST passband:
@@ -247,9 +280,9 @@ def test_process_transmission_table(passbands_dir, tmp_path):
 
     # Mock the methods that _process_transmission_table wraps, to check each is called once
     with (
-        patch.object(a_band, "_interpolate_transmission_table") as mock_interp_table,
-        patch.object(a_band, "_trim_transmission_by_quantile") as mock_trim_table,
-        patch.object(a_band, "_normalize_transmission_table") as mock_norm_table,
+        patch.object(a_band, "interpolate_transmission_table") as mock_interp_table,
+        patch.object(a_band, "trim_transmission_by_quantile") as mock_trim_table,
+        patch.object(a_band, "compute_system_response_table") as mock_norm_table,
     ):
         # Call the _process_transmission_table method
         delta_wave, trim_quantile = 1.0, 0.05
@@ -276,73 +309,73 @@ def test_process_transmission_table(passbands_dir, tmp_path):
         a_band.process_transmission_table(delta_wave, trim_quantile)
 
 
-def test_interpolate_transmission_table(passbands_dir, tmp_path):
-    """Test the _interpolate_transmission_table method of the Passband class."""
+def testinterpolate_transmission_table(passbands_dir, tmp_path):
+    """Test the interpolate_transmission_table method of the Passband class."""
     transmission_table = "100 0.5\n200 0.75\n300 0.25\n"
     a_band = create_toy_passband(tmp_path, transmission_table)
 
     # Interpolate the transmission table to a large step size (50 Angstrom)
-    table = a_band._interpolate_transmission_table(a_band._loaded_table, delta_wave=50)
+    table = a_band.interpolate_transmission_table(a_band._loaded_table, delta_wave=50)
     np.testing.assert_allclose(table[:, 0], np.arange(100, 301, 50))
 
     # Interpolate the transmission table to a somewhat small step size (1 Angstrom)
-    table = a_band._interpolate_transmission_table(a_band._loaded_table, delta_wave=1)
+    table = a_band.interpolate_transmission_table(a_band._loaded_table, delta_wave=1)
     np.testing.assert_allclose(table[:, 0], np.arange(100, 301, 1))
 
     # Interpolate the transmission table to an even smaller step size (0.1 Angstrom)
-    table = a_band._interpolate_transmission_table(a_band._loaded_table, delta_wave=0.1)
+    table = a_band.interpolate_transmission_table(a_band._loaded_table, delta_wave=0.1)
     np.testing.assert_allclose(table[:, 0], np.arange(100, 300.01, 0.1))
 
     # Check that we raise an error if the transmission table is the wrong shape
     with pytest.raises(ValueError):
-        a_band._interpolate_transmission_table(np.array([[100, 0.5], [200, 0.75], [300, 0.25], [400]]))
+        a_band.interpolate_transmission_table(np.array([[100, 0.5], [200, 0.75], [300, 0.25], [400]]))
 
     # Check that we raise an error if the delta_wave is not a positive number
     with pytest.raises(ValueError):
-        a_band._interpolate_transmission_table(a_band._loaded_table, delta_wave=-1)
+        a_band.interpolate_transmission_table(a_band._loaded_table, delta_wave=-1)
 
     # Check that we can run method on a standard LSST transmission table
     LSST_i = create_lsst_passband(passbands_dir, "i")
-    table = LSST_i._interpolate_transmission_table(LSST_i._loaded_table, delta_wave=50)
+    table = LSST_i.interpolate_transmission_table(LSST_i._loaded_table, delta_wave=50)
     assert len(table) > 0
     assert len(table) < len(LSST_i._loaded_table)
 
 
 def test_trim_transmission_table(passbands_dir, tmp_path):
-    """Test the _trim_transmission_by_quantile method of the Passband class."""
+    """Test the trim_transmission_by_quantile method of the Passband class."""
 
     # Test: transmission table with only 3 points
     transmission_table = "100 0.5\n200 0.75\n300 0.25\n"
     a_band = create_toy_passband(tmp_path, transmission_table)
 
     # Trim the transmission table by 5% (should remove the last point)
-    table = a_band._trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=0.05)
+    table = a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=0.05)
     np.testing.assert_allclose(table, np.array([[100, 0.5], [200, 0.75]]))
 
     # Trim the transmission table by 40% (should still preserve the first point, as table is skewed)
-    table = a_band._trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=0.4)
+    table = a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=0.4)
     np.testing.assert_allclose(table, np.array([[100, 0.5], [200, 0.75]]))
 
     # Check no trimming if quantile is 0
-    table = a_band._trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=None)
+    table = a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=None)
     np.testing.assert_allclose(table, np.array([[100, 0.5], [200, 0.75], [300, 0.25]]))
 
     # Check we raise an error if the quantile is not greater or equal to 0 and less than 0.5
     with pytest.raises(ValueError):
-        a_band._trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=0.5)
+        a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=0.5)
     with pytest.raises(ValueError):
-        a_band._trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=-0.1)
+        a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=-0.1)
 
     # Check we raise an error if the transmission table is the wrong shape
     with pytest.raises(ValueError):
-        a_band._trim_transmission_by_quantile(np.array([[100, 0.5], [200, 0.75], [300, 0.25], [400]]))
+        a_band.trim_transmission_by_quantile(np.array([[100, 0.5], [200, 0.75], [300, 0.25], [400]]))
 
     # Test 2: larger, more gaussian transmission table
     transmission_table = "100 0.05\n200 0.1\n300 0.25\n400 0.5\n500 0.8\n600 0.6\n700 0.4\n800 0.2\n900 0.1\n"
     b_band = create_toy_passband(tmp_path, transmission_table, filter_name="b")
 
     # Trim the transmission table by 5% (should remove the last point)
-    table = b_band._trim_transmission_by_quantile(b_band._loaded_table, trim_quantile=0.05)
+    table = b_band.trim_transmission_by_quantile(b_band._loaded_table, trim_quantile=0.05)
     np.testing.assert_allclose(
         table,
         np.array(
@@ -351,11 +384,11 @@ def test_trim_transmission_table(passbands_dir, tmp_path):
     )
 
     # Trim the transmission table by 40% (should remove most points)
-    table = b_band._trim_transmission_by_quantile(b_band._loaded_table, trim_quantile=0.4)
+    table = b_band.trim_transmission_by_quantile(b_band._loaded_table, trim_quantile=0.4)
     np.testing.assert_allclose(table, np.array([[300, 0.25], [400, 0.5], [500, 0.8]]))
 
     # Check no trimming if quantile is 0
-    table = b_band._trim_transmission_by_quantile(b_band._loaded_table, trim_quantile=None)
+    table = b_band.trim_transmission_by_quantile(b_band._loaded_table, trim_quantile=None)
     np.testing.assert_allclose(
         table,
         np.array(
@@ -386,7 +419,7 @@ def test_trim_transmission_table(passbands_dir, tmp_path):
     c_band = create_toy_passband(tmp_path, transmission_table, filter_name="c")
 
     # Trim the transmission table by 5% on each side
-    table = c_band._trim_transmission_by_quantile(c_band._loaded_table, trim_quantile=0.05)
+    table = c_band.trim_transmission_by_quantile(c_band._loaded_table, trim_quantile=0.05)
     assert len(table) < len(c_band._loaded_table)
 
     original_area = np.trapezoid(c_band._loaded_table[:, 1], x=c_band._loaded_table[:, 0])
@@ -395,7 +428,7 @@ def test_trim_transmission_table(passbands_dir, tmp_path):
 
     # Test 4: LSST transmission table
     LSST_z = create_lsst_passband(passbands_dir, "z")
-    table = LSST_z._trim_transmission_by_quantile(LSST_z._loaded_table, trim_quantile=0.05)
+    table = LSST_z.trim_transmission_by_quantile(LSST_z._loaded_table, trim_quantile=0.05)
     assert len(table) < len(LSST_z._loaded_table)
 
     original_area = np.trapezoid(LSST_z._loaded_table[:, 1], x=LSST_z._loaded_table[:, 0])
@@ -403,14 +436,14 @@ def test_trim_transmission_table(passbands_dir, tmp_path):
     assert trimmed_area >= (original_area * 0.9)
 
 
-def test_passband_normalize_transmission_table(passbands_dir, tmp_path):
-    """Test the _normalize_transmission_table method of the Passband class."""
+def test_passbandcompute_system_response_table(passbands_dir, tmp_path):
+    """Test the compute_system_response_table method of the Passband class."""
     # Test a toy transmission table
     transmission_table = "100 0.5\n200 0.75\n300 0.25\n"
     a_band = create_toy_passband(tmp_path, transmission_table, delta_wave=100, trim_quantile=None)
 
     # Normalize the transmission table (we skip interpolation as grid already matches)
-    a_band._normalize_transmission_table(a_band._loaded_table)
+    a_band.compute_system_response_table(a_band._loaded_table)
 
     # Compare results
     expected_result = np.array([[100.0, 0.0075], [200.0, 0.005625], [300.0, 0.00125]])
@@ -418,17 +451,17 @@ def test_passband_normalize_transmission_table(passbands_dir, tmp_path):
 
     # Test that we raise an error if the transmission table is the wrong size or shape
     with pytest.raises(ValueError):
-        a_band._normalize_transmission_table(np.array([[]]))
+        a_band.compute_system_response_table(np.array([[]]))
     with pytest.raises(ValueError):
-        a_band._normalize_transmission_table(np.array([[100, 0.5]]))
+        a_band.compute_system_response_table(np.array([[100, 0.5]]))
     with pytest.raises(ValueError):
-        a_band._normalize_transmission_table(np.array([100, 0.5]))
+        a_band.compute_system_response_table(np.array([100, 0.5]))
     with pytest.raises(ValueError):
-        a_band._normalize_transmission_table(np.array([[100, 0.5, 105, 0.6]]))
+        a_band.compute_system_response_table(np.array([[100, 0.5, 105, 0.6]]))
 
     # Test we can call method on a standard LSST transmission table
     LSST_y = create_lsst_passband(passbands_dir, "y")
-    normalized_table = LSST_y._normalize_transmission_table(LSST_y._loaded_table)
+    normalized_table = LSST_y.compute_system_response_table(LSST_y._loaded_table)
     assert len(normalized_table) == len(LSST_y._loaded_table)
     assert not np.allclose(normalized_table, LSST_y._loaded_table)
 
