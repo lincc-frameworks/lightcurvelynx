@@ -416,7 +416,7 @@ def simulate_lightcurves(
         param_cols=param_cols,
     )
 
-    if pool is not None:
+    if pool is not None and batch_size < num_samples:
         # Split the simulation info into batches for parallel processing.
         batches = simulation_info.split(batch_size=batch_size)
 
