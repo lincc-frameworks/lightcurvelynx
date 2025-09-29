@@ -166,8 +166,8 @@ class PassbandGroup:
         return list(self._filter_to_name.keys())
 
     @classmethod
-    def from_file(cls, file_path: Union[str, Path], **kwargs):
-        """Load a PassbandGroup from a single file containing multiple passbands.
+    def from_preprocessed_file(cls, file_path: Union[str, Path], **kwargs):
+        """Load a PassbandGroup from a single file containing multiple preprocessed passbands.
 
         The file should be a CSV file with columns: survey, filter_name, wavelength, transmission.
         The wavelengths should be in Angstroms.

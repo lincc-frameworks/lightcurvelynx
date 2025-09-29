@@ -620,14 +620,14 @@ def test_write_and_read_passband_group(passbands_dir, tmp_path):
 
     # We can't read the file if it does not exist.
     with pytest.raises(FileNotFoundError):
-        _ = PassbandGroup.from_file(file_path)
+        _ = PassbandGroup.from_preprocessed_file(file_path)
 
     pb_group = create_lsst_passband_group(passbands_dir)
     pb_group.to_file(file_path)
     assert file_path.is_file()
 
     # We can read the file back in.
-    pb_group2 = PassbandGroup.from_file(file_path)
+    pb_group2 = PassbandGroup.from_preprocessed_file(file_path)
     assert pb_group2 is not None
     for key in pb_group.passbands:
         assert key in pb_group2.passbands
