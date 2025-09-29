@@ -2,6 +2,7 @@
 information. ObsTable class is a base class with specific implementations
 for different survey data, such as Rubin and ZTF."""
 
+import logging
 import sqlite3
 from pathlib import Path
 
@@ -14,6 +15,9 @@ from regions import Region
 from scipy.spatial import KDTree
 
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
 class ObsTable:
@@ -708,7 +712,8 @@ class ObsTable:
             number of samples in the graph state and T is the number of time points.
         """
         if self._saturation_thresholds is None:
-            return flux, flux_error  # No saturation information available.
+            logger.info("Saturation thresholds not provided. Skipping saturation computation.")
+            return flux, flux_error
 
         flux = np.asarray(flux)
         flux_error = np.asarray(flux_error)
