@@ -219,6 +219,7 @@ class PassbandGroup:
     def from_dir(
         cls,
         dir_path: Union[str, Path],
+        *,
         filters: list | None = None,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
@@ -274,7 +275,7 @@ class PassbandGroup:
         return PassbandGroup(given_passbands=all_params, filters=filters)
 
     @classmethod
-    def from_preset(cls, preset: str, table_dir=None, filters=None, **kwargs) -> None:
+    def from_preset(cls, preset: str, *, table_dir=None, filters=None, **kwargs) -> None:
         """Create a passband group from a pre-defined set of passbands.
 
         Parameters
@@ -423,6 +424,7 @@ class PassbandGroup:
     def from_svo(
         cls,
         all_filters: list[str],
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         table_dir: Union[str, Path] | None = None,
@@ -582,7 +584,9 @@ class PassbandGroup:
         filter_name_mask = np.isin(filters, list(self._filter_to_name.keys()))
         return full_name_mask | filter_name_mask
 
-    def process_transmission_tables(self, delta_wave: float | None = 5.0, trim_quantile: float | None = 1e-3):
+    def process_transmission_tables(
+        self, *, delta_wave: float | None = 5.0, trim_quantile: float | None = 1e-3
+    ):
         """Process the transmission tables for all passbands in the group; recalculate group's wave attribute.
 
         Parameters
@@ -594,7 +598,10 @@ class PassbandGroup:
             transmission table will be trimmed to include only the central 99.8% of rows.
         """
         for passband in self.passbands.values():
-            passband.process_transmission_table(delta_wave, trim_quantile)
+            passband.process_transmission_table(
+                delta_wave=delta_wave,
+                trim_quantile=trim_quantile,
+            )
 
         self._update_internal_data()
 
@@ -663,7 +670,7 @@ class PassbandGroup:
             bandfluxes[full_name] = self.fluxes_to_bandflux(flux_density_matrix, full_name)
         return bandfluxes
 
-    def to_file(self, file_path: Union[str, Path], overwrite: bool = False) -> None:
+    def to_file(self, file_path: Union[str, Path], *, overwrite: bool = False) -> None:
         """Save the entire passband group to a single file."""
         if not overwrite and Path(file_path).exists():
             raise FileExistsError(f"File {file_path} already exists. Use overwrite=True to overwrite it.")
@@ -678,7 +685,7 @@ class PassbandGroup:
         combined_df = pd.concat(all_data, ignore_index=True)
         combined_df.to_csv(file_path, index=False)
 
-    def plot(self, ax=None, figure=None):
+    def plot(self, *, ax=None, figure=None):
         """Plot the PassbandGroup on a single plot.
 
         Parameters
@@ -729,6 +736,7 @@ class Passband:
         table_values: np.array,
         survey: str,
         filter_name: str,
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         units: Literal["nm", "A"] | None = "A",
@@ -782,7 +790,7 @@ class Passband:
             raise ValueError(f"Unknown Passband units {units}")
 
         # Preprocess the passband.
-        self.process_transmission_table(delta_wave, trim_quantile)
+        self.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
 
     def __str__(self) -> str:
         """Return a string representation of the Passband."""
@@ -808,6 +816,7 @@ class Passband:
         cls,
         survey: str,
         filter_name: str,
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         table_path: Union[str, Path] | None = None,
@@ -867,8 +876,8 @@ class Passband:
             loaded_table,
             survey,
             filter_name,
-            delta_wave,
-            trim_quantile,
+            delta_wave=delta_wave,
+            trim_quantile=trim_quantile,
             units="A",  # All loaded tables are pre-converted to Angstroms
         )
 
@@ -920,6 +929,7 @@ class Passband:
     def from_svo(
         cls,
         full_filter_name,
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         table_dir: Union[str, Path] | None = None,
@@ -984,6 +994,7 @@ class Passband:
     @staticmethod
     def load_transmission_table(
         table_path: Union[str, Path],
+        *,
         wave_units: Literal["nm", "A"] = "A",
         **kwargs,
     ) -> np.ndarray:
@@ -1072,6 +1083,7 @@ class Passband:
 
     def process_transmission_table(
         self,
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
     ):
@@ -1280,7 +1292,7 @@ class Passband:
             bandfluxes = scipy.integrate.trapezoid(integrand, x=self.waves, axis=w_axis)
         return bandfluxes
 
-    def plot(self, ax=None, figure=None, color=None, plot_loaded=False):
+    def plot(self, *, ax=None, figure=None, color=None, plot_loaded=False):
         """Plot the passband.
 
         Parameters

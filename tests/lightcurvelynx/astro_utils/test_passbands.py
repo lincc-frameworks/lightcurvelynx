@@ -286,7 +286,7 @@ def test_process_transmission_table(passbands_dir, tmp_path):
     ):
         # Call the _process_transmission_table method
         delta_wave, trim_quantile = 1.0, 0.05
-        a_band.process_transmission_table(delta_wave, trim_quantile)
+        a_band.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
 
         # Check that each method is called once
         mock_interp_table.assert_called_once_with(a_band._loaded_table, delta_wave)
@@ -295,18 +295,18 @@ def test_process_transmission_table(passbands_dir, tmp_path):
 
     # Now call without mocking, to check waves set correctly (other values checked in method-specific tests)
     delta_wave, trim_quantile = 5.0, None
-    a_band.process_transmission_table(delta_wave, trim_quantile)
+    a_band.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
     np.testing.assert_allclose(a_band.waves, np.arange(100, 301, delta_wave))
 
     # Check that we can call the method on a standard LSST transmission table
     LSST_r = create_lsst_passband(passbands_dir, "r")
-    LSST_r.process_transmission_table(delta_wave, trim_quantile)
+    LSST_r.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
     assert LSST_r.waves is not None
 
     # Check that we raise an error if the transmission table is the wrong shape
     a_band._loaded_table = np.array([[100, 0.5, 105, 0.6]])
     with pytest.raises(ValueError):
-        a_band.process_transmission_table(delta_wave, trim_quantile)
+        a_band.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
 
 
 def testinterpolate_transmission_table(passbands_dir, tmp_path):
