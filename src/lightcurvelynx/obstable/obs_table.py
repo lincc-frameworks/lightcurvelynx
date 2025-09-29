@@ -37,6 +37,10 @@ class ObsTable:
     wcs : astropy.wcs.WCS, optional
         The WCS for the footprint. Either this or pixel_scale must be provided if
         a footprint is provided as a Astropy region.
+    saturation_thresholds : dict, optional
+        The saturation thresholds in nJy. If provided, this will be used to
+        compute the saturation limit for each observation. If None, an instrument-specific
+        default will be used, if available.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This can include
         overrides of any of the survey values.
@@ -62,6 +66,9 @@ class ObsTable:
         filtering is done. Default is None.
     _wacs : astropy.wcs.WCS, optional
         The WCS for the footprint.
+    _saturation_thresholds : dict, optional
+        The saturation thresholds in nJy for each filter. If None, an instrument-specific
+        default will be used, if available.
     """
 
     _required_columns = ["ra", "dec", "time"]
@@ -84,6 +91,7 @@ class ObsTable:
         colmap=None,
         detector_footprint=None,
         wcs=None,
+        saturation_thresholds=None,
         **kwargs,
     ):
         # Create a copy of the table.
@@ -144,6 +152,11 @@ class ObsTable:
             pixel_scale = self.survey_values.get("pixel_scale", None)
             detector_footprint = DetectorFootprint(detector_footprint, wcs=wcs, pixel_scale=pixel_scale)
         self._detector_footprint = detector_footprint
+
+        # Save the saturation thresholds if provided.
+        if saturation_thresholds is None and "saturation_thresholds" in kwargs:
+            saturation_thresholds = kwargs["saturation_thresholds"]
+        self._saturation_thresholds = saturation_thresholds
 
     def __len__(self):
         return len(self._table)
@@ -673,3 +686,43 @@ class ObsTable:
             Simulated bandflux noise in nJy.
         """
         raise NotImplementedError
+
+    def compute_saturation(self, flux, flux_error, filters):
+        """Apply the saturation limits to a given flux and flux error.
+
+        Parameters
+        ----------
+        flux : numpy.ndarray of float
+            The bandflux in nJy. A size S x T array where S is the
+                number of samples in the graph state and T is the number of time points.
+        flux_error : numpy.ndarray of float
+            The bandflux error in nJy. A size S x T array where S is the
+                number of samples in the graph state and T is the number of time points.
+        filters : numpy.ndarray of str
+            The filter names. A size T array where T is the number of time points.
+
+        Returns
+        -------
+        saturation_limit : numpy.ndarray of float
+            The saturation limit in nJy. A size S x T array where S is the
+            number of samples in the graph state and T is the number of time points.
+        """
+        if self._saturation_thresholds is None:
+            return flux, flux_error  # No saturation information available.
+
+        flux = np.asarray(flux)
+        flux_error = np.asarray(flux_error)
+        filters = np.asarray(filters)
+
+        if len(flux) != len(flux_error) or len(flux) != len(filters):
+            raise ValueError("Input arrays must have the same length.")
+
+        # Make a new list called limits, which takes the filters and maps them to the saturation thresholds
+        limits = np.array([self._saturation_thresholds.get(filt, np.inf) for filt in filters])
+
+        # Make a list that is the minimum of flux and limits
+        flux = np.minimum(flux, limits)
+
+        # TODO: flux error?
+
+        return flux, flux_error

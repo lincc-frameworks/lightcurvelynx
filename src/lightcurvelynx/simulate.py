@@ -198,8 +198,13 @@ def simulate_lightcurves(
             bandfluxes_error = obstable[survey_idx].bandflux_error_point_source(bandfluxes_perfect, obs_index)
             bandfluxes = apply_noise(bandfluxes_perfect, bandfluxes_error, rng=rng)
 
+            # Apply saturation thresholds from the ObsTable.
+            bandfluxes, bandfluxes_error = obstable[survey_idx].compute_saturation(
+                bandfluxes, bandfluxes_error, obs_filters
+            )
+
             # Append the per-observation data to the nested dictionary, including
-            # and needed ObsTable columns.
+            # any needed ObsTable columns.
             nobs = len(obs_times)
             nested_dict["mjd"].extend(list(obs_times))
             nested_dict["filter"].extend(list(obs_filters))

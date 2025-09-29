@@ -1,10 +1,13 @@
 import numpy as np
+import pandas as pd
 import pytest
+
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
+from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.simulate import (
     compute_noise_free_lightcurves,
@@ -429,3 +432,194 @@ def test_compute_noise_free_lightcurves_multiple(test_data_dir):
             assert len(bandfluxes) == len(lc_df["times"])
             assert np.allclose(bandfluxes[~mask], 0.0)
             assert np.allclose(bandfluxes[mask], 100.0)
+
+
+def test__saturation_thresholds_initialization(test_data_dir):
+    """Check initialization of saturation thresholds."""
+    # Opsim saturation thresholds should be set by default.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    assert opsim_db._saturation_thresholds is not None
+    assert isinstance(opsim_db._saturation_thresholds, dict)
+    for filter in ["u", "g", "r", "i", "z", "y"]:
+        assert filter in opsim_db._saturation_thresholds
+
+    # A FakeObsTable should have no saturation thresholds by default.
+    fake_obs = FakeObsTable(
+        pd.DataFrame(
+            {
+                "time": [0.0, 1.0],
+                "ra": [0.0, 0.0],
+                "dec": [0.0, 0.0],
+                "filter": ["g", "r"],
+            }
+        ),
+        zp_per_band={"g": 26.0, "r": 27.0},
+        exptime=30.0,
+        fwhm_px={"g": 2.5, "r": 3.1},
+        nexposure=2,
+        radius=100.0,
+        read_noise=5.0,
+        sky={"g": 150.0, "r": 140.0},
+        survey_name="MY_SURVEY",
+    )
+    assert fake_obs._saturation_thresholds is None
+
+
+def test_simulate_with_saturation_thresholds_as_none(test_data_dir):
+    """Test an end to end run of simulating a single light curve with custom saturation thresholds."""
+    # Set up obs table (with no saturation thresholds set)
+    obs_table_values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+    }
+    pdf = pd.DataFrame(obs_table_values)
+    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+
+    ops_data = FakeObsTable(
+        pdf,
+        zp_per_band=zp_per_band,
+        exptime=60.0,
+        fwhm_px={"g": 2.5, "r": 3.1, "i": 1.9},
+        nexposure=200,
+        radius=100.0,
+        read_noise=5.0,
+        sky={"g": 150.0, "r": 140.0, "i": 155.0},
+        survey_name="MY_SURVEY",
+    )
+    assert ops_data._saturation_thresholds is None
+
+    # Set up model
+    # given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
+    source = ConstantSEDModel(
+        brightness=50_000.0,  # GivenValueList(given_brightness),
+        t0=0.0,
+        ra=GivenValueList(obs_table_values["ra"]),
+        dec=GivenValueList(obs_table_values["dec"]),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    # Simulate
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    results = simulate_lightcurves(
+        source,
+        1,
+        ops_data,
+        passband_group,
+        obstable_save_cols=["observationId", "zp_nJy"],
+        param_cols=["source.brightness"],
+    )
+    assert len(results) == 1
+
+
+def test_simulate_with_default_saturation_thresholds_values(test_data_dir):
+    """Test an end to end run of simulating a single light curve with default saturation thresholds."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the g and r filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r"],
+    )
+
+    # Create a constant SED model with known RA and dec values that match the opsim.
+    # Note the brightness is set very high to ensure saturation threshold is surpassed.
+    source = ConstantSEDModel(
+        brightness=(2.0e12),  # Very bright to ensure saturation
+        t0=0.0,
+        ra=GivenValueList(opsim_db["ra"].values[0:5]),
+        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    results = simulate_lightcurves(
+        source,
+        1,
+        opsim_db,
+        passband_group,
+        obstable_save_cols=["observationId", "zp_nJy"],
+        param_cols=["source.brightness"],
+    )
+    assert len(results) == 1
+
+    # Check that every flux value is below the saturation threshold for its filter.
+    lightcurve = results["lightcurve"][0]
+    for filter in ["g", "r"]:
+        mask = lightcurve["filter"] == filter
+        fluxes = lightcurve["flux"][mask]
+        assert np.all(fluxes <= opsim_db._saturation_thresholds[filter])
+
+
+def test_simulate_with_custom_saturation_thresholds(test_data_dir):
+    """Test an end to end run of simulating a single light curve with custom saturation thresholds."""
+    # Set up obs table
+    obs_table_values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+    }
+    pdf = pd.DataFrame(obs_table_values)
+    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    toy_sat_thresholds = {
+        "g": 1_000.0,
+        "r": 900.0,
+        "i": 1_100.0,
+        "z": 1_200.0,
+    }
+
+    ops_data = FakeObsTable(
+        pdf,
+        zp_per_band=zp_per_band,
+        exptime=60.0,
+        fwhm_px={"g": 2.5, "r": 3.1, "i": 1.9},
+        nexposure=200,
+        radius=100.0,
+        read_noise=5.0,
+        sky={"g": 150.0, "r": 140.0, "i": 155.0},
+        survey_name="MY_SURVEY",
+        saturation_thresholds=toy_sat_thresholds,
+    )
+
+    # Set up model
+    # given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
+    source = ConstantSEDModel(
+        brightness=50_000.0,  # GivenValueList(given_brightness),
+        t0=0.0,
+        ra=GivenValueList(obs_table_values["ra"]),
+        dec=GivenValueList(obs_table_values["dec"]),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    # Simulate
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    results = simulate_lightcurves(
+        source,
+        1,
+        ops_data,
+        passband_group,
+        obstable_save_cols=["observationId", "zp_nJy"],
+        param_cols=["source.brightness"],
+    )
+    assert len(results) == 1
+
+    # Check that every flux value is below the saturation threshold for its filter.
+    lightcurve = results["lightcurve"][0]
+    for filter in ["g", "r", "i", "z"]:
+        mask = lightcurve["filter"] == filter
+        fluxes = lightcurve["flux"][mask]
+        assert np.all(fluxes <= toy_sat_thresholds[filter])

@@ -59,6 +59,7 @@ class OpSim(ObsTable):
         - radius: The angular radius of the observations (in degrees).
         - read_noise: The readout noise for the camera in electrons per pixel.
         - zp_per_sec: Mapping of filter names to zeropoints at zenith.
+        - saturation_thresholds: Mapping of filter names to saturation thresholds in nJy.
     """
 
     _required_names = ["ra", "dec", "time"]
@@ -88,6 +89,18 @@ class OpSim(ObsTable):
         "survey_name": "LSST",
     }
 
+    # Default LSST saturation thresholds in nJy (converted from AB mag).
+    # https://www.lsst.org/sites/default/files/docs/sciencebook/SB_3.pdf
+    # u, g, r, i, z, y = 14.7, 15.7, 15.8, 15.8, 15.3 and 13.9
+    _default_saturation_thresholds = {
+        "u": 4_786_300_923_226.38,
+        "g": 1_905_460_717_963.2463,
+        "r": 1_737_800_828_749.3728,
+        "i": 1_737_800_828_749.3728,
+        "z": 2_754_228_703_338.16,
+        "y": 9_999_999_999_999.98,
+    }
+
     # Class constants for the column names.
     def __init__(
         self,
@@ -96,6 +109,8 @@ class OpSim(ObsTable):
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
+        if "saturation_thresholds" not in kwargs or kwargs["saturation_thresholds"] is None:
+            kwargs["saturation_thresholds"] = self._default_saturation_thresholds
         super().__init__(table, colmap=colmap, **kwargs)
 
     def _assign_zero_points(self):
