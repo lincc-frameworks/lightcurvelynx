@@ -81,6 +81,10 @@ def test_create_lightcurve_data_from_dict() -> None:
         assert np.allclose(lc_data3.lightcurves[filt][:, 1], mag2flux(lightcurves[filt][:, 1]))
     assert lc_data3.baseline == {"u": mag2flux(0.1), "g": mag2flux(0.2), "r": mag2flux(0.3)}
 
+    # We fail if we try to create a light curve without a t0.
+    with pytest.raises(ValueError):
+        _ = LightcurveData(lightcurves, lc_data_t0=None)
+
 
 def test_create_lightcurve_data_periodic_from_dict() -> None:
     """Test that we can create a periodic LightcurveData object from a dict."""
@@ -248,6 +252,43 @@ def test_create_lightcurve_template_model() -> None:
     pb_group = _create_toy_passbands()
     lightcurves = _create_toy_lightcurves()
     lc_model = LightcurveTemplateModel(lightcurves, pb_group, lc_data_t0=0.0, t0=0.0)
+
+    # Check the internal structure of the LightcurveTemplateModel.
+    assert len(lc_model.lightcurves) == 3
+    assert len(lc_model.sed_values) == 3
+    assert np.allclose(lc_model.all_waves, pb_group.waves)
+    assert lc_model.filters == ["u", "g", "r"]
+
+    # Check that no two SED basis functions overlap.
+    for f1 in lc_model.filters:
+        for f2 in lc_model.filters:
+            if f1 != f2:
+                assert np.count_nonzero(lc_model.sed_values[f1] * lc_model.sed_values[f2]) == 0
+
+    # A call to evaluate_bandfluxes should return the desired light curves.  We only use two of the passbands.
+    graph_state = lc_model.sample_parameters(num_samples=1)
+    query_times = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 20.0, 21.0])
+    query_filters = np.array(["u", "r", "u", "r", "u", "r", "u", "r"])
+    fluxes = lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
+    assert len(fluxes) == len(query_times)
+
+    # Timesteps 0.0, 0.5, 20.0, and 21.0 fall outside the range of the model and are set to 0.0.
+    # Timesteps 1.0 and 3.0 are from the u band which is constant at 2.
+    # Timesteps 2.0 and 4.0 are from the r band which is linearly increasing with time.
+    assert np.allclose(fluxes, [0.0, 0.0, 2.0, 1.2, 2.0, 1.4, 0.0, 0.0])
+
+    # A call to evaluate_bandfluxes with an unsupported filter should raise an error.
+    query_filters = np.array(["u", "r", "u", "r", "u", "x", "u", "r", "r"])
+    with pytest.raises(ValueError):
+        lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
+
+
+def test_create_lightcurve_template_model_from_data() -> None:
+    """Test that we can create a simple LightcurveTemplateModel object for LightcurveData."""
+    pb_group = _create_toy_passbands()
+    lightcurves = _create_toy_lightcurves()
+    lc_data = LightcurveData(lightcurves, lc_data_t0=0.0)
+    lc_model = LightcurveTemplateModel(lc_data, pb_group, lc_data_t0=0.0, t0=0.0)
 
     # Check the internal structure of the LightcurveTemplateModel.
     assert len(lc_model.lightcurves) == 3
