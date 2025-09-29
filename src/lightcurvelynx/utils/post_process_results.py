@@ -22,41 +22,11 @@ def concat_results(results_list):
     nested_pandas.NestedFrame
         The concatenated DataFrame.
     """
-    if len(results_list) == 0:
-        raise ValueError("results_list is empty.")
+    result = pd.concat(results_list, ignore_index=True)
 
-    # Create initial NestedFrame with the structure of the first element.
-    outer_cols = [col for col in results_list[0].columns if col != "lightcurve"]
-    inner_cols = [col for col in results_list[0]["lightcurve"].nest.fields]
-
-    # Flatten each NestedFrame and update their IDs to be unique.
-    flattened_list = []
-    next_idx = 0
-    for res in results_list:
-        if len(res) == 0:
-            continue
-        if "lightcurve" not in res.columns or "id" not in res.columns:
-            raise ValueError("All results must have 'lightcurve' and 'id' columns.")
-
-        num_results = len(res)
-        res = res.explode("lightcurve", ignore_index=False)
-
-        # Update the indices to be unique across all results.
-        inds = res.index.to_numpy() + next_idx
-        res["id"] = inds
-        res["new_index"] = inds
-        next_idx += num_results
-
-        flattened_list.append(res)
-
-    # Concatenate the flattened DataFrames.
-    result = pd.concat(flattened_list, ignore_index=True)
-    del flattened_list
-
-    # Re-nest and return the concatenated DataFrame.
-    result = NestedFrame.from_flat(
-        result, base_columns=outer_cols, nested_columns=inner_cols, on="new_index", name="lightcurve"
-    )
+    # We need to update the ID column to be unique across all results.
+    if "id" in result.columns:
+        result["id"] = np.arange(len(result))
     return result
 
 
