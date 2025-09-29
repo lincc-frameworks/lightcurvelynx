@@ -353,7 +353,7 @@ def simulate_lightcurves(
     rng=None,
     generate_citations=False,
     pool=None,
-    batch_size=100,
+    batch_size=1_000,
 ):
     """Generate a number of simulations of the given model and information
     from one or more surveys.
@@ -397,7 +397,7 @@ def simulate_lightcurves(
         the function runs in serial.
     batch_size : int, optional
         The number of samples to process in each batch when using multiprocessing.
-        Default is 100.
+        Default is 1000.
 
     Returns
     -------
