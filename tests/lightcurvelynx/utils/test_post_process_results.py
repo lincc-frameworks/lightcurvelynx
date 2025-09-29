@@ -20,6 +20,7 @@ def test_concat_results():
         "id": [0, 1, 2],
         "ra": [10.0, 20.0, 30.0],
         "dec": [-10.0, 0.0, 10.0],
+        "nobs": [3, 2, 1],
         "z": [0.1, 0.2, 0.3],
     }
     inner_dict_1 = {
@@ -37,7 +38,7 @@ def test_concat_results():
         "id": [3, 4],
         "ra": [40.0, 50.0],
         "dec": [-40.0, -50.0],
-        "nobs": [2, 0],
+        "nobs": [1, 2],
         "z": [0.4, 0.5],
     }
     inner_dict_2 = {
@@ -54,7 +55,7 @@ def test_concat_results():
     # Concatenate the results.
     results = concat_results([res1, res2])
     assert len(results) == 5
-    assert results.columns.tolist() == ["id", "ra", "dec", "z", "lightcurve"]
+    assert results.columns.tolist() == ["id", "ra", "dec", "nobs", "z", "lightcurve"]
 
     # Check the outer columns.
     assert results["id"].tolist() == [0, 1, 2, 3, 4]
