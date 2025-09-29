@@ -10,7 +10,8 @@ from lightcurvelynx.astro_utils.mag_flux import flux2mag
 
 
 def concat_results(results_list):
-    """Concatenate a list of results into a single NestedFrame.
+    """Concatenate a list of results into a single NestedFrame,
+    updating the ID column to be unique across all results.
 
     Parameters
     ----------
