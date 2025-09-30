@@ -51,8 +51,9 @@ class OpSim(ObsTable):
         Defaults to the Rubin OpSim column names, stored in the class variable
         _opsim_colnames.
     saturation_thresholds : dict, optional
-        A dictionary mapping filter names to their saturation thresholds in nJy. The filters provided
-        must match those in the table. If not provided, OpSim-specific defaults will be used.
+        A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
+        provided must match those in the table. If not provided, OpSim-specific defaults will be
+        used.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -91,16 +92,15 @@ class OpSim(ObsTable):
         "survey_name": "LSST",
     }
 
-    # Default LSST saturation thresholds in nJy (converted from AB mag).
+    # Default LSST saturation thresholds in magnitudes.
     # https://www.lsst.org/sites/default/files/docs/sciencebook/SB_3.pdf
-    # u, g, r, i, z, y = 14.7, 15.7, 15.8, 15.8, 15.3 and 13.9
     _default_saturation_thresholds = {
-        "u": 4.78630092322638e12,
-        "g": 1.9054607179632463e12,
-        "r": 1.7378008287493728e12,
-        "i": 1.7378008287493728e12,
-        "z": 2.75422870333816e12,
-        "y": 9.99999999999998e12,
+        "u": 14.7,
+        "g": 15.7,
+        "r": 15.8,
+        "i": 15.8,
+        "z": 15.3,
+        "y": 13.9,
     }
 
     # Class constants for the column names.

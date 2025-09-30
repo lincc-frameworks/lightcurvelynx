@@ -38,8 +38,8 @@ class ZTFObsTable(ObsTable):
         A mapping of short column names to their names in the underlying table.
         Defaults to the ZTF column names, stored in _default_colnames.
     saturation_thresholds : dict, optional
-        A dictionary mapping filter names to their saturation thresholds in nJy. The filters provided
-        must match those in the table. If not provided, ZTF-specific defaults will be used.
+        A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
+        provided must match those in the table. If not provided, ZTF-specific defaults will be used.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -73,13 +73,13 @@ class ZTFObsTable(ObsTable):
         "survey_name": "ZTF",
     }
 
-    # Default saturation thresholds for ZTF.
+    # Default saturation thresholds for ZTF, in magnitudes.
     # https://irsa.ipac.caltech.edu/data/ZTF/docs/ztf_extended_cautionary_notes.pdf
-    # Using a naive value of 12.5 mag for now (converted to ~36.3e12 nJy below).
+    # Using a naive value of 12.5 mag for the time being.
     _default_saturation_thresholds = {
-        "g": 3.63078054770101e13,
-        "r": 3.63078054770101e13,
-        "i": 3.63078054770101e13,
+        "g": 12.5,
+        "r": 12.5,
+        "i": 12.5,
     }
 
     def __init__(self, table, colmap=None, saturation_thresholds=None, **kwargs):

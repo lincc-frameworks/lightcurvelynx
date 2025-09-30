@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
+from lightcurvelynx.astro_utils.unit_utils import ab_mag_to_njy
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
@@ -545,7 +546,7 @@ def test_simulate_with_default_saturation_thresholds_values(test_data_dir):
     # Create a constant SED model with known RA and dec values that match the opsim.
     # Note the brightness is set very high to ensure saturation threshold is surpassed.
     source = ConstantSEDModel(
-        brightness=(2.0e12),  # Very bright to ensure saturation
+        brightness=(2.0e12),  # Sufficiently bright to ensure saturation
         t0=0.0,
         ra=GivenValueList(opsim_db["ra"].values[0:5]),
         dec=GivenValueList(opsim_db["dec"].values[0:5]),
@@ -565,10 +566,14 @@ def test_simulate_with_default_saturation_thresholds_values(test_data_dir):
 
     # Check that every flux value is below the saturation threshold for its filter.
     lightcurve = results["lightcurve"][0]
+    opsim_sat_thresholds_njy = {
+        band: ab_mag_to_njy(mag) for band, mag in opsim_db._saturation_thresholds.items()
+    }
+
     for filter in ["g", "r"]:
         mask = lightcurve["filter"] == filter
         fluxes = lightcurve["flux"][mask]
-        assert np.all(fluxes <= opsim_db._saturation_thresholds[filter])
+        assert np.all(fluxes <= opsim_sat_thresholds_njy[filter])
 
     # Check the flux_error values are non-zero and not unreasonably large.
     flux_errors = lightcurve["fluxerr"]
@@ -592,11 +597,13 @@ def test_simulate_with_custom_saturation_thresholds(test_data_dir):
     }
     pdf = pd.DataFrame(obs_table_values)
     zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+
+    # Saturation thresholds are given in magnitudes.
     toy_sat_thresholds = {
-        "g": 1_000_000.0,
-        "r": 900_000.0,
-        "i": 1_100_000.0,
-        "z": 1_200_000.0,
+        "g": 17.5,
+        "r": 18.0,
+        "i": 17.0,
+        "z": 17.2,
     }
 
     ops_data = FakeObsTable(
@@ -614,7 +621,7 @@ def test_simulate_with_custom_saturation_thresholds(test_data_dir):
 
     # Set up model
     source = ConstantSEDModel(
-        brightness=50_000_000.0,
+        brightness=5_000_000_000_000.0,  # Sufficiently bright to ensure saturation
         t0=0.0,
         ra=GivenValueList(obs_table_values["ra"]),
         dec=GivenValueList(obs_table_values["dec"]),
@@ -640,10 +647,11 @@ def test_simulate_with_custom_saturation_thresholds(test_data_dir):
 
     # Check that every flux value is below the saturation threshold for its filter.
     lightcurve = results["lightcurve"][0]
+    toy_sat_thresholds_njy = {band: ab_mag_to_njy(mag) for band, mag in toy_sat_thresholds.items()}
     for filter in ["g", "r", "i", "z"]:
         mask = lightcurve["filter"] == filter
         fluxes = lightcurve["flux"][mask]
-        assert np.all(fluxes <= toy_sat_thresholds[filter])
+        assert np.all(fluxes <= toy_sat_thresholds_njy[filter])
 
     # Check the flux_error values are non-zero.
     flux_errors = lightcurve["fluxerr"]

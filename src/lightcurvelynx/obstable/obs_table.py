@@ -15,6 +15,7 @@ from regions import Region
 from scipy.spatial import KDTree
 
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
+from lightcurvelynx.astro_utils.unit_utils import ab_mag_to_njy
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ class ObsTable:
         The WCS for the footprint. Either this or pixel_scale must be provided if
         a footprint is provided as a Astropy region.
     saturation_thresholds : dict, optional
-        A dictionary mapping filter names to their saturation thresholds in nJy.
+        A dictionary mapping filter names to their saturation thresholds in magnitudes.
         The filters provided must match those in the table. If not provided,
         saturation effects will not be applied.
     **kwargs : dict
@@ -71,8 +72,8 @@ class ObsTable:
     _wacs : astropy.wcs.WCS, optional
         The WCS for the footprint.
     _saturation_thresholds : dict, optional
-        The saturation thresholds in nJy for each filter. If unspecified, an instrument-specific
-        default will be used, if available.
+        The saturation thresholds in magnitudes for each filter. If unspecified, an
+        instrument-specific default will be used, if available.
     """
 
     _required_columns = ["ra", "dec", "time"]
@@ -725,8 +726,15 @@ class ObsTable:
         if len(flux) != len(flux_error) or len(flux) != len(filters):
             raise ValueError("Input arrays must have the same length.")
 
+        # Convert saturation thresholds to nJy.
+        saturation_thresholds_njy = {}
+        for filt, mag in self._saturation_thresholds.items():
+            if not isinstance(mag, int | float):
+                raise ValueError("Saturation thresholds must be numeric.")
+            saturation_thresholds_njy[filt] = ab_mag_to_njy(mag)
+
         # Map the filter list to saturation limits.
-        limits = np.array([self._saturation_thresholds.get(filt, np.inf) for filt in filters])
+        limits = np.array([saturation_thresholds_njy.get(filt, np.inf) for filt in filters])
 
         # Calculate the saturated flux and flux error.
         saturated_flux = np.minimum(true_flux, limits)

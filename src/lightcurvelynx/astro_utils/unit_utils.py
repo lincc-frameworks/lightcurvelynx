@@ -114,3 +114,20 @@ def fnu_to_flam(flux_fnu, wavelengths, *, wave_unit, flam_unit, fnu_unit):
     input_units = (fnu_unit * const.c.unit) / (wave_unit * wave_unit)
     flux_flam = flux_fnu * const.c.value / wavelengths**2
     return bulk_convert_matrix(flux_flam, input_units, flam_unit)
+
+
+def ab_mag_to_njy(ab_magnitude):
+    """Convert AB magnitude to flux density in nJy.
+
+    Parameters
+    ----------
+    ab_magnitude : float or numpy.ndarray
+        The AB magnitude value(s) to convert.
+
+    Returns
+    -------
+    flux_nJy : float or numpy.ndarray
+        The corresponding flux density in nJy.
+    """
+    flux_nJy = 10 ** ((23.9 - ab_magnitude) / 2.5) * 1e9
+    return flux_nJy

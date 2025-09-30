@@ -82,8 +82,8 @@ class RomanObsTable(ObsTable):
         The path to the Roman MultiAccum table CSV file. If not provided, a default table included
         with LightCurveLynx will be used.
     saturation_thresholds : dict, optional
-        A dictionary mapping filter names to their saturation thresholds in nJy. The filters provided
-        must match those in the table. If not provided, saturation effects will not be applied.
+        A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
+        provided must match those in the table. If not provided, saturation effects will not be applied.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
