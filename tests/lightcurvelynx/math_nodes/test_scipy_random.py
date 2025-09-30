@@ -1,9 +1,11 @@
 import numpy as np
+from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.scipy_random import (
     NumericalInversePolynomialFunc,
     SampleLogPDF,
     SamplePDF,
+    ScipyRandomDist,
 )
 
 
@@ -193,3 +195,53 @@ def test_numerical_sample_logpdf():
     expected = mid_heights * 0.2 * num_samples
     for idx in range(10):
         assert np.abs(counts[idx] - expected[idx]) < 200.0
+
+
+def test_scipy_random_dist():
+    """Test that we can generate numbers from a uniform distribution."""
+    scipy_node = ScipyRandomDist("uniform", seed=100, node_label="uniform1")
+
+    samples = scipy_node.sample_parameters(num_samples=10_000)
+    values = scipy_node.get_param(samples, "function_node_result")
+    assert len(values) == 10_000
+    assert len(np.unique(values)) > 10
+    assert np.all(values <= 1.0)
+    assert np.all(values >= 0.0)
+    assert np.abs(np.mean(values) - 0.5) < 0.01
+
+    # If we reuse the seed, we get the same numbers.
+    scipy_node2 = ScipyRandomDist("uniform", seed=100)
+    samples2 = scipy_node2.sample_parameters(num_samples=10_000)
+    values2 = scipy_node2.get_param(samples2, "function_node_result")
+    assert np.allclose(values, values2)
+
+    # If we use a different seed, we get different numbers
+    scipy_node2 = ScipyRandomDist("uniform", seed=101)
+    samples2 = scipy_node2.sample_parameters(num_samples=10_000)
+    values2 = scipy_node2.get_param(samples2, "function_node_result")
+    assert not np.allclose(values, values2)
+
+    # But we can override the seed and get the same results again.
+    scipy_node2.set_seed(100)
+    samples2 = scipy_node2.sample_parameters(num_samples=10_000)
+    values2 = scipy_node2.get_param(samples2, "function_node_result")
+    assert np.allclose(values, values2)
+
+
+def test_numpy_random_uniform_diff_distributions():
+    """Test that we can generate multi-dimensional vectors from a uniform distribution."""
+    # We can use different hyperparameters to create different distributions.
+    # This generates different uniform distributions such that distribution i
+    # is uniform between 10*i and 10*i+5.
+    low_val = np.arange(0, 5000, 10)
+    scipy_node = ScipyRandomDist(
+        "uniform",
+        seed=100,
+        loc=GivenValueList(low_val),
+        scale=GivenValueList(np.full_like(low_val, 5.0)),
+    )
+    state = scipy_node.sample_parameters(num_samples=50)
+    samples = scipy_node.get_param(state, "function_node_result")
+    assert len(samples) == 50
+    for i in range(50):
+        assert samples[i] >= 10 * i and samples[i] <= 10 * i + 5.0
