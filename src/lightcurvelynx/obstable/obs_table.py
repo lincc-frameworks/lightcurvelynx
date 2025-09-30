@@ -705,13 +705,18 @@ class ObsTable:
 
         Returns
         -------
-        saturation_limit : numpy.ndarray of float
-            The saturation limit in nJy. A size S x T array where S is the
-            number of samples in the graph state and T is the number of time points.
+        tuple of numpy.ndarray
+            A tuple with three entries:
+            - The saturated flux in nJy. A size S x T array where S is the
+                number of samples in the graph state and T is the number of time points.
+            - The saturated flux error in nJy. A size S x T array where S is the
+                number of samples in the graph state and T is the number of time points.
+            - A boolean array indicating which points are saturated. A size S x T array
+                where S is the number of samples in the graph state and T is the number of time points.
         """
         if self._saturation_thresholds is None:
             logger.info("Saturation thresholds not provided. Skipping saturation computation.")
-            return flux, flux_error
+            return flux, flux_error, np.full(flux.shape, False)
 
         true_flux = np.asarray(flux)
         true_flux_error = np.asarray(flux_error)
@@ -727,4 +732,7 @@ class ObsTable:
         saturated_flux = np.minimum(true_flux, limits)
         saturated_flux_error = true_flux_error + (true_flux - saturated_flux)
 
-        return saturated_flux, saturated_flux_error
+        # Create a flag array to indicate which points are saturated.
+        saturation_flags = true_flux > (limits - 1e-10)
+
+        return saturated_flux, saturated_flux_error, saturation_flags

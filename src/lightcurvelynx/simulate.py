@@ -150,7 +150,15 @@ def simulate_lightcurves(
 
     # Set up the nested array for the per-observation data, including ObsTable information.
     nested_index = []
-    nested_dict = {"mjd": [], "filter": [], "flux": [], "fluxerr": [], "flux_perfect": [], "survey_idx": []}
+    nested_dict = {
+        "mjd": [],
+        "filter": [],
+        "flux": [],
+        "fluxerr": [],
+        "flux_perfect": [],
+        "survey_idx": [],
+        "is_saturated": [],
+    }
     if obstable_save_cols is None:
         obstable_save_cols = []
     for col in obstable_save_cols:
@@ -199,7 +207,7 @@ def simulate_lightcurves(
             bandfluxes = apply_noise(bandfluxes_perfect, bandfluxes_error, rng=rng)
 
             # Apply saturation thresholds from the ObsTable.
-            bandfluxes, bandfluxes_error = obstable[survey_idx].compute_saturation(
+            bandfluxes, bandfluxes_error, saturation_flags = obstable[survey_idx].compute_saturation(
                 bandfluxes, bandfluxes_error, obs_filters
             )
 
@@ -212,6 +220,7 @@ def simulate_lightcurves(
             nested_dict["flux"].extend(list(bandfluxes))
             nested_dict["fluxerr"].extend(list(bandfluxes_error))
             nested_dict["survey_idx"].extend([survey_idx] * nobs)
+            nested_dict["is_saturated"].extend(list(saturation_flags))
             for col in obstable_save_cols:
                 col_data = (
                     list(obstable[survey_idx][col].values[obs_index])

@@ -524,6 +524,11 @@ def test_simulate_with_saturation_thresholds_as_none(test_data_dir):
     )
     assert len(results) == 1
 
+    # Check that the "is_saturated" column is False for all observations.
+    lightcurve = results["lightcurve"][0]
+    assert "is_saturated" in lightcurve.columns
+    assert not np.any(lightcurve["is_saturated"])
+
 
 def test_simulate_with_default_saturation_thresholds_values(test_data_dir):
     """Test an end to end run of simulating a single light curve with default saturation thresholds."""
@@ -570,6 +575,10 @@ def test_simulate_with_default_saturation_thresholds_values(test_data_dir):
     fluxes = lightcurve["flux"]
     assert np.all(flux_errors <= 0.5 * fluxes)
     assert np.all(flux_errors > 0.0)
+
+    # Check that the "is_saturated" column is True for all observations.
+    assert "is_saturated" in lightcurve.columns
+    assert np.all(lightcurve["is_saturated"])
 
 
 def test_simulate_with_custom_saturation_thresholds(test_data_dir):
@@ -640,3 +649,7 @@ def test_simulate_with_custom_saturation_thresholds(test_data_dir):
     flux_errors = lightcurve["fluxerr"]
     fluxes = lightcurve["flux"]
     assert np.all(flux_errors > 0.0)
+
+    # Check that the "is_saturated" column is True for all observations.
+    assert "is_saturated" in lightcurve.columns
+    assert np.all(lightcurve["is_saturated"])
