@@ -134,6 +134,8 @@ def augment_single_lightcurve(results, *, min_snr=0.0, t0=None):
     if t0 is not None and "mjd" in results.columns:
         results["time_rel"] = results["mjd"] - t0
 
+    return results
+
 
 def results_augment_lightcurves(results, *, min_snr=0.0):
     """Add columns to the results DataFrame with additional information
