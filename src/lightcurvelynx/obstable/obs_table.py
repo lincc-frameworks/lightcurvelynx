@@ -738,7 +738,8 @@ class ObsTable:
 
         # Calculate the saturated flux and flux error.
         saturated_flux = np.minimum(true_flux, limits)
-        saturated_flux_error = true_flux_error + (true_flux - saturated_flux)
+        saturated_flux_error = np.hypot(true_flux_error, (true_flux - saturated_flux))
+        saturated_flux_error = np.where(true_flux <= limits, true_flux_error, saturated_flux_error)
 
         # Create a flag array to indicate which points are saturated.
         saturation_flags = true_flux > (limits - 1e-10)
