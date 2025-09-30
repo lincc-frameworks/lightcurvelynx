@@ -9,6 +9,7 @@ from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.obstable.opsim import OpSim
+from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
 from lightcurvelynx.simulate import (
     compute_noise_free_lightcurves,
     compute_single_noise_free_lightcurve,
@@ -434,15 +435,8 @@ def test_compute_noise_free_lightcurves_multiple(test_data_dir):
             assert np.allclose(bandfluxes[mask], 100.0)
 
 
-def test__saturation_thresholds_initialization(test_data_dir):
+def test_saturation_thresholds_initialization(test_data_dir):
     """Check initialization of saturation thresholds."""
-    # Opsim saturation thresholds should be set by default.
-    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
-    assert opsim_db._saturation_thresholds is not None
-    assert isinstance(opsim_db._saturation_thresholds, dict)
-    for filter in ["u", "g", "r", "i", "z", "y"]:
-        assert filter in opsim_db._saturation_thresholds
-
     # A FakeObsTable should have no saturation thresholds by default.
     fake_obs = FakeObsTable(
         pd.DataFrame(
@@ -463,6 +457,21 @@ def test__saturation_thresholds_initialization(test_data_dir):
         survey_name="MY_SURVEY",
     )
     assert fake_obs._saturation_thresholds is None
+
+    # Opsim saturation thresholds should be set by default.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    assert opsim_db._saturation_thresholds is not None
+    assert isinstance(opsim_db._saturation_thresholds, dict)
+    for filter in ["u", "g", "r", "i", "z", "y"]:
+        assert filter in opsim_db._saturation_thresholds
+
+    # For now, the ZTF table uses a single estimate for all filters.
+    ztf_table_data = create_random_ztf_obs_data(100)
+    ztf_obs_table = ZTFObsTable(table=ztf_table_data)
+    assert ztf_obs_table._saturation_thresholds is not None
+    assert isinstance(ztf_obs_table._saturation_thresholds, dict)
+    for filter in ["g", "r", "i"]:
+        assert filter in ztf_obs_table._saturation_thresholds
 
 
 def test_simulate_with_saturation_thresholds_as_none(test_data_dir):

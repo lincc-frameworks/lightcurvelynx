@@ -93,12 +93,12 @@ class OpSim(ObsTable):
     # https://www.lsst.org/sites/default/files/docs/sciencebook/SB_3.pdf
     # u, g, r, i, z, y = 14.7, 15.7, 15.8, 15.8, 15.3 and 13.9
     _default_saturation_thresholds = {
-        "u": 4_786_300_923_226.38,
-        "g": 1_905_460_717_963.2463,
-        "r": 1_737_800_828_749.3728,
-        "i": 1_737_800_828_749.3728,
-        "z": 2_754_228_703_338.16,
-        "y": 9_999_999_999_999.98,
+        "u": 4.78630092322638e12,
+        "g": 1.9054607179632463e12,
+        "r": 1.7378008287493728e12,
+        "i": 1.7378008287493728e12,
+        "z": 2.75422870333816e12,
+        "y": 9.99999999999998e12,
     }
 
     # Class constants for the column names.
@@ -109,8 +109,11 @@ class OpSim(ObsTable):
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
+
+        # If saturation thresholds are not provided, then set to the OpSim defaults.
         if "saturation_thresholds" not in kwargs or kwargs["saturation_thresholds"] is None:
             kwargs["saturation_thresholds"] = self._default_saturation_thresholds
+
         super().__init__(table, colmap=colmap, **kwargs)
 
     def _assign_zero_points(self):

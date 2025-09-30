@@ -70,6 +70,15 @@ class ZTFObsTable(ObsTable):
         "survey_name": "ZTF",
     }
 
+    # Default saturation thresholds for ZTF.
+    # https://irsa.ipac.caltech.edu/data/ZTF/docs/ztf_extended_cautionary_notes.pdf
+    # Using a naive value of 12.5 mag for now (converted to ~36.3e12 nJy below).
+    _default_saturation_thresholds = {
+        "g": 3.63078054770101e13,
+        "r": 3.63078054770101e13,
+        "i": 3.63078054770101e13,
+    }
+
     def __init__(self, table, colmap=None, **kwargs):
         colmap = self._default_colnames if colmap is None else colmap
 
@@ -79,6 +88,10 @@ class ZTFObsTable(ObsTable):
             table = table.copy()
             t = Time(list(table["obsdate"]), format="iso", scale="utc")
             table["obsmjd"] = t.mjd
+
+        # If saturation thresholds are not provided, then set to the ZTF defaults.
+        if "saturation_thresholds" not in kwargs or kwargs["saturation_thresholds"] is None:
+            kwargs["saturation_thresholds"] = self._default_saturation_thresholds
 
         super().__init__(table, colmap=colmap, **kwargs)
 
