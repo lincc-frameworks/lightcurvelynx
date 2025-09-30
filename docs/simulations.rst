@@ -199,4 +199,4 @@ access and save light curves individually using the standard Pandas functions su
 
 .. code-block:: python
 
-    results["lightcurve"][0].to_csv("lightcurve_0.csv", index=False)
+    results["lightcurve"][0].to_parquet("lightcurve_0.parquet")
