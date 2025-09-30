@@ -499,9 +499,8 @@ def test_simulate_with_saturation_thresholds_as_none(test_data_dir):
     assert ops_data._saturation_thresholds is None
 
     # Set up model
-    # given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=50_000.0,  # GivenValueList(given_brightness),
+        brightness=50_000.0,
         t0=0.0,
         ra=GivenValueList(obs_table_values["ra"]),
         dec=GivenValueList(obs_table_values["dec"]),
