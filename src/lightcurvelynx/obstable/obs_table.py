@@ -157,11 +157,6 @@ class ObsTable:
             detector_footprint = DetectorFootprint(detector_footprint, wcs=wcs, pixel_scale=pixel_scale)
         self._detector_footprint = detector_footprint
 
-        # Save the saturation thresholds if provided.
-        if saturation_thresholds is None and "saturation_thresholds" in kwargs:
-            saturation_thresholds = kwargs["saturation_thresholds"]
-        self._saturation_thresholds = saturation_thresholds
-
     def __len__(self):
         return len(self._table)
 
