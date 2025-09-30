@@ -248,7 +248,7 @@ class ScipyRandomDist(FunctionNode):
 
         # Create the template of the distribution class and save the parameters.
         if not hasattr(scipy.stats, dist_name):
-            raise ValueError(f"The distribution {dist_name} is not supported.")
+            raise ValueError(f"The distribution {dist_name} is not found in scipy.stats.")
         self.dist_class = getattr(scipy.stats, dist_name)
 
         self.params_names = []
