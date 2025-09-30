@@ -26,6 +26,11 @@ _ztfcam_view_radius = 2.735
 _ztfcam_ccd_gain = 6.2
 """CCD gain (in e-/ADU)"""
 
+_ztf_zp_error = 0.01
+"""The zero point error in magnitude.
+According to Masci et al. 2019, calibration error is around between 8 and 25 millimag.
+https://ui.adsabs.harvard.edu/abs/2019PASP..131a8003M/abstract"""
+
 
 class ZTFObsTable(ObsTable):
     """A subclass for ZTF exposure table.
@@ -67,6 +72,7 @@ class ZTFObsTable(ObsTable):
         "pixel_scale": ZTFCAM_PIXEL_SCALE,
         "radius": _ztfcam_view_radius,
         "read_noise": _ztfcam_readout_noise,
+        "zp_err_mag": _ztf_zp_error,
         "survey_name": "ZTF",
     }
 
@@ -181,6 +187,7 @@ class ZTFObsTable(ObsTable):
             zp=observations["zp"],  # nJy
             readout_noise=self.safe_get_survey_value("read_noise"),  # e-/pixel
             dark_current=self.safe_get_survey_value("dark_current"),  # e-/second/pixel
+            zp_err_mag=self.safe_get_survey_value("zp_err_mag"),
         )
 
 

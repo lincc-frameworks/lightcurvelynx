@@ -14,6 +14,7 @@ def poisson_bandflux_std(
     zp: npt.ArrayLike,
     readout_noise: npt.ArrayLike | Callable,
     dark_current: npt.ArrayLike,
+    zp_err_mag: npt.ArrayLike = 0.0,
 ) -> npt.ArrayLike:
     """Simulate photon noise for bandflux measurements.
 
@@ -40,6 +41,8 @@ def poisson_bandflux_std(
         Standard deviation of the readout electrons per pixel per exposure.
     dark_current : array_like of float
         Mean dark current electrons per pixel per unit time.
+    zp_err_mag : array_like of float
+        Zero-point uncertainty in magnitude. Default is 0.
 
     Returns
     -------
@@ -73,7 +76,9 @@ def poisson_bandflux_std(
         readout_variance = readout_noise**2 * psf_footprint * exposure_count
     dark_variance = dark_current * total_exposure_time * psf_footprint
 
-    total_variance = source_variance + sky_variance + readout_variance + dark_variance
+    zp_variance = (bandflux * zp_err_mag * np.log(10.0) / 2.5 / zp) ** 2
+
+    total_variance = source_variance + sky_variance + readout_variance + dark_variance + zp_variance
 
     return np.sqrt(total_variance) * zp
 
