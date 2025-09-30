@@ -715,19 +715,18 @@ class ObsTable:
             logger.info("Saturation thresholds not provided. Skipping saturation computation.")
             return flux, flux_error
 
-        flux = np.asarray(flux)
-        flux_error = np.asarray(flux_error)
+        true_flux = np.asarray(flux)
+        true_flux_error = np.asarray(flux_error)
         filters = np.asarray(filters)
 
         if len(flux) != len(flux_error) or len(flux) != len(filters):
             raise ValueError("Input arrays must have the same length.")
 
-        # Make a new list called limits, which takes the filters and maps them to the saturation thresholds
+        # Map the filter list to saturation limits.
         limits = np.array([self._saturation_thresholds.get(filt, np.inf) for filt in filters])
 
-        # Make a list that is the minimum of flux and limits
-        flux = np.minimum(flux, limits)
+        # Calculate the saturated flux and flux error.
+        saturated_flux = np.minimum(true_flux, limits)
+        saturated_flux_error = true_flux_error + (true_flux - saturated_flux)
 
-        # TODO: flux error?
-
-        return flux, flux_error
+        return saturated_flux, saturated_flux_error

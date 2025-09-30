@@ -475,7 +475,7 @@ def test_saturation_thresholds_initialization(test_data_dir):
 
 
 def test_simulate_with_saturation_thresholds_as_none(test_data_dir):
-    """Test an end to end run of simulating a single light curve with custom saturation thresholds."""
+    """Test an end to end run of simulating a single light curve with no saturation thresholds."""
     # Set up obs table (with no saturation thresholds set)
     obs_table_values = {
         "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
@@ -567,6 +567,12 @@ def test_simulate_with_default_saturation_thresholds_values(test_data_dir):
         fluxes = lightcurve["flux"][mask]
         assert np.all(fluxes <= opsim_db._saturation_thresholds[filter])
 
+    # Check the flux_error values are non-zero and not unreasonably large.
+    flux_errors = lightcurve["fluxerr"]
+    fluxes = lightcurve["flux"]
+    assert np.all(flux_errors <= 0.5 * fluxes)
+    assert np.all(flux_errors > 0.0)
+
 
 def test_simulate_with_custom_saturation_thresholds(test_data_dir):
     """Test an end to end run of simulating a single light curve with custom saturation thresholds."""
@@ -580,10 +586,10 @@ def test_simulate_with_custom_saturation_thresholds(test_data_dir):
     pdf = pd.DataFrame(obs_table_values)
     zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
     toy_sat_thresholds = {
-        "g": 1_000.0,
-        "r": 900.0,
-        "i": 1_100.0,
-        "z": 1_200.0,
+        "g": 1_000_000.0,
+        "r": 900_000.0,
+        "i": 1_100_000.0,
+        "z": 1_200_000.0,
     }
 
     ops_data = FakeObsTable(
@@ -600,9 +606,8 @@ def test_simulate_with_custom_saturation_thresholds(test_data_dir):
     )
 
     # Set up model
-    # given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=50_000.0,  # GivenValueList(given_brightness),
+        brightness=50_000_000.0,
         t0=0.0,
         ra=GivenValueList(obs_table_values["ra"]),
         dec=GivenValueList(obs_table_values["dec"]),
@@ -632,3 +637,8 @@ def test_simulate_with_custom_saturation_thresholds(test_data_dir):
         mask = lightcurve["filter"] == filter
         fluxes = lightcurve["flux"][mask]
         assert np.all(fluxes <= toy_sat_thresholds[filter])
+
+    # Check the flux_error values are non-zero.
+    flux_errors = lightcurve["fluxerr"]
+    fluxes = lightcurve["flux"]
+    assert np.all(flux_errors > 0.0)
