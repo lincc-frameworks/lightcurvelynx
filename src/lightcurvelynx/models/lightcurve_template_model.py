@@ -89,6 +89,8 @@ class LightcurveData:
         magnitudes_in=False,
         baseline=None,
     ):
+        if lc_data_t0 is None:
+            raise ValueError("lc_data_t0 must be provided and cannot be None.")
         self.lc_data_t0 = lc_data_t0
         self.period = None
 
@@ -644,7 +646,15 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
         **kwargs,
     ):
         # Store the light curve data, parsing out different formats if needed.
-        self.lightcurves = LightcurveData(lightcurves, lc_data_t0, periodic=periodic, baseline=baseline)
+        if isinstance(lightcurves, LightcurveData):
+            self.lightcurves = lightcurves
+        else:
+            self.lightcurves = LightcurveData(
+                lightcurves,
+                lc_data_t0,
+                periodic=periodic,
+                baseline=baseline,
+            )
         super().__init__(passbands, filters=self.lightcurves.filters, **kwargs)
 
     def compute_sed(self, times, wavelengths, graph_state):
