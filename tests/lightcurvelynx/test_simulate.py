@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import pytest
-
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
