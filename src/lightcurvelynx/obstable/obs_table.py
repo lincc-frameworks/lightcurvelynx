@@ -42,9 +42,9 @@ class ObsTable:
         The WCS for the footprint. Either this or pixel_scale must be provided if
         a footprint is provided as a Astropy region.
     saturation_thresholds : dict, optional
-        The saturation thresholds in nJy. If provided, this will be used to
-        compute the saturation limit for each observation. If None, an instrument-specific
-        default will be used, if available.
+        A dictionary mapping filter names to their saturation thresholds in nJy.
+        The filters provided must match those in the table. If not provided,
+        saturation effects will not be applied.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This can include
         overrides of any of the survey values.
@@ -71,7 +71,7 @@ class ObsTable:
     _wacs : astropy.wcs.WCS, optional
         The WCS for the footprint.
     _saturation_thresholds : dict, optional
-        The saturation thresholds in nJy for each filter. If None, an instrument-specific
+        The saturation thresholds in nJy for each filter. If unspecified, an instrument-specific
         default will be used, if available.
     """
 
@@ -145,6 +145,9 @@ class ObsTable:
         # If we are not given zero point data, try to derive it from the other columns.
         if "zp" not in self:
             self._assign_zero_points()
+
+        # Save the saturation thresholds if provided.
+        self._saturation_thresholds = saturation_thresholds
 
         # Build the kd-tree.
         self._kd_tree = None

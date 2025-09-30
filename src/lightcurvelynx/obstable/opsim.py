@@ -50,6 +50,9 @@ class OpSim(ObsTable):
         A mapping of short column names to their names in the underlying table.
         Defaults to the Rubin OpSim column names, stored in the class variable
         _opsim_colnames.
+    saturation_thresholds : dict, optional
+        A dictionary mapping filter names to their saturation thresholds in nJy. The filters provided
+        must match those in the table. If not provided, OpSim-specific defaults will be used.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -59,7 +62,6 @@ class OpSim(ObsTable):
         - radius: The angular radius of the observations (in degrees).
         - read_noise: The readout noise for the camera in electrons per pixel.
         - zp_per_sec: Mapping of filter names to zeropoints at zenith.
-        - saturation_thresholds: Mapping of filter names to saturation thresholds in nJy.
     """
 
     _required_names = ["ra", "dec", "time"]
@@ -106,15 +108,16 @@ class OpSim(ObsTable):
         self,
         table,
         colmap=None,
+        saturation_thresholds=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
 
         # If saturation thresholds are not provided, then set to the OpSim defaults.
-        if "saturation_thresholds" not in kwargs or kwargs["saturation_thresholds"] is None:
-            kwargs["saturation_thresholds"] = self._default_saturation_thresholds
+        if saturation_thresholds is None:
+            saturation_thresholds = self._default_saturation_thresholds
 
-        super().__init__(table, colmap=colmap, **kwargs)
+        super().__init__(table, colmap=colmap, saturation_thresholds=saturation_thresholds, **kwargs)
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy to the OpSim tables."""

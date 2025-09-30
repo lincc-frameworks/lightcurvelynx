@@ -78,6 +78,12 @@ class RomanObsTable(ObsTable):
     colmap : dict
         A mapping of short column names to their names in the underlying table.
         Defaults to the Roman APT column names, stored in _default_colnames.
+    ma_table_path : str or pathlib.Path, optional
+        The path to the Roman MultiAccum table CSV file. If not provided, a default table included
+        with LightCurveLynx will be used.
+    saturation_thresholds : dict, optional
+        A dictionary mapping filter names to their saturation thresholds in nJy. The filters provided
+        must match those in the table. If not provided, saturation effects will not be applied.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -100,7 +106,7 @@ class RomanObsTable(ObsTable):
         "zodi_level": _roman_zodi_level_factor,
     }
 
-    def __init__(self, table, colmap=None, ma_table_path=None, **kwargs):
+    def __init__(self, table, colmap=None, ma_table_path=None, saturation_thresholds=None, **kwargs):
         colmap = self._default_colnames if colmap is None else colmap
 
         self.apt_table = table
@@ -112,7 +118,7 @@ class RomanObsTable(ObsTable):
         self.zodiacal_table = roman_char["zodiacal_min_table"]
         self._append_apt_table()
 
-        super().__init__(self.apt_table, colmap=colmap, **kwargs)
+        super().__init__(self.apt_table, colmap=colmap, saturation_thresholds=saturation_thresholds, **kwargs)
 
     def _append_apt_table(self):
         self.apt_table["zp_abmag"] = 0.0

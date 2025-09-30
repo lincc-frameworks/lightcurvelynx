@@ -37,6 +37,9 @@ class ZTFObsTable(ObsTable):
     colmap : dict
         A mapping of short column names to their names in the underlying table.
         Defaults to the ZTF column names, stored in _default_colnames.
+    saturation_thresholds : dict, optional
+        A dictionary mapping filter names to their saturation thresholds in nJy. The filters provided
+        must match those in the table. If not provided, ZTF-specific defaults will be used.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -79,7 +82,7 @@ class ZTFObsTable(ObsTable):
         "i": 3.63078054770101e13,
     }
 
-    def __init__(self, table, colmap=None, **kwargs):
+    def __init__(self, table, colmap=None, saturation_thresholds=None, **kwargs):
         colmap = self._default_colnames if colmap is None else colmap
 
         # Make a copy of the table data with the obsdate converted to the MJD and
@@ -90,10 +93,10 @@ class ZTFObsTable(ObsTable):
             table["obsmjd"] = t.mjd
 
         # If saturation thresholds are not provided, then set to the ZTF defaults.
-        if "saturation_thresholds" not in kwargs or kwargs["saturation_thresholds"] is None:
-            kwargs["saturation_thresholds"] = self._default_saturation_thresholds
+        if saturation_thresholds is None:
+            saturation_thresholds = self._default_saturation_thresholds
 
-        super().__init__(table, colmap=colmap, **kwargs)
+        super().__init__(table, colmap=colmap, saturation_thresholds=saturation_thresholds, **kwargs)
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in ADU to the ObsTable."""
