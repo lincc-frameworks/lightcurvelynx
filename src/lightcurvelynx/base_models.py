@@ -60,7 +60,8 @@ from lightcurvelynx.graph_state import DependencyGraph, GraphState
 
 class ParameterSource:
     """ParameterSource specifies the information about where a ParameterizedNode should
-    get the value for a given parameter.
+    get the value for a given parameter. These objects track internal state.
+    Users should not work with these objects directly.
 
     Attributes
     ----------
@@ -167,7 +168,16 @@ class ParameterSource:
 
 
 class AttributeIndicatorNode:
-    """A class to wrap a single attribute of an object."""
+    """A class to wrap a single attribute of an object. These objects track internal state.
+    Users should not work with these objects directly.
+
+    Attributes
+    ----------
+    attr_name : str
+        The name of the attribute to access.
+    parent : ParameterizedNode
+        The parent node that owns this attribute.
+    """
 
     def __init__(self, attr_name, parent):
         self.attr_name = attr_name
@@ -871,7 +881,7 @@ class FunctionNode(ParameterizedNode):
         super()._update_node_string(new_str)
 
     def _build_inputs(self, graph_state, **kwargs):
-        """Build the input arguments for the function.
+        """Build the input arguments for the node's function.
 
         Parameters
         ----------
@@ -884,7 +894,7 @@ class FunctionNode(ParameterizedNode):
         Returns
         -------
         args : dict
-            A dictionary of input argument to value.
+            A dictionary mapping each input argument's name to its value.
         """
         args = {}
         for key in self.arg_names:
