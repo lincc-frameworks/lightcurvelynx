@@ -152,3 +152,4 @@ _html/
 # Default cached location for data files
 src/lightcurvelynx/astro_utils/passbands/*
 data/*
+docs/notebooks/scratch
