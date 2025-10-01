@@ -243,11 +243,14 @@ class ObsTableUniformRADECSampler(NumpyRandomFunc):
         iter_num = 1
         while num_missing > 0 and iter_num <= self.max_iterations:
             # Generate new samples for the missing ones.
-            ra[~mask] = np.degrees(rng.uniform(0.0, 2.0 * np.pi, size=num_missing))
-            dec[~mask] = np.degrees(np.arcsin(rng.uniform(-1.0, 1.0, size=num_missing)))
+            new_ra = np.degrees(rng.uniform(0.0, 2.0 * np.pi, size=num_missing))
+            new_dec = np.degrees(np.arcsin(rng.uniform(-1.0, 1.0, size=num_missing)))
+            ra[~mask] = new_ra
+            dec[~mask] = new_dec
 
-            # Check if the samples are within the ObsTable coverage.
-            mask = np.asarray(self.data.is_observed(ra, dec, radius=self.radius))
+            # Check if the new samples are within the ObsTable coverage. We don't
+            # need to recheck the ones that were already valid.
+            mask[~mask] = self.data.is_observed(new_ra, new_dec, radius=self.radius)
             num_missing = np.sum(~mask)
             iter_num += 1
 
