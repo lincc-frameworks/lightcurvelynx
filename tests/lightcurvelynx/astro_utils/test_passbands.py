@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+import scipy.integrate
 from lightcurvelynx.astro_utils.passbands import Passband
 from lightcurvelynx.models.spline_model import SplineModel
 from sncosmo import Bandpass
@@ -61,7 +62,10 @@ def test_normalize_transmission():
     system_response = Passband.compute_system_response_table(transmission_table)
     assert transmission_table.shape == (100, 2)
     assert np.all(np.diff(system_response[:, 1]) <= 0.0)  # Should be non-increasing
-    assert np.isclose(np.trapz(system_response[:, 1], x=system_response[:, 0]), 1.0)  # Area should be 1.0
+
+    # Area should be 1.0
+    area = scipy.integrate.trapezoid(system_response[:, 1], x=system_response[:, 0])
+    assert np.isclose(area, 1.0)
 
 
 def test_passband_str(passbands_dir, tmp_path):
@@ -289,7 +293,7 @@ def test_process_transmission_table(passbands_dir, tmp_path):
         a_band.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
 
         # Check that each method is called once
-        mock_interp_table.assert_called_once_with(a_band._loaded_table, delta_wave)
+        mock_interp_table.assert_called_once_with(a_band._loaded_table, delta_wave, rect_interp=False)
         mock_trim_table.assert_called_once()
         mock_norm_table.assert_called_once()
 

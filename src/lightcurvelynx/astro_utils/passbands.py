@@ -729,6 +729,9 @@ class Passband:
     processed_transmission_table : np.ndarray
         A 2D array where the first col is wavelengths (Angstrom) and the second col is transmission values.
         This table is both interpolated to the _wave_grid and normalized to calculate phi_b(λ).
+    rect_interp : bool
+        If True, use pure rectangular interpolation when interpolating the transmission table
+        instead of trapezoidal interpolation. This matches the behavior of sncosmo.
     """
 
     def __init__(
@@ -740,6 +743,7 @@ class Passband:
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         units: Literal["nm", "A"] | None = "A",
+        rect_interp: bool = False,
     ):
         """Construct a Passband object.
 
@@ -763,11 +767,15 @@ class Passband:
             Denotes whether the wavelength units of the table are nanometers ('nm') or Angstroms ('A').
             By default 'A'. Does not affect the output units of the class, only the interpretation of the
             provided passband table.
+        rect_interp : bool, optional
+            If True, use pure rectangular interpolation when interpolating the transmission table.
+            This matches the behavior of sncosmo. Default is False, which uses trapezoidal interpolation.
         """
         self.survey = survey
         self.filter_name = filter_name
         self.full_name = f"{survey}_{filter_name}"
         self.delta_wave = delta_wave
+        self.rect_interp = rect_interp
 
         # Perform validation of the transmission table.
         if table_values.shape[1] != 2:
@@ -790,6 +798,8 @@ class Passband:
             raise ValueError(f"Unknown Passband units {units}")
 
         # Preprocess the passband.
+        if rect_interp and delta_wave is None:
+            raise ValueError("rect_interp=True requires delta_wave to be set to a float value.")
         self.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
 
     def __str__(self) -> str:
@@ -823,6 +833,7 @@ class Passband:
         table_url: str | None = None,
         units: Literal["nm", "A"] | None = "A",
         force_download: bool = False,
+        rect_interp: bool = False,
     ):
         """Construct a Passband object from a file, downloading it if needed.
 
@@ -853,6 +864,9 @@ class Passband:
         force_download : bool, optional
             If True, the transmission table will be downloaded even if it already exists locally. Default is
             False.
+        rect_interp : bool = False
+            If True, use pure rectangular interpolation when interpolating the transmission table
+            instead of trapezoidal interpolation.
         """
         if table_path is None:
             # If no path is given, use the default.
@@ -879,11 +893,12 @@ class Passband:
             delta_wave=delta_wave,
             trim_quantile=trim_quantile,
             units="A",  # All loaded tables are pre-converted to Angstroms
+            rect_interp=rect_interp,
         )
 
     @classmethod
     @cite_function("https://sncosmo.readthedocs.io/en/stable/api/sncosmo.Bandpass.html")
-    def from_sncosmo(cls, survey: str, filter_name: str, bandpass=None, **kwargs):
+    def from_sncosmo(cls, survey: str, filter_name: str, bandpass=None, rect_interp=False, **kwargs):
         """Create a Passband object from an sncosmo.Bandpass object.
 
         Parameters
@@ -894,6 +909,9 @@ class Passband:
             The filter_name of the passband: eg, "u".
         bandpass : sncosmo.Bandpass or str
             The bandpass object from which to create the Passband object.
+        rect_interp : bool = False
+            If True, use pure rectangular interpolation when interpolating the transmission table
+            instead of trapezoidal interpolation. This matches the behavior of sncosmo.
         **kwargs
             Additional keyword arguments (unused)
 
@@ -922,6 +940,7 @@ class Passband:
             filter_name,
             trim_quantile=None,  # Trimming is done in sncosmo
             units="A",  # All sncosmo bandpasses are in Angstroms
+            rect_interp=rect_interp,
         )
 
     @classmethod
@@ -934,6 +953,7 @@ class Passband:
         trim_quantile: float | None = 1e-3,
         table_dir: Union[str, Path] | None = None,
         force_download: bool = False,
+        rect_interp: bool = False,
         **kwargs,
     ):
         """Create a Passband object from the SVO Filter Profile Service.
@@ -966,6 +986,9 @@ class Passband:
         force_download : bool, optional
             If True, the transmission table will be downloaded even if it already exists locally. Default is
             False.
+        rect_interp : bool = False
+            If True, use pure rectangular interpolation when interpolating the transmission table
+            instead of trapezoidal interpolation. This matches the behavior of sncosmo.
         **kwargs
             Additional keyword arguments to pass to the Passband constructor.
         """
@@ -988,6 +1011,7 @@ class Passband:
             table_path=table_path,
             table_url=table_url,
             force_download=force_download,
+            rect_interp=rect_interp,
             **kwargs,
         )
 
@@ -1098,7 +1122,11 @@ class Passband:
             The quantile to trim the transmission table by. For example, if trim_quantile is 1e-3, the
             transmission table will be trimmed to include only the central 99.8% of rows.
         """
-        interpolated_table = self.interpolate_transmission_table(self._loaded_table, delta_wave)
+        interpolated_table = self.interpolate_transmission_table(
+            self._loaded_table,
+            delta_wave,
+            rect_interp=self.rect_interp,
+        )
         trimmed_table = self.trim_transmission_by_quantile(interpolated_table, trim_quantile)
         self.processed_transmission_table = self.compute_system_response_table(trimmed_table)
 
@@ -1106,7 +1134,11 @@ class Passband:
         self.delta_wave = delta_wave
 
     @staticmethod
-    def interpolate_transmission_table(table: np.ndarray, delta_wave: float | None) -> np.ndarray:
+    def interpolate_transmission_table(
+        table: np.ndarray,
+        delta_wave: float | None,
+        rect_interp: bool = False,
+    ) -> np.ndarray:
         """Interpolate the transmission table to a new wave grid.
 
         Parameters
@@ -1115,6 +1147,8 @@ class Passband:
             A 2D array of wavelengths (in Angstroms) and transmissions.
         delta_wave : float or None
             The grid step in Angstroms of the wave grid.
+        rect_interp : bool = False
+            Interpolate the table at the center of the bins instead of the edges.
 
         Returns
         -------
@@ -1130,6 +1164,12 @@ class Passband:
         # Regrid wavelengths to the new wave grid
         wavelengths = table[:, 0]
         lower_bound, upper_bound = wavelengths[0], wavelengths[-1]
+
+        if rect_interp:
+            # Shift so we are interpolating at the center of the bins.
+            lower_bound += delta_wave / 2.0
+            upper_bound -= delta_wave / 2.0
+
         new_wavelengths = np.linspace(
             lower_bound, upper_bound, int((upper_bound - lower_bound) / delta_wave) + 1
         )
@@ -1185,7 +1225,10 @@ class Passband:
         return trimmed_table
 
     @staticmethod
-    def compute_system_response_table(transmission_table: np.ndarray) -> np.ndarray:
+    def compute_system_response_table(
+        transmission_table: np.ndarray,
+        rect_interp: bool = False,
+    ) -> np.ndarray:
         """Calculate the value of phi_b for all wavelengths in a transmission table.
 
         This is eq. 8 from "On the Choice of LSST Flux Units" (Ivezić et al.):
@@ -1198,6 +1241,9 @@ class Passband:
         ----------
         transmission_table : np.ndarray
             A 2D array of wavelengths (in Angstroms) and throughput values.
+        rect_interp : bool = False
+            If True, use pure rectangular interpolation when interpolating the transmission table
+            instead of trapezoidal interpolation.
 
         Returns
         -------
@@ -1220,7 +1266,16 @@ class Passband:
         transmissions = transmission_table[:, 1]
         # Calculate the numerators and denominator
         numerators = transmissions / wavelengths_angstrom
-        denominator = scipy.integrate.trapezoid(numerators, x=wavelengths_angstrom)
+
+        if rect_interp:
+            # If rect_interp is True, we can do the pure rectangular integration using the
+            # centers of the bin.
+            delta_wave = wavelengths_angstrom[1] - wavelengths_angstrom[0]
+            if not np.allclose(np.diff(wavelengths_angstrom), delta_wave):
+                raise ValueError("rect_interp=True requires the wavelength grid to be uniform.")
+            denominator = np.sum(numerators) * delta_wave
+        else:
+            denominator = scipy.integrate.trapezoid(numerators, x=wavelengths_angstrom)
 
         if denominator == 0:
             raise ValueError("Denominator is zero; cannot normalize transmission table.")
@@ -1282,13 +1337,18 @@ class Passband:
         # where f(λ) is the flux density and φ_b(λ) is the normalized system response
         integrand = flux_density_matrix * self.processed_transmission_table[:, 1]
         if self.delta_wave is not None:
-            # If the grid is equal spaced, we can use a faster method of computing a rectangular
-            # integration and removing half the first and last values (to make it trapezoidal).
-            first_val = np.take(integrand, 0, axis=w_axis)
-            last_val = np.take(integrand, -1, axis=w_axis)
-            bandfluxes = (np.sum(integrand, axis=w_axis) - 0.5 * (first_val + last_val)) * self.delta_wave
+            if self.rect_interp:
+                # If rect_interp is True, we can do the pure rectangular integration.
+                correction = 0.0
+            else:
+                # If the grid is equal spaced, we can use a faster method of trapezoidal integration
+                # by doing a rectangular integration and removing half the first and last values.
+                first_val = np.take(integrand, 0, axis=w_axis)
+                last_val = np.take(integrand, -1, axis=w_axis)
+                correction = 0.5 * (first_val + last_val)
+            bandfluxes = (np.sum(integrand, axis=w_axis) - correction) * self.delta_wave
         else:
-            # Do the full integration.
+            # Do the full trapezoidal integration.
             bandfluxes = scipy.integrate.trapezoid(integrand, x=self.waves, axis=w_axis)
         return bandfluxes
 
