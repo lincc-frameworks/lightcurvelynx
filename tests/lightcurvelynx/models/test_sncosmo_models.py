@@ -2,9 +2,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 from astropy import units as u
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
-from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
+from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu, fnu_to_flam
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.sncomso_models import SncosmoWrapperModel
 from lightcurvelynx.utils.wave_extrapolate import ExponentialDecay
@@ -108,6 +109,65 @@ def test_sncomso_models_bounds() -> None:
     assert np.all(fluxes_fnu[:, 0] == 0.0)
     assert not np.any(fluxes_fnu[:, 1:4] == 0.0)
     assert np.all(fluxes_fnu[:, 4:6] == 0.0)
+
+
+def test_sncomso_models_parity() -> None:
+    """Test that we can create and evalue a 'salt3' model using the wrapper
+    and original functions and get the same results.
+    """
+    import sncosmo
+
+    t0 = 61428.0
+    times = np.arange(t0 - 10, t0 + 50, 5)
+    wavelengths = np.arange(3000.0, 9000.0, 100.0)
+
+    # Try with a few settings and redshifts.
+    for redshift in [0.0, 0.1, 0.5]:
+        for x0 in [1.0e-4, 1.0e-3]:
+            saltpars = {"x0": x0, "x1": 0.22, "c": -0.01, "z": redshift, "t0": t0}
+
+            # Create the LightCurveLynx model
+            lynx_model = SncosmoWrapperModel("salt3", **saltpars)
+            lynx_state = lynx_model.sample_parameters(num_samples=1)
+            fnu_lynx = lynx_model.evaluate_sed(times, wavelengths, lynx_state)
+
+            # Create the sncosmo model
+            sn_model = sncosmo.Model("salt3")
+            sn_model.update(saltpars)
+            flam_sncosmo = sn_model.flux(times, wavelengths)
+            fnu_sncosmo = flam_to_fnu(
+                flam_sncosmo,
+                wavelengths,
+                wave_unit=u.AA,
+                flam_unit=u.erg / u.second / u.cm**2 / u.AA,
+                fnu_unit=u.nJy,
+            )
+            print(f"Redshift: {redshift}, x0: {x0}")
+            assert np.allclose(fnu_lynx, fnu_sncosmo)
+
+
+def test_sncomso_models_redshift() -> None:
+    """Test that we check the redshift parameter is set correctly."""
+    # Set through the salt3 'z' parameter.
+    saltpars = {"x0": 1.0e-3, "x1": 0.22, "c": -0.01, "z": 0.1, "t0": 61428.0}
+    lynx_model = SncosmoWrapperModel("salt3", **saltpars, node_label="test")
+    state = lynx_model.sample_parameters(num_samples=1)
+    assert state["test"]["redshift"] == 0.1
+
+    # It's fine if we set both 'z' and 'redshift' to the same value.
+    lynx_model = SncosmoWrapperModel("salt3", **saltpars, redshift=0.1, node_label="test")
+    state = lynx_model.sample_parameters(num_samples=1)
+    assert state["test"]["redshift"] == 0.1
+
+    # Its an error if they are set to different values.
+    with pytest.raises(ValueError):
+        _ = SncosmoWrapperModel("salt3", **saltpars, redshift=0.2, node_label="test")
+
+    # We can set it only through 'redshift'.
+    saltpars.pop("z")
+    lynx_model = SncosmoWrapperModel("salt3", **saltpars, redshift=0.2, node_label="test")
+    state = lynx_model.sample_parameters(num_samples=1)
+    assert state["test"]["redshift"] == 0.2
 
 
 def test_sncomso_models_linear_extrapolate() -> None:

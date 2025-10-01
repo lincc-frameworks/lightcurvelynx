@@ -72,6 +72,17 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
                 "`pip install sncosmo` or `conda install conda-forge::sncosmo`."
             ) from err
 
+        # Check that the redshift is correctly specified (if provided).  We can get into
+        # weird states since sncosmo uses a 'z' parameter and we use 'redshift'. We only
+        # use 'redshift', because the redshift is applied in PhysicalModel.
+        if kwargs.get("z") is not None:
+            z_val = kwargs.pop("z")
+            redshift_val = kwargs.get("redshift")
+            if redshift_val is not None and z_val != redshift_val:
+                raise ValueError("Different values provided for 'redshift' and 'z'.")
+            elif redshift_val is None:
+                kwargs["redshift"] = z_val
+
         # We explicitly ask for and pass along the PhysicalModel parameters such
         # as node_label and wave_extrapolation so they do not go into kwargs
         # and get added to the sncosmo model below.
