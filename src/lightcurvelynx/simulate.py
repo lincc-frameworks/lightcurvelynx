@@ -341,7 +341,7 @@ def _simulate_lightcurves_batch(simulation_info):
 
             # Apply saturation thresholds from the ObsTable.
             bandfluxes, bandfluxes_error, saturation_flags = obstable[survey_idx].compute_saturation(
-                bandfluxes, bandfluxes_error, obs_filters
+                bandfluxes, bandfluxes_error, obs_index
             )
 
             # Append the per-observation data to the nested dictionary, including
