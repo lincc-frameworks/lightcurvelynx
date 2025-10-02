@@ -10,17 +10,11 @@ class ConstantDimming(EffectModel):
     ----------
     flux_fraction : parameter
         The fraction of flux that is passed through.
-    rest_frame : bool
-        Whether the effect is applied in the rest frame of the observation (True)
-        or in the observed frame (False).
     """
 
-    def __init__(self, flux_fraction, rest_frame=True, **kwargs):
+    def __init__(self, flux_fraction, **kwargs):
         super().__init__(**kwargs)
         self.add_effect_parameter("flux_fraction", flux_fraction)
-
-        # Override the default rest_frame parameter.
-        self.rest_frame = rest_frame
 
     def apply(
         self,

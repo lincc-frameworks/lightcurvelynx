@@ -488,7 +488,7 @@ class BayesnModel(SEDModel, CiteClass):
         # Apply dust extinction law
         # Get ebv such that ebv = Rv/Av
         ebv = params["Av"] / params["Rv"]
-        ext = ExtinctionEffect(extinction_model="F99", ebv=ebv)
+        ext = ExtinctionEffect(extinction_model="F99", ebv=ebv, frame="rest")
         flux_density = ext.apply(flux_density, tau, wavelengths, ebv)
 
         # Apply the fixed distance modulus normalisation factor effect

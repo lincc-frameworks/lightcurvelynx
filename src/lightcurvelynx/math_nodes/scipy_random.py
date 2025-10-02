@@ -3,6 +3,7 @@
 from os import urandom
 
 import numpy as np
+import scipy.stats
 from scipy.stats.sampling import NumericalInversePolynomial
 
 from lightcurvelynx.base_models import FunctionNode
@@ -212,3 +213,104 @@ class SampleLogPDF(NumericalInversePolynomialFunc):
         else:
             raise ValueError("No logpdf function detected.")
         super().__init__(self.dist_obj, **kwargs)
+
+
+class ScipyRandomDist(FunctionNode):
+    """The base class sampling from scipy.stats distributions.
+
+    Attributes
+    ----------
+    dist_class : scipy.stats distribution object
+        The distribution from which to sample.
+    _rng : numpy.random._generator.Generator
+        This object's random number generator.
+    sample_size : tuple
+        The shape of the array to generate for each sample. The actual returned value
+        will be (num_samples, *size). If an empty tuple will generate a single value per sample.
+    params_names : list of str
+        The names of the parameters used to create the distribution object.
+
+    Parameters
+    ----------
+    dist_name : str
+        The name of the distribution from which to sample.
+    seed : int, optional
+        The seed to use.
+    node_label : str, optional
+        An optional label for the node. If not provided, a default label
+        will be created based on the function name and parameters.
+    **kwargs : dict, optional
+        The parameters to use to create the distribution object.
+    """
+
+    def __init__(self, dist_name, seed=None, node_label=None, **kwargs):
+        super().__init__(self._non_func, node_label=node_label)
+
+        # Create the template of the distribution class and save the parameters.
+        if not hasattr(scipy.stats, dist_name):
+            raise ValueError(f"The distribution {dist_name} is not found in scipy.stats.")
+        self.dist_class = getattr(scipy.stats, dist_name)
+
+        self.params_names = []
+        for key, val in kwargs.items():
+            self.add_parameter(key, val)
+            self.params_names.append(key)
+
+        # Get a default random number generator for this object, using the
+        # given seed if one is provided.
+        if seed is None:
+            seed = int.from_bytes(urandom(4), "big")
+        self._rng = np.random.default_rng(seed=seed)
+
+    def set_seed(self, new_seed):
+        """Update the random number generator's seed to a given value.
+
+        Parameters
+        ----------
+        new_seed : int
+            The given seed
+        """
+        self._rng = np.random.default_rng(seed=new_seed)
+
+    def compute(self, graph_state, rng_info=None, **kwargs):
+        """Execute the wrapped function.
+
+        The input arguments are taken from the current graph_state and the outputs
+        are written to graph_state.
+
+        Parameters
+        ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values. This object is modified
+            in place as it is sampled.
+        rng_info : numpy.random._generator.Generator, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator.
+        **kwargs : dict, optional
+            Additional function arguments.
+
+        Returns
+        -------
+        results : any
+            The result of the computation. This return value is provided so that testing
+            functions can easily access the results.
+
+        Raises
+        ------
+        ValueError is func attribute is None.
+        """
+        # If a random number generator is given use that. Otherwise use the default one.
+        rng = rng_info if rng_info is not None else self._rng
+
+        # Set the size according to the number of samples.
+        size_param = graph_state.num_samples if graph_state.num_samples > 1 else None
+
+        # Create the distribution object using the sampled parameters.
+        param_values = {name: self.get_param(graph_state, name) for name in self.params_names}
+        print(param_values)
+        dist = self.dist_class(**param_values)
+
+        # Generate the values. Then save and return the results.
+        results = dist.rvs(size=size_param, random_state=rng)
+        self._save_results(results, graph_state)
+        return results

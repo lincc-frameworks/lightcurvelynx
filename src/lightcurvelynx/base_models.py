@@ -60,7 +60,8 @@ from lightcurvelynx.graph_state import DependencyGraph, GraphState
 
 class ParameterSource:
     """ParameterSource specifies the information about where a ParameterizedNode should
-    get the value for a given parameter.
+    get the value for a given parameter. These objects track internal state.
+    Users should not work with these objects directly.
 
     Attributes
     ----------
@@ -164,6 +165,38 @@ class ParameterSource:
         self.source_type = ParameterSource.COMPUTE_OUTPUT
         self.allow_gradient = False
         self.value = param_name
+
+
+class AttributeIndicatorNode:
+    """A class to wrap a single attribute of an object. These objects track internal state.
+    Users should not work with these objects directly.
+
+    Attributes
+    ----------
+    attr_name : str
+        The name of the attribute to access.
+    parent : ParameterizedNode
+        The parent node that owns this attribute.
+    """
+
+    def __init__(self, attr_name, parent):
+        self.attr_name = attr_name
+        self.parent = parent
+
+    def __call__(self, graph_state):
+        """Return the value in the graph_state of this attribute.
+
+        Parameters
+        ----------
+        graph_state : GraphState
+            The current graph state.
+
+        Returns
+        -------
+        any
+            The value of the attribute in the graph state.
+        """
+        return graph_state[self.parent.node_string][self.attr_name]
 
 
 class ParameterizedNode:
@@ -400,19 +433,16 @@ class ParameterizedNode:
             value = kwargs[name]
 
         if callable(value):
-            if "__self__" in value.__dir__() and isinstance(value.__self__, ParameterizedNode):
-                # Case 1a: This is a method attached to another ParameterizedNode.
-                # Check if this is a getter method, including one that might have been automatically
-                # created in add_parameter(). If this is a getter, we access the parameter's sampled
-                # values directly to save a function call.
-                method_name = value.__name__
-                parent = value.__self__
-                if method_name in parent.setters:
-                    self.setters[name].set_as_parameter(parent, method_name)
+            if isinstance(value, AttributeIndicatorNode):
+                # Case 1a: This is an attribute of a ParameterizedNode.
+                # We set the parameter's value in this node as the extraction of the
+                # parameter's value in the parent node.
+                if value.attr_name in value.parent.setters:
+                    self.setters[name].set_as_parameter(value.parent, value.attr_name)
                 else:
                     raise ValueError(
-                        f"Trying to set parameter '{name}' to the {type(parent)}.{method_name}, "
-                        f"but unable to find that parameter in class {type(parent)}."
+                        f"Trying to set parameter '{name}' to the {type(value.parent)}.{value.attr_name}, "
+                        f"but unable to find that parameter in class {type(value.parent)}."
                     )
             else:
                 # Case 1b: This is a general function or callable method from another object.
@@ -502,22 +532,14 @@ class ParameterizedNode:
         if allow_gradient is not None:
             self.setters[name].allow_gradient = allow_gradient
 
-        # Create a callable getter function with the same name as the parameter.
-        # This function allows us to reference the parameter as object.parameter_name
+        # Create an AttributeIndicatorNode to represent this parameter.
+        # This node allows us to reference the parameter as object.parameter_name
         # for chaining without copying the value. For example, if my_node_1, is a
         # ParameterizedNode with a parameter x, we can do:
         #   my_node_2 = ParameterizedNode(y=my_node_1.x)
         # and my_node_2 will know to use the sampled values of x from my_node_1
         # (as opposed to the setter for x).
-        #
-        # We override the __self__ and __name__ attributes so it looks like method of
-        # this object and the assignment y=my_node_1.x doesn't do a copy of the value.
-        def getter(graph_state):
-            return graph_state[getter.__self__.node_string][getter.__name__]
-
-        getter.__self__ = self
-        getter.__name__ = name
-        setattr(self, name, getter)
+        setattr(self, name, AttributeIndicatorNode(name, self))
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Placeholder for a general compute function, which is called at the end
@@ -859,7 +881,7 @@ class FunctionNode(ParameterizedNode):
         super()._update_node_string(new_str)
 
     def _build_inputs(self, graph_state, **kwargs):
-        """Build the input arguments for the function.
+        """Build the input arguments for the node's function.
 
         Parameters
         ----------
@@ -872,7 +894,7 @@ class FunctionNode(ParameterizedNode):
         Returns
         -------
         args : dict
-            A dictionary of input argument to value.
+            A dictionary mapping each input argument's name to its value.
         """
         args = {}
         for key in self.arg_names:

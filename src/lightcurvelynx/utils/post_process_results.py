@@ -3,9 +3,32 @@ columns and filtering on those columns."""
 
 import numpy as np
 import numpy.ma as ma
+import pandas as pd
 from nested_pandas import NestedFrame
 
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
+
+
+def concat_results(results_list):
+    """Concatenate a list of results into a single NestedFrame,
+    updating the ID column to be unique across all results.
+
+    Parameters
+    ----------
+    results_list : list of nested_pandas.NestedFrame
+        The list of DataFrames to concatenate.
+
+    Returns
+    -------
+    nested_pandas.NestedFrame
+        The concatenated DataFrame.
+    """
+    result = pd.concat(results_list, ignore_index=True)
+
+    # We need to update the ID column to be unique across all results.
+    if "id" in result.columns:
+        result["id"] = np.arange(len(result))
+    return result
 
 
 def results_drop_empty(results):

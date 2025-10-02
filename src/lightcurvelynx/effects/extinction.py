@@ -7,6 +7,7 @@ https://github.com/karllark/dust_extinction
 
 import importlib
 from pkgutil import iter_modules
+from typing import Literal
 
 import astropy.units as u
 import dust_extinction
@@ -31,13 +32,24 @@ class ExtinctionEffect(EffectModel, CiteClass):
         function in the dust_extinction package and use that.
     ebv : parameter
         The setter (function) for the extinction parameter E(B-V).
+    frame : str
+        The frame for extinction. 'rest' or 'observer'.
     **kwargs : `dict`, optional
         Any additional keyword arguments.
     """
 
-    def __init__(self, extinction_model="F99", ebv=None, **kwargs):
+    def __init__(
+        self, extinction_model=None, ebv=None, frame: Literal["observer"] | Literal["rest"] = None, **kwargs
+    ):
         super().__init__(**kwargs)
         self.add_effect_parameter("ebv", ebv)
+
+        if frame == "observer":
+            self.rest_frame = False
+        elif frame == "rest":
+            self.rest_frame = True
+        else:
+            raise ValueError("frame must be 'observer' or 'rest'.")
 
         if isinstance(extinction_model, str):
             extinction_model = ExtinctionEffect.load_extinction_model(extinction_model, **kwargs)

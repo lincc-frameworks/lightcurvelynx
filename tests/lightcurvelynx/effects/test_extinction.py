@@ -25,7 +25,7 @@ def test_load_extinction_model():
         ExtinctionEffect.load_extinction_model("InvalidModel")
 
     # We can manually load the g23_model into an ExtinctionEffect node.
-    dust_effect = ExtinctionEffect(g23_model, ebv=0.1)
+    dust_effect = ExtinctionEffect(g23_model, ebv=0.1, frame="rest")
 
     # We can apply the extinction effect to a set of fluxes.
     fluxes = np.full((10, 3), 1.0)
@@ -40,8 +40,14 @@ def test_load_extinction_model():
     with pytest.raises(ValueError):
         _ = dust_effect.apply(fluxes, ebv=0.1)
 
-    # We can load a default model.
-    _ = ExtinctionEffect()
+
+def test_set_frame():
+    """Test that correct frame is set"""
+    ext = ExtinctionEffect("G23", ebv=0.1, frame="observer")
+    assert ext.rest_frame is False
+
+    with pytest.raises(ValueError):
+        ExtinctionEffect("G23", ebv=0.1, frame="InvalidFrame")
 
 
 def test_constant_dust_extinction():
@@ -49,7 +55,7 @@ def test_constant_dust_extinction():
     # Use given ebv values. Usually these would be computed from a dustmap,
     # based on (RA, dec).
     ebv_node = GivenValueList([0.1, 0.2, 0.3, 0.4, 0.5])
-    dust_effect = ExtinctionEffect("CCM89", ebv=ebv_node, Rv=3.1)
+    dust_effect = ExtinctionEffect("CCM89", ebv=ebv_node, Rv=3.1, frame="rest")
     assert dust_effect.extinction_model is not None
     assert hasattr(dust_effect.extinction_model, "extinguish")
 
@@ -86,7 +92,7 @@ def test_dustmap_chain():
     dust_map_node = DustmapWrapper(dust_map, ra=model.ra, dec=model.dec)
 
     # Create an extinction effect using the EBVs from that dust map.
-    ext_effect = ExtinctionEffect(extinction_model="CCM89", ebv=dust_map_node, Rv=3.1)
+    ext_effect = ExtinctionEffect(extinction_model="CCM89", ebv=dust_map_node, Rv=3.1, frame="rest")
     model.add_effect(ext_effect)
 
     # Sample the model.

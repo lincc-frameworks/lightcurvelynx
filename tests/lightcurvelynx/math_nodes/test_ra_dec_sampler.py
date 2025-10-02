@@ -5,6 +5,7 @@ import astropy.units as u
 import numpy as np
 import pytest
 from astropy.coordinates import Latitude, Longitude, SkyCoord
+from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.math_nodes.ra_dec_sampler import (
     ApproximateMOCSampler,
     ObsTableRADECSampler,
@@ -145,22 +146,30 @@ def test_opsim_uniform_ra_dec_sampler():
     assert len(ops_data) == 2
 
     # Use a very large radius so we do not reject too many samples.
-    sampler_node = ObsTableUniformRADECSampler(ops_data, radius=70.0, seed=100, node_label="sampler")
-    assert sampler_node.radius == 70.0
+    sampler_node = ObsTableUniformRADECSampler(ops_data, radius=30.0, seed=100, node_label="sampler")
+    assert sampler_node.radius == 30.0
 
     # Test we can generate a single value.
     ra, dec = sampler_node.generate(num_samples=1)
-    assert ops_data.is_observed(ra, dec, radius=70.0)
+    assert ops_data.is_observed(ra, dec, radius=30.0)
 
     # Test we can generate many observations
     num_samples = 10_000
     ra, dec = sampler_node.generate(num_samples=num_samples)
-    assert np.all(ops_data.is_observed(ra, dec, radius=70.0))
+    assert np.all(ops_data.is_observed(ra, dec, radius=30.0))
 
     # We should sample roughly uniformly from the two regions.
     northern_mask = dec > 0.0
     assert np.sum(northern_mask) > 0.4 * num_samples
     assert np.sum(northern_mask) < 0.6 * num_samples
+
+    northern_center = SkyCoord(ra=15.0, dec=75.0, unit="deg")
+    northern_pts = SkyCoord(ra[northern_mask], dec[northern_mask], unit="deg")
+    assert np.all(northern_pts.separation(northern_center) <= 30.0 * u.deg)
+
+    southern_center = SkyCoord(ra=195.0, dec=-75.0, unit="deg")
+    southern_pts = SkyCoord(ra[~northern_mask], dec[~northern_mask], unit="deg")
+    assert np.all(southern_pts.separation(southern_center) <= 30.0 * u.deg)
 
     # We fail if neither the OpSim or the sampler have a radius
     ops_data = OpSim(values, radius=None)
@@ -171,6 +180,35 @@ def test_opsim_uniform_ra_dec_sampler():
     ops_data = OpSim(values, radius=10.0)
     sampler_node = ObsTableUniformRADECSampler(ops_data)
     assert sampler_node.radius == 10.0
+
+
+def test_opsim_uniform_ra_dec_sampler_footprint():
+    """Test that we can sample uniformly from am OpSim object with a footprint."""
+    # Create an opsim with two points in different hemispheres.
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0]),
+        "fieldRA": np.array([15.0, 195.0]),
+        "fieldDec": np.array([75.0, -75.0]),
+        "zp_nJy": np.ones(2),
+    }
+
+    # Detector is a rectangle of 200 x 300 pixels with 0.1 deg/pixel
+    # or 20 degrees width and 30 degrees height.
+    fp = DetectorFootprint.from_rect(width=200, height=300, pixel_scale=0.1)
+    ops_data = OpSim(values, detector_footprint=fp)
+
+    # Test we can generate multiple observations
+    num_samples = 200
+    sampler_node = ObsTableUniformRADECSampler(ops_data, radius=50.0, seed=100, node_label="sampler")
+    ra, dec = sampler_node.generate(num_samples=num_samples)
+
+    # We should sample roughly uniformly from the two regions.
+    northern_mask = dec > 0.0
+    assert np.sum(northern_mask) > 0.4 * num_samples
+    assert np.sum(northern_mask) < 0.6 * num_samples
+
+    # All the points should be visible.
+    assert np.all(ops_data.is_observed(ra, dec, radius=50.0))
 
 
 def test_approximate_moc_sampler():

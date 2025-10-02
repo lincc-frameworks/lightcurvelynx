@@ -48,14 +48,12 @@ class Microlensing(EffectModel, CiteClass):
         Einstein timescale, in days.
     probability : float, optional
         The probability of the microlensing event occurring. Default: 1.0
-    rest_frame : bool, optional
-        Whether to use the rest frame for the microlensing model. Default: True
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
 
-    def __init__(self, microlensing_t0, u_0, t_E, probability=1.0, rest_frame=True, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, microlensing_t0, u_0, t_E, probability=1.0, **kwargs):
+        super().__init__(**kwargs, rest_frame=False)
         self.add_effect_parameter("microlensing_t0", microlensing_t0)
         self.add_effect_parameter("u_0", u_0)
         self.add_effect_parameter("t_E", t_E)
@@ -77,9 +75,6 @@ class Microlensing(EffectModel, CiteClass):
                 "please install it. For example, you can install it with `pip install VBMicrolensing`."
             ) from err
         self.VBM = VBMicrolensing.VBMicrolensing()
-
-        # Override the default rest_frame parameter.
-        self.rest_frame = rest_frame
 
     def apply(
         self,

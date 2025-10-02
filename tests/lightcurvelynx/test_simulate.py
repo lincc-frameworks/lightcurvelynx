@@ -1,21 +1,28 @@
+import tempfile
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
-from lightcurvelynx.astro_utils.passbands import PassbandGroup
+from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
+from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
 from lightcurvelynx.simulate import (
+    SimulationInfo,
     compute_noise_free_lightcurves,
     compute_single_noise_free_lightcurve,
     get_time_windows,
     simulate_lightcurves,
 )
+from nested_pandas import read_parquet
 
 
 def test_get_time_windows():
@@ -42,6 +49,62 @@ def test_get_time_windows():
 
     with pytest.raises(ValueError):
         get_time_windows(0.0, (1.0, 2.0, 3.0))
+
+
+def test_simulation_info():
+    """Test that we can create and split SimulationInfo objects."""
+    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0, node_label="source")
+
+    # Create a completely fake passband group and obstable for testing.
+    pb_group = PassbandGroup(
+        [
+            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "a"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "b"),
+        ]
+    )
+
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+    }
+    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    ops_data = FakeObsTable(values, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0)
+
+    sim_info = SimulationInfo(
+        model=model,
+        num_samples=100,
+        obstable=ops_data,
+        passbands=pb_group,
+        time_window_offset=(-5.0, 10.0),  # A keyword argument to test
+        rng=np.random.default_rng(12345),
+    )
+    assert sim_info.num_samples == 100
+    assert sim_info.time_window_offset == (-5.0, 10.0)
+
+    # Test splitting into batches.
+    batches = sim_info.split(num_batches=3)
+    assert len(batches) == 3
+    assert batches[0].num_samples == 34
+    assert batches[1].num_samples == 34
+    assert batches[2].num_samples == 32
+
+    # We propagate all the keyword parameters.
+    assert batches[0].time_window_offset == (-5.0, 10.0)
+    assert batches[1].time_window_offset == (-5.0, 10.0)
+    assert batches[2].time_window_offset == (-5.0, 10.0)
+
+    # They have different RNGs with different sampling states.
+    assert batches[0].rng is not batches[1].rng
+    assert batches[0].rng is not batches[2].rng
+    assert batches[1].rng is not batches[2].rng
+    sample0 = batches[0].rng.integers(0, 100000)
+    sample1 = batches[1].rng.integers(0, 100000)
+    sample2 = batches[2].rng.integers(0, 100000)
+    assert sample0 != sample1
+    assert sample0 != sample2
+    assert sample1 != sample2
 
 
 def test_simulate_lightcurves(test_data_dir):
@@ -132,6 +195,55 @@ def test_simulate_lightcurves(test_data_dir):
     assert "source2.dec" in str(excinfo.value)
 
 
+def test_simulate_lightcurves_to_file(test_data_dir):
+    """Test an end to end run of simulating the light curves, saving them to a file."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
+    source = ConstantSEDModel(
+        brightness=GivenValueList(given_brightness),
+        t0=0.0,
+        ra=GivenValueList(opsim_db["ra"].values[0:5]),
+        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        file_path = Path(tmpdir) / "test_simulate_lightcurves.parquet"
+        assert not file_path.exists()
+
+        results = simulate_lightcurves(
+            source,
+            5,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            output_file_path=file_path,
+        )
+        assert str(results) == str(file_path)
+        assert file_path.exists()
+
+        results_df = read_parquet(file_path)
+        assert len(results_df) == 5
+        assert np.all(results_df["nobs"].to_numpy() >= 1)
+        assert np.allclose(results_df["ra"].to_numpy(), opsim_db["ra"].values[0:5])
+        assert np.allclose(results_df["dec"].to_numpy(), opsim_db["dec"].values[0:5])
+        assert np.allclose(results_df["z"].to_numpy(), 0.0)
+        assert np.allclose(results_df["t0"].to_numpy(), 0.0)
+
+
 def test_simulate_bandfluxes(test_data_dir):
     """Test an end to end run of simulating a bandflux model."""
     # Create a toy observation table with two pointings.
@@ -162,6 +274,145 @@ def test_simulate_bandfluxes(test_data_dir):
     assert len(results) == 2
     assert np.allclose(results["lightcurve"][0]["flux_perfect"], [1.0, 3.0, 3.0, 5.0])
     assert np.allclose(results["lightcurve"][1]["flux_perfect"], [1.0, 3.0, 3.0, 5.0])
+
+
+def test_simulate_parallel_threads(test_data_dir):
+    """Test an end to end run of simulating the light curves parallel with threads."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    ra0 = opsim_db["ra"].values[0]
+    dec0 = opsim_db["dec"].values[0]
+    source = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
+        t0=0.0,
+        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
+        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = simulate_lightcurves(
+            source,
+            100,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            executor=executor,
+            batch_size=10,
+        )
+    assert len(results) == 100
+    assert np.all(results["nobs"].values >= 1)
+    assert np.all(results["ra"].values >= ra0 - 0.5)
+    assert np.all(results["ra"].values <= ra0 + 0.5)
+    assert np.all(results["dec"].values >= dec0 - 0.5)
+    assert np.all(results["dec"].values <= dec0 + 0.5)
+
+    for idx in range(100):
+        num_obs = results["nobs"][idx]
+        assert num_obs >= 1
+        assert len(results["lightcurve"][idx]["flux"]) == num_obs
+
+
+def test_simulate_parallel_processes(test_data_dir):
+    """Test an end to end run of simulating the light curves paralle with processes."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    ra0 = opsim_db["ra"].values[0]
+    dec0 = opsim_db["dec"].values[0]
+    source = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
+        t0=0.0,
+        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
+        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    with ProcessPoolExecutor(max_workers=2) as executor:
+        results = simulate_lightcurves(
+            source,
+            100,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            executor=executor,
+            batch_size=10,
+        )
+    assert len(results) == 100
+    assert np.all(results["nobs"].values >= 1)
+    assert np.all(results["ra"].values >= ra0 - 0.5)
+    assert np.all(results["ra"].values <= ra0 + 0.5)
+    assert np.all(results["dec"].values >= dec0 - 0.5)
+    assert np.all(results["dec"].values <= dec0 + 0.5)
+
+    for idx in range(100):
+        num_obs = results["nobs"][idx]
+        assert num_obs >= 1
+        assert len(results["lightcurve"][idx]["flux"]) == num_obs
+
+    # We can use the default (ProcessPoolExecutor) by giving a number of jobs.
+    results2 = simulate_lightcurves(
+        source,
+        100,
+        opsim_db,
+        passband_group,
+        obstable_save_cols=["observationId", "zp_nJy"],
+        param_cols=["source.brightness"],
+        batch_size=10,
+        num_jobs=2,
+    )
+    assert len(results2) == 100
+
+    # We can write the results to files.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_path = Path(tmpdir) / "test_df.parquet"
+        ind_paths = []
+        for i in range(4):
+            curr_path = Path(tmpdir) / f"test_df_part{i}.parquet"
+            assert not curr_path.exists()
+            ind_paths.append(curr_path)
+
+        results3 = simulate_lightcurves(
+            source,
+            200,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            output_file_path=base_path,
+            batch_size=50,
+            num_jobs=4,
+        )
+        assert len(results3) == 4
+        for i in range(4):
+            assert str(results3[i]) == str(ind_paths[i])
+            assert ind_paths[i].exists()
+
+            results_df = read_parquet(ind_paths[i])
+            assert len(results_df) == 50
 
 
 def test_simulate_single_lightcurve(test_data_dir):
