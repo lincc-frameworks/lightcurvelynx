@@ -51,6 +51,9 @@ class FakeObsTable(ObsTable):
         The sky background in the units of electrons / pixel^2. If a dictionary is provided,
         it should map filter names to sky values. This is only needed if `const_flux_error`
         is not provided (default=None).
+    saturation_mags : dict, optional
+        A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
+        provided must match those in the table. If not provided, saturation effects will not be applied.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -84,6 +87,7 @@ class FakeObsTable(ObsTable):
         radius=None,
         read_noise=0,
         sky=None,
+        saturation_mags=None,
         **kwargs,
     ):
         self.zp_per_band = zp_per_band
@@ -101,6 +105,7 @@ class FakeObsTable(ObsTable):
             radius=radius,
             read_noise=read_noise,
             sky=sky,
+            saturation_mags=saturation_mags,
             **kwargs,
         )
 

@@ -37,6 +37,9 @@ class ZTFObsTable(ObsTable):
     colmap : dict
         A mapping of short column names to their names in the underlying table.
         Defaults to the ZTF column names, stored in _default_colnames.
+    saturation_mags : dict, optional
+        A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
+        provided must match those in the table. If not provided, ZTF-specific defaults will be used.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -70,7 +73,16 @@ class ZTFObsTable(ObsTable):
         "survey_name": "ZTF",
     }
 
-    def __init__(self, table, colmap=None, **kwargs):
+    # Default saturation thresholds for ZTF, in magnitudes.
+    # https://irsa.ipac.caltech.edu/data/ZTF/docs/ztf_extended_cautionary_notes.pdf
+    # Using a naive value of 12.5 mag for the time being.
+    _default_saturation_mags = {
+        "g": 12.5,
+        "r": 12.5,
+        "i": 12.5,
+    }
+
+    def __init__(self, table, colmap=None, saturation_mags=None, **kwargs):
         colmap = self._default_colnames if colmap is None else colmap
 
         # Make a copy of the table data with the obsdate converted to the MJD and
@@ -80,7 +92,11 @@ class ZTFObsTable(ObsTable):
             t = Time(list(table["obsdate"]), format="iso", scale="utc")
             table["obsmjd"] = t.mjd
 
-        super().__init__(table, colmap=colmap, **kwargs)
+        # If saturation thresholds are not provided, then set to the ZTF defaults.
+        if saturation_mags is None:
+            saturation_mags = self._default_saturation_mags
+
+        super().__init__(table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in ADU to the ObsTable."""
