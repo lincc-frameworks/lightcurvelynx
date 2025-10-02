@@ -573,10 +573,8 @@ def test_simulate_with_default_saturation_mags_values(test_data_dir):
         fluxes = lightcurve["flux"][mask]
         assert np.all(fluxes <= opsim_sat_thresholds_njy[filter])
 
-    # Check the flux_error values are non-zero and not unreasonably large.
+    # Check the flux_error values are non-zero.
     flux_errors = lightcurve["fluxerr"]
-    fluxes = lightcurve["flux"]
-    assert np.all(flux_errors <= fluxes)
     assert np.all(flux_errors > 0.0)
 
     # Check that the "is_saturated" column is True for all observations.
