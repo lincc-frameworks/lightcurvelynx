@@ -1,6 +1,7 @@
 """The core functions for running the LightCurveLynx simulation."""
 
-import citation_compass as cc
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from nested_pandas import NestedFrame
@@ -49,6 +50,9 @@ class SimulationInfo:
     sample_offset : int
         An offset to apply to the sample indices. This is used when splitting
         the simulation into multiple batches for multiprocessing.
+    output_file_path : str or Path, optional
+        The file path and name of where to save the results. If provided the results
+        are saved to this file instead of being returned directly.
     kwargs : dict
         Additional keyword arguments to pass to the simulation function.
     """
@@ -66,6 +70,7 @@ class SimulationInfo:
         time_window_offset=None,
         sample_offset=0,
         rng=None,
+        output_file_path=None,
         **kwargs,
     ):
         self.model = model
@@ -79,9 +84,15 @@ class SimulationInfo:
         self.sample_offset = sample_offset
         self.rng = rng
         self.kwargs = kwargs
+        self.output_file_path = None
 
         if self.num_samples <= 0:
             raise ValueError("Number of samples must be a positive integer.")
+
+        if output_file_path is not None:
+            self.output_file_path = Path(output_file_path)
+            if not self.output_file_path.parent.exists():
+                raise ValueError(f"Output file directory {self.output_file_path.parent} does not exist.")
 
     def run(self):
         """Generate a number of simulations of the given model and information
@@ -89,10 +100,11 @@ class SimulationInfo:
 
         Returns
         -------
-        lightcurves : nested_pandas.NestedFrame
-            A NestedFrame with a row for each object.
+        lightcurves : nested_pandas.NestedFrame or Path
+            If output_file_path is None, a NestedFrame with a row for each object. Otherwise
+            the file is saved and the function returns the Path to the saved file.
         """
-        return simulate_lightcurves(
+        results = simulate_lightcurves(
             model=self.model,
             num_samples=self.num_samples,
             obstable=self.obstable,
@@ -105,6 +117,11 @@ class SimulationInfo:
             generate_citations=False,  # For parallel runs, we only want citations once at the end.
             **self.kwargs,
         )
+
+        if self.output_file_path is not None:
+            results.to_parquet(self.output_file_path)
+            return self.output_file_path
+        return results
 
     def split(self, num_batches=None, batch_size=None):
         """Split the simulation info into multiple batches for parallel processing.
@@ -140,7 +157,7 @@ class SimulationInfo:
 
         batches = []
         end_idx = 0
-        for _ in range(num_batches):
+        for batch_idx in range(num_batches):
             # Compute the bounds of the batch.
             start_idx = end_idx
             end_idx = min(start_idx + batch_size, self.num_samples)
@@ -153,6 +170,15 @@ class SimulationInfo:
             if self.rng is not None:
                 seed = self.rng.integers(0, 2**32 - 1)
                 batch_rng = np.random.default_rng(seed)
+
+            # If we are saving to a file, modify the output file path for this batch.
+            if self.output_file_path is not None:
+                batch_output_file_path = (
+                    self.output_file_path
+                    / f"{self.output_file_path.stem}_part{batch_idx}{self.output_file_path.suffix}"
+                )
+            else:
+                batch_output_file_path = None
 
             # Create a subset of the batch. Most information is the same (references to the
             # same objects), except for the number of samples and the RNG.
@@ -167,6 +193,7 @@ class SimulationInfo:
                 time_window_offset=self.time_window_offset,
                 sample_offset=self.sample_offset + start_idx,
                 rng=batch_rng,
+                output_file_path=batch_output_file_path,
                 **self.kwargs,
             )
             batches.append(batch_info)
@@ -416,13 +443,14 @@ def simulate_lightcurves_parallel(
     param_cols=None,
     apply_obs_mask=False,
     time_window_offset=None,
+    output_file_path=None,
     rng=None,
-    generate_citations=False,
     executor=None,
     batch_size=1_000,
 ):
     """Generate a number of simulations of the given model and information
-    from one or more surveys.
+    from one or more surveys. The result data can either be returned directly
+    (as a single nested data frame) or saved to file(s).
 
     Parameters
     ----------
@@ -452,12 +480,12 @@ def simulate_lightcurves_parallel(
         the results (instead of just the full dictionary of parameters). These
         must be specified as strings in the node_name.param_name format.
         If None, no additional columns are saved.
+    output_file_path : str or Path, optional
+        The file path and name of where to save the results. If provided the results
+        are saved to this file instead of being returned directly.
     rng : numpy.random._generator.Generator, optional
         A given numpy random number generator to use for this computation. If not
         provided, the function uses the node's random number generator.
-    generate_citations : bool, optional
-        If True, generate citations for the simulation and output them.
-        Default is False.
     executor : concurrent.futures.Executor
         The executor object to use for parallel processing. If None,
         the function runs in serial.
@@ -467,9 +495,14 @@ def simulate_lightcurves_parallel(
 
     Returns
     -------
-    lightcurves : nested_pandas.NestedFrame
-        A NestedFrame with a row for each object.
+    lightcurves : nested_pandas.NestedFrame or list of Path
+        If output_file_path is None, a NestedFrame with a row for each object. Otherwise
+        the file(s) are saved and the function returns a list of Paths to the saved files.
     """
+    if output_file_path is not None:
+        output_file_path = Path(output_file_path)
+        output_file_path.parent.mkdir(parents=True, exist_ok=True)
+
     # Create the simulation info wrapper.
     simulation_info = SimulationInfo(
         model=model,
@@ -481,6 +514,7 @@ def simulate_lightcurves_parallel(
         time_window_offset=time_window_offset,
         obstable_save_cols=obstable_save_cols,
         param_cols=param_cols,
+        output_file_path=output_file_path,
     )
 
     if executor is None:
@@ -497,17 +531,13 @@ def simulate_lightcurves_parallel(
             result_list.append(res.result())
         else:  # A direct result
             result_list.append(res)
-    results = concat_results(result_list)
 
-    # If requested, generate citations for the simulation.
-    if generate_citations:
-        print(
-            "The following citations were called during this simulation. Note that this list is "
-            "provided for convenience and may be incomplete and we recommend the user confirm "
-            "which models, effects, and parameters were used."
-        )
-        cc.print_used_citations()
-
+    # If we returned the results directly, concatenate them into a single NestedFrame.
+    # If we saved them to file, return the list of file paths.
+    if output_file_path is None:
+        results = concat_results(result_list)
+    else:
+        results = result_list
     return results
 
 
