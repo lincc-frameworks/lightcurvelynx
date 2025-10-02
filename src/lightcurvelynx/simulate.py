@@ -413,7 +413,7 @@ def simulate_lightcurves(
     rng=None,
     executor=None,
     num_jobs=None,
-    batch_size=1_000,
+    batch_size=100_000,
 ):
     """Generate a number of simulations of the given model and information
     from one or more surveys. The result data can either be returned directly
@@ -449,20 +449,21 @@ def simulate_lightcurves(
         If None, no additional columns are saved.
     output_file_path : str or Path, optional
         The file path and name of where to save the results. If provided the results
-        are saved to this file instead of being returned directly.
+        are saved to this file instead of being returned directly. If the simulation
+        is run in parallel, multiple files are created with a _partN suffix.
     rng : numpy.random._generator.Generator, optional
         A given numpy random number generator to use for this computation. If not
         provided, the function uses the node's random number generator.
     executor : concurrent.futures.Executor, optional
-        The executor object to use for parallel processing. If None,
-        the function runs in serial.
+        The executor object that to use for parallel processing. This can be any object that
+        supports concurrent.futures's map() function, returning either Future objects or
+        direct results. If None, the function runs in serial.
     num_jobs : int, optional
-        If provided (and no executor is provided) creates a process pool with the
-        given number of workers to process the results.
-        Default is None.
+        If provided (and no executor is provided) creates a process pool (ProcessPoolExecutor)
+        with the given number of workers to process the results.
     batch_size : int, optional
         The number of samples to process in each batch when using multiprocessing.
-        Default is 1000.
+        Default is 100_000.
 
     Returns
     -------
