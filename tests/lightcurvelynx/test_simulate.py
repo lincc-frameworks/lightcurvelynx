@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 import pytest
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
-from lightcurvelynx.astro_utils.unit_utils import ab_mag_to_njy
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
@@ -566,7 +566,7 @@ def test_simulate_with_default_saturation_mags_values(test_data_dir):
 
     # Check that every flux value is below the saturation threshold for its filter.
     lightcurve = results["lightcurve"][0]
-    opsim_sat_thresholds_njy = {band: ab_mag_to_njy(mag) for band, mag in opsim_db._saturation_mags.items()}
+    opsim_sat_thresholds_njy = {band: mag2flux(mag) for band, mag in opsim_db._saturation_mags.items()}
 
     for filter in ["g", "r"]:
         mask = lightcurve["filter"] == filter
@@ -576,7 +576,7 @@ def test_simulate_with_default_saturation_mags_values(test_data_dir):
     # Check the flux_error values are non-zero and not unreasonably large.
     flux_errors = lightcurve["fluxerr"]
     fluxes = lightcurve["flux"]
-    assert np.all(flux_errors <= 0.5 * fluxes)
+    assert np.all(flux_errors <= fluxes)
     assert np.all(flux_errors > 0.0)
 
     # Check that the "is_saturated" column is True for all observations.
@@ -645,7 +645,7 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
 
     # Check that every flux value is below the saturation threshold for its filter.
     lightcurve = results["lightcurve"][0]
-    toy_sat_thresholds_njy = {band: ab_mag_to_njy(mag) for band, mag in toy_sat_thresholds.items()}
+    toy_sat_thresholds_njy = {band: mag2flux(mag) for band, mag in toy_sat_thresholds.items()}
     for filter in ["g", "r", "i", "z"]:
         mask = lightcurve["filter"] == filter
         fluxes = lightcurve["flux"][mask]

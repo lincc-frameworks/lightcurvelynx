@@ -15,7 +15,7 @@ from regions import Region
 from scipy.spatial import KDTree
 
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
-from lightcurvelynx.astro_utils.unit_utils import ab_mag_to_njy
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -693,14 +693,23 @@ class ObsTable:
     def compute_saturation(self, flux, flux_error, filters):
         """Apply the saturation limits to a given flux and flux error.
 
+        When a flux value exceeds the saturation limit, it is clipped to the limit and flagged as
+        saturated. In these cases, the associated flux_error is increased to account for the offset
+        introduced by clipping. The new error is computed as the quadrature sum of the original
+        flux_error and the difference between the orginal flux and saturated flux:
+
+            saturated_flux_error = sqrt(flux_error**2 + (flux - saturated_flux)**2)
+
+        For unsaturated points, both flux and flux_error are returned unchanged.
+
         Parameters
         ----------
         flux : numpy.ndarray of float
             The bandflux in nJy. A size S x T array where S is the
-                number of samples in the graph state and T is the number of time points.
+            number of samples in the graph state and T is the number of time points.
         flux_error : numpy.ndarray of float
             The bandflux error in nJy. A size S x T array where S is the
-                number of samples in the graph state and T is the number of time points.
+            number of samples in the graph state and T is the number of time points.
         filters : numpy.ndarray of str
             The filter names. A size T array where T is the number of time points.
 
@@ -731,7 +740,7 @@ class ObsTable:
         for filt, mag in self._saturation_mags.items():
             if not isinstance(mag, int | float):
                 raise ValueError("Saturation thresholds must be numeric.")
-            saturation_mags_njy[filt] = ab_mag_to_njy(mag)
+            saturation_mags_njy[filt] = mag2flux(mag)
 
         # Map the filter list to saturation limits.
         limits = np.array([saturation_mags_njy.get(filt, np.inf) for filt in filters])
