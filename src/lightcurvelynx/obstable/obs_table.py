@@ -750,6 +750,6 @@ class ObsTable:
         saturated_flux_error = np.where(true_flux <= limits, true_flux_error, saturated_flux_error)
 
         # Create a flag array to indicate which points are saturated.
-        saturation_flags = true_flux > (limits - 1e-10)
+        saturation_flags = true_flux > limits
 
         return saturated_flux, saturated_flux_error, saturation_flags
