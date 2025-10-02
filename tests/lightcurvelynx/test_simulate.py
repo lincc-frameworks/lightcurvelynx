@@ -1,4 +1,4 @@
-from multiprocessing import Pool
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 import numpy as np
 import pytest
@@ -16,6 +16,7 @@ from lightcurvelynx.simulate import (
     compute_single_noise_free_lightcurve,
     get_time_windows,
     simulate_lightcurves,
+    simulate_lightcurves_parallel,
 )
 
 
@@ -221,8 +222,8 @@ def test_simulate_bandfluxes(test_data_dir):
     assert np.allclose(results["lightcurve"][1]["flux_perfect"], [1.0, 3.0, 3.0, 5.0])
 
 
-def test_simulate_parallel(test_data_dir):
-    """Test an end to end run of simulating the light curves."""
+def test_simulate_parallel_threads(test_data_dir):
+    """Test an end to end run of simulating the light curves paralle with threads."""
     # Load the OpSim data.
     opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
 
@@ -246,15 +247,64 @@ def test_simulate_parallel(test_data_dir):
         node_label="source",
     )
 
-    with Pool(processes=2) as pool:
-        results = simulate_lightcurves(
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = simulate_lightcurves_parallel(
             source,
             100,
             opsim_db,
             passband_group,
             obstable_save_cols=["observationId", "zp_nJy"],
             param_cols=["source.brightness"],
-            pool=pool,
+            executor=executor,
+            batch_size=10,
+        )
+    assert len(results) == 100
+    assert np.all(results["nobs"].values >= 1)
+    assert np.all(results["ra"].values >= ra0 - 0.5)
+    assert np.all(results["ra"].values <= ra0 + 0.5)
+    assert np.all(results["dec"].values >= dec0 - 0.5)
+    assert np.all(results["dec"].values <= dec0 + 0.5)
+
+    for idx in range(100):
+        num_obs = results["nobs"][idx]
+        assert num_obs >= 1
+        assert len(results["lightcurve"][idx]["flux"]) == num_obs
+
+
+def test_simulate_parallel_processes(test_data_dir):
+    """Test an end to end run of simulating the light curves paralle with processes."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    ra0 = opsim_db["ra"].values[0]
+    dec0 = opsim_db["dec"].values[0]
+    source = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
+        t0=0.0,
+        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
+        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    with ProcessPoolExecutor(max_workers=2) as executor:
+        results = simulate_lightcurves_parallel(
+            source,
+            100,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            executor=executor,
             batch_size=10,
         )
     assert len(results) == 100

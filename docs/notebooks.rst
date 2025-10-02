@@ -34,6 +34,7 @@ features and models of the LightCurveLynx package.
     Advanced Sampling Techniques <notebooks/advanced_sampling>
     Simulating Multiple Surveys <notebooks/multiple_surveys>
     Detector Footprints <notebooks/detector_footprint>
+    Parallel Runs <notebooks/parallel_runs>
 
 
 Citations
