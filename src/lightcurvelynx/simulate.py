@@ -1,12 +1,175 @@
 """The core functions for running the LightCurveLynx simulation."""
 
-import citation_compass as cc
+import concurrent.futures
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from nested_pandas import NestedFrame
 
 from lightcurvelynx.astro_utils.noise_model import apply_noise
 from lightcurvelynx.models.physical_model import BandfluxModel
+from lightcurvelynx.utils.post_process_results import concat_results
+
+
+class SimulationInfo:
+    """A class to hold all the information (data and configuration) for a simulation
+    run. This includes the model, the surveys, the passbands, etc. This object
+    is used so we have have a single object to pass around to multiprocessing functions.
+
+    Attributes
+    ----------
+    model : BasePhysicalModel
+        The model to draw from. This may have its own parameters which
+        will be randomly sampled with each draw.
+    num_samples : int
+        The number of samples.
+    obstable : ObsTable or List of ObsTable
+        The ObsTable(s) from which to extract information for the samples.
+    passbands : PassbandGroup or List of PassbandGroup
+        The passbands to use for generating the bandfluxes.
+    apply_obs_mask: boolean
+        If True, apply obs_mask to filter interesting indices/times.
+    time_window_offset : tuple(float, float), optional
+        A tuple specifying the time window offset (before, after) t0 in days.
+        This is used to filter the observations to only those within the specified
+        time window (t0 - before, t0 + after). If None or the model does not have a
+        t0 specified, no time window is applied.
+    obstable_save_cols : list of str, optional
+        A list of ObsTable columns to be saved as part of the results. This is used
+        to save context information about how the light curves were generated. If the column
+        is missing from one of the ObsTables, a null value such as None or NaN is used.
+        If None, no additional columns are saved.
+    param_cols : list of str, optional
+        A list of the model's parameter columns to be saved as separate columns in
+        the results (instead of just the full dictionary of parameters). These
+        must be specified as strings in the node_name.param_name format.
+        If None, no additional columns are saved.
+    rng : numpy.random._generator.Generator, optional
+        A given numpy random number generator to use for this computation. If not
+        provided, the function uses the node's random number generator.
+    sample_offset : int
+        An offset to apply to the sample indices. This is used when splitting
+        the simulation into multiple batches for multiprocessing.
+    output_file_path : str or Path, optional
+        The file path and name of where to save the results. If provided the results
+        are saved to this file instead of being returned directly.
+    kwargs : dict
+        Additional keyword arguments to pass to the simulation function.
+    """
+
+    def __init__(
+        self,
+        model,
+        num_samples,
+        obstable,
+        passbands,
+        *,
+        obstable_save_cols=None,
+        param_cols=None,
+        apply_obs_mask=False,
+        time_window_offset=None,
+        sample_offset=0,
+        rng=None,
+        output_file_path=None,
+        **kwargs,
+    ):
+        self.model = model
+        self.num_samples = num_samples
+        self.obstable = obstable
+        self.passbands = passbands
+        self.apply_obs_mask = apply_obs_mask
+        self.time_window_offset = time_window_offset
+        self.obstable_save_cols = obstable_save_cols
+        self.param_cols = param_cols
+        self.sample_offset = sample_offset
+        self.rng = rng
+        self.kwargs = kwargs
+        self.output_file_path = None
+
+        if self.num_samples <= 0:
+            raise ValueError("Number of samples must be a positive integer.")
+
+        if output_file_path is not None:
+            self.output_file_path = Path(output_file_path)
+            if not self.output_file_path.parent.exists():
+                raise ValueError(f"Output file directory {self.output_file_path.parent} does not exist.")
+
+    def split(self, num_batches=None, batch_size=None):
+        """Split the simulation info into multiple batches for parallel processing.
+
+        Parameters
+        ----------
+        num_batches : int, optional
+            The number of batches to split the simulation into. If None, batch_size
+            must be provided.
+        batch_size : int, optional
+            The size of each batch. If None, num_batches must be provided.
+
+        Returns
+        -------
+        batches : list of SimulationInfo
+            A list of SimulationInfo objects, one for each batch.
+        """
+        if num_batches is None and batch_size is None:
+            raise ValueError("Either num_batches or batch_size must be provided.")
+        if num_batches is not None and batch_size is not None:
+            raise ValueError("Either num_batches or batch_size must be provided, but not both.")
+
+        if num_batches is not None:
+            if num_batches <= 0:
+                raise ValueError("num_batches must be a positive integer.")
+            if num_batches > self.num_samples:
+                num_batches = self.num_samples
+            batch_size = np.ceil(self.num_samples / num_batches).astype(int)
+        else:
+            if batch_size <= 0:
+                raise ValueError("batch_size must be a positive integer.")
+            num_batches = np.ceil(self.num_samples / batch_size).astype(int)
+
+        batches = []
+        end_idx = 0
+        for batch_idx in range(num_batches):
+            # Compute the bounds of the batch.
+            start_idx = end_idx
+            end_idx = min(start_idx + batch_size, self.num_samples)
+            batch_num_samples = end_idx - start_idx
+            if batch_num_samples <= 0:
+                break
+
+            # If given a RNG, match sure we create a unique RNG for each batch.
+            batch_rng = None
+            if self.rng is not None:
+                seed = self.rng.integers(0, 2**32 - 1)
+                batch_rng = np.random.default_rng(seed)
+
+            # If we are saving to a file, modify the output file path for this batch.
+            if self.output_file_path is not None:
+                batch_output_file_path = (
+                    self.output_file_path.parent
+                    / f"{self.output_file_path.stem}_part{batch_idx}{self.output_file_path.suffix}"
+                )
+            else:
+                batch_output_file_path = None
+
+            # Create a subset of the batch. Most information is the same (references to the
+            # same objects), except for the number of samples and the RNG.
+            batch_info = SimulationInfo(
+                model=self.model,
+                num_samples=batch_num_samples,
+                obstable=self.obstable,
+                passbands=self.passbands,
+                obstable_save_cols=self.obstable_save_cols,
+                param_cols=self.param_cols,
+                apply_obs_mask=self.apply_obs_mask,
+                time_window_offset=self.time_window_offset,
+                sample_offset=self.sample_offset + start_idx,
+                rng=batch_rng,
+                output_file_path=batch_output_file_path,
+                **self.kwargs,
+            )
+            batches.append(batch_info)
+        return batches
 
 
 def get_time_windows(t0, time_window_offset):
@@ -48,61 +211,31 @@ def get_time_windows(t0, time_window_offset):
     return start_times, end_times
 
 
-def simulate_lightcurves(
-    model,
-    num_samples,
-    obstable,
-    passbands,
-    *,
-    obstable_save_cols=None,
-    param_cols=None,
-    apply_obs_mask=False,
-    time_window_offset=None,
-    rng=None,
-    generate_citations=False,
-):
+def _simulate_lightcurves_batch(simulation_info):
     """Generate a number of simulations of the given model and information
     from one or more surveys.
 
     Parameters
     ----------
-    model : BasePhysicalModel
-        The model to draw from. This may have its own parameters which
-        will be randomly sampled with each draw.
-    num_samples : int
-        The number of samples.
-    obstable : ObsTable or List of ObsTable
-        The ObsTable(s) from which to extract information for the samples.
-    passbands : PassbandGroup or List of PassbandGroup
-        The passbands to use for generating the bandfluxes.
-    apply_obs_mask: boolean
-        If True, apply obs_mask to filter interesting indices/times.
-    time_window_offset : tuple(float, float), optional
-        A tuple specifying the time window offset (before, after) t0 in days.
-        This is used to filter the observations to only those within the specified
-        time window (t0 - before, t0 + after). If None or the model does not have a
-        t0 specified, no time window is applied.
-    obstable_save_cols : list of str, optional
-        A list of ObsTable columns to be saved as part of the results. This is used
-        to save context information about how the light curves were generated. If the column
-        is missing from one of the ObsTables, a null value such as None or NaN is used.
-        If None, no additional columns are saved.
-    param_cols : list of str, optional
-        A list of the model's parameter columns to be saved as separate columns in
-        the results (instead of just the full dictionary of parameters). These
-        must be specified as strings in the node_name.param_name format.
-        If None, no additional columns are saved.
-    rng : numpy.random._generator.Generator, optional
-        A given numpy random number generator to use for this computation. If not
-        provided, the function uses the node's random number generator.
-    generate_citations : bool, optional
-        If True, generate citations for the simulation and output them.
+    simulation_info : SimulationInfo
+        The information needed to perform simulate a single batch of results.
 
     Returns
     -------
-    lightcurves : nested_pandas.NestedFrame
-        A NestedFrame with a row for each object.
+    lightcurves : nested_pandas.NestedFrame or Path
+        If no output_file_path is specified in simulation_info, a NestedFrame with a row
+        for each object. Otherwise the NestedFrame is saved to a file and the function
+        returns that file's path.
     """
+    # Extract the parameters from the SimulationInfo that are used repeated
+    # (so we have shorter names).
+    model = simulation_info.model
+    num_samples = simulation_info.num_samples
+    obstable = simulation_info.obstable
+    passbands = simulation_info.passbands
+    obstable_save_cols = simulation_info.obstable_save_cols
+    rng = simulation_info.rng
+
     # Sample the parameter space of this model. We do this once for all surveys, so the
     # object use the same parameters across all observations.
     if num_samples <= 0:
@@ -139,8 +272,8 @@ def simulate_lightcurves(
         "z": np.atleast_1d(model.get_param(sample_states, "redshift")).tolist(),
         "params": [state.to_dict() for state in sample_states],
     }
-    if param_cols is not None:
-        for col in param_cols:
+    if simulation_info.param_cols is not None:
+        for col in simulation_info.param_cols:
             if col not in sample_states:
                 raise KeyError(
                     f"Parameter column {col} not found in model parameters. "
@@ -159,7 +292,7 @@ def simulate_lightcurves(
     # Determine which of the of the simulated positions match the pointings from each ObsTable.
     start_times, end_times = get_time_windows(
         model.get_param(sample_states, "t0"),
-        time_window_offset,
+        simulation_info.time_window_offset,
     )
     all_obs_matches = [
         obstable[i].range_search(ra, dec, t_min=start_times, t_max=end_times) for i in range(num_surveys)
@@ -184,7 +317,7 @@ def simulate_lightcurves(
                 obs_times = all_times[survey_idx][obs_index]
 
                 # Filter to only the "interesting" indices / times for this object.
-                if apply_obs_mask:
+                if simulation_info.apply_obs_mask:
                     obs_mask = model.mask_by_time(obs_times, state)
                     obs_index = obs_index[obs_mask]
                     obs_times = obs_times[obs_mask]
@@ -221,20 +354,158 @@ def simulate_lightcurves(
         # The number of observations is the total across all surveys.
         results_dict["nobs"][idx] = total_num_obs
 
-    # Create the nested frame.
+    # Create the nested frame and either save it to a file or return it directly.
     results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
     results = results.add_nested(nested_frame, "lightcurve")
+    if simulation_info.output_file_path is not None:
+        results.to_parquet(simulation_info.output_file_path)
+        return simulation_info.output_file_path
+    return results
 
-    # If requested, generate citations for the simulation.
-    if generate_citations:
-        print(
-            "The following citations were called during this simulation. Note that this list is "
-            "provided for convenience and may be incomplete and we recommend the user confirm "
-            "which models, effects, and parameters were used."
-        )
-        cc.print_used_citations()
 
+def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000):
+    """Generate a number of simulations of the given model and information
+    from one or more surveys.
+
+    Parameters
+    ----------
+    simulation_info : SimulationInfo
+        The information needed to perform simulate a single batch of results.
+    executor : concurrent.futures.Executor, optional
+        The executor object to use for parallel processing.
+    batch_size : int, optional
+        The number of samples to process in each batch when using multiprocessing.
+        Default is 1000.
+
+    Returns
+    -------
+    lightcurves : list of nested_pandas.NestedFrame or Path
+        If no output_file_path is specified in simulation_info, a NestedFrame with a row
+        for each object. Otherwise the NestedFrame is saved to a file and the function
+        returns that file's path.
+    """
+    # Perform the simulation in parallel batches and combine the results. Since different
+    # frameworks may return either Future objects or direct results from the map function,
+    # we check for both.
+    batches = simulation_info.split(batch_size=batch_size)
+    futures_or_results = executor.map(_simulate_lightcurves_batch, batches)
+    result_list = []
+    for res in futures_or_results:
+        if hasattr(res, "result") and callable(res.result):  # A Future
+            result_list.append(res.result())
+        else:  # A direct result
+            result_list.append(res)
+    return result_list
+
+
+def simulate_lightcurves(
+    model,
+    num_samples,
+    obstable,
+    passbands,
+    *,
+    obstable_save_cols=None,
+    param_cols=None,
+    apply_obs_mask=False,
+    time_window_offset=None,
+    output_file_path=None,
+    rng=None,
+    executor=None,
+    num_jobs=None,
+    batch_size=100_000,
+):
+    """Generate a number of simulations of the given model and information
+    from one or more surveys. The result data can either be returned directly
+    (as a single nested data frame) or saved to file(s).
+
+    Parameters
+    ----------
+    model : BasePhysicalModel
+        The model to draw from. This may have its own parameters which
+        will be randomly sampled with each draw.
+    num_samples : int
+        The number of samples.
+    obstable : ObsTable or List of ObsTable
+        The ObsTable(s) from which to extract information for the samples.
+    passbands : PassbandGroup or List of PassbandGroup
+        The passbands to use for generating the bandfluxes.
+    apply_obs_mask: boolean
+        If True, apply obs_mask to filter interesting indices/times.
+    time_window_offset : tuple(float, float), optional
+        A tuple specifying the time window offset (before, after) t0 in days.
+        This is used to filter the observations to only those within the specified
+        time window (t0 - before, t0 + after). If None or the model does not have a
+        t0 specified, no time window is applied.
+    obstable_save_cols : list of str, optional
+        A list of ObsTable columns to be saved as part of the results. This is used
+        to save context information about how the light curves were generated. If the column
+        is missing from one of the ObsTables, a null value such as None or NaN is used.
+        If None, no additional columns are saved.
+    param_cols : list of str, optional
+        A list of the model's parameter columns to be saved as separate columns in
+        the results (instead of just the full dictionary of parameters). These
+        must be specified as strings in the node_name.param_name format.
+        If None, no additional columns are saved.
+    output_file_path : str or Path, optional
+        The file path and name of where to save the results. If provided the results
+        are saved to this file instead of being returned directly. If the simulation
+        is run in parallel, multiple files are created with a _partN suffix.
+    rng : numpy.random._generator.Generator, optional
+        A given numpy random number generator to use for this computation. If not
+        provided, the function uses the node's random number generator.
+    executor : concurrent.futures.Executor, optional
+        The executor object that to use for parallel processing. This can be any object that
+        supports concurrent.futures's map() function, returning either Future objects or
+        direct results. If None, the function runs in serial.
+    num_jobs : int, optional
+        If provided (and no executor is provided) creates a process pool (ProcessPoolExecutor)
+        with the given number of workers to process the results.
+    batch_size : int, optional
+        The number of samples to process in each batch when using multiprocessing.
+        Default is 100_000.
+
+    Returns
+    -------
+    lightcurves : nested_pandas.NestedFrame or list of Path
+        If output_file_path is None, a NestedFrame with a row for each object. Otherwise
+        the file(s) are saved and the function returns a list of Paths to the saved files.
+    """
+    if output_file_path is not None:
+        output_file_path = Path(output_file_path)
+        output_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create the simulation info wrapper.
+    simulation_info = SimulationInfo(
+        model=model,
+        num_samples=num_samples,
+        obstable=obstable,
+        passbands=passbands,
+        rng=rng,
+        apply_obs_mask=apply_obs_mask,
+        time_window_offset=time_window_offset,
+        obstable_save_cols=obstable_save_cols,
+        param_cols=param_cols,
+        output_file_path=output_file_path,
+    )
+
+    # If we do not have any parallelization information, perform in serial.
+    if executor is None and num_jobs is None:
+        return _simulate_lightcurves_batch(simulation_info)
+
+    # If we have an executor, use that.
+    if executor is not None:
+        result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
+    else:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs) as executor:
+            result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
+
+    # If we returned the results directly, concatenate them into a single NestedFrame.
+    # If we saved them to file, return the list of file paths.
+    if output_file_path is None:
+        results = concat_results(result_list)
+    else:
+        results = result_list
     return results
 
 
