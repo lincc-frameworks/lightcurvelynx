@@ -18,7 +18,6 @@ from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.consts import lsst_filter_plot_colors
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
