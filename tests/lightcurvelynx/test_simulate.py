@@ -435,7 +435,7 @@ def test_compute_noise_free_lightcurves_multiple(test_data_dir):
             assert np.allclose(bandfluxes[mask], 100.0)
 
 
-def test_saturation_thresholds_initialization(test_data_dir):
+def test_saturation_mags_initialization(test_data_dir):
     """Check initialization of saturation thresholds."""
     # A FakeObsTable should have no saturation thresholds by default.
     fake_obs = FakeObsTable(
@@ -456,25 +456,25 @@ def test_saturation_thresholds_initialization(test_data_dir):
         sky={"g": 150.0, "r": 140.0},
         survey_name="MY_SURVEY",
     )
-    assert fake_obs._saturation_thresholds is None
+    assert fake_obs._saturation_mags is None
 
     # Opsim saturation thresholds should be set by default.
     opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
-    assert opsim_db._saturation_thresholds is not None
-    assert isinstance(opsim_db._saturation_thresholds, dict)
+    assert opsim_db._saturation_mags is not None
+    assert isinstance(opsim_db._saturation_mags, dict)
     for filter in ["u", "g", "r", "i", "z", "y"]:
-        assert filter in opsim_db._saturation_thresholds
+        assert filter in opsim_db._saturation_mags
 
     # For now, the ZTF table uses a single estimate for all filters.
     ztf_table_data = create_random_ztf_obs_data(100)
     ztf_obs_table = ZTFObsTable(table=ztf_table_data)
-    assert ztf_obs_table._saturation_thresholds is not None
-    assert isinstance(ztf_obs_table._saturation_thresholds, dict)
+    assert ztf_obs_table._saturation_mags is not None
+    assert isinstance(ztf_obs_table._saturation_mags, dict)
     for filter in ["g", "r", "i"]:
-        assert filter in ztf_obs_table._saturation_thresholds
+        assert filter in ztf_obs_table._saturation_mags
 
 
-def test_simulate_with_saturation_thresholds_as_none(test_data_dir):
+def test_simulate_with_saturation_mags_as_none(test_data_dir):
     """Test an end to end run of simulating a single light curve with no saturation thresholds."""
     # Set up obs table (with no saturation thresholds set)
     obs_table_values = {
@@ -497,7 +497,7 @@ def test_simulate_with_saturation_thresholds_as_none(test_data_dir):
         sky={"g": 150.0, "r": 140.0, "i": 155.0},
         survey_name="MY_SURVEY",
     )
-    assert ops_data._saturation_thresholds is None
+    assert ops_data._saturation_mags is None
 
     # Set up model
     source = ConstantSEDModel(
@@ -531,7 +531,7 @@ def test_simulate_with_saturation_thresholds_as_none(test_data_dir):
     assert not np.any(lightcurve["is_saturated"])
 
 
-def test_simulate_with_default_saturation_thresholds_values(test_data_dir):
+def test_simulate_with_default_saturation_mags_values(test_data_dir):
     """Test an end to end run of simulating a single light curve with default saturation thresholds."""
     # Load the OpSim data.
     opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
@@ -566,9 +566,7 @@ def test_simulate_with_default_saturation_thresholds_values(test_data_dir):
 
     # Check that every flux value is below the saturation threshold for its filter.
     lightcurve = results["lightcurve"][0]
-    opsim_sat_thresholds_njy = {
-        band: ab_mag_to_njy(mag) for band, mag in opsim_db._saturation_thresholds.items()
-    }
+    opsim_sat_thresholds_njy = {band: ab_mag_to_njy(mag) for band, mag in opsim_db._saturation_mags.items()}
 
     for filter in ["g", "r"]:
         mask = lightcurve["filter"] == filter
@@ -586,7 +584,7 @@ def test_simulate_with_default_saturation_thresholds_values(test_data_dir):
     assert np.all(lightcurve["is_saturated"])
 
 
-def test_simulate_with_custom_saturation_thresholds(test_data_dir):
+def test_simulate_with_custom_saturation_mags(test_data_dir):
     """Test an end to end run of simulating a single light curve with custom saturation thresholds."""
     # Set up obs table
     obs_table_values = {
@@ -616,7 +614,7 @@ def test_simulate_with_custom_saturation_thresholds(test_data_dir):
         read_noise=5.0,
         sky={"g": 150.0, "r": 140.0, "i": 155.0},
         survey_name="MY_SURVEY",
-        saturation_thresholds=toy_sat_thresholds,
+        saturation_mags=toy_sat_thresholds,
     )
 
     # Set up model

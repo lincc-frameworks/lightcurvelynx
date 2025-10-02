@@ -42,7 +42,7 @@ class ObsTable:
     wcs : astropy.wcs.WCS, optional
         The WCS for the footprint. Either this or pixel_scale must be provided if
         a footprint is provided as a Astropy region.
-    saturation_thresholds : dict, optional
+    saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes.
         The filters provided must match those in the table. If not provided,
         saturation effects will not be applied.
@@ -71,7 +71,7 @@ class ObsTable:
         filtering is done. Default is None.
     _wacs : astropy.wcs.WCS, optional
         The WCS for the footprint.
-    _saturation_thresholds : dict, optional
+    _saturation_mags : dict, optional
         The saturation thresholds in magnitudes for each filter. If unspecified, an
         instrument-specific default will be used, if available.
     """
@@ -96,7 +96,7 @@ class ObsTable:
         colmap=None,
         detector_footprint=None,
         wcs=None,
-        saturation_thresholds=None,
+        saturation_mags=None,
         **kwargs,
     ):
         # Create a copy of the table.
@@ -148,7 +148,7 @@ class ObsTable:
             self._assign_zero_points()
 
         # Save the saturation thresholds if provided.
-        self._saturation_thresholds = saturation_thresholds
+        self._saturation_mags = saturation_mags
 
         # Build the kd-tree.
         self._kd_tree = None
@@ -715,7 +715,7 @@ class ObsTable:
             - A boolean array indicating which points are saturated. A size S x T array
                 where S is the number of samples in the graph state and T is the number of time points.
         """
-        if self._saturation_thresholds is None:
+        if self._saturation_mags is None:
             logger.info("Saturation thresholds not provided. Skipping saturation computation.")
             return flux, flux_error, np.full(flux.shape, False)
 
@@ -727,14 +727,14 @@ class ObsTable:
             raise ValueError("Input arrays must have the same length.")
 
         # Convert saturation thresholds to nJy.
-        saturation_thresholds_njy = {}
-        for filt, mag in self._saturation_thresholds.items():
+        saturation_mags_njy = {}
+        for filt, mag in self._saturation_mags.items():
             if not isinstance(mag, int | float):
                 raise ValueError("Saturation thresholds must be numeric.")
-            saturation_thresholds_njy[filt] = ab_mag_to_njy(mag)
+            saturation_mags_njy[filt] = ab_mag_to_njy(mag)
 
         # Map the filter list to saturation limits.
-        limits = np.array([saturation_thresholds_njy.get(filt, np.inf) for filt in filters])
+        limits = np.array([saturation_mags_njy.get(filt, np.inf) for filt in filters])
 
         # Calculate the saturated flux and flux error.
         saturated_flux = np.minimum(true_flux, limits)
