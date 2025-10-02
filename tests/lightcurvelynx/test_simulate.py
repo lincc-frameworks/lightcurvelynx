@@ -1,4 +1,6 @@
+import tempfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -16,8 +18,8 @@ from lightcurvelynx.simulate import (
     compute_single_noise_free_lightcurve,
     get_time_windows,
     simulate_lightcurves,
-    simulate_lightcurves_parallel,
 )
+from nested_pandas import read_parquet
 
 
 def test_get_time_windows():
@@ -190,6 +192,55 @@ def test_simulate_lightcurves(test_data_dir):
     assert "source2.dec" in str(excinfo.value)
 
 
+def test_simulate_lightcurves_to_file(test_data_dir):
+    """Test an end to end run of simulating the light curves, saving them to a file."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
+    source = ConstantSEDModel(
+        brightness=GivenValueList(given_brightness),
+        t0=0.0,
+        ra=GivenValueList(opsim_db["ra"].values[0:5]),
+        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        file_path = Path(tmpdir) / "test_simulate_lightcurves.parquet"
+        assert not file_path.exists()
+
+        results = simulate_lightcurves(
+            source,
+            5,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            output_file_path=file_path,
+        )
+        assert str(results) == str(file_path)
+        assert file_path.exists()
+
+        results_df = read_parquet(file_path)
+        assert len(results_df) == 5
+        assert np.all(results_df["nobs"].to_numpy() >= 1)
+        assert np.allclose(results_df["ra"].to_numpy(), opsim_db["ra"].values[0:5])
+        assert np.allclose(results_df["dec"].to_numpy(), opsim_db["dec"].values[0:5])
+        assert np.allclose(results_df["z"].to_numpy(), 0.0)
+        assert np.allclose(results_df["t0"].to_numpy(), 0.0)
+
+
 def test_simulate_bandfluxes(test_data_dir):
     """Test an end to end run of simulating a bandflux model."""
     # Create a toy observation table with two pointings.
@@ -223,7 +274,7 @@ def test_simulate_bandfluxes(test_data_dir):
 
 
 def test_simulate_parallel_threads(test_data_dir):
-    """Test an end to end run of simulating the light curves paralle with threads."""
+    """Test an end to end run of simulating the light curves parallel with threads."""
     # Load the OpSim data.
     opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
 
@@ -248,7 +299,7 @@ def test_simulate_parallel_threads(test_data_dir):
     )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        results = simulate_lightcurves_parallel(
+        results = simulate_lightcurves(
             source,
             100,
             opsim_db,
@@ -297,7 +348,7 @@ def test_simulate_parallel_processes(test_data_dir):
     )
 
     with ProcessPoolExecutor(max_workers=2) as executor:
-        results = simulate_lightcurves_parallel(
+        results = simulate_lightcurves(
             source,
             100,
             opsim_db,
@@ -318,6 +369,47 @@ def test_simulate_parallel_processes(test_data_dir):
         num_obs = results["nobs"][idx]
         assert num_obs >= 1
         assert len(results["lightcurve"][idx]["flux"]) == num_obs
+
+    # We can use the default (ProcessPoolExecutor) by giving a number of jobs.
+    results2 = simulate_lightcurves(
+        source,
+        100,
+        opsim_db,
+        passband_group,
+        obstable_save_cols=["observationId", "zp_nJy"],
+        param_cols=["source.brightness"],
+        batch_size=10,
+        num_jobs=2,
+    )
+    assert len(results2) == 100
+
+    # We can write the results to files.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_path = Path(tmpdir) / "test_df.parquet"
+        ind_paths = []
+        for i in range(4):
+            curr_path = Path(tmpdir) / f"test_df_part{i}.parquet"
+            assert not curr_path.exists()
+            ind_paths.append(curr_path)
+
+        results3 = simulate_lightcurves(
+            source,
+            200,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            output_file_path=base_path,
+            batch_size=50,
+            num_jobs=4,
+        )
+        assert len(results3) == 4
+        for i in range(4):
+            assert str(results3[i]) == str(ind_paths[i])
+            assert ind_paths[i].exists()
+
+            results_df = read_parquet(ind_paths[i])
+            assert len(results_df) == 50
 
 
 def test_simulate_single_lightcurve(test_data_dir):
