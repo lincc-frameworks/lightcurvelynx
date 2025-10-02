@@ -47,7 +47,7 @@ def test_numpy_random_uniform_multi_samples():
     assert np.abs(np.mean(samples) - 0.5) < 0.01
 
 
-def test_numpy_random_uniform_mutli_dim():
+def test_numpy_random_uniform_multi_dim():
     """Test that we can generate multi-dimensional vectors from a uniform distribution."""
     # Sample size 2 arrays
     np_node = NumpyRandomFunc("uniform", seed=100, size=2)

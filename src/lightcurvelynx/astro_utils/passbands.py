@@ -166,9 +166,60 @@ class PassbandGroup:
         return list(self._filter_to_name.keys())
 
     @classmethod
+    def from_preprocessed_file(cls, file_path: Union[str, Path], **kwargs):
+        """Load a PassbandGroup from a single file containing multiple preprocessed passbands.
+
+        The file should be a CSV file with columns: survey, filter_name, wavelength, transmission.
+        The wavelengths should be in Angstroms.
+
+        Parameters
+        ----------
+        file_path : str or Path
+            The path to the file containing the passband data.
+        **kwargs
+            Additional keyword arguments to pass to the Passband constructor.
+
+        Returns
+        -------
+        PassbandGroup
+            A PassbandGroup object containing the passbands from the file.
+        """
+        file_path = Path(file_path)
+        if not file_path.is_file():
+            raise FileNotFoundError(f"{file_path} is not a valid file.")
+
+        # Load the table using pandas and check that it has the required columns.
+        df = pd.read_csv(file_path)
+        required_columns = {"survey", "filter_name", "wavelength", "transmission"}
+        if not required_columns.issubset(df.columns):
+            missing_cols = required_columns - set(df.columns)
+            raise ValueError(f"File {file_path} is missing required columns: {missing_cols}")
+
+        pb_list = []
+        for (survey, filter_name), group in df.groupby(["survey", "filter_name"]):
+            table_values = group[["wavelength", "transmission"]].to_numpy()
+            pb = Passband(
+                table_values,
+                survey,
+                filter_name,
+                delta_wave=None,  # Preserve original grid
+                trim_quantile=None,  # Do not trim
+                units="A",  # Units are Angstroms
+            )
+
+            # Because we are loading from a pre-processed table (normalized system responses instead
+            # of unnormalized system throughputs), we need to retain the original table.
+            pb.processed_transmission_table[:, 1] = table_values[:, 1]
+            pb_list.append(pb)
+
+        # Create a PassbandGroup from the DataFrame.
+        return cls(pb_list, **kwargs)
+
+    @classmethod
     def from_dir(
         cls,
         dir_path: Union[str, Path],
+        *,
         filters: list | None = None,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
@@ -224,7 +275,7 @@ class PassbandGroup:
         return PassbandGroup(given_passbands=all_params, filters=filters)
 
     @classmethod
-    def from_preset(cls, preset: str, table_dir=None, filters=None, **kwargs) -> None:
+    def from_preset(cls, preset: str, *, table_dir=None, filters=None, **kwargs) -> None:
         """Create a passband group from a pre-defined set of passbands.
 
         Parameters
@@ -373,6 +424,7 @@ class PassbandGroup:
     def from_svo(
         cls,
         all_filters: list[str],
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         table_dir: Union[str, Path] | None = None,
@@ -532,7 +584,9 @@ class PassbandGroup:
         filter_name_mask = np.isin(filters, list(self._filter_to_name.keys()))
         return full_name_mask | filter_name_mask
 
-    def process_transmission_tables(self, delta_wave: float | None = 5.0, trim_quantile: float | None = 1e-3):
+    def process_transmission_tables(
+        self, *, delta_wave: float | None = 5.0, trim_quantile: float | None = 1e-3
+    ):
         """Process the transmission tables for all passbands in the group; recalculate group's wave attribute.
 
         Parameters
@@ -544,7 +598,10 @@ class PassbandGroup:
             transmission table will be trimmed to include only the central 99.8% of rows.
         """
         for passband in self.passbands.values():
-            passband.process_transmission_table(delta_wave, trim_quantile)
+            passband.process_transmission_table(
+                delta_wave=delta_wave,
+                trim_quantile=trim_quantile,
+            )
 
         self._update_internal_data()
 
@@ -613,7 +670,22 @@ class PassbandGroup:
             bandfluxes[full_name] = self.fluxes_to_bandflux(flux_density_matrix, full_name)
         return bandfluxes
 
-    def plot(self, ax=None, figure=None):
+    def to_file(self, file_path: Union[str, Path], *, overwrite: bool = False) -> None:
+        """Save the entire passband group to a single file."""
+        if not overwrite and Path(file_path).exists():
+            raise FileExistsError(f"File {file_path} already exists. Use overwrite=True to overwrite it.")
+
+        # Create a single pandas table with the information for each passband.
+        all_data = []
+        for pb in self.passbands.values():
+            df = pd.DataFrame(pb.processed_transmission_table, columns=["wavelength", "transmission"])
+            df["survey"] = pb.survey
+            df["filter_name"] = pb.filter_name
+            all_data.append(df)
+        combined_df = pd.concat(all_data, ignore_index=True)
+        combined_df.to_csv(file_path, index=False)
+
+    def plot(self, *, ax=None, figure=None):
         """Plot the PassbandGroup on a single plot.
 
         Parameters
@@ -652,8 +724,8 @@ class Passband:
         The grid step of the wave grid, in angstroms, if the table is a uniform grid. The value is None
         if the grid is not uniform.
     _loaded_table : np.ndarray
-        A 2D array of wavelengths and transmissions. This is the table loaded from the file, and is neither
-        interpolated nor normalized.
+        A 2D array of wavelengths and transmissions. This is the system throughput table loaded
+        from the file, and is neither interpolated nor normalized.
     processed_transmission_table : np.ndarray
         A 2D array where the first col is wavelengths (Angstrom) and the second col is transmission values.
         This table is both interpolated to the _wave_grid and normalized to calculate phi_b(λ).
@@ -664,6 +736,7 @@ class Passband:
         table_values: np.array,
         survey: str,
         filter_name: str,
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         units: Literal["nm", "A"] | None = "A",
@@ -717,7 +790,7 @@ class Passband:
             raise ValueError(f"Unknown Passband units {units}")
 
         # Preprocess the passband.
-        self.process_transmission_table(delta_wave, trim_quantile)
+        self.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
 
     def __str__(self) -> str:
         """Return a string representation of the Passband."""
@@ -734,13 +807,16 @@ class Passband:
         # Check that they have the (approximately) same transmission tables.
         if self.processed_transmission_table.shape != other.processed_transmission_table.shape:
             return False
-        return np.allclose(self.processed_transmission_table, other.processed_transmission_table)
+        if not np.allclose(self.processed_transmission_table, other.processed_transmission_table):
+            return False
+        return True
 
     @classmethod
     def from_file(
         cls,
         survey: str,
         filter_name: str,
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         table_path: Union[str, Path] | None = None,
@@ -800,8 +876,8 @@ class Passband:
             loaded_table,
             survey,
             filter_name,
-            delta_wave,
-            trim_quantile,
+            delta_wave=delta_wave,
+            trim_quantile=trim_quantile,
             units="A",  # All loaded tables are pre-converted to Angstroms
         )
 
@@ -853,6 +929,7 @@ class Passband:
     def from_svo(
         cls,
         full_filter_name,
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         table_dir: Union[str, Path] | None = None,
@@ -917,6 +994,7 @@ class Passband:
     @staticmethod
     def load_transmission_table(
         table_path: Union[str, Path],
+        *,
         wave_units: Literal["nm", "A"] = "A",
         **kwargs,
     ) -> np.ndarray:
@@ -1005,10 +1083,12 @@ class Passband:
 
     def process_transmission_table(
         self,
+        *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
     ):
-        """Process the transmission table.
+        """Process the transmission table, transforming it to the desired wave grid and
+        and computing a normalized system response from the throughput table.
 
         Parameters
         ----------
@@ -1018,14 +1098,15 @@ class Passband:
             The quantile to trim the transmission table by. For example, if trim_quantile is 1e-3, the
             transmission table will be trimmed to include only the central 99.8% of rows.
         """
-        interpolated_table = self._interpolate_transmission_table(self._loaded_table, delta_wave)
-        trimmed_table = self._trim_transmission_by_quantile(interpolated_table, trim_quantile)
-        self.processed_transmission_table = self._normalize_transmission_table(trimmed_table)
+        interpolated_table = self.interpolate_transmission_table(self._loaded_table, delta_wave)
+        trimmed_table = self.trim_transmission_by_quantile(interpolated_table, trim_quantile)
+        self.processed_transmission_table = self.compute_system_response_table(trimmed_table)
 
         self.waves = self.processed_transmission_table[:, 0]
         self.delta_wave = delta_wave
 
-    def _interpolate_transmission_table(self, table: np.ndarray, delta_wave: float | None) -> np.ndarray:
+    @staticmethod
+    def interpolate_transmission_table(table: np.ndarray, delta_wave: float | None) -> np.ndarray:
         """Interpolate the transmission table to a new wave grid.
 
         Parameters
@@ -1058,7 +1139,8 @@ class Passband:
         interpolated_transmissions = spline(new_wavelengths)
         return np.column_stack((new_wavelengths, interpolated_transmissions))
 
-    def _trim_transmission_by_quantile(self, table: np.ndarray, trim_quantile: float | None) -> np.ndarray:
+    @staticmethod
+    def trim_transmission_by_quantile(table: np.ndarray, trim_quantile: float | None) -> np.ndarray:
         """Trim the transmission table so that it only includes the central (100 - 2*trim_quartile)% of rows.
 
         E.g., if trim_quantile is 1e-3, the transmission table will be trimmed to include only the central
@@ -1102,7 +1184,8 @@ class Passband:
 
         return trimmed_table
 
-    def _normalize_transmission_table(self, transmission_table: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def compute_system_response_table(transmission_table: np.ndarray) -> np.ndarray:
         """Calculate the value of phi_b for all wavelengths in a transmission table.
 
         This is eq. 8 from "On the Choice of LSST Flux Units" (Ivezić et al.):
@@ -1114,12 +1197,12 @@ class Passband:
         Parameters
         ----------
         transmission_table : np.ndarray
-            A 2D array of wavelengths (in Angstroms) and transmissions.
+            A 2D array of wavelengths (in Angstroms) and throughput values.
 
         Returns
         -------
         np.ndarray
-            A 2D array of wavelengths (in Angstroms) and normalized transmissions.
+            A 2D array of wavelengths (in Angstroms) and normalized system response values.
 
         Raises
         ------
@@ -1140,16 +1223,11 @@ class Passband:
         denominator = scipy.integrate.trapezoid(numerators, x=wavelengths_angstrom)
 
         if denominator == 0:
-            raise ValueError(
-                "Denominator is zero; cannot normalize transmission table. "
-                f"Consider checking the transmission table for band {self.full_name}. "
-                f"With wave grid set to: {self._wave_grid}, transmission table wavelengths are: "
-                f"{transmission_table[:, 0]}."
-            )
+            raise ValueError("Denominator is zero; cannot normalize transmission table.")
 
         # Calculate phi_b for each wavelength
-        normalized_transmissions = numerators / denominator
-        return np.column_stack((wavelengths_angstrom, normalized_transmissions))
+        normalized_system_response = numerators / denominator
+        return np.column_stack((wavelengths_angstrom, normalized_system_response))
 
     def fluxes_to_bandflux(
         self,
@@ -1214,7 +1292,7 @@ class Passband:
             bandfluxes = scipy.integrate.trapezoid(integrand, x=self.waves, axis=w_axis)
         return bandfluxes
 
-    def plot(self, ax=None, figure=None, color=None, plot_loaded=False):
+    def plot(self, *, ax=None, figure=None, color=None, plot_loaded=False):
         """Plot the passband.
 
         Parameters
