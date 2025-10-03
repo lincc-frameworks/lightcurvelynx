@@ -689,7 +689,7 @@ class ObsTable:
         """
         raise NotImplementedError
 
-    def compute_saturation(self, flux, flux_error, filters):
+    def compute_saturation(self, flux, flux_error, index):
         """Apply the saturation limits to a given flux and flux error.
 
         When a flux value exceeds the saturation limit, it is clipped to the limit and flagged as
@@ -709,8 +709,8 @@ class ObsTable:
         flux_error : numpy.ndarray of float
             The bandflux error in nJy. A size S x T array where S is the
             number of samples in the graph state and T is the number of time points.
-        filters : numpy.ndarray of str
-            The filter names. A size T array where T is the number of time points.
+        index : array_like of int
+            The index of the observation in the ObsTable table.
 
         Returns
         -------
@@ -729,7 +729,7 @@ class ObsTable:
 
         true_flux = np.asarray(flux)
         true_flux_error = np.asarray(flux_error)
-        filters = np.asarray(filters)
+        filters = np.asarray(self._table["filter"].iloc[index])
 
         if len(flux) != len(flux_error) or len(flux) != len(filters):
             raise ValueError("Input arrays must have the same length.")
