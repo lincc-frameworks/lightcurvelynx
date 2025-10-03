@@ -208,7 +208,7 @@ class PassbandGroup:
 
             # Because we are loading from a pre-processed table (normalized system responses instead
             # of unnormalized system throughputs), we need to retain the original table.
-            pb.processed_transmission_table[:, 1] = table_values[:, 1]
+            pb.normalized_system_response[:, 1] = table_values[:, 1]
             pb_list.append(pb)
 
         # Create a PassbandGroup from the DataFrame.
@@ -677,7 +677,7 @@ class PassbandGroup:
         # Create a single pandas table with the information for each passband.
         all_data = []
         for pb in self.passbands.values():
-            df = pd.DataFrame(pb.processed_transmission_table, columns=["wavelength", "transmission"])
+            df = pd.DataFrame(pb.normalized_system_response, columns=["wavelength", "transmission"])
             df["survey"] = pb.survey
             df["filter_name"] = pb.filter_name
             all_data.append(df)
@@ -722,10 +722,10 @@ class Passband:
     delta_wave : float or None
         The grid step of the wave grid, in angstroms, if the table is a uniform grid. The value is None
         if the grid is not uniform.
-    _loaded_table : np.ndarray
+    transmission_table : np.ndarray
         A 2D array of wavelengths and transmissions. This is the system throughput table loaded
         from the file, and is neither interpolated nor normalized.
-    processed_transmission_table : np.ndarray
+    normalized_system_response : np.ndarray
         A 2D array where the first col is wavelengths (Angstrom) and the second col is transmission values.
         This table is both interpolated to the _wave_grid and normalized to calculate phi_b(λ).
     """
@@ -779,12 +779,12 @@ class Passband:
             dup_inds = np.where(diffs == 0.0)
             table_values[dup_inds, 1] = 0.5 * (table_values[dup_inds, 1] + table_values[dup_inds + 1, 1])
             table_values = np.delete(table_values, dup_inds + 1, axis=0)
-        self._loaded_table = np.copy(table_values)
+        self.transmission_table = np.copy(table_values)
 
         # Ensure the wavelengths are in Angstroms.
         if units == "nm":
             # Multiply the first column (wavelength) by 10.0 to convert to Angstroms
-            self._loaded_table[:, 0] *= 10.0
+            self.transmission_table[:, 0] *= 10.0
         elif units != "A":
             raise ValueError(f"Unknown Passband units {units}")
 
@@ -804,9 +804,9 @@ class Passband:
             return False
 
         # Check that they have the (approximately) same transmission tables.
-        if self.processed_transmission_table.shape != other.processed_transmission_table.shape:
+        if self.normalized_system_response.shape != other.normalized_system_response.shape:
             return False
-        if not np.allclose(self.processed_transmission_table, other.processed_transmission_table):
+        if not np.allclose(self.normalized_system_response, other.normalized_system_response):
             return False
         return True
 
@@ -1097,11 +1097,11 @@ class Passband:
             The quantile to trim the transmission table by. For example, if trim_quantile is 1e-3, the
             transmission table will be trimmed to include only the central 99.8% of rows.
         """
-        interpolated_table = self.interpolate_transmission_table(self._loaded_table, delta_wave)
+        interpolated_table = self.interpolate_transmission_table(self.transmission_table, delta_wave)
         trimmed_table = self.trim_transmission_by_quantile(interpolated_table, trim_quantile)
-        self.processed_transmission_table = self.compute_system_response_table(trimmed_table)
+        self.normalized_system_response = self.compute_system_response_table(trimmed_table)
 
-        self.waves = self.processed_transmission_table[:, 0]
+        self.waves = self.normalized_system_response[:, 0]
         self.delta_wave = delta_wave
 
     @staticmethod
@@ -1279,7 +1279,7 @@ class Passband:
 
         # Calculate the bandflux as ∫ f(λ)φ_b(λ) dλ,
         # where f(λ) is the flux density and φ_b(λ) is the normalized system response
-        integrand = flux_density_matrix * self.processed_transmission_table[:, 1]
+        integrand = flux_density_matrix * self.normalized_system_response[:, 1]
         if self.delta_wave is not None:
             # If the grid is equal spaced, we can use a faster method of computing a rectangular
             # integration and removing half the first and last values (to make it trapezoidal).
@@ -1316,15 +1316,15 @@ class Passband:
             color = lsst_filter_plot_colors.get(self.filter_name, "black")
 
         ax.plot(
-            self.processed_transmission_table[:, 0],  # X values are the wavelength
-            self.processed_transmission_table[:, 1],  # Y values are the transmission values.
+            self.normalized_system_response[:, 0],  # X values are the wavelength
+            self.normalized_system_response[:, 1],  # Y values are the transmission values.
             color=color,
             label=self.full_name,
         )
         if plot_loaded:
             ax.plot(
-                self._loaded_table[:, 0],  # X values are the wavelength
-                self._loaded_table[:, 1],  # Y values are the transmission values.
+                self.transmission_table[:, 0],  # X values are the wavelength
+                self.transmission_table[:, 1],  # Y values are the transmission values.
                 color=color,
                 linestyle="--",
             )
