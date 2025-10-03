@@ -288,7 +288,7 @@ def test_passband_group_from_dir(tmp_path):
         assert filter in pb_group
 
         wave_start = int(transmission_tables[filter].split()[0])
-        assert wave_start == pb_group[filter]._loaded_table[0][0]
+        assert wave_start == pb_group[filter].transmission_table[0][0]
 
     # Check that we throw an error if we try to access an invalid directory.
     with pytest.raises(ValueError):

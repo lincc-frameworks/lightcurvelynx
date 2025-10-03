@@ -101,7 +101,7 @@ def test_passband_manual_create(tmp_path):
     assert test_pb.filter_name == "u"
     assert test_pb.full_name == "test_u"
     assert test_pb.delta_wave == pytest.approx(5.0)
-    np.testing.assert_allclose(test_pb._loaded_table, transmission_table)
+    np.testing.assert_allclose(test_pb.transmission_table, transmission_table)
 
     # We can create an load a table in nm as well. It will auto-convert to Angstroms.
     transmission2 = np.array([[100, 0.5], [100.5, 0.6], [101, 0.7]])
@@ -110,7 +110,7 @@ def test_passband_manual_create(tmp_path):
     assert test_pb2.filter_name == "g"
     assert test_pb2.full_name == "test_g"
     assert test_pb2.delta_wave == pytest.approx(5.0)
-    np.testing.assert_allclose(test_pb2._loaded_table, transmission_table)
+    np.testing.assert_allclose(test_pb2.transmission_table, transmission_table)
 
     # If the grid is not regular, delta_wave is None.
     transmission3 = np.array([[4000, 0.5], [4040, 0.6], [4090, 0.7]])
@@ -147,15 +147,15 @@ def test_passband_load_transmission_table(passbands_dir, tmp_path):
     """Test the _load_transmission_table method of the Passband class."""
     # Test that we can load a standard LSST transmission table from the local test data
     LSST_g = create_lsst_passband(passbands_dir, "g")
-    assert LSST_g._loaded_table is not None
-    assert LSST_g._loaded_table.shape[1] == 2  # Two columns: wavelengths and transmissions
+    assert LSST_g.transmission_table is not None
+    assert LSST_g.transmission_table.shape[1] == 2  # Two columns: wavelengths and transmissions
     assert LSST_g.waves is not None
     assert len(LSST_g.waves.shape) == 1
 
     # Test a toy transmission table was loaded correctly
     transmission_table = "1000 0.5\n1005 0.6\n1010 0.7\n"
     a_band = create_toy_passband(tmp_path, transmission_table)
-    np.testing.assert_allclose(a_band._loaded_table, np.array([[1000, 0.5], [1005, 0.6], [1010, 0.7]]))
+    np.testing.assert_allclose(a_band.transmission_table, np.array([[1000, 0.5], [1005, 0.6], [1010, 0.7]]))
 
     # Test that we raise an error if the transmission table is blank
     transmission_table = ""
@@ -217,7 +217,9 @@ def test_passband_download_transmission_table(tmp_path):
         )
 
         # Check that the transmission table was loaded correctly
-        np.testing.assert_allclose(a_band._loaded_table, np.array([[1000, 0.5], [1005, 0.6], [1010, 0.7]]))
+        np.testing.assert_allclose(
+            a_band.transmission_table, np.array([[1000, 0.5], [1005, 0.6], [1010, 0.7]])
+        )
 
 
 def test_passband_from_file(passbands_dir, tmp_path):
@@ -225,11 +227,11 @@ def test_passband_from_file(passbands_dir, tmp_path):
     # Test a toy transmission table was loaded correctly
     transmission_table = "1000 0.5\n1005 0.6\n1010 0.7\n"
     a_band = create_toy_passband(tmp_path, transmission_table)
-    np.testing.assert_allclose(a_band._loaded_table, np.array([[1000, 0.5], [1005, 0.6], [1010, 0.7]]))
+    np.testing.assert_allclose(a_band.transmission_table, np.array([[1000, 0.5], [1005, 0.6], [1010, 0.7]]))
 
     table_path = Path(tmp_path, "TOY", "a.dat")
     a_band_2 = Passband.from_file("TOY", "a", table_path=table_path)
-    np.testing.assert_allclose(a_band_2._loaded_table, np.array([[1000, 0.5], [1005, 0.6], [1010, 0.7]]))
+    np.testing.assert_allclose(a_band_2.transmission_table, np.array([[1000, 0.5], [1005, 0.6], [1010, 0.7]]))
 
     # We raise an error if the transmission table does not exist.
     with pytest.raises(ValueError):
@@ -246,9 +248,9 @@ def test_passband_from_sncosmo(passbands_dir):
     assert ztf_band.survey == "ZTF"
     assert ztf_band.filter_name == "g"
     assert ztf_band.full_name == "ZTF_g"
-    assert ztf_band._loaded_table is not None
-    assert np.allclose(ztf_band._loaded_table[:, 0], sn_pb.wave)
-    assert np.allclose(ztf_band._loaded_table[:, 1], sn_pb.trans)
+    assert ztf_band.transmission_table is not None
+    assert np.allclose(ztf_band.transmission_table[:, 0], sn_pb.wave)
+    assert np.allclose(ztf_band.transmission_table[:, 1], sn_pb.trans)
 
     def _mock_get_bandpass(name):
         """Return a predefined Bandpass object instead of downloading the transmission table."""
@@ -257,8 +259,8 @@ def test_passband_from_sncosmo(passbands_dir):
     # Check that we can load the sncosmo passband from just the filter and survey.
     with patch("sncosmo.get_bandpass", side_effect=_mock_get_bandpass):
         ztf_band2 = Passband.from_sncosmo("ZTF", "g", "ztfg")
-        assert np.allclose(ztf_band2._loaded_table[:, 0], sn_pb.wave)
-        assert np.allclose(ztf_band2._loaded_table[:, 1], sn_pb.trans)
+        assert np.allclose(ztf_band2.transmission_table[:, 0], sn_pb.wave)
+        assert np.allclose(ztf_band2.transmission_table[:, 1], sn_pb.trans)
 
     # Check that an error occurs if we pass None
     with pytest.raises(ValueError):
@@ -289,7 +291,7 @@ def test_process_transmission_table(passbands_dir, tmp_path):
         a_band.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
 
         # Check that each method is called once
-        mock_interp_table.assert_called_once_with(a_band._loaded_table, delta_wave)
+        mock_interp_table.assert_called_once_with(a_band.transmission_table, delta_wave)
         mock_trim_table.assert_called_once()
         mock_norm_table.assert_called_once()
 
@@ -304,7 +306,7 @@ def test_process_transmission_table(passbands_dir, tmp_path):
     assert LSST_r.waves is not None
 
     # Check that we raise an error if the transmission table is the wrong shape
-    a_band._loaded_table = np.array([[100, 0.5, 105, 0.6]])
+    a_band.transmission_table = np.array([[100, 0.5, 105, 0.6]])
     with pytest.raises(ValueError):
         a_band.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
 
@@ -315,15 +317,15 @@ def testinterpolate_transmission_table(passbands_dir, tmp_path):
     a_band = create_toy_passband(tmp_path, transmission_table)
 
     # Interpolate the transmission table to a large step size (50 Angstrom)
-    table = a_band.interpolate_transmission_table(a_band._loaded_table, delta_wave=50)
+    table = a_band.interpolate_transmission_table(a_band.transmission_table, delta_wave=50)
     np.testing.assert_allclose(table[:, 0], np.arange(100, 301, 50))
 
     # Interpolate the transmission table to a somewhat small step size (1 Angstrom)
-    table = a_band.interpolate_transmission_table(a_band._loaded_table, delta_wave=1)
+    table = a_band.interpolate_transmission_table(a_band.transmission_table, delta_wave=1)
     np.testing.assert_allclose(table[:, 0], np.arange(100, 301, 1))
 
     # Interpolate the transmission table to an even smaller step size (0.1 Angstrom)
-    table = a_band.interpolate_transmission_table(a_band._loaded_table, delta_wave=0.1)
+    table = a_band.interpolate_transmission_table(a_band.transmission_table, delta_wave=0.1)
     np.testing.assert_allclose(table[:, 0], np.arange(100, 300.01, 0.1))
 
     # Check that we raise an error if the transmission table is the wrong shape
@@ -332,13 +334,13 @@ def testinterpolate_transmission_table(passbands_dir, tmp_path):
 
     # Check that we raise an error if the delta_wave is not a positive number
     with pytest.raises(ValueError):
-        a_band.interpolate_transmission_table(a_band._loaded_table, delta_wave=-1)
+        a_band.interpolate_transmission_table(a_band.transmission_table, delta_wave=-1)
 
     # Check that we can run method on a standard LSST transmission table
     LSST_i = create_lsst_passband(passbands_dir, "i")
-    table = LSST_i.interpolate_transmission_table(LSST_i._loaded_table, delta_wave=50)
+    table = LSST_i.interpolate_transmission_table(LSST_i.transmission_table, delta_wave=50)
     assert len(table) > 0
-    assert len(table) < len(LSST_i._loaded_table)
+    assert len(table) < len(LSST_i.transmission_table)
 
 
 def test_trim_transmission_table(passbands_dir, tmp_path):
@@ -349,22 +351,22 @@ def test_trim_transmission_table(passbands_dir, tmp_path):
     a_band = create_toy_passband(tmp_path, transmission_table)
 
     # Trim the transmission table by 5% (should remove the last point)
-    table = a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=0.05)
+    table = a_band.trim_transmission_by_quantile(a_band.transmission_table, trim_quantile=0.05)
     np.testing.assert_allclose(table, np.array([[100, 0.5], [200, 0.75]]))
 
     # Trim the transmission table by 40% (should still preserve the first point, as table is skewed)
-    table = a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=0.4)
+    table = a_band.trim_transmission_by_quantile(a_band.transmission_table, trim_quantile=0.4)
     np.testing.assert_allclose(table, np.array([[100, 0.5], [200, 0.75]]))
 
     # Check no trimming if quantile is 0
-    table = a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=None)
+    table = a_band.trim_transmission_by_quantile(a_band.transmission_table, trim_quantile=None)
     np.testing.assert_allclose(table, np.array([[100, 0.5], [200, 0.75], [300, 0.25]]))
 
     # Check we raise an error if the quantile is not greater or equal to 0 and less than 0.5
     with pytest.raises(ValueError):
-        a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=0.5)
+        a_band.trim_transmission_by_quantile(a_band.transmission_table, trim_quantile=0.5)
     with pytest.raises(ValueError):
-        a_band.trim_transmission_by_quantile(a_band._loaded_table, trim_quantile=-0.1)
+        a_band.trim_transmission_by_quantile(a_band.transmission_table, trim_quantile=-0.1)
 
     # Check we raise an error if the transmission table is the wrong shape
     with pytest.raises(ValueError):
@@ -375,7 +377,7 @@ def test_trim_transmission_table(passbands_dir, tmp_path):
     b_band = create_toy_passband(tmp_path, transmission_table, filter_name="b")
 
     # Trim the transmission table by 5% (should remove the last point)
-    table = b_band.trim_transmission_by_quantile(b_band._loaded_table, trim_quantile=0.05)
+    table = b_band.trim_transmission_by_quantile(b_band.transmission_table, trim_quantile=0.05)
     np.testing.assert_allclose(
         table,
         np.array(
@@ -384,11 +386,11 @@ def test_trim_transmission_table(passbands_dir, tmp_path):
     )
 
     # Trim the transmission table by 40% (should remove most points)
-    table = b_band.trim_transmission_by_quantile(b_band._loaded_table, trim_quantile=0.4)
+    table = b_band.trim_transmission_by_quantile(b_band.transmission_table, trim_quantile=0.4)
     np.testing.assert_allclose(table, np.array([[300, 0.25], [400, 0.5], [500, 0.8]]))
 
     # Check no trimming if quantile is 0
-    table = b_band.trim_transmission_by_quantile(b_band._loaded_table, trim_quantile=None)
+    table = b_band.trim_transmission_by_quantile(b_band.transmission_table, trim_quantile=None)
     np.testing.assert_allclose(
         table,
         np.array(
@@ -419,19 +421,19 @@ def test_trim_transmission_table(passbands_dir, tmp_path):
     c_band = create_toy_passband(tmp_path, transmission_table, filter_name="c")
 
     # Trim the transmission table by 5% on each side
-    table = c_band.trim_transmission_by_quantile(c_band._loaded_table, trim_quantile=0.05)
-    assert len(table) < len(c_band._loaded_table)
+    table = c_band.trim_transmission_by_quantile(c_band.transmission_table, trim_quantile=0.05)
+    assert len(table) < len(c_band.transmission_table)
 
-    original_area = np.trapezoid(c_band._loaded_table[:, 1], x=c_band._loaded_table[:, 0])
+    original_area = np.trapezoid(c_band.transmission_table[:, 1], x=c_band.transmission_table[:, 0])
     trimmed_area = np.trapezoid(table[:, 1], x=table[:, 0])
     assert trimmed_area >= (original_area * 0.9)
 
     # Test 4: LSST transmission table
     LSST_z = create_lsst_passband(passbands_dir, "z")
-    table = LSST_z.trim_transmission_by_quantile(LSST_z._loaded_table, trim_quantile=0.05)
-    assert len(table) < len(LSST_z._loaded_table)
+    table = LSST_z.trim_transmission_by_quantile(LSST_z.transmission_table, trim_quantile=0.05)
+    assert len(table) < len(LSST_z.transmission_table)
 
-    original_area = np.trapezoid(LSST_z._loaded_table[:, 1], x=LSST_z._loaded_table[:, 0])
+    original_area = np.trapezoid(LSST_z.transmission_table[:, 1], x=LSST_z.transmission_table[:, 0])
     trimmed_area = np.trapezoid(table[:, 1], x=table[:, 0])
     assert trimmed_area >= (original_area * 0.9)
 
@@ -443,11 +445,11 @@ def test_passbandcompute_system_response_table(passbands_dir, tmp_path):
     a_band = create_toy_passband(tmp_path, transmission_table, delta_wave=100, trim_quantile=None)
 
     # Normalize the transmission table (we skip interpolation as grid already matches)
-    a_band.compute_system_response_table(a_band._loaded_table)
+    a_band.compute_system_response_table(a_band.transmission_table)
 
     # Compare results
     expected_result = np.array([[100.0, 0.0075], [200.0, 0.005625], [300.0, 0.00125]])
-    assert np.allclose(a_band.processed_transmission_table, expected_result)
+    assert np.allclose(a_band.normalized_system_response, expected_result)
 
     # Test that we raise an error if the transmission table is the wrong size or shape
     with pytest.raises(ValueError):
@@ -461,9 +463,9 @@ def test_passbandcompute_system_response_table(passbands_dir, tmp_path):
 
     # Test we can call method on a standard LSST transmission table
     LSST_y = create_lsst_passband(passbands_dir, "y")
-    normalized_table = LSST_y.compute_system_response_table(LSST_y._loaded_table)
-    assert len(normalized_table) == len(LSST_y._loaded_table)
-    assert not np.allclose(normalized_table, LSST_y._loaded_table)
+    normalized_table = LSST_y.compute_system_response_table(LSST_y.transmission_table)
+    assert len(normalized_table) == len(LSST_y.transmission_table)
+    assert not np.allclose(normalized_table, LSST_y.transmission_table)
 
 
 def test_passband_fluxes_to_bandflux(passbands_dir, tmp_path):
@@ -482,7 +484,7 @@ def test_passband_fluxes_to_bandflux(passbands_dir, tmp_path):
             [1.0, 1.0, 1.0],
         ]
     )
-    expected_bandflux = np.trapezoid(flux * a_band.processed_transmission_table[:, 1], x=a_band.waves)
+    expected_bandflux = np.trapezoid(flux * a_band.normalized_system_response[:, 1], x=a_band.waves)
     bandflux = a_band.fluxes_to_bandflux(flux)
     np.testing.assert_allclose(bandflux, expected_bandflux)
 
@@ -508,8 +510,8 @@ def test_passband_fluxes_to_bandflux(passbands_dir, tmp_path):
     )
     bandflux = a_band.fluxes_to_bandflux(flux)
     expected_bandflux = np.trapezoid(
-        flux * a_band.processed_transmission_table[:, 1],
-        x=a_band.processed_transmission_table[:, 0],
+        flux * a_band.normalized_system_response[:, 1],
+        x=a_band.normalized_system_response[:, 0],
     )
     np.testing.assert_allclose(bandflux, expected_bandflux)
 

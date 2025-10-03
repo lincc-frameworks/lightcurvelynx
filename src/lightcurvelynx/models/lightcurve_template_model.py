@@ -464,7 +464,7 @@ class BaseLightcurveTemplateModel(BandfluxModel, ABC):
         for idx, filter in enumerate(filters):
             # Get all of the wavelengths that have a non-negligible transmission value
             # for this filter and find their indices in the passband group.
-            is_significant = passbands[filter].processed_transmission_table[:, 1] > 1e-5
+            is_significant = passbands[filter].normalized_system_response[:, 1] > 1e-5
             significant_waves = passbands[filter].waves[is_significant]
             indices = np.searchsorted(passbands.waves, significant_waves)
 
