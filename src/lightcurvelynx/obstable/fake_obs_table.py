@@ -127,17 +127,17 @@ class FakeObsTable(ObsTable):
             # Make sure we have the required columns (fwhm_px, sky, exptime, nexposure) to
             # compute the flux error. If any are missing, assign a constant column from the survey values.
             exptime = self.get_value_per_row("exptime")
-            if np.any(exptime is None) or np.any(exptime <= 0):
+            if np.any(exptime == None) or np.any(exptime <= 0):  # noqa: E711
                 raise ValueError("Must provide a positive `exptime` to FakeSurveyTable.")
 
             nexposure = self.get_value_per_row("nexposure")
-            if np.any(nexposure is None) or np.any(nexposure <= 0):
+            if np.any(nexposure == None) or np.any(nexposure <= 0):  # noqa: E711
                 raise ValueError("Must provide a positive `nexposure` to FakeSurveyTable.")
 
             psf_footprint = self.get_value_per_row("psf_footprint")
-            if np.any(psf_footprint is None) or np.any(psf_footprint <= 0):
+            if np.any(psf_footprint == None) or np.any(psf_footprint <= 0):  # noqa: E711
                 fwhm_px = self.get_value_per_row("fwhm_px")
-                if np.any(fwhm_px is None) or np.any(fwhm_px <= 0):
+                if np.any(fwhm_px == None) or np.any(fwhm_px <= 0):  # noqa: E711
                     raise ValueError(
                         "Must provide a positive `psf_footprint` or `fwhm_px` to FakeSurveyTable."
                     )
@@ -145,7 +145,7 @@ class FakeObsTable(ObsTable):
                 self.add_column("psf_footprint", psf_footprint)
 
             sky = self.get_value_per_row("sky")
-            if np.any(sky is None) or np.any(sky < 0):
+            if np.any(sky == None) or np.any(sky < 0):  # noqa: E711
                 raise ValueError("Must provide `sky` to FakeSurveyTable.")
 
     def _assign_zero_points(self):
