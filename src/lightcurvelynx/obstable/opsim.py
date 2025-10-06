@@ -39,7 +39,11 @@ _lsstcam_view_radius = 1.75
 """The angular radius of the observation field (in degrees)."""
 
 _lsst_zp_err_mag = 1.0e-4
-"""The zero point error in magnitude. We choose a very conservative noise flooring for 1.e-4 mag. We will update this number when we have a better idea from LSST."""
+"""The zero point error in magnitude.
+
+We choose a very conservative noise flooring of 1e-4 mag.
+This number will be updated when we have a better estimate from LSST.
+"""
 
 
 class OpSim(ObsTable):
