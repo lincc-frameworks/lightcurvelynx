@@ -65,6 +65,11 @@ class GivenValueList(FunctionNode):
     """A FunctionNode that returns given results for a single parameter
     in the order in which they are provided.
 
+    Note
+    ----
+    This node does not support parallel sampling. It will return the same
+    sequence of values for for each shard.
+
     Attributes
     ----------
     values : float, list, or numpy.ndarray
@@ -223,6 +228,11 @@ class TableSampler(NumpyRandomFunc):
     """A FunctionNode that returns values from a table-like data,
     including a Pandas DataFrame or AstroPy Table. The results returned
     can be in-order (for testing) or randomly selected with replacement.
+
+    Note
+    ----
+    This node does not support "in order" parallel sampling. It will
+    return the same sequence of values for each shard.
 
     Parameters
     ----------

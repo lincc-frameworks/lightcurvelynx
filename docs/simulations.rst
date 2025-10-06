@@ -178,3 +178,25 @@ survey are consistent with respect to the parameterization. The times of observa
 used are determined by each survey. And the bandflux is computed using that survey's passbands.
 
 For an example see the :doc:`Simulating from Multiple Surveys notebook <notebooks/multiple_surveys>`.
+
+
+Saving Results
+-------------------------------------------------------------------------------
+
+After simulating a population of objects, users may want to save the results for later analysis.
+LightCurveLynx returns the results as a NestedDataFrame using the
+`nested-pandas <https://nested-pandas.readthedocs.io/en/latest/>`__ package.
+This allows users to easily save all the results in a single file using the
+``to_parquet()`` function.
+
+.. code-block:: python
+
+    results.to_parquet("simulated_lightcurves.parquet")
+
+In addition, each individual light curve is stored as a (nested) Pandas DataFrame. Users can
+access and save light curves individually using the standard Pandas functions such as
+``to_csv()`` or ``to_parquet()``.
+
+.. code-block:: python
+
+    results["lightcurve"][0].to_parquet("lightcurve_0.parquet")

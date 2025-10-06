@@ -53,6 +53,10 @@ class OpSim(ObsTable):
         A mapping of short column names to their names in the underlying table.
         Defaults to the Rubin OpSim column names, stored in the class variable
         _opsim_colnames.
+    saturation_mags : dict, optional
+        A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
+        provided must match those in the table. If not provided, OpSim-specific defaults will be
+        used.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -92,15 +96,32 @@ class OpSim(ObsTable):
         "survey_name": "LSST",
     }
 
+    # Default LSST saturation thresholds in magnitudes.
+    # https://www.lsst.org/sites/default/files/docs/sciencebook/SB_3.pdf
+    _default_saturation_mags = {
+        "u": 14.7,
+        "g": 15.7,
+        "r": 15.8,
+        "i": 15.8,
+        "z": 15.3,
+        "y": 13.9,
+    }
+
     # Class constants for the column names.
     def __init__(
         self,
         table,
         colmap=None,
+        saturation_mags=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
-        super().__init__(table, colmap=colmap, **kwargs)
+
+        # If saturation thresholds are not provided, then set to the OpSim defaults.
+        if saturation_mags is None:
+            saturation_mags = self._default_saturation_mags
+
+        super().__init__(table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy to the OpSim tables."""

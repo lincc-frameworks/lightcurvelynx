@@ -123,7 +123,7 @@ def load_and_register_passband(passbands_dir, to_use):
     # Register sncosmo bandpasses
     for f, passband in passbands.passbands.items():
         sncosmo_bandpass = sncosmo.Bandpass(
-            *passband.processed_transmission_table.T, name=f"lightcurvelynx_{f}"
+            *passband.normalized_system_response.T, name=f"lightcurvelynx_{f}"
         )
         sncosmo.register(sncosmo_bandpass, force=True)
 
