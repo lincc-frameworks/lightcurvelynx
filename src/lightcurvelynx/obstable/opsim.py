@@ -38,8 +38,8 @@ The value is from https://smtn-002.lsst.io/v/OPSIM-1171/index.html
 _lsstcam_view_radius = 1.75
 """The angular radius of the observation field (in degrees)."""
 
-_lsst_zp_err_mag = 0.0
-"""The zero point error in magnitude. Let's keep it zero until we find a better number"""
+_lsst_zp_err_mag = 1.0e-4
+"""The zero point error in magnitude. We choose a very conservative noise flooring for 1.e-4 mag. We will update this number when we have a better idea from LSST."""
 
 
 class OpSim(ObsTable):
