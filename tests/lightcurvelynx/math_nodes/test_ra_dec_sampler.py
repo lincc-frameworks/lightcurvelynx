@@ -162,6 +162,23 @@ def test_obstable_ra_dec_sampler_extra():
     assert np.allclose(state["single.extra"], [20.0, 30.0])
 
 
+def test_obstable_ra_dec_sampler_from_hats(test_data_dir):
+    """Test that we can sample from a HATS catalog on disk."""
+    sampler_node = ObsTableRADECSampler.from_hats(
+        test_data_dir / "test_hats",
+        radius=0.0,
+        in_order=True,
+        node_label="sampler",
+        extra_cols=["z"],
+    )
+    assert sampler_node.radius == 0.0
+
+    states = sampler_node.sample_parameters(num_samples=3)
+    assert np.allclose(states["sampler"]["ra"], [10.0, 10.1, 10.2])
+    assert np.allclose(states["sampler"]["dec"], [-10.0, -9.9, -10.1])
+    assert np.allclose(states["sampler"]["z"], [0.1, 0.2, 0.3])
+
+
 def test_opsim_uniform_ra_dec_sampler():
     """Test that we can sample uniformly from am OpSim object."""
     # Create an opsim with two points in different hemispheres.
