@@ -57,6 +57,8 @@ add_module_names = False
 autoapi_type = "python"
 autoapi_dirs = ["../src"]
 autoapi_ignore = ["*/__main__.py", "*/_version.py"]
+# Additional configuration to skip private members
+autoapi_python_class_content = "class"
 autoapi_add_toc_tree_entry = False
 autoapi_member_order = "bysource"
 autoapi_options = [
@@ -66,7 +68,7 @@ autoapi_options = [
     "show-module-summary",
     "special-members",
     "imported-members",
-]  # No private-members
+]
 
 html_theme = "sphinx_rtd_theme"
 
@@ -74,12 +76,15 @@ html_theme = "sphinx_rtd_theme"
 napoleon_custom_sections = ["Citations"]
 
 
-def skip_private_members(app, what, name, obj, skip, options):  # noqa: D103
-    if name.startswith("_") and not name.startswith("__"):  # Skip members starting with a single underscore
+def skip_private_members(app, what, name, obj, skip, options):
+    """Skip private members (those starting with a single underscore)."""
+    # Skip private members (single underscore) but keep special methods (double underscore)
+    if name.startswith("_") and not name.startswith("__"):
         return True
-    return None
+    # Let autoapi handle other cases
+    return skip
 
 
-def setup(app):  # noqa: D103
+def setup(app):
     """Set up the Sphinx app with custom configurations."""
     app.connect("autoapi-skip-member", skip_private_members)
