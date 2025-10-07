@@ -5,7 +5,7 @@ import astropy.units as u
 import numpy as np
 import pandas as pd
 import pytest
-from astropy.coordinates import Latitude, Longitude, SkyCoord
+from astropy.coordinates import Latitude, Longitude, SkyCoord, angular_separation
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.math_nodes.ra_dec_sampler import (
     ApproximateMOCSampler,
@@ -15,7 +15,9 @@ from lightcurvelynx.math_nodes.ra_dec_sampler import (
 )
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
 from lightcurvelynx.obstable.opsim import OpSim
+from lightcurvelynx.utils.io_utils import write_results_as_hats
 from mocpy import MOC
+from nested_pandas import NestedFrame
 
 
 def test_uniform_ra_dec():
@@ -114,15 +116,23 @@ def test_obstable_ra_dec_sampler():
     assert len(int_times[int_times == 4]) > 750
 
     # Do randomized sampling with offsets.
-    sampler_node3 = ObsTableRADECSampler(ops_data, in_order=False, seed=100, radius=0.1, node_label="sampler")
+    sampler_node3 = ObsTableRADECSampler(ops_data, in_order=False, seed=100, radius=0.5, node_label="sampler")
     state = sampler_node3.sample_parameters(num_samples=5000)
 
-    # Check that the samples are not all the centers (unique values > 5) but are close.
+    # Check that the samples are not all the centers (unique values > 500) but are within
+    # the sampling radius of the corresponding pointing. We use int(time) to match the index
+    # of the center pointing.
     int_times = state["sampler"]["time"].astype(int)
-    assert len(np.unique(state["sampler"]["ra"])) > 5
-    assert len(np.unique(state["sampler"]["dec"])) > 5
-    assert np.allclose(state["sampler"]["ra"], values["fieldRA"][int_times], atol=0.2)
-    assert np.allclose(state["sampler"]["dec"], values["fieldDec"][int_times], atol=0.2)
+    assert len(np.unique(state["sampler"]["ra"])) > 500
+    assert len(np.unique(state["sampler"]["dec"])) > 500
+    for idx in range(5):
+        dist = angular_separation(
+            state["sampler"]["ra"][int_times == idx] * u.deg,
+            state["sampler"]["dec"][int_times == idx] * u.deg,
+            values["fieldRA"][idx] * u.deg,
+            values["fieldDec"][idx] * u.deg,
+        )
+        assert np.all(dist <= 0.5 * u.deg)
 
     # We fail if no radius is provided by the OpSim or the parameters
     ops_data = OpSim(values, radius=None)
@@ -164,19 +174,41 @@ def test_obstable_ra_dec_sampler_extra():
 
 def test_obstable_ra_dec_sampler_from_hats(test_data_dir):
     """Test that we can sample from a HATS catalog on disk."""
-    sampler_node = ObsTableRADECSampler.from_hats(
-        test_data_dir / "test_hats",
-        radius=0.0,
-        in_order=True,
-        node_label="sampler",
-        extra_cols=["z"],
-    )
-    assert sampler_node.radius == 0.0
+    outer_dict = {
+        "id": [0, 1, 2],
+        "ra": [10.0, 10.1, 10.2],
+        "dec": [-10.0, -9.9, -10.1],
+        "nobs": [3, 2, 1],
+        "z": [0.1, 0.2, 0.3],
+    }
+    inner_dict = {
+        "mjd": [59000, 59001, 59002, 59000, 59001, 59000],
+        "flux": [10.0, 12.0, 11.0, 15.0, 14.0, 13.0],
+        "fluxerr": [1.0, 1.0, 1.0, 1.5, 1.5, 1.0],
+        "filter": ["g", "r", "i", "g", "r", "i"],
+    }
+    nested_inds = [0, 0, 0, 1, 1, 2]
+    results = NestedFrame(data=outer_dict, index=[0, 1, 2])
+    nested_1 = pd.DataFrame(data=inner_dict, index=nested_inds)
+    results = results.add_nested(nested_1, "lightcurve")
 
-    states = sampler_node.sample_parameters(num_samples=3)
-    assert np.allclose(states["sampler"]["ra"], [10.0, 10.1, 10.2])
-    assert np.allclose(states["sampler"]["dec"], [-10.0, -9.9, -10.1])
-    assert np.allclose(states["sampler"]["z"], [0.1, 0.2, 0.3])
+    with tempfile.TemporaryDirectory() as dir_name:
+        dir_path = Path(dir_name, "test_hats")
+        write_results_as_hats(dir_path, results)
+
+        sampler_node = ObsTableRADECSampler.from_hats(
+            dir_path,
+            radius=0.0,
+            in_order=True,
+            node_label="sampler",
+            extra_cols=["z"],
+        )
+        assert sampler_node.radius == 0.0
+
+        states = sampler_node.sample_parameters(num_samples=3)
+        assert np.allclose(states["sampler"]["ra"], [10.0, 10.1, 10.2])
+        assert np.allclose(states["sampler"]["dec"], [-10.0, -9.9, -10.1])
+        assert np.allclose(states["sampler"]["z"], [0.1, 0.2, 0.3])
 
 
 def test_opsim_uniform_ra_dec_sampler():

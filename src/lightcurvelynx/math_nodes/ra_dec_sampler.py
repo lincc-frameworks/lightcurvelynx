@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import numpy as np
+from astropy.coordinates import Angle, SkyCoord
 from cdshealpix.nested import healpix_to_skycoord
 from citation_compass import CiteClass
 from mocpy import MOC
@@ -74,11 +75,6 @@ class UniformRADEC(NumpyRandomFunc):
 
 class ObsTableRADECSampler(TableSampler):
     """A FunctionNode that samples RA and dec (and any extra columns) from given data.
-
-    Note
-    ----
-    Does not currently use uniform sampling from the radius. Uses a very
-    rough approximate as a proof of concept. Do not use for statistical analysis.
 
     Parameters
     ----------
@@ -186,27 +182,27 @@ class ObsTableRADECSampler(TableSampler):
             The result of the computation. This return value is provided so that testing
             functions can easily access the results.
         """
-        # Sample the center RA, dec, and times without the radius.
+        # Sample the center RA, dec, and times without the radius. Results is a vector
+        # of arrays, one per output column. The first two are guaranteed to be RA and dec.
         results = super().compute(graph_state, rng_info=rng_info, **kwargs)
 
         if self.radius > 0.0:
-            # Add an offset around the center. This is currently a placeholder that does
-            # NOT produce a uniform sampling. TODO: Make this uniform sampling.
             rng = rng_info if rng_info is not None else self._rng
+            center = SkyCoord(ra=results[0], dec=results[1], unit="deg")
 
-            # Choose a uniform-ish circle around the center point. The offset angle is in radians,
-            # since we will be using sin() and cos(). The offset distance away from the center
-            # is in degrees since we will be adding it to RA and dec in degrees.
-            # Note that this is not uniform over the final RA, dec because it does not
-            # account for compression in dec around the poles.
-            offset_amt = self.radius * np.sqrt(rng.uniform(0.0, 1.0, size=graph_state.num_samples))
-            offset_ang = 2.0 * np.pi * rng.uniform(0.0, 1.0, size=graph_state.num_samples)
+            # Add an offset from the center of the pointing defined by an offset angle (phi)
+            # and offset radius (theta).  Both are defined in radians.
+            offset_dir = rng.uniform(0.0, 2.0 * np.pi, size=graph_state.num_samples)
+            cos_radius = np.cos(np.radians(self.radius))
+            offset_amt = np.arccos(rng.uniform(cos_radius, 1.0, size=graph_state.num_samples))
+            new_coords = center.directional_offset_by(
+                position_angle=Angle(offset_dir, "radian"),
+                separation=Angle(offset_amt, "radian"),
+            )
 
-            # Add the offsets to RA and dec. Keep other columns unchanged.
-            results[0] += offset_amt * np.cos(offset_ang)  # RA
-            results[1] += offset_amt * np.sin(offset_ang)  # dec
-
-            # Resave the results (overwriting the previous results)
+            # Replace the results' RA and dec with the new pointing (in degrees).
+            results[0] = new_coords.ra.deg
+            results[1] = new_coords.dec.deg
             self._save_results(results, graph_state)
 
         return results
