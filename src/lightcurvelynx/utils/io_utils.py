@@ -6,8 +6,8 @@ import numpy as np
 from astropy.table import Table
 
 
-def write_results_as_hats(base_catalog_path, results, *, overwrite=False, **kwargs):
-    """Write results to a .hats file.
+def write_results_as_hats(base_catalog_path, results, *, catalog_name=None, overwrite=False):
+    """Write results to a HATS catalog.
 
     Parameters
     ----------
@@ -15,30 +15,34 @@ def write_results_as_hats(base_catalog_path, results, *, overwrite=False, **kwar
         The base path to the output hats directory.
     results : nested_pandas.NestedFrame
         The results to write, as a NestedFrame where each row is a sample.
+    catalog_name : str, optional
+        The name of the catalog to write. If None, the name will be derived from the
+        base_catalog_path. Default: None
     overwrite : bool
         Whether to overwrite the output directory if it already exists.
         Default: False
-    **kwargs : dict
-        Additional keyword arguments passed to the function to create a Catalog
-        from a DataFrame. Examples include `margin_order` and `margin_threshold` if
-        the user wants to create a margin catalog.
     """
     base_catalog_path = Path(base_catalog_path)
-    base_catalog_path.mkdir(parents=True, exist_ok=True)
     logging.debug(f"Writing results as HATS Catalog to {base_catalog_path}")
 
     # See if the (optional) LSDB package is installed.
     try:
-        from lsdb.loaders.dataframe.from_dataframe import from_dataframe
+        from lsdb import from_dataframe
     except ImportError as err:
         raise ImportError(
             "The lsdb package is required to write results as HATS files. "
             "Please install it via 'pip install lsdb'."
         ) from err
 
-    # Convert the results into an LSDB Catalog and output that.
-    catalog = from_dataframe(results, ra_column="ra", dec_column="dec", **kwargs)
-    catalog.write_catalog(base_catalog_path, overwrite=overwrite, **kwargs)
+    # Convert the results into an LSDB Catalog and output that. We just generate and output
+    # the basic catalog (no margins or other extras).
+    catalog = from_dataframe(results, ra_column="ra", dec_column="dec")
+    catalog.write_catalog(
+        base_catalog_path,
+        catalog_name=catalog_name,
+        as_collection=False,
+        overwrite=overwrite,
+    )
 
 
 def read_numpy_data(file_path):

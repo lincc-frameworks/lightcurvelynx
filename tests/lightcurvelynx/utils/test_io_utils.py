@@ -8,7 +8,7 @@ from lightcurvelynx.utils.io_utils import (
     write_numpy_data,
     write_results_as_hats,
 )
-from lsdb.loaders.hats.read_hats import read_hats
+from lsdb import read_hats
 from nested_pandas import NestedFrame
 
 
@@ -39,8 +39,8 @@ def test_read_write_lsdb(tmp_path):
     """Test reading and writing HATS data via LSDB."""
     outer_dict = {
         "id": [0, 1, 2],
-        "ra": [10.0, 20.0, 30.0],
-        "dec": [-10.0, 0.0, 10.0],
+        "ra": [10.0, 10.0001, 10.0002],
+        "dec": [-10.0, -9.999, -10.0001],
         "nobs": [3, 2, 1],
         "z": [0.1, 0.2, 0.3],
     }
