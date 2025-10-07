@@ -85,8 +85,19 @@ def autoapi_skip_member_handler(app, what, name, obj, skip, options):
     return skip
 
 
-# Assign the handler directly
+# Assign the handler directly - this is how some versions of autoapi expect it
 autoapi_skip_member = autoapi_skip_member_handler
+
+
+# Alternative direct assignment approach
+def autoapi_skip_member_direct(app, what, name, obj, skip, options):
+    """Module-level skip function that autoapi might find automatically."""
+    print(f"DEBUG: Module-level handler called for {what} {name}")
+    if name.startswith("_") and not name.startswith("__"):
+        print(f"DEBUG: Module-level handler skipping: {name}")
+        return True
+    return skip
+
 
 html_theme = "sphinx_rtd_theme"
 
@@ -96,9 +107,7 @@ napoleon_custom_sections = ["Citations"]
 
 def skip_private_members(app, what, name, obj, skip, options):
     """Skip private members during autoapi generation."""
-    # Debug print to see what's being processed
-    if name.startswith("_"):
-        print(f"DEBUG: Considering {what} {name}, skip={skip}")
+    print(f"DEBUG: skip_private_members called with: what={what}, name={name}, skip={skip}")
 
     # Skip private members (single underscore) but keep special methods (double underscore)
     if name.startswith("_") and not name.startswith("__"):
@@ -107,31 +116,47 @@ def skip_private_members(app, what, name, obj, skip, options):
     return skip
 
 
+def skip_member_new_signature(app, what, name, obj, skip, options):
+    """Alternative signature for autoapi skip member."""
+    print(f"DEBUG: New signature called with: what={what}, name={name}, skip={skip}")
+    if name.startswith("_") and not name.startswith("__"):
+        print(f"DEBUG: New signature skipping: {name}")
+        return True
+    return skip
+
+
 def setup(app):
     """Set up the Sphinx app with custom configurations."""
-    print("DEBUG: Setup function called, trying different event names")
+    print("DEBUG: Setup function called, trying different approaches")
 
-    # Try various possible event names for different autoapi versions
-    event_names = [
-        "autoapi-skip-member",
-        "autodoc-skip-member",
-        "autoapi-before-content",
-        "autoapi-after-content",
-    ]
-
-    for event_name in event_names:
-        try:
-            app.connect(event_name, skip_private_members)
-            print(f"DEBUG: Connected to event: {event_name}")
-        except Exception as e:
-            print(f"DEBUG: Failed to connect to {event_name}: {e}")
-
-    # Also try connecting via autoapi's own configuration
+    # Connect to autoapi-skip-member with different function signatures
     try:
-        # Some versions of autoapi use a different callback mechanism
-        app.add_config_value("autoapi_skip_members", skip_private_members, "env")
-        print("DEBUG: Added autoapi_skip_members config value")
+        app.connect("autoapi-skip-member", skip_private_members)
+        print("DEBUG: Connected skip_private_members to autoapi-skip-member")
     except Exception as e:
-        print(f"DEBUG: Failed to add config value: {e}")
+        print(f"DEBUG: Failed to connect skip_private_members: {e}")
+
+    # Try with different signature
+    try:
+        app.connect("autoapi-skip-member", skip_member_new_signature)
+        print("DEBUG: Connected skip_member_new_signature to autoapi-skip-member")
+    except Exception as e:
+        print(f"DEBUG: Failed to connect skip_member_new_signature: {e}")
+
+    # Try autodoc event too
+    try:
+        app.connect("autodoc-skip-member", skip_private_members)
+        print("DEBUG: Connected to autodoc-skip-member")
+    except Exception as e:
+        print(f"DEBUG: Failed to connect to autodoc-skip-member: {e}")
+
+    # Try the most direct approach: configure autoapi directly
+    try:
+        # Set the autoapi skip function directly on the app
+        if hasattr(app, "config"):
+            app.config.autoapi_skip_member = skip_private_members
+            print("DEBUG: Set autoapi_skip_member on app.config")
+    except Exception as e:
+        print(f"DEBUG: Failed to set autoapi_skip_member on config: {e}")
 
     print("DEBUG: Setup complete")
