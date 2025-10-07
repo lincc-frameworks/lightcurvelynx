@@ -57,10 +57,11 @@ add_module_names = False
 autoapi_type = "python"
 autoapi_dirs = ["../src"]
 autoapi_ignore = ["*/__main__.py", "*/_version.py"]
-# Additional configuration to skip private members
-autoapi_python_class_content = "class"
 autoapi_add_toc_tree_entry = False
 autoapi_member_order = "bysource"
+# Additional configuration to skip private members
+autoapi_python_class_content = "class"
+autoapi_generate_api_docs = True
 autoapi_options = [
     "members",
     "undoc-members",
@@ -70,6 +71,9 @@ autoapi_options = [
     "imported-members",
 ]
 
+# The key is to NOT include "private-members" in autoapi_options
+# This should be sufficient to exclude private members by default
+
 html_theme = "sphinx_rtd_theme"
 
 # Support use of arbitrary section titles in docstrings
@@ -77,14 +81,27 @@ napoleon_custom_sections = ["Citations"]
 
 
 def skip_private_members(app, what, name, obj, skip, options):
-    """Skip private members (those starting with a single underscore)."""
+    """Skip private members during autoapi generation."""
+    # Debug print to see what's being processed
+    if name.startswith("_"):
+        print(f"DEBUG: Considering {what} {name}, skip={skip}")
+
     # Skip private members (single underscore) but keep special methods (double underscore)
     if name.startswith("_") and not name.startswith("__"):
+        print(f"DEBUG: Skipping private member: {name}")
         return True
-    # Let autoapi handle other cases
     return skip
 
 
 def setup(app):
     """Set up the Sphinx app with custom configurations."""
+    # Try multiple possible event names
     app.connect("autoapi-skip-member", skip_private_members)
+
+    # Also try the autodoc event in case autoapi delegates to it
+    def autodoc_skip_member(app, what, name, obj, skip, options):
+        return skip_private_members(app, what, name, obj, skip, options)
+
+    app.connect("autodoc-skip-member", autodoc_skip_member)
+
+    print("DEBUG: Setup function called, events connected")
