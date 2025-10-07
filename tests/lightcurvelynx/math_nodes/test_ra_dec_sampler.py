@@ -3,6 +3,7 @@ from pathlib import Path
 
 import astropy.units as u
 import numpy as np
+import pandas as pd
 import pytest
 from astropy.coordinates import Latitude, Longitude, SkyCoord
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
@@ -12,6 +13,7 @@ from lightcurvelynx.math_nodes.ra_dec_sampler import (
     ObsTableUniformRADECSampler,
     UniformRADEC,
 )
+from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
 from lightcurvelynx.obstable.opsim import OpSim
 from mocpy import MOC
 
@@ -71,7 +73,7 @@ def test_uniform_ra_dec():
     assert np.all(all_dec <= np.pi)
 
 
-def test_opsim_ra_dec_sampler():
+def test_obstable_ra_dec_sampler():
     """Test that we can sample from am OpSim object."""
     values = {
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
@@ -131,6 +133,33 @@ def test_opsim_ra_dec_sampler():
     ops_data = OpSim(values, radius=1.0)
     sampler_node = ObsTableRADECSampler(ops_data)
     assert sampler_node.radius == 1.0
+
+
+def test_obstable_ra_dec_sampler_extra():
+    """Test that we can sample from an ObsTable-like object with extra columns."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+        "extra": np.array([10, 20, 30, 40, 50]),
+    }
+    ops_df = pd.DataFrame(values)
+    sampler_node = ObsTableRADECSampler(ops_df, radius=0.0, extra_cols=["extra"], in_order=True)
+    assert sampler_node.radius == 0.0
+
+    # Test we can generate a single value.
+    sample = sampler_node.generate(num_samples=1)
+    assert len(sample) == 4
+    assert sample[0] == 15.0  # ra
+    assert sample[1] == -10.0  # dec
+    assert sample[2] == 0.0  # time
+    assert sample[3] == 10  # extra
+
+    # We can chain on any of the column names.
+    single_node = SingleVariableNode("extra", sampler_node.extra, node_label="single")
+    state = single_node.sample_parameters(num_samples=2)
+    assert np.allclose(state["single.extra"], [20.0, 30.0])
 
 
 def test_opsim_uniform_ra_dec_sampler():

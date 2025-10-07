@@ -9,6 +9,7 @@ from mocpy import MOC
 
 from lightcurvelynx.math_nodes.given_sampler import TableSampler
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.obstable.obs_table import ObsTable
 
 
 class UniformRADEC(NumpyRandomFunc):
@@ -72,8 +73,7 @@ class UniformRADEC(NumpyRandomFunc):
 
 
 class ObsTableRADECSampler(TableSampler):
-    """A FunctionNode that samples RA and dec (and time) from an ObsTable.
-    RA and dec are returned in degrees.
+    """A FunctionNode that samples RA and dec (and any extra columns) from given data.
 
     Note
     ----
@@ -82,18 +82,26 @@ class ObsTableRADECSampler(TableSampler):
 
     Parameters
     ----------
-    data : ObsTable
-        The ObsTable object to use for sampling.
-    radius : float
-        The radius of the the field of view of the observations in degrees. Use 0.0 to just sample
-        the centers of the images. Default: None
+    data : ObsTable, Pandas DataFrame, NestedFrame, or dict
+        The data to use for sampling. Must contain 'ra' and 'dec' columns.
+    extra_cols : list of str, optional
+        A list of extra column names to include in the sampling.
+        Default: None
+    radius : float, optional
+        The search radius around the center of the sampled pointing. Use 0.0 to
+        return the exact points. If None and data is an ObsTable, uses the value
+        from the ObsTable.
+        Default: None
     in_order : bool
         Return the given data in order of the rows (True). If False, performs
-        random sampling with replacement. Default: False
+        random sampling with replacement.
+        Default: False
+    **kwargs : dict, optional
+        Additional keyword arguments to pass to the parent class constructor.
     """
 
-    def __init__(self, data, radius=None, in_order=False, **kwargs):
-        if radius is None:
+    def __init__(self, data, *, extra_cols=None, radius=None, in_order=False, **kwargs):
+        if radius is None and isinstance(data, ObsTable):
             radius = data.survey_values.get("radius", None)
             if radius is None:
                 raise ValueError("ObsTable has no radius. Must provide radius.")
@@ -101,12 +109,62 @@ class ObsTableRADECSampler(TableSampler):
             raise ValueError("Invalid radius: {radius}")
         self.radius = radius
 
+        # Start with RA, dec, and (optionally) time.
         data_dict = {
             "ra": data["ra"],
             "dec": data["dec"],
-            "time": data["time"],
         }
+        if "time" in data:
+            data_dict["time"] = data["time"]
+
+        # Add any extra columns (without duplicates).
+        if extra_cols is not None:
+            for col in extra_cols:
+                if col not in data_dict:
+                    data_dict[col] = data[col]
+
         super().__init__(data_dict, in_order=in_order, **kwargs)
+
+    @classmethod
+    def from_hats(cls, path, *, radius=None, extra_cols=None, in_order=False):
+        """Create a GivenRADECSampler from a HATS Catalog
+
+        Parameters
+        ----------
+        path : str or Path
+            The base path of the HATS data directory.
+        radius : float, optional
+            The search radius around the center of the sampled pointing. Use 0.0 to return
+            the exact pointings.
+            Default: 0.0
+        extra_cols : list of str, optional
+            A list of extra column names to include in the sampling. Default: None
+        in_order : bool
+            Return the given data in order of the rows (True). If False, performs
+            random sampling with replacement. Default: False
+
+        Returns
+        -------
+        GivenRADECSampler
+            The created GivenRADECSampler object.
+        """
+        # See if the (optional) LSDB package is installed.
+        try:
+            from lsdb import read_hats
+        except ImportError as err:
+            raise ImportError(
+                "The lsdb package is required to read HATS catalogs. "
+                "Please install it via 'pip install lsdb'."
+            ) from err
+
+        # Compute the full list of columns to load from HATS.
+        cols_to_load = ["ra", "dec"]
+        if extra_cols is not None:
+            cols_to_load.extend(extra_cols)
+        columns = list(set(cols_to_load))  # Remove duplicates if any
+
+        data = read_hats(path, columns=columns).compute()
+        return cls(data, extra_cols=extra_cols, in_order=in_order)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
@@ -136,12 +194,15 @@ class ObsTableRADECSampler(TableSampler):
             # NOT produce a uniform sampling. TODO: Make this uniform sampling.
             rng = rng_info if rng_info is not None else self._rng
 
-            # Choose a uniform circle around the center point. Not that this is not uniform over
-            # the final RA, dec because it does not account for compression in dec around the polls.
+            # Choose a uniform-ish circle around the center point. The offset angle is in radians,
+            # since we will be using sin() and cos(). The offset distance away from the center
+            # is in degrees since we will be adding it to RA and dec in degrees.
+            # Note that this is not uniform over the final RA, dec because it does not
+            # account for compression in dec around the poles.
             offset_amt = self.radius * np.sqrt(rng.uniform(0.0, 1.0, size=graph_state.num_samples))
             offset_ang = 2.0 * np.pi * rng.uniform(0.0, 1.0, size=graph_state.num_samples)
 
-            # Add the offsets to RA and dec. Keep time unchanged.
+            # Add the offsets to RA and dec. Keep other columns unchanged.
             results[0] += offset_amt * np.cos(offset_ang)  # RA
             results[1] += offset_amt * np.sin(offset_ang)  # dec
 
