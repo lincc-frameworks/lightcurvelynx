@@ -72,3 +72,14 @@ html_theme = "sphinx_rtd_theme"
 
 # Support use of arbitrary section titles in docstrings
 napoleon_custom_sections = ["Citations"]
+
+
+def skip_private_members(app, what, name, obj, skip, options):  # noqa: D103
+    if name.startswith("_") and not name.startswith("__"):  # Skip members starting with a single underscore
+        return True
+    return None
+
+
+def setup(app):  # noqa: D103
+    """Set up the Sphinx app with custom configurations."""
+    app.connect("autoapi-skip-member", skip_private_members)
