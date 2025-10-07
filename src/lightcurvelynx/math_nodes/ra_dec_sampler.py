@@ -103,10 +103,8 @@ class ObsTableRADECSampler(TableSampler):
     def __init__(self, data, *, extra_cols=None, radius=None, in_order=False, **kwargs):
         if radius is None and isinstance(data, ObsTable):
             radius = data.survey_values.get("radius", None)
-            if radius is None:
-                raise ValueError("ObsTable has no radius. Must provide radius.")
-        if radius < 0.0:
-            raise ValueError("Invalid radius: {radius}")
+        if radius is None or radius < 0.0:
+            raise ValueError(f"Invalid radius: {radius}")
         self.radius = radius
 
         # Start with RA, dec, and (optionally) time.
@@ -126,7 +124,7 @@ class ObsTableRADECSampler(TableSampler):
         super().__init__(data_dict, in_order=in_order, **kwargs)
 
     @classmethod
-    def from_hats(cls, path, *, radius=None, extra_cols=None, in_order=False):
+    def from_hats(cls, path, *, radius=None, extra_cols=None, in_order=False, **kwargs):
         """Create a GivenRADECSampler from a HATS Catalog
 
         Parameters
@@ -142,6 +140,8 @@ class ObsTableRADECSampler(TableSampler):
         in_order : bool
             Return the given data in order of the rows (True). If False, performs
             random sampling with replacement. Default: False
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the constructor.
 
         Returns
         -------
@@ -164,7 +164,7 @@ class ObsTableRADECSampler(TableSampler):
         columns = list(set(cols_to_load))  # Remove duplicates if any
 
         data = read_hats(path, columns=columns).compute()
-        return cls(data, extra_cols=extra_cols, in_order=in_order)
+        return cls(data, extra_cols=extra_cols, in_order=in_order, radius=radius, **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
