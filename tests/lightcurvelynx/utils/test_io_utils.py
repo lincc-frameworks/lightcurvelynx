@@ -1,6 +1,15 @@
 import numpy as np
+import pandas as pd
 import pytest
-from lightcurvelynx.utils.io_utils import read_grid_data, read_lclib_data, read_numpy_data, write_numpy_data
+from lightcurvelynx.utils.io_utils import (
+    read_grid_data,
+    read_lclib_data,
+    read_numpy_data,
+    write_numpy_data,
+    write_results_as_hats,
+)
+from lsdb import read_hats
+from nested_pandas import NestedFrame
 
 
 def test_read_write_numpy_data(tmp_path):
@@ -24,6 +33,40 @@ def test_read_write_numpy_data(tmp_path):
     # Test an unsupported file format.
     with pytest.raises(ValueError):
         write_numpy_data(tmp_path / "test.invalid", data)
+
+
+def test_read_write_lsdb(tmp_path):
+    """Test reading and writing HATS data via LSDB."""
+    outer_dict = {
+        "id": [0, 1, 2],
+        "ra": [10.0, 10.0001, 10.0002],
+        "dec": [-10.0, -9.999, -10.0001],
+        "nobs": [3, 2, 1],
+        "z": [0.1, 0.2, 0.3],
+    }
+    inner_dict = {
+        "mjd": [59000, 59001, 59002, 59000, 59001, 59000],
+        "flux": [10.0, 12.0, 11.0, 15.0, 14.0, 13.0],
+        "fluxerr": [1.0, 1.0, 1.0, 1.5, 1.5, 1.0],
+        "filter": ["g", "r", "i", "g", "r", "i"],
+    }
+    nested_inds = [0, 0, 0, 1, 1, 2]
+    results = NestedFrame(data=outer_dict, index=[0, 1, 2])
+    nested_1 = pd.DataFrame(data=inner_dict, index=nested_inds)
+    results = results.add_nested(nested_1, "lightcurve")
+
+    # Write out the results to a temporary directory.
+    out_dir = tmp_path / "lsdb_output"
+    write_results_as_hats(out_dir, results, overwrite=True)
+    assert out_dir.exists()
+
+    # Check that we can read the data back in.
+    loaded_results = read_hats(out_dir).compute()
+    assert len(loaded_results) == len(results)
+    for i in range(len(results)):
+        assert results["ra"].iloc[i] == loaded_results["ra"].iloc[i]
+        assert results["dec"].iloc[i] == loaded_results["dec"].iloc[i]
+        pd.testing.assert_frame_equal(results["lightcurve"].iloc[i], loaded_results["lightcurve"].iloc[i])
 
 
 def test_read_grid_data_good(grid_data_good_file):
