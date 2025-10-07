@@ -81,10 +81,9 @@ def skip_private_members(app, what, name, obj, skip, options):
     """Skip private members during autoapi generation."""
     # Get just the member name (including the module path if present)
     # and skip if any component is private (starts with a single underscore).
-    member_names = name.split(".") if "." in name else [name]
-    for member_name in member_names:
-        if member_name.startswith("_") and not member_name.startswith("__"):
-            return True  # Force skip private members
+    member_name = name.split(".")[-1] if "." in name else name
+    if member_name.startswith("_") and not member_name.startswith("__"):
+        return True  # Force skip private members
 
     # For non-private members, use the default behavior
     return skip
@@ -93,3 +92,4 @@ def skip_private_members(app, what, name, obj, skip, options):
 def setup(app):
     """Set up the Sphinx app with custom configurations."""
     app.connect("autoapi-skip-member", skip_private_members)
+    app.connect("autodoc-skip-member", skip_private_members)
