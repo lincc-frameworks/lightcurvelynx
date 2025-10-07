@@ -74,6 +74,20 @@ autoapi_options = [
 # The key is to NOT include "private-members" in autoapi_options
 # This should be sufficient to exclude private members by default
 
+
+# Try direct configuration approach
+def autoapi_skip_member_handler(app, what, name, obj, skip, options):
+    """Direct handler for autoapi skip member."""
+    print(f"DEBUG: Direct handler called for {what} {name}")
+    if name.startswith("_") and not name.startswith("__"):
+        print(f"DEBUG: Direct handler skipping: {name}")
+        return True
+    return skip
+
+
+# Assign the handler directly
+autoapi_skip_member = autoapi_skip_member_handler
+
 html_theme = "sphinx_rtd_theme"
 
 # Support use of arbitrary section titles in docstrings
@@ -95,13 +109,29 @@ def skip_private_members(app, what, name, obj, skip, options):
 
 def setup(app):
     """Set up the Sphinx app with custom configurations."""
-    # Try multiple possible event names
-    app.connect("autoapi-skip-member", skip_private_members)
+    print("DEBUG: Setup function called, trying different event names")
 
-    # Also try the autodoc event in case autoapi delegates to it
-    def autodoc_skip_member(app, what, name, obj, skip, options):
-        return skip_private_members(app, what, name, obj, skip, options)
+    # Try various possible event names for different autoapi versions
+    event_names = [
+        "autoapi-skip-member",
+        "autodoc-skip-member",
+        "autoapi-before-content",
+        "autoapi-after-content",
+    ]
 
-    app.connect("autodoc-skip-member", autodoc_skip_member)
+    for event_name in event_names:
+        try:
+            app.connect(event_name, skip_private_members)
+            print(f"DEBUG: Connected to event: {event_name}")
+        except Exception as e:
+            print(f"DEBUG: Failed to connect to {event_name}: {e}")
 
-    print("DEBUG: Setup function called, events connected")
+    # Also try connecting via autoapi's own configuration
+    try:
+        # Some versions of autoapi use a different callback mechanism
+        app.add_config_value("autoapi_skip_members", skip_private_members, "env")
+        print("DEBUG: Added autoapi_skip_members config value")
+    except Exception as e:
+        print(f"DEBUG: Failed to add config value: {e}")
+
+    print("DEBUG: Setup complete")
