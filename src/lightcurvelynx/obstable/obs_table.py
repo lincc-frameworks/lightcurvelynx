@@ -179,6 +179,10 @@ class ObsTable:
             return True
         return False
 
+    def clear_detector_footprint(self):
+        """Clear the detector footprint, so no footprint filtering is done."""
+        self._detector_footprint = None
+
     def get_value_per_row(self, key, *, indices=None, default=None):
         """Get the values for each row from the table or survey values (defaults).
 
@@ -223,10 +227,6 @@ class ObsTable:
                 result[self._table["filter"][indices] == fil] = val
             return result
         raise TypeError(f"Unsupported type for '{key}': {type(value)}")
-
-    def clear_detector_footprint(self):
-        """Clear the detector footprint, so no footprint filtering is done."""
-        self._detector_footprint = None
 
     def safe_get_survey_value(self, key):
         """Get a survey value by key, checking that it is not None.
