@@ -6,6 +6,45 @@ import numpy as np
 from astropy.table import Table
 
 
+def write_results_as_hats(base_catalog_path, results, *, catalog_name=None, overwrite=False):
+    """Write results to a HATS catalog.
+
+    Parameters
+    ----------
+    base_catalog_path : str or Path
+        The base path to the output hats directory.
+    results : nested_pandas.NestedFrame
+        The results to write, as a NestedFrame where each row is a sample.
+    catalog_name : str, optional
+        The name of the catalog to write. If None, the name will be derived from the
+        base_catalog_path. Default: None
+    overwrite : bool
+        Whether to overwrite the output directory if it already exists.
+        Default: False
+    """
+    base_catalog_path = Path(base_catalog_path)
+    logging.debug(f"Writing results as HATS Catalog to {base_catalog_path}")
+
+    # See if the (optional) LSDB package is installed.
+    try:
+        from lsdb import from_dataframe
+    except ImportError as err:
+        raise ImportError(
+            "The lsdb package is required to write results as HATS files. "
+            "Please install it via 'pip install lsdb'."
+        ) from err
+
+    # Convert the results into an LSDB Catalog and output that. We just generate and output
+    # the basic catalog (no margins or other extras).
+    catalog = from_dataframe(results, ra_column="ra", dec_column="dec")
+    catalog.write_catalog(
+        base_catalog_path,
+        catalog_name=catalog_name,
+        as_collection=False,
+        overwrite=overwrite,
+    )
+
+
 def read_numpy_data(file_path):
     """Read in a numpy array from different formats depending on the file extension.
     Automatically detects and handles files in .npy, .npz, .csv, .ecsv, and .txt
