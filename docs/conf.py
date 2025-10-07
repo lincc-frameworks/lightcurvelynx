@@ -71,40 +71,6 @@ autoapi_options = [
     "imported-members",
 ]
 
-# The key is to NOT include "private-members" in autoapi_options
-# This should be sufficient to exclude private members by default
-
-
-# Try direct configuration approach
-def autoapi_skip_member_handler(app, what, name, obj, skip, options):
-    """Direct handler for autoapi skip member."""
-    member_name = name.split(".")[-1] if "." in name else name
-    print(f"DEBUG: Direct handler called for {what} {name}, member_name={member_name}")
-
-    if member_name.startswith("_") and not member_name.startswith("__"):
-        print(f"DEBUG: Direct handler FORCING SKIP: {member_name}")
-        return True  # Force skip private members
-
-    return skip
-
-
-# Assign the handler directly - this is how some versions of autoapi expect it
-autoapi_skip_member = autoapi_skip_member_handler
-
-
-# Alternative direct assignment approach
-def autoapi_skip_member_direct(app, what, name, obj, skip, options):
-    """Module-level skip function that autoapi might find automatically."""
-    member_name = name.split(".")[-1] if "." in name else name
-    print(f"DEBUG: Module-level handler called for {what} {name}, member_name={member_name}")
-
-    if member_name.startswith("_") and not member_name.startswith("__"):
-        print(f"DEBUG: Module-level handler FORCING SKIP: {member_name}")
-        return True  # Force skip private members
-
-    return skip
-
-
 html_theme = "sphinx_rtd_theme"
 
 # Support use of arbitrary section titles in docstrings
@@ -113,69 +79,17 @@ napoleon_custom_sections = ["Citations"]
 
 def skip_private_members(app, what, name, obj, skip, options):
     """Skip private members during autoapi generation."""
-    # Get just the member name (without module path)
-    member_name = name.split(".")[-1] if "." in name else name
-
-    print(
-        f"DEBUG: skip_private_members called with: what={what}, "
-        "name={name}, member_name={member_name}, skip={skip}"
-    )
-
-    # Skip private members (single underscore) but keep special methods (double underscore)
-    if member_name.startswith("_") and not member_name.startswith("__"):
-        print(f"DEBUG: FORCING SKIP for private member: {member_name}")
-        return True  # Force skip private members
+    # Get just the member name (including the module path if present)
+    # and skip if any component is private (starts with a single underscore).
+    member_names = name.split(".") if "." in name else [name]
+    for member_name in member_names:
+        if member_name.startswith("_") and not member_name.startswith("__"):
+            return True  # Force skip private members
 
     # For non-private members, use the default behavior
     return skip
 
 
-def skip_member_new_signature(app, what, name, obj, skip, options):
-    """Alternative signature for autoapi skip member."""
-    member_name = name.split(".")[-1] if "." in name else name
-    print(
-        f"DEBUG: New signature called with: what={what}, name={name}, member_name={member_name}, skip={skip}"
-    )
-
-    if member_name.startswith("_") and not member_name.startswith("__"):
-        print(f"DEBUG: New signature FORCING SKIP: {member_name}")
-        return True  # Force skip private members
-
-    return skip
-
-
 def setup(app):
     """Set up the Sphinx app with custom configurations."""
-    print("DEBUG: Setup function called, trying different approaches")
-
-    # Connect to autoapi-skip-member with different function signatures
-    try:
-        app.connect("autoapi-skip-member", skip_private_members)
-        print("DEBUG: Connected skip_private_members to autoapi-skip-member")
-    except Exception as e:
-        print(f"DEBUG: Failed to connect skip_private_members: {e}")
-
-    # Try with different signature
-    try:
-        app.connect("autoapi-skip-member", skip_member_new_signature)
-        print("DEBUG: Connected skip_member_new_signature to autoapi-skip-member")
-    except Exception as e:
-        print(f"DEBUG: Failed to connect skip_member_new_signature: {e}")
-
-    # Try autodoc event too
-    try:
-        app.connect("autodoc-skip-member", skip_private_members)
-        print("DEBUG: Connected to autodoc-skip-member")
-    except Exception as e:
-        print(f"DEBUG: Failed to connect to autodoc-skip-member: {e}")
-
-    # Try the most direct approach: configure autoapi directly
-    try:
-        # Set the autoapi skip function directly on the app
-        if hasattr(app, "config"):
-            app.config.autoapi_skip_member = skip_private_members
-            print("DEBUG: Set autoapi_skip_member on app.config")
-    except Exception as e:
-        print(f"DEBUG: Failed to set autoapi_skip_member on config: {e}")
-
-    print("DEBUG: Setup complete")
+    app.connect("autoapi-skip-member", skip_private_members)
