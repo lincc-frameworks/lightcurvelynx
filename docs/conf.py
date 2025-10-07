@@ -78,10 +78,13 @@ autoapi_options = [
 # Try direct configuration approach
 def autoapi_skip_member_handler(app, what, name, obj, skip, options):
     """Direct handler for autoapi skip member."""
-    print(f"DEBUG: Direct handler called for {what} {name}")
-    if name.startswith("_") and not name.startswith("__"):
-        print(f"DEBUG: Direct handler skipping: {name}")
-        return True
+    member_name = name.split(".")[-1] if "." in name else name
+    print(f"DEBUG: Direct handler called for {what} {name}, member_name={member_name}")
+
+    if member_name.startswith("_") and not member_name.startswith("__"):
+        print(f"DEBUG: Direct handler FORCING SKIP: {member_name}")
+        return True  # Force skip private members
+
     return skip
 
 
@@ -92,10 +95,13 @@ autoapi_skip_member = autoapi_skip_member_handler
 # Alternative direct assignment approach
 def autoapi_skip_member_direct(app, what, name, obj, skip, options):
     """Module-level skip function that autoapi might find automatically."""
-    print(f"DEBUG: Module-level handler called for {what} {name}")
-    if name.startswith("_") and not name.startswith("__"):
-        print(f"DEBUG: Module-level handler skipping: {name}")
-        return True
+    member_name = name.split(".")[-1] if "." in name else name
+    print(f"DEBUG: Module-level handler called for {what} {name}, member_name={member_name}")
+
+    if member_name.startswith("_") and not member_name.startswith("__"):
+        print(f"DEBUG: Module-level handler FORCING SKIP: {member_name}")
+        return True  # Force skip private members
+
     return skip
 
 
@@ -107,21 +113,34 @@ napoleon_custom_sections = ["Citations"]
 
 def skip_private_members(app, what, name, obj, skip, options):
     """Skip private members during autoapi generation."""
-    print(f"DEBUG: skip_private_members called with: what={what}, name={name}, skip={skip}")
+    # Get just the member name (without module path)
+    member_name = name.split(".")[-1] if "." in name else name
+
+    print(
+        f"DEBUG: skip_private_members called with: what={what}, "
+        "name={name}, member_name={member_name}, skip={skip}"
+    )
 
     # Skip private members (single underscore) but keep special methods (double underscore)
-    if name.startswith("_") and not name.startswith("__"):
-        print(f"DEBUG: Skipping private member: {name}")
-        return True
+    if member_name.startswith("_") and not member_name.startswith("__"):
+        print(f"DEBUG: FORCING SKIP for private member: {member_name}")
+        return True  # Force skip private members
+
+    # For non-private members, use the default behavior
     return skip
 
 
 def skip_member_new_signature(app, what, name, obj, skip, options):
     """Alternative signature for autoapi skip member."""
-    print(f"DEBUG: New signature called with: what={what}, name={name}, skip={skip}")
-    if name.startswith("_") and not name.startswith("__"):
-        print(f"DEBUG: New signature skipping: {name}")
-        return True
+    member_name = name.split(".")[-1] if "." in name else name
+    print(
+        f"DEBUG: New signature called with: what={what}, name={name}, member_name={member_name}, skip={skip}"
+    )
+
+    if member_name.startswith("_") and not member_name.startswith("__"):
+        print(f"DEBUG: New signature FORCING SKIP: {member_name}")
+        return True  # Force skip private members
+
     return skip
 
 
