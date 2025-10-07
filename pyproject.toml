@@ -43,6 +43,7 @@ dev = [
     "bilby",  # Used for Bayesian inference
     "fsspec[http]",  # Read OpSim file from the web with utils/make_opsim_shorten.py
     "jupyter", # Clears output from Jupyter notebooks
+    "lsdb",
     "pre-commit", # Used to run checks before finalizing a git commit
     "pytest",
     "pytest-cov", # Used to report total code coverage
@@ -57,6 +58,7 @@ dev = [
 # (include the single quotes)
 all = [
     "bilby",  # Used for Bayesian inference
+    "lsdb",  # Used to read and write LSDB catalogs
     "pzflow",
     "sncosmo",
     "synphot",  # used for SED modeling tests
