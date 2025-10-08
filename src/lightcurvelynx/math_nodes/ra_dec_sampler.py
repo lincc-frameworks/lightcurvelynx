@@ -127,6 +127,11 @@ class ObsTableRADECSampler(TableSampler):
     def from_hats(cls, path, *, radius=None, extra_cols=None, in_order=False, **kwargs):
         """Create a GivenRADECSampler from the observations in a HATS Catalog.
 
+        Note
+        ----
+        If you have an existing Dask client, it may be used.
+        See LSDB documentation for details: https://docs.lsdb.io/en/latest/
+
         Parameters
         ----------
         path : str or Path
