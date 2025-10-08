@@ -58,8 +58,8 @@ import numpy as np
 from lightcurvelynx.graph_state import DependencyGraph, GraphState
 
 
-class ParameterSource:
-    """ParameterSource specifies the information about where a ParameterizedNode should
+class _ParameterSource:
+    """_ParameterSource specifies the information about where a ParameterizedNode should
     get the value for a given parameter. These objects track internal state.
     Users should not work with these objects directly.
 
@@ -111,7 +111,7 @@ class ParameterSource:
         if callable(value):
             raise ValueError(f"Using set_as_constant on callable {value}")
 
-        self.source_type = ParameterSource.CONSTANT
+        self.source_type = _ParameterSource.CONSTANT
         self.allow_gradient = allow_gradient
         self.dependency = None
         self.value = value
@@ -127,7 +127,7 @@ class ParameterSource:
         param_name : str
             The name of the parameter to access.
         """
-        self.source_type = ParameterSource.MODEL_PARAMETER
+        self.source_type = _ParameterSource.MODEL_PARAMETER
         self.allow_gradient = False
         self.dependency = dependency
         self.value = param_name
@@ -143,7 +143,7 @@ class ParameterSource:
         param_name : str
             The name of where the result is stored in the FunctionNode.
         """
-        self.source_type = ParameterSource.FUNCTION_NODE
+        self.source_type = _ParameterSource.FUNCTION_NODE
         self.allow_gradient = False
         self.dependency = dependency
         self.value = param_name
@@ -162,12 +162,12 @@ class ParameterSource:
         param_name : str
             The name of where the result is stored in the FunctionNode.
         """
-        self.source_type = ParameterSource.COMPUTE_OUTPUT
+        self.source_type = _ParameterSource.COMPUTE_OUTPUT
         self.allow_gradient = False
         self.value = param_name
 
 
-class AttributeIndicatorNode:
+class _AttributeIndicatorNode:
     """A class to wrap a single attribute of an object. These objects track internal state.
     Users should not work with these objects directly.
 
@@ -218,7 +218,7 @@ class ParameterizedNode:
         used to access the parameters for this node in the graph_state.
     setters : dict
         A dictionary mapping the parameters' names to information about the setters
-        (ParameterSource). The model parameters are stored in the order in which they
+        (_ParameterSource). The model parameters are stored in the order in which they
         need to be set.
     node_pos : int or None
         A unique ID number for each node in the graph indicating its position.
@@ -322,7 +322,7 @@ class ParameterizedNode:
             return False
 
         setter = self.setters[name]
-        return not (setter.source_type == ParameterSource.CONSTANT and setter.value is None)
+        return not (setter.source_type == _ParameterSource.CONSTANT and setter.value is None)
 
     def get_param(self, graph_state, name, default=None):
         """Get the value of a parameter stored in this node or a default value.
@@ -390,7 +390,7 @@ class ParameterizedNode:
         """Set the source of a single *existing* parameter in the ParameterizedNode.
 
         Parameters within a node are actually a mapping of the parameter name
-        to a ParameterSource object that indicates how they are set during sampling.
+        to a _ParameterSource object that indicates how they are set during sampling.
         Some parameters may be set as a constant value while others may be set by
         evaluating a function that depends on other parameters.
 
@@ -433,7 +433,7 @@ class ParameterizedNode:
             value = kwargs[name]
 
         if callable(value):
-            if isinstance(value, AttributeIndicatorNode):
+            if isinstance(value, _AttributeIndicatorNode):
                 # Case 1a: This is an attribute of a ParameterizedNode.
                 # We set the parameter's value in this node as the extraction of the
                 # parameter's value in the parent node.
@@ -521,9 +521,9 @@ class ParameterizedNode:
         # Add an entry for the setter function and fill in the remaining information using
         # set_parameter(). We add an initial (dummy) value here to indicate that this parameter
         # exists and was added via add_parameter().
-        self.setters[name] = ParameterSource(
+        self.setters[name] = _ParameterSource(
             parameter_name=name,
-            source_type=ParameterSource.UNDEFINED,
+            source_type=_ParameterSource.UNDEFINED,
             node_name=str(self),
         )
         self.set_parameter(name, value, **kwargs)
@@ -532,14 +532,14 @@ class ParameterizedNode:
         if allow_gradient is not None:
             self.setters[name].allow_gradient = allow_gradient
 
-        # Create an AttributeIndicatorNode to represent this parameter.
+        # Create an _AttributeIndicatorNode to represent this parameter.
         # This node allows us to reference the parameter as object.parameter_name
         # for chaining without copying the value. For example, if my_node_1, is a
         # ParameterizedNode with a parameter x, we can do:
         #   my_node_2 = ParameterizedNode(y=my_node_1.x)
         # and my_node_2 will know to use the sampled values of x from my_node_1
         # (as opposed to the setter for x).
-        setattr(self, name, AttributeIndicatorNode(name, self))
+        setattr(self, name, _AttributeIndicatorNode(name, self))
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Placeholder for a general compute function, which is called at the end
@@ -602,29 +602,29 @@ class ParameterizedNode:
                 setter.dependency._sample_helper(graph_state, seen_nodes, rng_info=rng_info)
 
             # Set the result from the correct source.
-            if setter.source_type == ParameterSource.CONSTANT:
+            if setter.source_type == _ParameterSource.CONSTANT:
                 if graph_state.num_samples == 1:
                     graph_state.set(self.node_string, name, setter.value)
                 else:
                     repeated_value = np.array([setter.value] * graph_state.num_samples)
                     graph_state.set(self.node_string, name, repeated_value)
-            elif setter.source_type == ParameterSource.MODEL_PARAMETER:
+            elif setter.source_type == _ParameterSource.MODEL_PARAMETER:
                 graph_state.set(
                     self.node_string,
                     name,
                     graph_state[setter.dependency.node_string][setter.value],
                 )
-            elif setter.source_type == ParameterSource.FUNCTION_NODE:
+            elif setter.source_type == _ParameterSource.FUNCTION_NODE:
                 graph_state.set(
                     self.node_string,
                     name,
                     graph_state[setter.dependency.node_string][setter.value],
                 )
-            elif setter.source_type == ParameterSource.COMPUTE_OUTPUT:
+            elif setter.source_type == _ParameterSource.COMPUTE_OUTPUT:
                 # Computed parameters are set only after all the other (input) parameters.
                 any_compute = True
             else:
-                raise ValueError(f"Invalid ParameterSource type {setter.source_type}")
+                raise ValueError(f"Invalid _ParameterSource type {setter.source_type}")
 
         # If this is a function node and the parameters depend on the result of its own computation
         # call the compute function to fill them in.
@@ -706,12 +706,12 @@ class ParameterizedNode:
             if setter.dependency is not None and setter.dependency != self:
                 dep_name = GraphState.extended_param_name(setter.dependency.node_string, setter.value)
                 setter.dependency._dependency_graph_helper(dependency_graph)
-            elif setter.source_type == ParameterSource.CONSTANT:
+            elif setter.source_type == _ParameterSource.CONSTANT:
                 dep_name = dependency_graph.add_constant(setter.value)
 
             # If we have a dependency, add an edge from the dependency to this parameter.
             # dep_name will be None for parameters that are the result of internal computations
-            # (i.e., ParameterSource.COMPUTE_OUTPUT) which is handled in the subclass.
+            # (i.e., _ParameterSource.COMPUTE_OUTPUT) which is handled in the subclass.
             if dep_name is not None:
                 dependency_graph.add_edge(dep_name, full_name)
 
@@ -945,7 +945,7 @@ class FunctionNode(ParameterizedNode):
 
         # For each computed parameter, add the cross product of inputs to outputs.
         for param_name, setter in self.setters.items():
-            if setter.source_type == ParameterSource.COMPUTE_OUTPUT:
+            if setter.source_type == _ParameterSource.COMPUTE_OUTPUT:
                 out_full_name = GraphState.extended_param_name(node_name, param_name)
                 for input_name in self.arg_names:
                     input_full_name = GraphState.extended_param_name(node_name, input_name)

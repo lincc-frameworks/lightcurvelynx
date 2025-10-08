@@ -3,7 +3,7 @@ import random
 import jax
 import numpy as np
 import pytest
-from lightcurvelynx.base_models import FunctionNode, ParameterizedNode, ParameterSource
+from lightcurvelynx.base_models import FunctionNode, ParameterizedNode, _ParameterSource
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
 
 
@@ -58,17 +58,17 @@ class PairModel(ParameterizedNode):
 
 
 def test_parameter_source():
-    """Test the ParameterSource creation and setter functions."""
-    source = ParameterSource("test")
+    """Test the _ParameterSource creation and setter functions."""
+    source = _ParameterSource("test")
     assert source.parameter_name == "test"
     assert source.node_name == ""
-    assert source.source_type == ParameterSource.UNDEFINED
+    assert source.source_type == _ParameterSource.UNDEFINED
     assert source.dependency is None
     assert source.value is None
 
     source.set_as_constant(10.0)
     assert source.parameter_name == "test"
-    assert source.source_type == ParameterSource.CONSTANT
+    assert source.source_type == _ParameterSource.CONSTANT
     assert source.dependency is None
     assert source.value == 10.0
 
@@ -77,13 +77,13 @@ def test_parameter_source():
 
     node = SingleVariableNode("A", 20.0)
     source.set_as_parameter(node, "A")
-    assert source.source_type == ParameterSource.MODEL_PARAMETER
+    assert source.source_type == _ParameterSource.MODEL_PARAMETER
     assert source.dependency is node
     assert source.value == "A"
 
     func = FunctionNode(_test_func, value1=0.1, value2=0.4)
     source.set_as_function(func)
-    assert source.source_type == ParameterSource.FUNCTION_NODE
+    assert source.source_type == _ParameterSource.FUNCTION_NODE
     assert source.dependency is func
 
 
