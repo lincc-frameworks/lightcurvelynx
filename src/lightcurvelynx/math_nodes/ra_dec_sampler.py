@@ -156,7 +156,7 @@ class ObsTableRADECSampler(TableSampler):
         except ImportError as err:
             raise ImportError(
                 "The lsdb package is required to read HATS catalogs. "
-                "Please install it via 'pip install lsdb'."
+                "Please install it via 'pip install lsdb' or 'conda install conda-forge::lsdb'."
             ) from err
 
         # Compute the full list of columns to load from HATS.
