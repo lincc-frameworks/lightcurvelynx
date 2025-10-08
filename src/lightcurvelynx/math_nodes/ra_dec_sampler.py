@@ -3,12 +3,14 @@
 from pathlib import Path
 
 import numpy as np
+from astropy.coordinates import Angle, SkyCoord
 from cdshealpix.nested import healpix_to_skycoord
 from citation_compass import CiteClass
 from mocpy import MOC
 
 from lightcurvelynx.math_nodes.given_sampler import TableSampler
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.obstable.obs_table import ObsTable
 
 
 class UniformRADEC(NumpyRandomFunc):
@@ -72,41 +74,104 @@ class UniformRADEC(NumpyRandomFunc):
 
 
 class ObsTableRADECSampler(TableSampler):
-    """A FunctionNode that samples RA and dec (and time) from an ObsTable.
-    RA and dec are returned in degrees.
-
-    Note
-    ----
-    Does not currently use uniform sampling from the radius. Uses a very
-    rough approximate as a proof of concept. Do not use for statistical analysis.
+    """A FunctionNode that samples RA and dec (and any extra columns) from around
+    given data. This node is used for both sampling from a list of pointings (where
+    the radius is the field of view) or sampling from a list of true objects.
 
     Parameters
     ----------
-    data : ObsTable
-        The ObsTable object to use for sampling.
-    radius : float
-        The radius of the the field of view of the observations in degrees. Use 0.0 to just sample
-        the centers of the images. Default: None
+    data : ObsTable, Pandas DataFrame, NestedFrame, or dict
+        The data to use for sampling. Must contain 'ra' and 'dec' columns.
+    extra_cols : list of str, optional
+        A list of extra column names to include in the sampling.
+        Default: None
+    radius : float, optional
+        The sampling radius around the given points. If the points represent the
+        center of a pointing, this is the radius of the field of view in degrees.
+        If the points represent exact true objects, this can be a noise factor.
+        Use 0.0 to return the exact given points.
+        If None and data is an ObsTable, uses the value from the ObsTable.
+        Default: None
     in_order : bool
         Return the given data in order of the rows (True). If False, performs
-        random sampling with replacement. Default: False
+        random sampling with replacement.
+        Default: False
+    **kwargs : dict, optional
+        Additional keyword arguments to pass to the parent class constructor.
     """
 
-    def __init__(self, data, radius=None, in_order=False, **kwargs):
-        if radius is None:
+    def __init__(self, data, *, extra_cols=None, radius=None, in_order=False, **kwargs):
+        if radius is None and isinstance(data, ObsTable):
             radius = data.survey_values.get("radius", None)
-            if radius is None:
-                raise ValueError("ObsTable has no radius. Must provide radius.")
-        if radius < 0.0:
-            raise ValueError("Invalid radius: {radius}")
+        if radius is None or radius < 0.0:
+            raise ValueError(f"Invalid radius: {radius}")
         self.radius = radius
 
+        # Start with RA, dec, and (optionally) time.
         data_dict = {
             "ra": data["ra"],
             "dec": data["dec"],
-            "time": data["time"],
         }
+        if "time" in data:
+            data_dict["time"] = data["time"]
+
+        # Add any extra columns (without duplicates).
+        if extra_cols is not None:
+            for col in extra_cols:
+                if col not in data_dict:
+                    data_dict[col] = data[col]
+
         super().__init__(data_dict, in_order=in_order, **kwargs)
+
+    @classmethod
+    def from_hats(cls, path, *, radius=None, extra_cols=None, in_order=False, **kwargs):
+        """Create a GivenRADECSampler from the observations in a HATS Catalog.
+
+        Note
+        ----
+        If you have an existing Dask client, it may be used.
+        See LSDB documentation for details: https://docs.lsdb.io/en/latest/
+
+        Parameters
+        ----------
+        path : str or Path
+            The base path of the HATS data directory.
+        radius : float, optional
+            The sampling radius (noise factor) in degrees. Use 0.0 to return
+            the exact pointings.
+            Default: 0.0
+        extra_cols : list of str, optional
+            A list of extra column names to include in the sampling.
+            Default: None
+        in_order : bool
+            Return the given data in order of the rows (True). If False, performs
+            random sampling with replacement.
+            Default: False
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the constructor.
+
+        Returns
+        -------
+        GivenRADECSampler
+            The created GivenRADECSampler object.
+        """
+        # See if the (optional) LSDB package is installed.
+        try:
+            from lsdb import read_hats
+        except ImportError as err:
+            raise ImportError(
+                "The lsdb package is required to read HATS catalogs. "
+                "Please install it via 'pip install lsdb' or 'conda install conda-forge::lsdb'."
+            ) from err
+
+        # Compute the full list of columns to load from HATS.
+        cols_to_load = ["ra", "dec"]
+        if extra_cols is not None:
+            cols_to_load.extend(extra_cols)
+        columns = list(set(cols_to_load))  # Remove any duplicates.
+
+        data = read_hats(path, columns=columns).compute()
+        return cls(data, extra_cols=extra_cols, in_order=in_order, radius=radius, **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
@@ -128,24 +193,29 @@ class ObsTableRADECSampler(TableSampler):
             The result of the computation. This return value is provided so that testing
             functions can easily access the results.
         """
-        # Sample the center RA, dec, and times without the radius.
+        # Sample the center RA, dec, and times without the radius. Results is a vector
+        # of arrays, one per output column. The first two are guaranteed to be RA and dec.
         results = super().compute(graph_state, rng_info=rng_info, **kwargs)
 
         if self.radius > 0.0:
-            # Add an offset around the center. This is currently a placeholder that does
-            # NOT produce a uniform sampling. TODO: Make this uniform sampling.
             rng = rng_info if rng_info is not None else self._rng
+            center = SkyCoord(ra=results[0], dec=results[1], unit="deg")
 
-            # Choose a uniform circle around the center point. Not that this is not uniform over
-            # the final RA, dec because it does not account for compression in dec around the polls.
-            offset_amt = self.radius * np.sqrt(rng.uniform(0.0, 1.0, size=graph_state.num_samples))
-            offset_ang = 2.0 * np.pi * rng.uniform(0.0, 1.0, size=graph_state.num_samples)
+            # Add an offset from the center of the pointing defined by an offset angle (phi)
+            # and offset radius (theta).  Both are defined in radians.
+            offset_dir = rng.uniform(0.0, 2.0 * np.pi, size=graph_state.num_samples)
+            cos_radius = np.cos(np.radians(self.radius))
+            offset_amt = np.arccos(rng.uniform(cos_radius, 1.0, size=graph_state.num_samples))
+            new_coords = center.directional_offset_by(
+                position_angle=Angle(offset_dir, "radian"),
+                separation=Angle(offset_amt, "radian"),
+            )
 
-            # Add the offsets to RA and dec. Keep time unchanged.
-            results[0] += offset_amt * np.cos(offset_ang)  # RA
-            results[1] += offset_amt * np.sin(offset_ang)  # dec
+            # Replace the results' RA and dec with the new pointing (in degrees).
+            results[0] = new_coords.ra.deg
+            results[1] = new_coords.dec.deg
 
-            # Resave the results (overwriting the previous results)
+            # Resave the results to transfer them to the graph state.
             self._save_results(results, graph_state)
 
         return results
