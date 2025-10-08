@@ -74,7 +74,9 @@ class UniformRADEC(NumpyRandomFunc):
 
 
 class ObsTableRADECSampler(TableSampler):
-    """A FunctionNode that samples RA and dec (and any extra columns) from given data.
+    """A FunctionNode that samples RA and dec (and any extra columns) from around
+    given data. This node is used for both sampling from a list of pointings (where
+    the radius is the field of view) or sampling from a list of true objects.
 
     Parameters
     ----------
@@ -84,9 +86,11 @@ class ObsTableRADECSampler(TableSampler):
         A list of extra column names to include in the sampling.
         Default: None
     radius : float, optional
-        The search radius around the center of the sampled pointing. Use 0.0 to
-        return the exact points. If None and data is an ObsTable, uses the value
-        from the ObsTable.
+        The sampling radius around the given points. If the points represent the
+        center of a pointing, this is the radius of the field of view in degrees.
+        If the points represent exact true objects, this can be a noise factor.
+        Use 0.0 to return the exact given points.
+        If None and data is an ObsTable, uses the value from the ObsTable.
         Default: None
     in_order : bool
         Return the given data in order of the rows (True). If False, performs
@@ -121,21 +125,23 @@ class ObsTableRADECSampler(TableSampler):
 
     @classmethod
     def from_hats(cls, path, *, radius=None, extra_cols=None, in_order=False, **kwargs):
-        """Create a GivenRADECSampler from a HATS Catalog
+        """Create a GivenRADECSampler from the observations in a HATS Catalog.
 
         Parameters
         ----------
         path : str or Path
             The base path of the HATS data directory.
         radius : float, optional
-            The search radius around the center of the sampled pointing. Use 0.0 to return
+            The sampling radius (noise factor) in degrees. Use 0.0 to return
             the exact pointings.
             Default: 0.0
         extra_cols : list of str, optional
-            A list of extra column names to include in the sampling. Default: None
+            A list of extra column names to include in the sampling.
+            Default: None
         in_order : bool
             Return the given data in order of the rows (True). If False, performs
-            random sampling with replacement. Default: False
+            random sampling with replacement.
+            Default: False
         **kwargs : dict, optional
             Additional keyword arguments to pass to the constructor.
 
@@ -157,7 +163,7 @@ class ObsTableRADECSampler(TableSampler):
         cols_to_load = ["ra", "dec"]
         if extra_cols is not None:
             cols_to_load.extend(extra_cols)
-        columns = list(set(cols_to_load))  # Remove duplicates if any
+        columns = list(set(cols_to_load))  # Remove any duplicates.
 
         data = read_hats(path, columns=columns).compute()
         return cls(data, extra_cols=extra_cols, in_order=in_order, radius=radius, **kwargs)
@@ -203,6 +209,8 @@ class ObsTableRADECSampler(TableSampler):
             # Replace the results' RA and dec with the new pointing (in degrees).
             results[0] = new_coords.ra.deg
             results[1] = new_coords.dec.deg
+
+            # Resave the results to transfer them to the graph state.
             self._save_results(results, graph_state)
 
         return results
