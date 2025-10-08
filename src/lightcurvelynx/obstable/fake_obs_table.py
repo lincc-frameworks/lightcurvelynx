@@ -11,6 +11,7 @@ class FakeObsTable(ObsTable):
     To compute the flux error, the user must provide the following values
     either in the table or as keyword arguments to the constructor 1) sky, 2) zp_per_band,
     and 3) either a) fwhm_px or b) psf_footprint.
+    Users can create a completely noise-free survey by providing a constant flux error of 0.
 
     Defaults are set for other parameters (e.g. exptime, nexposure, read_noise, dark_current), which
     the user can override with keyword arguments to the constructor.
@@ -22,14 +23,15 @@ class FakeObsTable(ObsTable):
         "time", "ra", "dec", and "filter".
     colmap : dict, optional
         A mapping of standard column names to their names in the input table.
-    zp_per_band : dict
+    zp_per_band : dict, optional
         A dictionary mapping filter names to their instrumental zero points (flux in nJy
         corresponding to 1 electron per exposure). The filters provided must match those
         in the table. This is required if the table does not have a zero point column.
     const_flux_error : float or dict, optional
         If provided, use this constant flux error (in nJy) for all observations (overriding
-        the normal noise compuation). If a dictionary is provided, it should map filter names
-        to constant flux errors per-band. This should only be used for testing purposes.
+        the normal noise compuation). A value of 0.0 will produce a noise-free simulation.
+        If a dictionary is provided, it should map filter names to constant flux errors per-band.
+        This setting should primarily be used for testing purposes.
     dark_current : float, optional
         The dark current for the camera in electrons per second per pixel (default=0.0).
     exptime : float, optional
@@ -142,10 +144,12 @@ class FakeObsTable(ObsTable):
         """Assign instrumental zero points in nJy to the ObsTable. In this fake
         survey, we use a constant zero point per band.
         """
-        # Check that we either have previously assigned zero points or have been given
-        # a dictionary of zero points per band.
+        # Check that we either have previously assigned zero points, do not need zero points,
+        # or have been given a dictionary of zero points per band.
         if "zp" in self._table.columns:
             return  # Already have a column of zero points.
+        if self.const_flux_error is not None:
+            return  # Do not need zero points if using a constant flux error.
         if self.zp_per_band is None:
             raise ValueError("Must provide `zp_per_band` to FakeSurveyTable without a column of zero points.")
         if "filter" not in self._table.columns:
