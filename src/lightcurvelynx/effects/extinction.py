@@ -10,7 +10,6 @@ from pkgutil import iter_modules
 from typing import Literal
 
 import astropy.units as u
-import dust_extinction
 from citation_compass import CiteClass
 
 from lightcurvelynx.effects.effect_model import EffectModel
@@ -67,6 +66,14 @@ class ExtinctionEffect(EffectModel, CiteClass):
         """
         model_names = []
 
+        try:
+            import dust_extinction  # noqa: F401
+        except ImportError as err:
+            raise ImportError(
+                "The dust_extinction package is needed to use the ExtinctionEffect. Please install it via"
+                "`pip install dust_extinction` or `conda install -c conda-forge dust_extinction`."
+            ) from err
+
         # We scan all of the submodules in the dust_extinction package,
         # looking for classes with extinguish() functions.
         for submodule in iter_modules(dust_extinction.__path__):
@@ -94,6 +101,14 @@ class ExtinctionEffect(EffectModel, CiteClass):
         ext_obj
             A extinction object.
         """
+        try:
+            import dust_extinction  # noqa: F401
+        except ImportError as err:
+            raise ImportError(
+                "The dust_extinction package is needed to use the ExtinctionEffect. Please install it via"
+                "`pip install dust_extinction` or `conda install -c conda-forge dust_extinction`."
+            ) from err
+
         # We scan all of the submodules in the dust_extinction package,
         # looking for a matching name.
         for submodule in iter_modules(dust_extinction.__path__):
