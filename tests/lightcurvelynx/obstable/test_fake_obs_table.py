@@ -192,3 +192,22 @@ def test_create_fake_obs_table_zp_fail():
     zp_per_band = {"g": 26.0, "r": 27.0}
     with pytest.raises(ValueError):
         _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0)
+
+
+def test_create_fake_obs_table_noise_free():
+    """Create a noise free FakeObsTable object."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+    }
+    pdf = pd.DataFrame(values)
+
+    ops_data = FakeObsTable(pdf, const_flux_error=0.0)
+    assert len(ops_data) == 5
+
+    # Compute the bandflux error for each observation (should all be zero).
+    fluxes = np.array([100.0, 200.0, 300.0, 400.0, 500.0])  # Fluxes in nJy
+    flux_error = ops_data.bandflux_error_point_source(fluxes, np.arange(5))
+    assert np.array_equal(flux_error, np.zeros(5))
