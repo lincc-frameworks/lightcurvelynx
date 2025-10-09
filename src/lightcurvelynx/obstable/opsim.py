@@ -38,6 +38,13 @@ The value is from https://smtn-002.lsst.io/v/OPSIM-1171/index.html
 _lsstcam_view_radius = 1.75
 """The angular radius of the observation field (in degrees)."""
 
+_lsst_zp_err_mag = 1.0e-4
+"""The zero point error in magnitude.
+
+We choose a very conservative noise flooring of 1e-4 mag.
+This number will be updated when we have a better estimate from LSST.
+"""
+
 
 class OpSim(ObsTable):
     """A wrapper class around the opsim table with cached data for efficiency.
@@ -89,6 +96,7 @@ class OpSim(ObsTable):
         "radius": _lsstcam_view_radius,
         "read_noise": _lsstcam_readout_noise,
         "zp_per_sec": _lsstcam_zeropoint_per_sec_zenith,
+        "zp_err_mag": _lsst_zp_err_mag,
         "survey_name": "LSST",
     }
 
@@ -204,6 +212,7 @@ class OpSim(ObsTable):
             zp=zp,
             readout_noise=self.safe_get_survey_value("read_noise"),
             dark_current=self.safe_get_survey_value("dark_current"),
+            zp_err_mag=self.safe_get_survey_value("zp_err_mag"),
         )
 
 
