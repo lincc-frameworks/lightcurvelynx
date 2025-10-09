@@ -72,6 +72,8 @@ autoapi_options = [
 ]
 
 html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]
+html_title = "LightCurveLynx"
 
 # Support use of arbitrary section titles in docstrings
 napoleon_custom_sections = ["Citations"]
