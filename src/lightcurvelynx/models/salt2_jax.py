@@ -6,7 +6,6 @@ from citation_compass import CiteClass
 from lightcurvelynx.astro_utils.salt2_color_law import SALT2ColorLaw
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
 from lightcurvelynx.models.physical_model import SEDModel
-from lightcurvelynx.utils.bicubic_interp import BicubicInterpolator
 
 
 class SALT2JaxModel(SEDModel, CiteClass):
@@ -100,6 +99,8 @@ class SALT2JaxModel(SEDModel, CiteClass):
         self.add_parameter("c", c, **kwargs)
 
         # Load the data files.
+        from lightcurvelynx.utils.bicubic_interp import BicubicInterpolator
+
         model_path = Path(model_dir)
         self._m0_model = BicubicInterpolator.from_grid_file(
             model_path / m0_filename,

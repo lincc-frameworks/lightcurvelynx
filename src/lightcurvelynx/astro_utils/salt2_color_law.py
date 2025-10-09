@@ -4,7 +4,6 @@ It is adapted from sncosmo's SALT2ColorLaw class (but implemented in JAX):
 https://github.com/sncosmo/sncosmo/blob/v2.10.1/sncosmo/salt2utils.pyx
 """
 
-import jax.numpy as jnp
 import numpy as np
 from citation_compass import CiteClass
 
@@ -48,6 +47,11 @@ class SALT2ColorLaw(CiteClass):
     """
 
     def __init__(self, wave_min, wave_max, coeffs):
+        try:
+            import jax.numpy as jnp
+        except ImportError as err:
+            raise ImportError("JAX is required to use the SALT2ColorLaw class.") from err
+
         # Create the internal coefficient array. The new first entry is 1.0 minus the
         # sum of the given entries. The first six given entries are then listed.
         coeffs = np.array(coeffs)
@@ -112,6 +116,11 @@ class SALT2ColorLaw(CiteClass):
         wavelengths : array
             The wavelengths in angstroms.
         """
+        try:
+            import jax.numpy as jnp
+        except ImportError as err:
+            raise ImportError("JAX is required to use the SALT2ColorLaw class.") from err
+
         num_waves = len(wavelengths)
         shifted_wave = (jnp.asarray(wavelengths) - _SALT2CL_B) * _WAVESCALE
 

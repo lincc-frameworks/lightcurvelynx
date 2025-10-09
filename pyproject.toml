@@ -22,7 +22,6 @@ dependencies = [
     "citation-compass>=0.0.3",
     "dust_extinction",
     "extinction>=0.4.7",  # Needed by sncosmo
-    "jax",
     "matplotlib",
     "mocpy",
     "nested-pandas",
@@ -43,6 +42,7 @@ dev = [
     "bilby",  # Used for Bayesian inference
     "fsspec[http]",  # Read OpSim file from the web with utils/make_opsim_shorten.py
     "jupyter", # Clears output from Jupyter notebooks
+    "jax",
     "lsdb",
     "pre-commit", # Used to run checks before finalizing a git commit
     "pytest",
@@ -58,6 +58,7 @@ dev = [
 # (include the single quotes)
 all = [
     "bilby",  # Used for Bayesian inference
+    "jax",
     "lsdb",  # Used to read and write LSDB catalogs
     "pzflow",
     "sncosmo",
