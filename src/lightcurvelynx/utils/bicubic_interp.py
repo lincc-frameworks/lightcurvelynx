@@ -4,8 +4,14 @@ It is adapted from sncosmo's BicubicInterpolator class (but implemented in JAX):
 https://github.com/sncosmo/sncosmo/blob/v2.10.1/sncosmo/salt2utils.pyx
 """
 
-import jax.numpy as jnp
-from jax import jit, vmap
+try:
+    import jax.numpy as jnp
+    from jax import jit, vmap
+except ImportError as err:
+    raise ImportError(
+        "JAX is required to use the BicubicInterpolator class, please "
+        "install with `pip install jax` or `conda install conda-forge::jax`"
+    ) from err
 
 from lightcurvelynx.utils.io_utils import read_grid_data
 

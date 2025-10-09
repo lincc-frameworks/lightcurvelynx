@@ -6,13 +6,6 @@ small FunctionNodes to perform basic math.
 
 import ast
 
-# Disable unused import because we need all of these imported
-# so they can be used during evaluation of the node.
-import math  # noqa: F401
-
-import jax.numpy as jnp  # noqa: F401
-import numpy as np  # noqa: F401
-
 from lightcurvelynx.base_models import FunctionNode
 
 
@@ -36,14 +29,15 @@ class BasicMathNode(FunctionNode):
     expression : str
         The expression to evaluate.
     backend : str
-        The math libary to use. Must be one of: math, numpy, or jax.
+        The math libary to use. This is auto-converted to one of (math, np, or jnp)
+        depending on the input parameter.
 
     Parameters
     ----------
     expression : str
         The expression to evaluate.
     backend : str
-        The math libary to use. Must be one of: math, numpy, or jax.
+        The math libary to use. Must be one of: math, numpy, np, jax, or jnp.
     node_label : str, optional
         An identifier (or name) for the current node.
     **kwargs : dict, optional
@@ -114,9 +108,32 @@ class BasicMathNode(FunctionNode):
     }
 
     def __init__(self, expression, backend="numpy", node_label=None, **kwargs):
-        if backend not in ["jax", "math", "numpy"]:
+        if backend == "jax" or backend == "jnp":
+            try:
+                import jax.numpy as jnp
+            except ImportError as err:
+                raise ImportError(
+                    "JAX is required to use the BasicMathNode with backend='jax', please "
+                    "install with `pip install jax` or `conda install conda-forge::jax`"
+                ) from err
+
+            self.backend = "jnp"
+            self.backend_lib = jnp
+            self.to_array = jnp.asarray
+        elif backend == "numpy" or backend == "np":
+            import numpy as np
+
+            self.backend = "np"
+            self.backend_lib = np
+            self.to_array = np.asarray
+        elif backend == "math":
+            import math
+
+            self.backend = "math"
+            self.backend_lib = math
+            self.to_array = lambda x: x  # No conversion
+        else:
             raise ValueError(f"Unsupported math backend {backend}")
-        self.backend = backend
 
         # Check the expression is pure math and translate it into the correct backend.
         self.expression = expression
@@ -125,20 +142,26 @@ class BasicMathNode(FunctionNode):
         # Create a function from the expression. Note the expression has
         # already been sanitized and validated via _prepare().
         def eval_func(**kwargs):
-            params = self.prepare_params(**kwargs)
+            params = self._prepare_params(**kwargs)
+            params[self.backend] = self.backend_lib
+
             try:
                 return eval(self.expression, globals(), params)
             except Exception as problem:
                 # Provide more detailed logging, including the expression and parameters
                 # used, when we encounter a math error like divide by zero.
-                new_message = f"Error during math operation '{self.expression}' with args={kwargs}"
+                new_message = (
+                    f"Error during math operation '{self.expression}' with args={kwargs}. "
+                    f"Original error: {problem}"
+                )
                 raise type(problem)(new_message) from problem
 
         super().__init__(eval_func, node_label=node_label, **kwargs)
 
     def eval(self, **kwargs):
         """Evaluate the expression."""
-        params = self.prepare_params(**kwargs)
+        params = self._prepare_params(**kwargs)
+        params[self.backend] = self.backend_lib
         return eval(self.expression, globals(), params)
 
     @staticmethod
@@ -152,7 +175,7 @@ class BasicMathNode(FunctionNode):
         """
         return list(BasicMathNode._math_map.keys())
 
-    def prepare_params(self, **kwargs):
+    def _prepare_params(self, **kwargs):
         """Convert all of the incoming parameters into the correct type,
         such as numpy arrays.
 
@@ -168,12 +191,7 @@ class BasicMathNode(FunctionNode):
         """
         params = {}
         for name, value in kwargs.items():
-            if self.backend == "numpy":
-                params[name] = np.array(value)
-            elif self.backend == "jax":
-                params[name] = jnp.array(value)
-            else:
-                params[name] = value
+            params[name] = self.to_array(value)
         return params
 
     def _prepare(self, **kwargs):
@@ -186,11 +204,6 @@ class BasicMathNode(FunctionNode):
         **kwargs : dict, optional
             Any additional keyword arguments, including the variable
             assignments.
-
-        Returns
-        -------
-        tree : ast.*
-            The root node of the parsed syntax tree.
         """
         tree = ast.parse(self.expression)
 
@@ -211,9 +224,9 @@ class BasicMathNode(FunctionNode):
                     # This is a math function or constant. Overwrite
                     if self.backend == "math":
                         node.id = self._math_map[node.id][0]
-                    elif self.backend == "numpy":
+                    elif self.backend == "numpy" or self.backend == "np":
                         node.id = self._math_map[node.id][1]
-                    elif self.backend == "jax":
+                    elif self.backend == "jax" or self.backend == "jnp":
                         node.id = self._math_map[node.id][2]
                 else:
                     raise ValueError(
