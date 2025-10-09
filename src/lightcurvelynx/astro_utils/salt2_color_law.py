@@ -50,7 +50,10 @@ class SALT2ColorLaw(CiteClass):
         try:
             import jax.numpy as jnp
         except ImportError as err:
-            raise ImportError("JAX is required to use the SALT2ColorLaw class.") from err
+            raise ImportError(
+                "JAX is required to use the SALT2ColorLaw class, please "
+                "install with `pip install jax` or `conda install conda-forge::jax`"
+            ) from err
 
         # Create the internal coefficient array. The new first entry is 1.0 minus the
         # sum of the given entries. The first six given entries are then listed.
@@ -119,7 +122,10 @@ class SALT2ColorLaw(CiteClass):
         try:
             import jax.numpy as jnp
         except ImportError as err:
-            raise ImportError("JAX is required to use the SALT2ColorLaw class.") from err
+            raise ImportError(
+                "JAX is required to use the SALT2ColorLaw class, please "
+                "install with `pip install jax` or `conda install conda-forge::jax`"
+            ) from err
 
         num_waves = len(wavelengths)
         shifted_wave = (jnp.asarray(wavelengths) - _SALT2CL_B) * _WAVESCALE

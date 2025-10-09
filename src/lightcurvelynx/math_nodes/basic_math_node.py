@@ -112,7 +112,10 @@ class BasicMathNode(FunctionNode):
             try:
                 import jax.numpy as jnp
             except ImportError as err:
-                raise ImportError("JAX is required to use the BasicMathNode with backend='jax'.") from err
+                raise ImportError(
+                    "JAX is required to use the BasicMathNode with backend='jax', please "
+                    "install with `pip install jax` or `conda install conda-forge::jax`"
+                ) from err
 
             self.backend = "jnp"
             self.backend_lib = jnp
@@ -140,11 +143,10 @@ class BasicMathNode(FunctionNode):
         # already been sanitized and validated via _prepare().
         def eval_func(**kwargs):
             params = self._prepare_params(**kwargs)
-            global_dict = globals().copy()
-            global_dict[self.backend] = self.backend_lib
+            params[self.backend] = self.backend_lib
 
             try:
-                return eval(self.expression, global_dict, params)
+                return eval(self.expression, globals(), params)
             except Exception as problem:
                 # Provide more detailed logging, including the expression and parameters
                 # used, when we encounter a math error like divide by zero.
@@ -159,10 +161,8 @@ class BasicMathNode(FunctionNode):
     def eval(self, **kwargs):
         """Evaluate the expression."""
         params = self._prepare_params(**kwargs)
-
-        global_dict = globals().copy()
-        global_dict[self.backend] = self.backend_lib
-        return eval(self.expression, global_dict, params)
+        params[self.backend] = self.backend_lib
+        return eval(self.expression, globals(), params)
 
     @staticmethod
     def list_functions():
