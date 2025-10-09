@@ -126,16 +126,26 @@ class FakeObsTable(ObsTable):
         else:
             # Make sure we have the required columns (fwhm_px, sky, exptime, nexposure) to
             # compute the flux error. If any are missing, assign a constant column from the survey values.
-            if not self._assign_constant_if_needed("exptime", check_positive=True):
-                raise ValueError("Must provide `exptime` to FakeSurveyTable.")
-            if not self._assign_constant_if_needed("nexposure", check_positive=True):
-                raise ValueError("Must provide `nexposure` to FakeSurveyTable.")
-            if not self._assign_constant_if_needed("psf_footprint", check_positive=True):
-                if not self._assign_constant_if_needed("fwhm_px", check_positive=True):
-                    raise ValueError("Must provide either `psf_footprint` or `fwhm_px` to FakeSurveyTable.")
-                psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (self._table["fwhm_px"]) ** 2
+            exptime = self.get_value_per_row("exptime")
+            if np.any(exptime == None) or np.any(exptime <= 0):  # noqa: E711
+                raise ValueError("Must provide a positive `exptime` to FakeSurveyTable.")
+
+            nexposure = self.get_value_per_row("nexposure")
+            if np.any(nexposure == None) or np.any(nexposure <= 0):  # noqa: E711
+                raise ValueError("Must provide a positive `nexposure` to FakeSurveyTable.")
+
+            psf_footprint = self.get_value_per_row("psf_footprint")
+            if np.any(psf_footprint == None) or np.any(psf_footprint <= 0):  # noqa: E711
+                fwhm_px = self.get_value_per_row("fwhm_px")
+                if np.any(fwhm_px == None) or np.any(fwhm_px <= 0):  # noqa: E711
+                    raise ValueError(
+                        "Must provide a positive `psf_footprint` or `fwhm_px` to FakeSurveyTable."
+                    )
+                psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (fwhm_px) ** 2
                 self.add_column("psf_footprint", psf_footprint)
-            if not self._assign_constant_if_needed("sky", check_positive=False):
+
+            sky = self.get_value_per_row("sky")
+            if np.any(sky == None) or np.any(sky < 0):  # noqa: E711
                 raise ValueError("Must provide `sky` to FakeSurveyTable.")
 
     def _assign_zero_points(self):
@@ -187,18 +197,13 @@ class FakeObsTable(ObsTable):
             return np.array([self.const_flux_error[fil] for fil in filters])
 
         # Otherwise compute the flux error using the poisson_bandflux_std noise model.
-        # We insert most the needed columns during construction, so we
-        # can look up most of the values needed for the noise model.
-        observations = self._table.iloc[index]
-        psf_footprint = observations["psf_footprint"]
-
         return poisson_bandflux_std(
             bandflux,
-            total_exposure_time=observations["exptime"],
-            exposure_count=observations["nexposure"],
-            psf_footprint=psf_footprint,
-            sky=observations["sky"],
-            zp=observations["zp"],
+            total_exposure_time=self.get_value_per_row("exptime", indices=index),
+            exposure_count=self.get_value_per_row("nexposure", indices=index),
+            psf_footprint=self.get_value_per_row("psf_footprint", indices=index),
+            sky=self.get_value_per_row("sky", indices=index),
+            zp=self.get_value_per_row("zp", indices=index),
             readout_noise=self.safe_get_survey_value("read_noise"),
             dark_current=self.safe_get_survey_value("dark_current"),
         )

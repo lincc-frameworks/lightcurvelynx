@@ -183,47 +183,50 @@ class ObsTable:
         """Clear the detector footprint, so no footprint filtering is done."""
         self._detector_footprint = None
 
-    def _assign_constant_if_needed(self, colname, check_positive=True):
-        """Assign a constant column to the table if it does not already have one.
+    def get_value_per_row(self, key, *, indices=None, default=None):
+        """Get the values for each row from the table or survey values (defaults).
 
         Parameters
         ----------
-        colname : str
-            The name of the column to assign.
-        check_positive : bool, optional
-            If True, check that the value is positive before assigning it. Default is True.
+        key : str
+            The name of the column to retrieve.
+        indices : numpy.ndarray, optional
+            The indices of the rows for which to retrieve values. If None, retrieve all rows.
+            Default: None
+        default : any, optional
+            The default value to use if the key is not found in the table or survey values.
+            This can be None to indicate missing values. Default: None
 
         Returns
         -------
-        bool
-            True if the column was added or already exists. False otherwise.
+        numpy.ndarray
+            The values for each row in the table.
         """
-        if colname in self._table.columns:
-            return True  # Already have a column.
+        if indices is None:
+            indices = np.arange(len(self._table))
 
-        # Check that we have the value to add.
-        if self.survey_values.get(colname) is None:
-            return False
-        value = self.survey_values[colname]
+        # Prioritize columns that are in the table.
+        if key in self._table.columns:
+            return self._table[key][indices].to_numpy()
+        if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
+            return self._table[self._inv_colmap[key]][indices].to_numpy()
 
-        # If the value is a single number, convert it to a dictionary with the same value for all bands.
-        if isinstance(value, int | float):
-            value = {fil: value for fil in self.filters}
-
-        # Fill in the information for each filter.
-        col_vals = np.zeros(len(self._table), dtype=float)
-        for fil in self.filters:
-            if fil not in value:
-                raise ValueError(f"`{colname}` must include all the filters in the table. Missing '{fil}'.")
-            if not isinstance(value[fil], int | float):
-                raise ValueError(f"`{colname}` must map filter names to numeric values.")
-            if check_positive and value[fil] <= 0:
-                raise ValueError(f"`{colname}` values must be positive. Got {value[fil]} for filter {fil}.")
-            mask = self._table["filter"] == fil
-            col_vals[mask] = value[fil]
-        self.add_column(colname, col_vals)
-
-        return True
+        # Otherwise fall back to the survey values if they are defined.
+        value = self.survey_values.get(key, None)
+        if value is None:
+            return np.full((len(indices),), default)
+        if isinstance(value, float | int):
+            # Use the same value for all rows.
+            return np.full((len(indices),), value)
+        if isinstance(value, dict):
+            # Map the values for each filter to the rows in the table.
+            result = np.zeros(len(indices), dtype=float)
+            for fil, val in value.items():
+                if fil not in self.filters:
+                    raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{fil}'")
+                result[self._table["filter"][indices] == fil] = val
+            return result
+        raise TypeError(f"Unsupported type for '{key}': {type(value)}")
 
     def safe_get_survey_value(self, key):
         """Get a survey value by key, checking that it is not None.

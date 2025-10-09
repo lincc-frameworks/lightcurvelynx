@@ -19,19 +19,23 @@ def test_create_fake_obs_table_consts():
     ops_data = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0)
     assert len(ops_data) == 5
 
-    # We use the defaults when we do not provide values in the table.
+    # We use the defaults when we do not provide values in the table. Not all of these
+    # will be added as columns, but we can still retrieve an array of values.
     assert np.allclose(ops_data["ra"], values["ra"])
     assert np.allclose(ops_data["dec"], values["dec"])
     assert np.allclose(ops_data["time"], values["time"])
     assert np.array_equal(ops_data["filter"], values["filter"])
-    assert np.allclose(ops_data["fwhm_px"], [2.0] * 5)
-    assert np.allclose(ops_data["sky"], [100.0] * 5)
-    assert np.allclose(ops_data["exptime"], [30.0] * 5)
-    assert np.allclose(ops_data["nexposure"], [1] * 5)
     assert np.allclose(ops_data["zp"], [27.0, 26.0, 27.0, 28.0, 26.0])
+    assert np.allclose(ops_data.get_value_per_row("fwhm_px"), [2.0] * 5)
+    assert np.allclose(ops_data.get_value_per_row("sky"), [100.0] * 5)
+    assert np.allclose(ops_data.get_value_per_row("exptime"), [30.0] * 5)
+    assert np.allclose(ops_data.get_value_per_row("nexposure"), [1] * 5)
 
     # Derived from fwhm_px.
-    assert np.allclose(ops_data["psf_footprint"], [GAUSS_EFF_AREA2FWHM_SQ * (2.0) ** 2] * 5)
+    assert np.allclose(
+        ops_data.get_value_per_row("psf_footprint"),
+        [GAUSS_EFF_AREA2FWHM_SQ * (2.0) ** 2] * 5,
+    )
 
     assert ops_data.survey_values["dark_current"] == 0
     assert ops_data.survey_values["nexposure"] == 1
@@ -51,7 +55,7 @@ def test_create_fake_obs_table_consts():
 
     # If we give psf_footprint, we use that instead of fwhm_px.
     ops_data = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, psf_footprint=1.0, sky=100.0)
-    assert np.allclose(ops_data["psf_footprint"], [1.0] * 5)
+    assert np.allclose(ops_data.get_value_per_row("psf_footprint"), [1.0] * 5)
 
     # We can override the defaults, using dictionaries of values for fwhm_px and sky.
     ops_data = FakeObsTable(
@@ -67,16 +71,17 @@ def test_create_fake_obs_table_consts():
     )
     assert len(ops_data) == 5
 
-    # We use the defaults when we do not provide values in the table.
+    # We use the defaults when we do not provide values in the table. Not all of these
+    # will be added as columns, but we can still retrieve an array of values.
     assert np.allclose(ops_data["ra"], values["ra"])
     assert np.allclose(ops_data["dec"], values["dec"])
     assert np.allclose(ops_data["time"], values["time"])
     assert np.array_equal(ops_data["filter"], values["filter"])
-    assert np.allclose(ops_data["fwhm_px"], [3.1, 2.5, 3.1, 1.9, 2.5])
-    assert np.allclose(ops_data["sky"], [140.0, 150.0, 140.0, 155.0, 150.0])
-    assert np.allclose(ops_data["exptime"], [60.0] * 5)
-    assert np.allclose(ops_data["nexposure"], [2] * 5)
     assert np.allclose(ops_data["zp"], [27.0, 26.0, 27.0, 28.0, 26.0])
+    assert np.allclose(ops_data.get_value_per_row("fwhm_px"), [3.1, 2.5, 3.1, 1.9, 2.5])
+    assert np.allclose(ops_data.get_value_per_row("sky"), [140.0, 150.0, 140.0, 155.0, 150.0])
+    assert np.allclose(ops_data.get_value_per_row("exptime"), [60.0] * 5)
+    assert np.allclose(ops_data.get_value_per_row("nexposure"), [2] * 5)
 
     assert ops_data.survey_values["dark_current"] == 0
     assert ops_data.survey_values["nexposure"] == 2
