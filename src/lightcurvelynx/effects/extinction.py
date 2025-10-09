@@ -71,7 +71,7 @@ class ExtinctionEffect(EffectModel, CiteClass):
         except ImportError as err:
             raise ImportError(
                 "The dust_extinction package is needed to use the ExtinctionEffect. Please install it via"
-                "`pip install dust_extinction` or `conda install -c conda-forge dust_extinction`."
+                "`pip install dust_extinction` or `conda install conda-forge::dust_extinction`."
             ) from err
 
         # We scan all of the submodules in the dust_extinction package,
@@ -106,7 +106,7 @@ class ExtinctionEffect(EffectModel, CiteClass):
         except ImportError as err:
             raise ImportError(
                 "The dust_extinction package is needed to use the ExtinctionEffect. Please install it via"
-                "`pip install dust_extinction` or `conda install -c conda-forge dust_extinction`."
+                "`pip install dust_extinction` or `conda install conda-forge::dust_extinction`."
             ) from err
 
         # We scan all of the submodules in the dust_extinction package,
