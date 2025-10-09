@@ -128,8 +128,7 @@ class ObsTable:
             if col not in self._table.columns:
                 raise KeyError(f"Missing required column: {col}")
 
-        # Save the survey values, overwriting anything that is manually specified
-        # as a keyword argument or provided in the table's metadata.
+        # Save the survey values, with table metadata and keyword arguments overwriting the defaults.
         self.survey_values = self._default_survey_values.copy()
         if "lightcurvelynx_survey_data" in self._table.attrs:
             metadata = self._table.attrs["lightcurvelynx_survey_data"]
