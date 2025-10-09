@@ -20,8 +20,6 @@ dependencies = [
     "astropy",
     "cdshealpix",
     "citation-compass>=0.0.3",
-    "dust_extinction",
-    "extinction>=0.4.7",  # Needed by sncosmo
     "matplotlib",
     "mocpy",
     "nested-pandas",
@@ -40,6 +38,8 @@ dependencies = [
 dev = [
     "asv==0.6.5", # Used to compute performance benchmarks
     "bilby",  # Used for Bayesian inference
+    "dust_extinction",
+    "extinction>=0.4.7",  # Needed by sncosmo
     "fsspec[http]",  # Read OpSim file from the web with utils/make_opsim_shorten.py
     "jupyter", # Clears output from Jupyter notebooks
     "jax",
@@ -58,6 +58,8 @@ dev = [
 # (include the single quotes)
 all = [
     "bilby",  # Used for Bayesian inference
+    "dust_extinction",
+    "extinction>=0.4.7",  # Needed by sncosmo
     "jax",
     "lsdb",  # Used to read and write LSDB catalogs
     "pzflow",
