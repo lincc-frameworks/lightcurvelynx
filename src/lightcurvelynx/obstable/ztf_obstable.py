@@ -20,8 +20,8 @@ _ztfcam_readout_noise = 8
 _ztfcam_dark_current = 0.0
 """The dark current for the ZTF camera in electrons per second per pixel."""
 
-_ztfcam_view_radius = 2.735
-"""The angular radius of the observation field (in degrees). ZTF FOV is 47 deg^2"""
+_ztfcam_view_radius = 3.868
+"""The angular radius of the observation field (in degrees). ZTF FOV is 47 deg^2 = pi * radius**2"""
 
 _ztfcam_ccd_gain = 6.2
 """CCD gain (in e-/ADU)"""
