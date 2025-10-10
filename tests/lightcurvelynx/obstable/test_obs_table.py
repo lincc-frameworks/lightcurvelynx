@@ -478,12 +478,25 @@ def test_obs_table_range_search_detector_footprint():
     detector_footprint = CircleSkyRegion(center=SkyCoord(ra=0.0, dec=0.0, unit="deg"), radius=0.5 * u.deg)
     ops_data = ObsTable(values, detector_footprint=detector_footprint, pixel_scale=0.1)
 
+    # Check that the ObsTable radius was increased to account for the bounding box of the
+    # detector footprint.
+    assert ops_data.radius > 0.5
+
+    # We throw a warning if we manually set the radius smaller than the detector footprint bounding box.
+    with pytest.warns(UserWarning):
+        ops_data.radius = 0.51
+
     # Test single queries. Despite the given radius, we only find points within the detector footprint.
     assert set(ops_data.range_search(15.0, 10.0, radius=2.0)) == set([1, 2, 3])
     assert set(ops_data.range_search(25.0, 10.0, radius=2.0)) == set([4, 5])
     assert set(ops_data.range_search(15.0, 10.0, radius=100.0)) == set([1, 2, 3])
-    assert set(ops_data.range_search(15.0, 10.0, radius=1e-6)) == set([1])
-    assert set(ops_data.range_search(15.02, 10.0, radius=1e-6)) == set()
+
+    # If we use radius smaller than they detector footprint bounding box, we get a warning
+    # and only find points within the intersection of the radius and the detector footprint.
+    with pytest.warns(Warning):
+        assert set(ops_data.range_search(15.0, 10.0, radius=1e-6)) == set([1])
+    with pytest.warns(Warning):
+        assert set(ops_data.range_search(15.02, 10.0, radius=1e-6)) == set()
 
     # Test a batched queries and that the detector footprint is applied to all of them.
     query_ra = np.array([15.0, 25.0, 15.0])
@@ -497,6 +510,15 @@ def test_obs_table_range_search_detector_footprint():
     # We can shut off the detector footprint to save time and use the approximate radius.
     ops_data.clear_detector_footprint()
     assert set(ops_data.range_search(15.0, 10.0, radius=100.0)) == set([0, 1, 2, 3, 4, 5, 6, 7])
+
+    # If we create a new ObsTable with no radius, it is filled in by the detector footprint.
+    ops_data = ObsTable(values, detector_footprint=detector_footprint, pixel_scale=0.1)
+    assert ops_data.radius > 0.5
+    assert ops_data.radius < 1.5
+
+    # If we manually provide a radius larger than the detector footprint, it is used.
+    ops_data = ObsTable(values, detector_footprint=detector_footprint, radius=2.0, pixel_scale=0.1)
+    assert ops_data.radius == 2.0
 
 
 def test_obs_table_docstring():

@@ -63,6 +63,12 @@ def test_create_detector_footprint():
     assert isinstance(fp.region, CirclePixelRegion)
     assert fp.wcs is not None
 
+    # Test that we can compute a bounding radius. Since this is based
+    # on the bounding box, it will be larger than the actual radius.
+    radius = fp.compute_radius()
+    assert radius > 1.0
+    assert radius < np.sqrt(2) + 0.001  # Small tolerance for pixel padding
+
     # Test that the contains method works.
     ra = np.array([0.0, 0.5, 1.0, 1.5, 0.0, 1.5, 0.9])  # degrees
     dec = np.array([0.0, 0.5, 1.0, 1.5, 1.5, 0.0, 0.0])  # degrees
@@ -94,16 +100,80 @@ def test_create_detector_footprint():
         _ = DetectorFootprint(circle_region)
 
 
-def test_rectangular_footprint():
-    """Test the RectangularFootprint class."""
-    width = 2.0
-    height = 1.0
-    fp = DetectorFootprint.from_rect(width=width, height=height, pixel_scale=0.01)
+def test_rectangular_sky_footprint():
+    """Test the DetectorFootprint's from_sky_rect function."""
+    width = 2.0  # degrees = 200 pixels at 0.01 deg/pix
+    height = 1.0  # degrees = 100 pixels at 0.01 deg/pix
+    fp = DetectorFootprint.from_sky_rect(width=width, height=height, pixel_scale=0.01)
 
     ra = np.array([90.0, 91.0, 90.5, 91.5, 92.0, 90.5, 90.0])
     center_ra = np.array([90.0, 90.0, 90.0, 90.0, 92.0, 93.0, 90.0])
     dec = np.array([-10.0, -13.0, -10.0, -10.0, -8.0, -10.25, -9.25])
     center_dec = np.array([-10.0, -10.0, -10.0, -10.0, -8.0, -10.0, -10.0])
+
+    # Test that we can compute an approximate radius.
+    radius = fp.compute_radius()
+    approx_radius = np.sqrt((height / 2.0) ** 2 + (width / 2.0) ** 2)
+    assert radius >= approx_radius
+    assert np.isclose(radius, approx_radius, rtol=0.1)
+
+    # Test contains without rotation.
+    contained = fp.contains(ra, dec, center_ra, center_dec)
+    assert np.all(contained == np.array([True, False, True, False, True, False, False]))
+
+    # Test contains with rotation. The last point should now be contained.
+    rotation = np.full(ra.shape, 90.0)
+    contained = fp.contains(ra, dec, center_ra, center_dec, rotation=rotation)
+    assert np.all(contained == np.array([True, False, True, False, True, False, True]))
+
+    # We can query scalars as well.
+    assert fp.contains(90.5, -10.25, 90.0, -10.0)
+    assert not fp.contains(91.5, -10.25, 90.0, -10.0)
+    assert fp.contains(89.75, -9.75, 90.0, -10.0)
+    assert not fp.contains(89.75, -9.25, 90.0, -10.0)
+
+    assert not fp.contains(91.5, -10.25, 90.0, -10.0, rotation=45.0)
+    assert fp.contains(89.75, -9.75, 90.0, -10.0, rotation=-45.0)
+    assert not fp.contains(89.75, -9.25, 90.0, -10.0, rotation=-45.0)
+
+    # Test a 45 degree rotation.
+    assert not fp.contains(0.7, -0.7, 0, 0.0, rotation=0.0)
+    assert fp.contains(0.7, -0.7, 0, 0.0, rotation=45.0)
+
+    # Try some points around the rectangles border when the rectangle is
+    # is centered at different locations to ensure we scale RA correctly.
+    for c_ra, c_dec in [(45.0, 20), (60.0, -30.0), (20.0, 60.0), (-30.0, -75.0)]:
+        center = SkyCoord(ra=c_ra, dec=c_dec, unit="deg", frame="icrs")
+        for dec_offset in [-0.51, -0.49, 0.49, 0.51]:
+            for ra_offset in [-1.01, -0.99, 0.99, 1.01]:
+                # Shift by DEC then RA.
+                query_pt = center.directional_offset_by(0.0 * u.deg, dec_offset * u.deg)
+                query_pt = query_pt.directional_offset_by(90 * u.deg, ra_offset * u.deg)
+                expected = abs(ra_offset) < 1.0 and abs(dec_offset) < 0.5
+                assert fp.contains(query_pt.ra.deg, query_pt.dec.deg, c_ra, c_dec) == expected
+
+    # We fail to create a footprint if it is not centered on (0,0).
+    center = PixCoord(x=100.0, y=0.0)
+    offset_region = RectanglePixelRegion(center=center, width=2.0, height=10.0, angle=0.0 * u.deg)
+    with pytest.raises(ValueError):
+        DetectorFootprint(offset_region, pixel_scale=0.01)
+
+
+def test_rectangular_pixel_footprint():
+    """Test the DetectorFootprint's from_pixel_rect function."""
+    width = 200.0  # pixels = 2 degrees at 0.01 deg/pix
+    height = 100.0  # pixels = 1 degree at 0.01 deg/pix
+    fp = DetectorFootprint.from_pixel_rect(width=width, height=height, pixel_scale=0.01)
+    ra = np.array([90.0, 91.0, 90.5, 91.5, 92.0, 90.5, 90.0])
+    center_ra = np.array([90.0, 90.0, 90.0, 90.0, 92.0, 93.0, 90.0])
+    dec = np.array([-10.0, -13.0, -10.0, -10.0, -8.0, -10.25, -9.25])
+    center_dec = np.array([-10.0, -10.0, -10.0, -10.0, -8.0, -10.0, -10.0])
+
+    # Test that we can compute an approximate radius.
+    radius = fp.compute_radius()
+    approx_radius = np.sqrt(1.0**2 + 0.5**2)
+    assert radius >= approx_radius
+    assert np.isclose(radius, approx_radius, rtol=0.1)
 
     # Test contains without rotation.
     contained = fp.contains(ra, dec, center_ra, center_dec)

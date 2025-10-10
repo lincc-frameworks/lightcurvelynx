@@ -4,6 +4,7 @@ for different survey data, such as Rubin and ZTF."""
 
 import logging
 import sqlite3
+import warnings
 from pathlib import Path
 
 import astropy.units as u
@@ -159,6 +160,24 @@ class ObsTable:
             detector_footprint = DetectorFootprint(detector_footprint, wcs=wcs, pixel_scale=pixel_scale)
         self._detector_footprint = detector_footprint
 
+        # Check that the radius is valid for the given footprint (if it exists).
+        if self._detector_footprint is not None:
+            fp_radius = self._detector_footprint.compute_radius()
+            curr_radius = self.survey_values.get("radius", None)
+            if curr_radius is None:
+                self.survey_values["radius"] = fp_radius
+            elif curr_radius < fp_radius:
+                logger.info(
+                    f"Provided radius {curr_radius} is smaller than footprint radius {fp_radius}. "
+                    "Using the footprint radius instead."
+                )
+                self.survey_values["radius"] = fp_radius
+            else:
+                logger.debug(
+                    f"Provided radius {curr_radius} is larger than footprint radius {fp_radius}. "
+                    "Using the provided radius."
+                )
+
     def __len__(self):
         return len(self._table)
 
@@ -252,6 +271,13 @@ class ObsTable:
         """Create a setter for radius."""
         if new_val <= 0:
             raise ValueError(f"Invalid radius: {new_val}")
+        if self._detector_footprint is not None:
+            fp_radius = self._detector_footprint.compute_radius()
+            if new_val < fp_radius:
+                warnings.warn(
+                    f"Provided radius {new_val} is smaller than footprint radius {fp_radius}. "
+                    "This might lead to unexpected results."
+                )
         self.survey_values["radius"] = new_val
 
     @property
@@ -548,10 +574,18 @@ class ObsTable:
         if query_ra is None or query_dec is None:
             raise ValueError("Query RA and dec must be provided for range search, but got None.")
 
-        # Fallback to the preset radius if None is provided.
-        radius = radius if radius is not None else self.survey_values.get("radius", None)
-        if radius is None:
-            raise ValueError("Radius must be provided for range search or as a default. Got None.")
+        # Fallback to the preset radius if None is provided. Output a warning if a *smaller*
+        # radius is provided, since that may lead to unexpected results if a footprint is used.
+        if radius is not None:
+            if self.radius is not None and radius < self.radius:
+                warnings.warn(
+                    f"Provided radius {radius} is smaller than the ObsTable radius {self.radius}. "
+                    "This may lead to unexpected results if a detector footprint is used."
+                )
+        else:
+            radius = self.survey_values.get("radius", None)
+            if radius is None:
+                raise ValueError("Radius must be provided for range search or as a default. Got None.")
 
         # If the points are scalars, make them into length 1 arrays.
         is_scalar = np.isscalar(query_ra) and np.isscalar(query_dec)
