@@ -16,7 +16,7 @@ def test_ztf_obstable_init():
     assert survey_data.survey_values["dark_current"] == 0.0
     assert survey_data.survey_values["gain"] == 6.2
     assert survey_data.survey_values["pixel_scale"] == 1.01
-    assert survey_data.survey_values["radius"] == 2.735
+    assert survey_data.survey_values["radius"] == 3.868
     assert survey_data.survey_values["read_noise"] == 8
     assert survey_data.survey_values["survey_name"] == "ZTF"
 
