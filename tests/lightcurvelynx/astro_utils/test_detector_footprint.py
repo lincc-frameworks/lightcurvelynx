@@ -58,7 +58,7 @@ def test_create_detector_footprint():
     """Test creating a DetectorFootprint."""
     center = SkyCoord(ra=0.0, dec=0.0, unit="deg", frame="icrs")
     circle_region = CircleSkyRegion(center=center, radius=1.0 * u.deg)
-    fp = DetectorFootprint(circle_region, pixel_scale=0.000277778)  # 1 arcsec/pixel
+    fp = DetectorFootprint(circle_region, pixel_scale=1.0)  # 1 arcsec/pixel
     assert isinstance(fp, DetectorFootprint)
     assert isinstance(fp.region, CirclePixelRegion)
     assert fp.wcs is not None
@@ -104,7 +104,7 @@ def test_rectangular_sky_footprint():
     """Test the DetectorFootprint's from_sky_rect function."""
     width = 2.0  # degrees = 200 pixels at 0.01 deg/pix
     height = 1.0  # degrees = 100 pixels at 0.01 deg/pix
-    fp = DetectorFootprint.from_sky_rect(width=width, height=height, pixel_scale=0.01)
+    fp = DetectorFootprint.from_sky_rect(width=width, height=height, pixel_scale=36.0)  # 0.01 deg/pix
 
     ra = np.array([90.0, 91.0, 90.5, 91.5, 92.0, 90.5, 90.0])
     center_ra = np.array([90.0, 90.0, 90.0, 90.0, 92.0, 93.0, 90.0])
@@ -156,14 +156,14 @@ def test_rectangular_sky_footprint():
     center = PixCoord(x=100.0, y=0.0)
     offset_region = RectanglePixelRegion(center=center, width=2.0, height=10.0, angle=0.0 * u.deg)
     with pytest.raises(ValueError):
-        DetectorFootprint(offset_region, pixel_scale=0.01)
+        DetectorFootprint(offset_region, pixel_scale=36.0)  # 0.01 deg/pix
 
 
 def test_rectangular_pixel_footprint():
     """Test the DetectorFootprint's from_pixel_rect function."""
     width = 200.0  # pixels = 2 degrees at 0.01 deg/pix
     height = 100.0  # pixels = 1 degree at 0.01 deg/pix
-    fp = DetectorFootprint.from_pixel_rect(width=width, height=height, pixel_scale=0.01)
+    fp = DetectorFootprint.from_pixel_rect(width=width, height=height, pixel_scale=36.0)  # 0.01 deg/pix
     ra = np.array([90.0, 91.0, 90.5, 91.5, 92.0, 90.5, 90.0])
     center_ra = np.array([90.0, 90.0, 90.0, 90.0, 92.0, 93.0, 90.0])
     dec = np.array([-10.0, -13.0, -10.0, -10.0, -8.0, -10.25, -9.25])
@@ -214,4 +214,4 @@ def test_rectangular_pixel_footprint():
     center = PixCoord(x=100.0, y=0.0)
     offset_region = RectanglePixelRegion(center=center, width=2.0, height=10.0, angle=0.0 * u.deg)
     with pytest.raises(ValueError):
-        DetectorFootprint(offset_region, pixel_scale=0.01)
+        DetectorFootprint(offset_region, pixel_scale=36.0)  # 0.01 deg/pix

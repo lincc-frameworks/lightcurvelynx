@@ -476,7 +476,7 @@ def test_obs_table_range_search_detector_footprint():
     }
     # Add a circular footprint with radius 0.5 deg.
     detector_footprint = CircleSkyRegion(center=SkyCoord(ra=0.0, dec=0.0, unit="deg"), radius=0.5 * u.deg)
-    ops_data = ObsTable(values, detector_footprint=detector_footprint, pixel_scale=0.1)
+    ops_data = ObsTable(values, detector_footprint=detector_footprint, pixel_scale=360.0)  # 0.1 deg/pix
 
     # Check that the ObsTable radius was increased to account for the bounding box of the
     # detector footprint.
@@ -512,12 +512,14 @@ def test_obs_table_range_search_detector_footprint():
     assert set(ops_data.range_search(15.0, 10.0, radius=100.0)) == set([0, 1, 2, 3, 4, 5, 6, 7])
 
     # If we create a new ObsTable with no radius, it is filled in by the detector footprint.
-    ops_data = ObsTable(values, detector_footprint=detector_footprint, pixel_scale=0.1)
+    ops_data = ObsTable(values, detector_footprint=detector_footprint, pixel_scale=360.0)  # 0.1 deg/pix
     assert ops_data.radius > 0.5
     assert ops_data.radius < 1.5
 
     # If we manually provide a radius larger than the detector footprint, it is used.
-    ops_data = ObsTable(values, detector_footprint=detector_footprint, radius=2.0, pixel_scale=0.1)
+    ops_data = ObsTable(
+        values, detector_footprint=detector_footprint, radius=2.0, pixel_scale=360.0
+    )  # 0.1 deg/pix
     assert ops_data.radius == 2.0
 
 

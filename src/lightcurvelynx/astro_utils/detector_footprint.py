@@ -28,7 +28,7 @@ class DetectorFootprint:
     wcs : astropy.wcs.WCS or None
         The WCS associated with the region, if any.
     pixel_scale : float or None
-        The pixel scale in degrees/pixel, this is required if no WCS is provided.
+        The pixel scale in arcseconds/pixel, this is required if no WCS is provided.
     center_pixels : tuple of float, optional
         The pixel coordinates of the center of the detector. Default is (0.5, 0.5) for
         the center of the (0, 0) pixel. This is only used if no WCS is provided and
@@ -42,13 +42,14 @@ class DetectorFootprint:
                 raise ValueError("Either wcs or pixel_scale must be provided.")
             if pixel_scale <= 0:
                 raise ValueError("pixel_scale must be positive.")
+            pixel_scale_deg = pixel_scale / 3600.0  # Convert to degrees/pixel
 
             # Create a simple TAN WCS centered on (0.0, 0.0) with the given pixel scale.
             wcs = WCS(naxis=2)
             wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
             wcs.wcs.crval = [0.0, 0.0]  # Centered on RA=0.0, dec=0.0
             wcs.wcs.crpix = [center_pixels[0], center_pixels[1]]
-            wcs.wcs.cdelt = [pixel_scale, pixel_scale]  # The given pixel scale in degrees/pixel
+            wcs.wcs.cdelt = [-pixel_scale_deg, pixel_scale_deg]  # The given pixel scale in degrees/pixel
         self.wcs = wcs
 
         # Store the region as a pixel region, since we will always need to do a conversion
@@ -76,7 +77,7 @@ class DetectorFootprint:
         wcs : astropy.wcs.WCS, optional
             The WCS associated with the region. If None, a default WCS will be created.
         pixel_scale : float, optional
-            The pixel scale in degrees/pixel, this is required if no WCS is provided.
+            The pixel scale in arcseconds/pixel, this is required if no WCS is provided.
         **kwargs : dict
             Additional keyword arguments to pass to the RectangleSkyRegion constructor.
 
@@ -108,7 +109,7 @@ class DetectorFootprint:
         wcs : astropy.wcs.WCS, optional
             The WCS associated with the region. If None, a default WCS will be created.
         pixel_scale : float, optional
-            The pixel scale in degrees/pixel, this is required if no WCS is provided.
+            The pixel scale in arcseconds/pixel, this is required if no WCS is provided.
         **kwargs : dict
             Additional keyword arguments to pass to the RectangleSkyRegion constructor.
 
