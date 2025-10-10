@@ -355,6 +355,7 @@ def test_write_read_opsim_parquet():
         ops_data.write_parquet(file_path, overwrite=True)
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")  # Ignore radius warnings
 def test_opsim_range_search():
     """Test that we can extract the time, ra, and dec from an opsim data frame."""
     # Create a fake opsim data frame with just time, RA, and dec.
@@ -424,6 +425,7 @@ def test_opsim_range_search():
         _ = ops_data.range_search([1.0, 2.3], [4.5, None], radius=0.5)
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")  # Ignore radius warnings
 def test_opsim_get_observations():
     """Test that we can extract the time, ra, and dec from an opsim data frame."""
     # Create a fake opsim data frame with just time, RA, and dec.

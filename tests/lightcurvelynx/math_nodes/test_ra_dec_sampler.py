@@ -86,7 +86,9 @@ def test_obstable_ra_dec_sampler():
     ops_data = OpSim(values)
     assert len(ops_data) == 5
 
-    sampler_node = ObsTableRADECSampler(ops_data, radius=0.0, in_order=True)
+    # This will raise a warning because the radius is smaller than the OpSim default.
+    with pytest.warns(UserWarning):
+        sampler_node = ObsTableRADECSampler(ops_data, radius=0.0, in_order=True)
     assert sampler_node.radius == 0.0
 
     # Test we can generate a single value.
@@ -102,7 +104,14 @@ def test_obstable_ra_dec_sampler():
     assert np.allclose(time, [1.0, 2.0])
 
     # Do randomized sampling.
-    sampler_node2 = ObsTableRADECSampler(ops_data, in_order=False, radius=0.0, seed=100, node_label="sampler")
+    with pytest.warns(UserWarning):
+        sampler_node2 = ObsTableRADECSampler(
+            ops_data,
+            in_order=False,
+            radius=0.0,
+            seed=100,
+            node_label="sampler",
+        )
     state = sampler_node2.sample_parameters(num_samples=5000)
 
     # Check that the samples are uniform and consistent.
@@ -115,8 +124,8 @@ def test_obstable_ra_dec_sampler():
     assert len(int_times[int_times == 3]) > 750
     assert len(int_times[int_times == 4]) > 750
 
-    # Do randomized sampling with offsets.
-    sampler_node3 = ObsTableRADECSampler(ops_data, in_order=False, seed=100, radius=0.5, node_label="sampler")
+    # Do randomized sampling with offsets (using the default OpSim radius).
+    sampler_node3 = ObsTableRADECSampler(ops_data, in_order=False, seed=100, node_label="sampler")
     state = sampler_node3.sample_parameters(num_samples=5000)
 
     # Check that the samples are not all the centers (unique values > 500) but are within
@@ -132,7 +141,7 @@ def test_obstable_ra_dec_sampler():
             values["fieldRA"][idx] * u.deg,
             values["fieldDec"][idx] * u.deg,
         )
-        assert np.all(dist <= 0.5 * u.deg)
+        assert np.all(dist <= sampler_node3.radius * u.deg)
 
     # We fail if no radius is provided by the OpSim or the parameters
     ops_data = OpSim(values, radius=None)
@@ -270,9 +279,8 @@ def test_opsim_uniform_ra_dec_sampler_footprint():
         "zp_nJy": np.ones(2),
     }
 
-    # Detector is a rectangle of 200 x 300 pixels with 0.1 deg/pixel
-    # or 20 degrees width and 30 degrees height.
-    fp = DetectorFootprint.from_rect(width=200, height=300, pixel_scale=0.1)
+    # Detector is a rectangle of 20 x 30 degrees.
+    fp = DetectorFootprint.from_sky_rect(width=20, height=30, pixel_scale=0.1)
     ops_data = OpSim(values, detector_footprint=fp)
 
     # Test we can generate multiple observations

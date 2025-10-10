@@ -1,5 +1,6 @@
 """Samplers used for generating (RA, dec) coordinates."""
 
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -101,8 +102,14 @@ class ObsTableRADECSampler(TableSampler):
     """
 
     def __init__(self, data, *, extra_cols=None, radius=None, in_order=False, **kwargs):
-        if radius is None and isinstance(data, ObsTable):
-            radius = data.survey_values.get("radius", None)
+        if isinstance(data, ObsTable):
+            if radius is None:
+                radius = data.radius
+            elif data.radius is not None and radius < data.radius:
+                warnings.warn(
+                    f"Provided radius {radius} is smaller than the ObsTable radius {data.radius}. "
+                    "This may lead to unexpected results if a detector footprint is used."
+                )
         if radius is None or radius < 0.0:
             raise ValueError(f"Invalid radius: {radius}")
         self.radius = radius
@@ -259,10 +266,16 @@ class ObsTableUniformRADECSampler(NumpyRandomFunc):
     """
 
     def __init__(self, data, *, radius=None, outputs=None, seed=None, max_iterations=1000, **kwargs):
-        if radius is None:
-            radius = data.survey_values.get("radius", None)
+        if isinstance(data, ObsTable):
             if radius is None:
-                raise ValueError("ObsTable has no radius. Must provide radius.")
+                radius = data.radius
+            elif data.radius is not None and radius < data.radius:
+                warnings.warn(
+                    f"Provided radius {radius} is smaller than the ObsTable radius {data.radius}. "
+                    "This may lead to unexpected results if a detector footprint is used."
+                )
+        if radius is None:
+            raise ValueError("ObsTable has no radius. Must provide radius.")
         if radius <= 0.0:
             raise ValueError(f"Invalid override_radius: {radius}")
         self.radius = radius

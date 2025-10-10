@@ -7,7 +7,7 @@ import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
-from regions import PixCoord, RectangleSkyRegion, SkyRegion
+from regions import PixCoord, RectanglePixelRegion, RectangleSkyRegion, SkyRegion
 
 
 class DetectorFootprint:
@@ -15,15 +15,27 @@ class DetectorFootprint:
 
     Attributes
     ----------
-    region : astropy.regions.SkyRegion or Astropy.regions.PixelRegion
-        The astropy SkyRegion or PixelRegion representing the footprint.
+    region : astropy.regions.PixelRegion
+        The astropy PixelRegion representing the footprint.
+    wcs : astropy.wcs.WCS or None
+        The WCS associated with the region, if any.
+
+    Parameters
+    ----------
+    region : astropy.regions.SkyRegion or astropy.regions.PixelRegion
+        The astropy SkyRegion or PixelRegion representing the footprint. SkyRegions
+        will be converted to PixelRegions using the provided WCS or a default WCS.
     wcs : astropy.wcs.WCS or None
         The WCS associated with the region, if any.
     pixel_scale : float or None
         The pixel scale in degrees/pixel, this is required if no WCS is provided.
+    center_pixels : tuple of float, optional
+        The pixel coordinates of the center of the detector. Default is (0.5, 0.5) for
+        the center of the (0, 0) pixel. This is only used if no WCS is provided and
+        a default WCS is created.
     """
 
-    def __init__(self, region, wcs=None, pixel_scale=None, **kwargs):
+    def __init__(self, region, *, wcs=None, pixel_scale=None, center_pixels=(0.5, 0.5), **kwargs):
         # Create a default WCS if none is provided.
         if wcs is None:
             if pixel_scale is None:
@@ -34,8 +46,8 @@ class DetectorFootprint:
             # Create a simple TAN WCS centered on (0.0, 0.0) with the given pixel scale.
             wcs = WCS(naxis=2)
             wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
-            wcs.wcs.crval = [0.0, 0.0]  # Centered on (0.0, 0.0)
-            wcs.wcs.crpix = [0.5, 0.5]  # Reference pixel at the center of (0.0, 0.0)
+            wcs.wcs.crval = [0.0, 0.0]  # Centered on RA=0.0, dec=0.0
+            wcs.wcs.crpix = [center_pixels[0], center_pixels[1]]
             wcs.wcs.cdelt = [pixel_scale, pixel_scale]  # The given pixel scale in degrees/pixel
         self.wcs = wcs
 
@@ -52,8 +64,8 @@ class DetectorFootprint:
             raise ValueError("The bounding box of the region must contain the origin (0,0).")
 
     @classmethod
-    def from_rect(cls, width, height, wcs=None, pixel_scale=None, **kwargs):
-        """Create a rectangular footprint.
+    def from_sky_rect(cls, width, height, wcs=None, pixel_scale=None, **kwargs):
+        """Create a rectangular footprint in degrees.
 
         Parameters
         ----------
@@ -78,6 +90,38 @@ class DetectorFootprint:
             center=center,
             width=width * u.deg,
             height=height * u.deg,
+            angle=0.0 * u.deg,
+            **kwargs,
+        )
+        return cls(region, wcs=wcs, pixel_scale=pixel_scale)
+
+    @classmethod
+    def from_pixel_rect(cls, width, height, wcs=None, pixel_scale=None, **kwargs):
+        """Create a rectangular footprint in pixels.
+
+        Parameters
+        ----------
+        width : float
+            Width of the rectangle in pixels.
+        height : float
+            Height of the rectangle in pixels.
+        wcs : astropy.wcs.WCS, optional
+            The WCS associated with the region. If None, a default WCS will be created.
+        pixel_scale : float, optional
+            The pixel scale in degrees/pixel, this is required if no WCS is provided.
+        **kwargs : dict
+            Additional keyword arguments to pass to the RectangleSkyRegion constructor.
+
+        Returns
+        -------
+        DetectorFootprint
+            The rectangular detector footprint.
+        """
+        center = PixCoord(x=0.0, y=0.0)
+        region = RectanglePixelRegion(
+            center=center,
+            width=width,
+            height=height,
             angle=0.0 * u.deg,
             **kwargs,
         )
@@ -220,6 +264,31 @@ class DetectorFootprint:
         if scalar_data:
             return result[0]
         return result
+
+    def compute_radius(self):
+        """Compute an approximate bounding radius of the footprint in degrees.
+
+        Note
+        ----
+        This radius is based on the bounding box of the footprint (with a small
+        pixel padding), so it will be larger than the actual radius of the footprint.
+
+        Returns
+        -------
+        float
+            The radius of the footprint in degrees.
+        """
+        # Compute the corners of the bounding box (using a pixel buffer to handle different
+        # centering schemes) and convert to sky coordinates.
+        bbox = self.region.bounding_box
+        corner_pix_x = np.array([bbox.ixmin - 1.0, bbox.ixmin - 1.0, bbox.ixmax + 1.0, bbox.ixmax + 1.0])
+        corner_pix_y = np.array([bbox.iymin - 1.0, bbox.iymax + 1.0, bbox.iymax + 1.0, bbox.iymin - 1.0])
+        corner_ra, corner_dec = self.wcs.pixel_to_world_values(corner_pix_x, corner_pix_y)
+        sky_corners = SkyCoord(ra=corner_ra, dec=corner_dec, unit="deg", frame="icrs")
+
+        center = SkyCoord(ra=0.0, dec=0.0, unit="deg", frame="icrs")
+        separations = center.separation(sky_corners)
+        return np.max(separations.deg)
 
     def plot(
         self,
