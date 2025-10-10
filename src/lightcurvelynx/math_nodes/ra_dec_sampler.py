@@ -1,6 +1,6 @@
 """Samplers used for generating (RA, dec) coordinates."""
 
-import warnings
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -105,10 +105,9 @@ class ObsTableRADECSampler(TableSampler):
         if isinstance(data, ObsTable):
             if radius is None:
                 radius = data.radius
-            elif data.radius is not None and radius < data.radius:
-                warnings.warn(
-                    f"Provided radius {radius} is smaller than the ObsTable radius {data.radius}. "
-                    "This may lead to unexpected results if a detector footprint is used."
+            else:
+                logging.getLogger(__name__).info(
+                    f"Using provided radius {radius} instead of ObsTable radius {data.radius}."
                 )
         if radius is None or radius < 0.0:
             raise ValueError(f"Invalid radius: {radius}")
@@ -269,15 +268,12 @@ class ObsTableUniformRADECSampler(NumpyRandomFunc):
         if isinstance(data, ObsTable):
             if radius is None:
                 radius = data.radius
-            elif data.radius is not None and radius < data.radius:
-                warnings.warn(
-                    f"Provided radius {radius} is smaller than the ObsTable radius {data.radius}. "
-                    "This may lead to unexpected results if a detector footprint is used."
+            else:
+                logging.getLogger(__name__).info(
+                    f"Using provided radius {radius} instead of ObsTable radius {data.radius}."
                 )
-        if radius is None:
-            raise ValueError("ObsTable has no radius. Must provide radius.")
-        if radius <= 0.0:
-            raise ValueError(f"Invalid override_radius: {radius}")
+        if radius is None or radius < 0.0:
+            raise ValueError(f"Invalid radius: {radius}")
         self.radius = radius
 
         if len(data) == 0:

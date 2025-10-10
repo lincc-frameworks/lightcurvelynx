@@ -86,9 +86,7 @@ def test_obstable_ra_dec_sampler():
     ops_data = OpSim(values)
     assert len(ops_data) == 5
 
-    # This will raise a warning because the radius is smaller than the OpSim default.
-    with pytest.warns(UserWarning):
-        sampler_node = ObsTableRADECSampler(ops_data, radius=0.0, in_order=True)
+    sampler_node = ObsTableRADECSampler(ops_data, radius=0.0, in_order=True)
     assert sampler_node.radius == 0.0
 
     # Test we can generate a single value.
@@ -103,15 +101,8 @@ def test_obstable_ra_dec_sampler():
     assert np.allclose(dec, [-5.0, 0.0])
     assert np.allclose(time, [1.0, 2.0])
 
-    # Do randomized sampling.
-    with pytest.warns(UserWarning):
-        sampler_node2 = ObsTableRADECSampler(
-            ops_data,
-            in_order=False,
-            radius=0.0,
-            seed=100,
-            node_label="sampler",
-        )
+    # Do randomized sampling (with no offset).
+    sampler_node2 = ObsTableRADECSampler(ops_data, in_order=False, radius=0.0, seed=100, node_label="sampler")
     state = sampler_node2.sample_parameters(num_samples=5000)
 
     # Check that the samples are uniform and consistent.
