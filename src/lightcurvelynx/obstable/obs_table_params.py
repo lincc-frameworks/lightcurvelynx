@@ -4,6 +4,7 @@ import logging
 
 import numpy as np
 
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 
 
@@ -70,18 +71,21 @@ class _ParamDeriver:
         A set of parameter names that are original parameters from the ObsTable.
 
     Supported parameters (and their units) include:
+    - adu_bias: Bias level in ADU
     - airmass: Airmass (unitless)
     - dark_current: Dark current in electrons / second / pixel
     - exptime: Exposure time in seconds
     - ext_coeff: Extinction coefficient in mag / airmass
     - fwhm_px: Full-width at half-maximum of the PSF in pixels
+    - gain: CCD gain in electrons / ADU
     - maglim: Limiting magnitude (5-sigma) in mag
     - nexposure: Number of exposures per observation (unitless)
     - pixel_scale: Pixel scale in arcseconds per pixel
     - psf_footprint: Effective footprint of the PSF in pixels^2
     - read_noise: Read noise in electrons
     - seeing: Seeing in arcseconds
-    - sky: Sky background in electrons / pixel^2
+    - sky_bg_adu: Sky background in ADU / pixel
+    - sky_bg_electrons: Sky background in electrons / pixel^2
     - skybrightness: Sky brightness in mag / arcsec^2
     - zp: Instrumental zero point (nJy per electron)
 
@@ -89,18 +93,21 @@ class _ParamDeriver:
 
     def __init__(self):
         self.parameters = {
+            "adu_bias": None,  # Bias level in ADU
             "airmass": None,  # Airmass (unitless)
             "dark_current": None,  # Dark current in electrons / second / pixel
             "exptime": None,  # Exposure time in seconds
             "ext_coeff": None,  # Extinction coefficient in mag / airmass
             "fwhm_px": None,  # Full-width at half-maximum of the PSF in pixels
+            "gain": None,  # CCD gain in electrons / ADU
             "maglim": None,  # Limiting magnitude (5-sigma) in mag
             "nexposure": None,  # Number of exposures per observation (unitless)
             "pixel_scale": None,  # Pixel scale in arcseconds per pixel
             "psf_footprint": None,  # Effective footprint of the PSF in pixels
             "read_noise": None,  # Read noise in electrons
             "seeing": None,  # Seeing in arcseconds
-            "sky": None,  # Sky background in electrons / pixel^2
+            "sky_bg_adu": None,  # Sky background in ADU / pixel
+            "sky_bg_electrons": None,  # Sky background in electrons / pixel^2
             "skybrightness": None,  # Sky brightness in mag / arcsec^2
             "zp": None,  # Instrumental zero point (nJy per electron)
         }
@@ -131,7 +138,8 @@ class _ParamDeriver:
         self.formulas.append(_ParamFormula(parameter, inputs, formula))
 
     def init_from_obs_table(self, obs_table):
-        """Initialize parameters from an ObsTable.
+        """Initialize parameters from an ObsTable, retrieving values from either the
+        columns or survey constants (survey_values) for every parameter it can find.
 
         Parameters
         ----------
@@ -158,7 +166,8 @@ class _ParamDeriver:
                 self.org_parameters.add(param)
 
     def derive_parameters(self, obs_table):
-        """Derive parameters from an ObsTable using the predefined formulas.
+        """Derive parameters from an ObsTable using the predefined formulas, and
+        update the ObsTable with the derived parameters.
 
         Parameters
         ----------
@@ -183,7 +192,7 @@ class _ParamDeriver:
             if param not in self.org_parameters and value is not None:
                 if np.isscalar(value):
                     obs_table.survey_values[param] = value
-                elif len(np.unique(value)) == 1:
+                elif np.max(np.abs(value - value[0])) < 1e-8:  # all values are effectively the same
                     obs_table.survey_values[param] = value[0]
                 else:
                     obs_table.add_column(param, value)
@@ -207,3 +216,27 @@ class _ParamDeriver:
             inputs=["psf_footprint"],
             formula=lambda psf_footprint: np.sqrt(psf_footprint / GAUSS_EFF_AREA2FWHM_SQ),
         )
+        self.add_formula(
+            parameter="seeing",
+            inputs=["pixel_scale", "fwhm_px"],
+            formula=lambda pixel_scale, fwhm_px: fwhm_px * pixel_scale,
+        )
+
+        # Formulas for deriving the sky background (in electrons / pixel^2) and related information.
+        self.add_formula(
+            parameter="sky_bg_electrons",
+            inputs=["skybrightness", "pixel_scale", "zp"],
+            formula=lambda skybrightness, pixel_scale, zp: (mag2flux(skybrightness) * pixel_scale**2 / zp),
+        )
+        self.add_formula(
+            parameter="sky_bg_electrons",
+            inputs=["sky_bg_adu", "gain"],
+            formula=lambda sky_adu, gain: sky_adu * gain,
+        )
+        self.add_formula(
+            parameter="sky_bg_adu",
+            inputs=["sky_bg_electrons", "gain"],
+            formula=lambda sky_electrons, gain: sky_electrons / gain,
+        )
+
+    # TODO... Add formulas for deriving zp.
