@@ -38,7 +38,7 @@ class FakeObsTable(ObsTable):
         The exposure time for the camera in seconds, used for dark current calculation only
         (default=30).
     psf_footprint : float, optional
-        The effective psf_footprint of the PSF in pixels.
+        The effective psf_footprint of the PSF in pixels^2.
     fwhm_px : float or dict, optional
         The full-width at half-maximum of the PSF in pixels. If a dictionary is provided,
         it should map filter names to fwhm values. This is only needed if `psf_footprint` is not provided
