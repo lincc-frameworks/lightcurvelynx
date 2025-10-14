@@ -11,11 +11,7 @@ import pandas as pd
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
-from lightcurvelynx.astro_utils.zeropoint import (
-    _lsstcam_extinction_coeff,
-    _lsstcam_zeropoint_per_sec_zenith,
-    flux_electron_zeropoint,
-)
+from lightcurvelynx.astro_utils.zeropoint import flux_electron_zeropoint
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
@@ -43,6 +39,39 @@ _lsst_zp_err_mag = 1.0e-4
 
 We choose a very conservative noise flooring of 1e-4 mag.
 This number will be updated when we have a better estimate from LSST.
+"""
+
+_lsstcam_extinction_coeff = {
+    "u": -0.458,
+    "g": -0.208,
+    "r": -0.122,
+    "i": -0.074,
+    "z": -0.057,
+    "y": -0.095,
+}
+"""The extinction coefficients for the LSST filters.
+
+Values are from
+https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
+Calculated with syseng_throughputs v1.9
+"""
+
+_lsstcam_zeropoint_per_sec_zenith = {
+    "u": 26.524,
+    "g": 28.508,
+    "r": 28.361,
+    "i": 28.171,
+    "z": 27.782,
+    "y": 26.818,
+}
+"""The zeropoints for the LSST filters at zenith
+
+This is magnitude that produces 1 electron in a 1 second exposure,
+see _assign_zero_points() docs for more details.
+
+Values are from
+https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
+Calculated with syseng_throughputs v1.9
 """
 
 

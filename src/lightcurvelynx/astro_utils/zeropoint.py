@@ -5,59 +5,34 @@ import numpy.typing as npt
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 
-_lsstcam_extinction_coeff = {
-    "u": -0.458,
-    "g": -0.208,
-    "r": -0.122,
-    "i": -0.074,
-    "z": -0.057,
-    "y": -0.095,
-}
-"""The extinction coefficients for the LSST filters.
 
-Values are from
-https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
-Calculated with syseng_throughputs v1.9
-"""
+def sky_bg_adu_to_electrons(sky_bg_adu: npt.ArrayLike, gain: float | npt.ArrayLike) -> npt.ArrayLike:
+    """Convert sky background from ADU/pixel to electrons/pixel.
 
-_lsstcam_zeropoint_per_sec_zenith = {
-    "u": 26.524,
-    "g": 28.508,
-    "r": 28.361,
-    "i": 28.171,
-    "z": 27.782,
-    "y": 26.818,
-}
-"""The zeropoints for the LSST filters at zenith
+    Parameters
+    ----------
+    sky_bg_adu : ndarray of float
+        Sky background in ADU/pixel.
+    gain : float | ndarray of float
+        The CCD gain (in e-/ADU).
 
-This is magnitude that produces 1 electron in a 1 second exposure,
-see _assign_zero_points() docs for more details.
-
-Values are from
-https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
-Calculated with syseng_throughputs v1.9
-"""
+    Returns
+    -------
+    ndarray of float
+        Sky background in ADU/pixel.
+    """
+    return sky_bg_adu * gain
 
 
-# Suppress "no docstring", because we define it via an attribute.
-def magnitude_electron_zeropoint(  # noqa: D103
+def magnitude_electron_zeropoint(
     *,
     band: npt.ArrayLike,
     airmass: npt.ArrayLike,
     exptime: npt.ArrayLike,
-    instr_zp: dict[str, float] | None,
-    ext_coeff: dict[str, float] | None,
+    instr_zp_mag: dict[str, float] | float | npt.ArrayLike,
+    ext_coeff: dict[str, float] | float | npt.ArrayLike,
 ) -> npt.ArrayLike:
-    instr_zp = _lsstcam_zeropoint_per_sec_zenith if instr_zp is None else instr_zp
-    ext_coeff = _lsstcam_extinction_coeff if ext_coeff is None else ext_coeff
-
-    instr_zp_getter = np.vectorize(instr_zp.get)
-    ext_coeff_getter = np.vectorize(ext_coeff.get)
-
-    return instr_zp_getter(band) + ext_coeff_getter(band) * (airmass - 1) + 2.5 * np.log10(exptime)
-
-
-magnitude_electron_zeropoint.__doc__ = f"""Photometric zeropoint (magnitude that produces 1 electron) for
+    """Photometric zeropoint (magnitude that produces 1 electron) for
     LSST bandpasses (v1.9), using a standard atmosphere scaled
     for different airmasses and scaled for exposure times.
 
@@ -69,17 +44,13 @@ magnitude_electron_zeropoint.__doc__ = f"""Photometric zeropoint (magnitude that
         The airmass at which to return the photometric zeropoint.
     exptime : ndarray of float
         The exposure time for which to return the photometric zeropoint.
-    instr_zp : dict[str, float] or None
+    instr_zp_mag : dict[str, float], float, or ndarray of float
         The instrumental zeropoint for each bandpass,
         i.e. AB-magnitude that produces 1 electron in a 1-second exposure.
         Keys are the bandpass names, values are the zeropoints.
-        If None, the LSST zeropoints are used:
-        {_lsstcam_zeropoint_per_sec_zenith}
-    ext_coeff : dict[str, float]
+    ext_coeff : dict[str, float], float, or ndarray of float
         Atmospheric extinction coefficient for each bandpass.
         Keys are the bandpass names, values are the coefficients.
-        If None, the LSST coefficients are used:
-        {_lsstcam_extinction_coeff}
 
     Returns
     -------
@@ -96,24 +67,25 @@ magnitude_electron_zeropoint.__doc__ = f"""Photometric zeropoint (magnitude that
     ----------
     Lynne Jones - https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
     """
+    # If we are given dictionaries mapping filter to value for either instr_zp_mag or ext_coeff,
+    # convert them to the corresponding array of values for the input band array.
+    if isinstance(instr_zp_mag, dict):
+        instr_zp_mag = np.vectorize(instr_zp_mag.get)(band)
+    if isinstance(ext_coeff, dict):
+        ext_coeff = np.vectorize(ext_coeff.get)(band)
+
+    return instr_zp_mag + ext_coeff * (airmass - 1) + 2.5 * np.log10(exptime)
 
 
-# Suppress "no docstring", because we define it via an attribute.
-def flux_electron_zeropoint(  # noqa: D103
+def flux_electron_zeropoint(
     *,
-    instr_zp_mag: dict[str, float] | None,
-    ext_coeff: dict[str, float] | None,
+    instr_zp_mag: dict[str, float] | float | npt.ArrayLike,
+    ext_coeff: dict[str, float] | float | npt.ArrayLike,
     band: npt.ArrayLike,
     airmass: npt.ArrayLike,
     exptime: npt.ArrayLike,
 ) -> npt.ArrayLike:
-    mag_zp_electron = magnitude_electron_zeropoint(
-        instr_zp=instr_zp_mag, ext_coeff=ext_coeff, band=band, airmass=airmass, exptime=exptime
-    )
-    return mag2flux(mag_zp_electron)
-
-
-flux_electron_zeropoint.__doc__ = f"""Flux (nJy) producing 1 electron.
+    """Flux (nJy) producing 1 electron.
 
     Parameters
     ----------
@@ -123,30 +95,33 @@ flux_electron_zeropoint.__doc__ = f"""Flux (nJy) producing 1 electron.
         The airmass at which to return the photometric zeropoint.
     exptime : ndarray of float
         The exposure time for which to return the photometric zeropoint.
-    instr_zp_mag : dict[str, float]
+    instr_zp_mag : dict[str, float], float, or ndarray of float
         The instrumental zeropoint for each bandpass in AB magnitudes,
         i.e. the magnitude that produces 1 electron in a 1-second exposure.
         Keys are the bandpass names, values are the zeropoints.
-        If None, the LSST zeropoints are used:
-        {_lsstcam_zeropoint_per_sec_zenith}
-    ext_coeff : dict[str, float]
+    ext_coeff : dict[str, float], float, or ndarray of float
         Atmospheric extinction coefficient for each bandpass.
         Keys are the bandpass names, values are the coefficients.
-        If None, the LSST coefficients are used:
-        {_lsstcam_extinction_coeff}
 
     Returns
     -------
     ndarray of float
         Flux (nJy) per electron.
     """
+    mag_zp_electron = magnitude_electron_zeropoint(
+        instr_zp_mag=instr_zp_mag,
+        ext_coeff=ext_coeff,
+        band=band,
+        airmass=airmass,
+        exptime=exptime,
+    )
+    return mag2flux(mag_zp_electron)
 
 
 def calculate_zp_from_maglim(
     maglim=None,
-    sky=None,
+    sky_bg_electrons=None,
     fwhm=None,
-    gain=None,
     readnoise=None,
     darkcurrent=None,
     exptime=None,
@@ -166,26 +141,24 @@ def calculate_zp_from_maglim(
                             + 100( sky*npix*Gain
                             + readnoise**2*nexposure*npix
                             + darkcurrent*npix*exptime*nexposure) )
-    zp = 2.5log(flux) + maglim
+    zp = 2.5*log10(flux) + maglim
 
     Parameters
     ----------
     maglim : float or ndarray
         Five-sigma magnitude limit.
-    sky : float or ndarry
-        Sky background in ADU/pixel.
+    sky_bg_electrons : float or ndarray
+        Sky background in electrons/pixel.
     fwhm : float or ndarray
         PSF in pixels.
-    gain : float or ndarray; default is _ztfcam_ccd_gain
-        CCD gain.
-    readnoise : float or ndarray; default is _ztfcam_readout_noise
+    readnoise : float or ndarray
         Read noise (in e-/pixel).
-    darkcurrent : float or ndarray; default is _ztfcam_dark_current
+    darkcurrent : float or ndarray
         Dark current (in e-/pixel/second).
     exptime : float or ndarray
         Exposure time (in seconds).
     nexposure : int or ndarray
-        Number of exposure.
+        Number of exposure. Default is 1.
 
     Returns
     -------
@@ -196,7 +169,11 @@ def calculate_zp_from_maglim(
     flux_at_5sigma_limit = 12.5 + 2.5 * np.sqrt(
         25.0
         + 4.0
-        * (sky * npix * gain + readnoise**2 * nexposure * npix + darkcurrent * npix * exptime * nexposure)
+        * (
+            sky_bg_electrons * npix
+            + readnoise**2 * nexposure * npix
+            + darkcurrent * npix * exptime * nexposure
+        )
     )
     zp = 2.5 * np.log10(flux_at_5sigma_limit) + maglim
 
