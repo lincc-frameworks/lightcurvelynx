@@ -5,12 +5,10 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
-from lightcurvelynx.astro_utils.zeropoint import (
-    _lsstcam_extinction_coeff,
-    _lsstcam_zeropoint_per_sec_zenith,
-)
 from lightcurvelynx.obstable.opsim import (
     OpSim,
+    _lsstcam_extinction_coeff,
+    _lsstcam_zeropoint_per_sec_zenith,
     create_random_opsim,
     opsim_add_random_data,
     oversample_opsim,

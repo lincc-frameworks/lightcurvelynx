@@ -1,15 +1,19 @@
 """The core functions for running the LightCurveLynx simulation."""
 
 import concurrent.futures
+import logging
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from nested_pandas import NestedFrame
+from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.noise_model import apply_noise
 from lightcurvelynx.models.physical_model import BandfluxModel
 from lightcurvelynx.utils.post_process_results import concat_results
+
+logger = logging.getLogger(__name__)
 
 
 class SimulationInfo:
@@ -227,6 +231,10 @@ def _simulate_lightcurves_batch(simulation_info):
         for each object. Otherwise the NestedFrame is saved to a file and the function
         returns that file's path.
     """
+    logger.info(
+        f"Starting batch at {simulation_info.sample_offset} with {simulation_info.num_samples} samples."
+    )
+
     # Extract the parameters from the SimulationInfo that are used repeated
     # (so we have shorter names).
     model = simulation_info.model
@@ -240,6 +248,7 @@ def _simulate_lightcurves_batch(simulation_info):
     # object use the same parameters across all observations.
     if num_samples <= 0:
         raise ValueError("Invalid number of samples.")
+    logger.info(f"Sampling {num_samples} parameter sets from the model.")
     sample_states = model.sample_parameters(num_samples=num_samples, rng_info=rng)
 
     # If we are given information for a single survey, make it into a list.
@@ -298,6 +307,7 @@ def _simulate_lightcurves_batch(simulation_info):
         nested_dict[col] = []
 
     # Determine which of the of the simulated positions match the pointings from each ObsTable.
+    logger.info("Performing range searches to find matching observations.")
     start_times, end_times = get_time_windows(
         model.get_param(sample_states, "t0"),
         simulation_info.time_window_offset,
@@ -312,7 +322,8 @@ def _simulate_lightcurves_batch(simulation_info):
 
     # We loop over objects first, then surveys. This allows us to generate a single block
     # of data for the object over all surveys.
-    for idx, state in enumerate(sample_states):
+    logger.info("Simulating light curves for each object.")
+    for idx, state in tqdm(enumerate(sample_states), total=num_samples, desc="Simulating", unit="obj"):
         total_num_obs = 0
 
         for survey_idx in range(num_surveys):
@@ -369,6 +380,7 @@ def _simulate_lightcurves_batch(simulation_info):
         results_dict["nobs"][idx] = total_num_obs
 
     # Create the nested frame and either save it to a file or return it directly.
+    logger.info("Compiling results.")
     results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
     results = results.add_nested(nested_frame, "lightcurve")

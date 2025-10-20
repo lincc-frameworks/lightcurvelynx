@@ -7,7 +7,7 @@ from astropy.time import Time
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
-from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
+from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim, sky_bg_adu_to_electrons
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
 
@@ -117,11 +117,13 @@ class ZTFObsTable(ObsTable):
         self._table = self._table.replace("", np.nan)
         self._table = self._table.dropna(subset=["fwhm"])
 
+        # Compute the sky background in electrons/pixel. The sky column is in ADU/pixel,
+        # so we need to multiply by the gain.
+        sky_bg_electrons = sky_bg_adu_to_electrons(self._table["sky"], _ztfcam_ccd_gain)
         zp_values = calculate_zp_from_maglim(
             maglim=self._table["maglim"],
-            sky=self._table["sky"],
+            sky_bg_electrons=sky_bg_electrons,
             fwhm=self._table["fwhm"],
-            gain=_ztfcam_ccd_gain,
             readnoise=_ztfcam_readout_noise,
             darkcurrent=_ztfcam_dark_current,
             exptime=self._table["exptime"],
