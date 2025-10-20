@@ -28,6 +28,7 @@ dependencies = [
     "pooch",
     "regions",
     "scipy",
+    "tqdm",
 ]
 
 [project.urls]
