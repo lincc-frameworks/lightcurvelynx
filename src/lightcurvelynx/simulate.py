@@ -323,7 +323,7 @@ def _simulate_lightcurves_batch(simulation_info):
     # We loop over objects first, then surveys. This allows us to generate a single block
     # of data for the object over all surveys.
     logger.info("Simulating light curves for each object.")
-    for idx, state in tqdm(enumerate(sample_states)):
+    for idx, state in tqdm(enumerate(sample_states), total=num_samples, desc="Simulating", unit="obj"):
         total_num_obs = 0
 
         for survey_idx in range(num_surveys):
