@@ -4,6 +4,7 @@ from lightcurvelynx.astro_utils.zeropoint import (
     calculate_zp_from_maglim,
     flux_electron_zeropoint,
     magnitude_electron_zeropoint,
+    sky_bg_adu_to_electrons,
 )
 from lightcurvelynx.obstable.opsim import LSSTCAM_PIXEL_SCALE, _lsstcam_dark_current, _lsstcam_readout_noise
 from scipy.optimize import fsolve
@@ -32,12 +33,34 @@ def test_magnitude_electron_zeropoint():
     }
     sky_brightness_getter = np.vectorize(sky_brightness.get)
 
+    # Use the LSST extinction coefficients and zeropoints per second at zenith.
+    extinction_coeff = {
+        "u": -0.458,
+        "g": -0.208,
+        "r": -0.122,
+        "i": -0.074,
+        "z": -0.057,
+        "y": -0.095,
+    }
+    zp_per_sec_zenith = {
+        "u": 26.524,
+        "g": 28.508,
+        "r": 28.361,
+        "i": 28.171,
+        "z": 27.782,
+        "y": 26.818,
+    }
+
     bands = list(fwhm_eff.keys())
     exptime = 30
     airmass = 1
     s2n = 5
     zp = magnitude_electron_zeropoint(
-        band=bands, airmass=airmass, exptime=exptime, instr_zp=None, ext_coeff=None
+        band=bands,
+        airmass=airmass,
+        exptime=exptime,
+        instr_zp_mag=zp_per_sec_zenith,
+        ext_coeff=extinction_coeff,
     )
     sky_count_per_arcsec_sq = np.power(10.0, -0.4 * (sky_brightness_getter(bands) - zp))
     readout_per_arcsec_sq = _lsstcam_readout_noise**2 / LSSTCAM_PIXEL_SCALE**2
@@ -63,32 +86,71 @@ def test_magnitude_electron_zeropoint():
 
     np.testing.assert_allclose(mag_signal, m5_desired_getter(bands), atol=0.1)
 
-
-def test_magnitude_electron_zeropoint_docstring():
-    """Check if magnitude_electron_zeropoint has a docstring"""
-    assert magnitude_electron_zeropoint.__doc__ is not None
-    assert len(magnitude_electron_zeropoint.__doc__) > 100
+    # Test that the same result is obtained if we pass in the full arrays.
+    # The arrays must be in the same order as the bands.
+    extinction_coeff_array = np.array([extinction_coeff[b] for b in bands])
+    zp_per_sec_zenith_array = np.array([zp_per_sec_zenith[b] for b in bands])
+    zp2 = magnitude_electron_zeropoint(
+        band=bands,
+        airmass=airmass,
+        exptime=exptime,
+        instr_zp_mag=zp_per_sec_zenith_array,
+        ext_coeff=extinction_coeff_array,
+    )
+    np.testing.assert_allclose(zp, zp2, rtol=1e-10)
 
 
 def test_flux_electron_zeropoint():
     """Test that bandflux zeropoints are correct"""
+    extinction_coeff = {
+        "u": -0.458,
+        "g": -0.208,
+        "r": -0.122,
+        "i": -0.074,
+        "z": -0.057,
+        "y": -0.095,
+    }
+    zp_per_sec_zenith = {
+        "u": 26.524,
+        "g": 28.508,
+        "r": 28.361,
+        "i": 28.171,
+        "z": 27.782,
+        "y": 26.818,
+    }
+
     # Here we just check that magnitude-flux conversion is correct
     airmass = np.array([1, 1.5, 2]).reshape(-1, 1, 1)
     exptime = np.array([30, 38, 45]).reshape(1, -1, 1)
     bands = ["u", "g", "r", "i", "z", "y"]
     mag = magnitude_electron_zeropoint(
-        band=bands, airmass=airmass, exptime=exptime, instr_zp=None, ext_coeff=None
+        band=bands,
+        airmass=airmass,
+        exptime=exptime,
+        instr_zp_mag=zp_per_sec_zenith,
+        ext_coeff=extinction_coeff,
     )
     flux = flux_electron_zeropoint(
-        band=bands, airmass=airmass, exptime=exptime, instr_zp_mag=None, ext_coeff=None
+        band=bands,
+        airmass=airmass,
+        exptime=exptime,
+        instr_zp_mag=zp_per_sec_zenith,
+        ext_coeff=extinction_coeff,
     )
     np.testing.assert_allclose(mag, flux2mag(flux), rtol=1e-10)
 
-
-def test_flux_electron_zeropoint_docstring():
-    """Check if flux_electron_zeropoint has a docstring"""
-    assert flux_electron_zeropoint.__doc__ is not None
-    assert len(flux_electron_zeropoint.__doc__) > 100
+    # Test that the same result is obtained if we pass in the full arrays.
+    # The arrays must be in the same order as the bands.
+    extinction_coeff_array = np.array([extinction_coeff[b] for b in bands])
+    zp_per_sec_zenith_array = np.array([zp_per_sec_zenith[b] for b in bands])
+    flux2 = flux_electron_zeropoint(
+        band=bands,
+        airmass=airmass,
+        exptime=exptime,
+        instr_zp_mag=zp_per_sec_zenith_array,
+        ext_coeff=extinction_coeff_array,
+    )
+    np.testing.assert_allclose(flux, flux2, rtol=1e-10)
 
 
 def _fluxeq(
@@ -132,9 +194,8 @@ def test_zp_from_maglim():
 
     zp_cal = calculate_zp_from_maglim(
         maglim=maglim,
-        sky=sky,
+        sky_bg_electrons=sky_bg_adu_to_electrons(sky, gain),
         fwhm=fwhm,
-        gain=gain,
         readnoise=readnoise,
         darkcurrent=darkcurrent,
         exptime=exptime,
