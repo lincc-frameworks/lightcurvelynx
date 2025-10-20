@@ -6,20 +6,20 @@ import numpy.typing as npt
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 
 
-def sky_bg_adu_to_electrons(sky_bg_adu: npt.ArrayLike, gain: float | npt.ArrayLike) -> npt.ArrayLike:
+def sky_bg_adu_to_electrons(sky_bg_adu, gain):
     """Convert sky background from ADU/pixel to electrons/pixel.
 
     Parameters
     ----------
-    sky_bg_adu : ndarray of float
+    sky_bg_adu : float or ndarray of float
         Sky background in ADU/pixel.
-    gain : float | ndarray of float
+    gain : float or ndarray of float
         The CCD gain (in e-/ADU).
 
     Returns
     -------
-    ndarray of float
-        Sky background in ADU/pixel.
+    float or ndarray of float
+        Sky background in electrons/pixel.
     """
     return sky_bg_adu * gain
 
