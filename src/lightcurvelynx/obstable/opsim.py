@@ -168,7 +168,7 @@ class OpSim(ObsTable):
         zp_values = flux_electron_zeropoint(
             ext_coeff=self.safe_get_survey_value("ext_coeff"),
             instr_zp_mag=self.safe_get_survey_value("zp_per_sec"),
-            band=self._table["filter"],
+            filter=self._table["filter"],
             airmass=self._table["airmass"],
             exptime=self._table["exptime"],
         )

@@ -123,7 +123,7 @@ class ZTFObsTable(ObsTable):
         zp_values = calculate_zp_from_maglim(
             maglim=self._table["maglim"],
             sky_bg_electrons=sky_bg_electrons,
-            fwhm=self._table["fwhm"],
+            fwhm_px=self._table["fwhm"],
             readnoise=_ztfcam_readout_noise,
             darkcurrent=_ztfcam_dark_current,
             exptime=self._table["exptime"],
