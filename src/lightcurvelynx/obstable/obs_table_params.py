@@ -5,6 +5,11 @@ import logging
 import numpy as np
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.astro_utils.zeropoint import (
+    calculate_zp_from_maglim,
+    flux_electron_zeropoint,
+    sky_bg_adu_to_electrons,
+)
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 
 
@@ -76,6 +81,7 @@ class _ParamDeriver:
     - dark_current: Dark current in electrons / second / pixel
     - exptime: Exposure time in seconds
     - ext_coeff: Extinction coefficient in mag / airmass
+    - filter: Photometric filter (e.g., g, r, i)
     - fwhm_px: Full-width at half-maximum of the PSF in pixels
     - gain: CCD gain in electrons / ADU
     - maglim: Limiting magnitude (5-sigma) in mag
@@ -88,7 +94,7 @@ class _ParamDeriver:
     - sky_bg_electrons: Sky background in electrons / pixel^2
     - skybrightness: Sky brightness in mag / arcsec^2
     - zp: Instrumental zero point (nJy per electron)
-
+    - zp_per_band: Instrumental zero point per band (nJy per electron)
     """
 
     def __init__(self):
@@ -98,6 +104,7 @@ class _ParamDeriver:
             "dark_current": None,  # Dark current in electrons / second / pixel
             "exptime": None,  # Exposure time in seconds
             "ext_coeff": None,  # Extinction coefficient in mag / airmass
+            "filter": None,  # Photometric filter (e.g., g, r, i)
             "fwhm_px": None,  # Full-width at half-maximum of the PSF in pixels
             "gain": None,  # CCD gain in electrons / ADU
             "maglim": None,  # Limiting magnitude (5-sigma) in mag
@@ -110,6 +117,7 @@ class _ParamDeriver:
             "sky_bg_electrons": None,  # Sky background in electrons / pixel^2
             "skybrightness": None,  # Sky brightness in mag / arcsec^2
             "zp": None,  # Instrumental zero point (nJy per electron)
+            "zp_per_band": None,  # Instrumental zero point per band (nJy per electron)
         }
         self.formulas = []
         self.org_parameters = set()
@@ -200,6 +208,11 @@ class _ParamDeriver:
     def _init_formulas(self):
         """Initialize the standard formulas for deriving parameters."""
 
+        # Renaming transformations (makes a copy with a new name). The per-band information
+        # has already been expanded out in init_from_obs_table().
+        self.add_formula(parameter="fwhm_px", inputs=["fwhm"], formula=lambda fwhm: fwhm)
+        self.add_formula(parameter="zp", inputs=["zp_per_band"], formula=lambda zp_per_band: zp_per_band)
+
         # Formulas for deriving the psf_footprint (in pixels^2) and related information.
         self.add_formula(
             parameter="psf_footprint",
@@ -231,7 +244,7 @@ class _ParamDeriver:
         self.add_formula(
             parameter="sky_bg_electrons",
             inputs=["sky_bg_adu", "gain"],
-            formula=lambda sky_adu, gain: sky_adu * gain,
+            formula=sky_bg_adu_to_electrons,
         )
         self.add_formula(
             parameter="sky_bg_adu",
@@ -239,4 +252,22 @@ class _ParamDeriver:
             formula=lambda sky_electrons, gain: sky_electrons / gain,
         )
 
-    # TODO... Add formulas for deriving zp.
+        # Formulas for deriving the zero point (in nJy per electron) and related information.
+        self.add_formula(
+            parameter="zp",
+            inputs=["filter", "airmass", "exptime", "instr_zp_mag", "ext_coeff"],
+            formula=flux_electron_zeropoint,
+        )
+        self.add_formula(
+            parameter="zp",
+            inputs=[
+                "maglim",
+                "sky_bg_electrons",
+                "fwhm_px",
+                "read_noise",
+                "dark_current",
+                "exptime",
+                "nexposure",
+            ],
+            formula=calculate_zp_from_maglim,
+        )

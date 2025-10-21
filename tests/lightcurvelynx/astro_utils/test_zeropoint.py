@@ -56,7 +56,7 @@ def test_magnitude_electron_zeropoint():
     airmass = 1
     s2n = 5
     zp = magnitude_electron_zeropoint(
-        band=bands,
+        filter=bands,
         airmass=airmass,
         exptime=exptime,
         instr_zp_mag=zp_per_sec_zenith,
@@ -91,7 +91,7 @@ def test_magnitude_electron_zeropoint():
     extinction_coeff_array = np.array([extinction_coeff[b] for b in bands])
     zp_per_sec_zenith_array = np.array([zp_per_sec_zenith[b] for b in bands])
     zp2 = magnitude_electron_zeropoint(
-        band=bands,
+        filter=bands,
         airmass=airmass,
         exptime=exptime,
         instr_zp_mag=zp_per_sec_zenith_array,
@@ -124,14 +124,14 @@ def test_flux_electron_zeropoint():
     exptime = np.array([30, 38, 45]).reshape(1, -1, 1)
     bands = ["u", "g", "r", "i", "z", "y"]
     mag = magnitude_electron_zeropoint(
-        band=bands,
+        filter=bands,
         airmass=airmass,
         exptime=exptime,
         instr_zp_mag=zp_per_sec_zenith,
         ext_coeff=extinction_coeff,
     )
     flux = flux_electron_zeropoint(
-        band=bands,
+        filter=bands,
         airmass=airmass,
         exptime=exptime,
         instr_zp_mag=zp_per_sec_zenith,
@@ -144,7 +144,7 @@ def test_flux_electron_zeropoint():
     extinction_coeff_array = np.array([extinction_coeff[b] for b in bands])
     zp_per_sec_zenith_array = np.array([zp_per_sec_zenith[b] for b in bands])
     flux2 = flux_electron_zeropoint(
-        band=bands,
+        filter=bands,
         airmass=airmass,
         exptime=exptime,
         instr_zp_mag=zp_per_sec_zenith_array,
@@ -154,11 +154,11 @@ def test_flux_electron_zeropoint():
 
 
 def _fluxeq(
-    flux, sky=None, gain=None, readnoise=None, nexposure=1, fwhm=None, darkcurrent=None, exptime=None
+    flux, sky=None, gain=None, readnoise=None, nexposure=1, fwhm_px=None, darkcurrent=None, exptime=None
 ):
     """Define the equation to solve for flux at 5-sigma limit"""
 
-    npix = 2.266 * fwhm**2  # = 4 * pi * sigma**2 = pi/2/ln2 * FWHM**2
+    npix = 2.266 * fwhm_px**2  # = 4 * pi * sigma**2 = pi/2/ln2 * FWHM**2
     y = (
         flux**2
         - 25 * flux
@@ -184,7 +184,7 @@ def test_zp_from_maglim():
             sky=sky,
             gain=gain,
             readnoise=readnoise,
-            fwhm=fwhm,
+            fwhm_px=fwhm,
             darkcurrent=darkcurrent,
             exptime=exptime,
         ),
@@ -195,7 +195,7 @@ def test_zp_from_maglim():
     zp_cal = calculate_zp_from_maglim(
         maglim=maglim,
         sky_bg_electrons=sky_bg_adu_to_electrons(sky, gain),
-        fwhm=fwhm,
+        fwhm_px=fwhm,
         readnoise=readnoise,
         darkcurrent=darkcurrent,
         exptime=exptime,
