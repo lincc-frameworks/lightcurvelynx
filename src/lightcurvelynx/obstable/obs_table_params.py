@@ -84,6 +84,7 @@ class _ParamDeriver:
     - filter: Photometric filter (e.g., g, r, i)
     - fwhm_px: Full-width at half-maximum of the PSF in pixels
     - gain: CCD gain in electrons / ADU
+    - instr_zp_mag: Instrumental zero point magnitude (mag)
     - maglim: Limiting magnitude (5-sigma) in mag
     - nexposure: Number of exposures per observation (unitless)
     - pixel_scale: Pixel scale in arcseconds per pixel
@@ -107,6 +108,7 @@ class _ParamDeriver:
             "filter": None,  # Photometric filter (e.g., g, r, i)
             "fwhm_px": None,  # Full-width at half-maximum of the PSF in pixels
             "gain": None,  # CCD gain in electrons / ADU
+            "instr_zp_mag": None,  # Instrumental zero point magnitude (mag)
             "maglim": None,  # Limiting magnitude (5-sigma) in mag
             "nexposure": None,  # Number of exposures per observation (unitless)
             "pixel_scale": None,  # Pixel scale in arcseconds per pixel
@@ -160,7 +162,7 @@ class _ParamDeriver:
         # Load each parameter from the ObsTable if it exists and is valid.
         for param in self.parameters:
             if param in obs_table.columns:
-                values = obs_table[param]
+                values = obs_table[param].to_numpy()
             elif param in obs_table.survey_values:
                 values = obs_table.survey_values[param]
                 if type(values) is dict:
@@ -169,7 +171,7 @@ class _ParamDeriver:
                 values = None
 
             # Only use the values if they are valid (not None or NaN).
-            if values is not None and not np.any(np.isnan(values) | (values == None)):  # noqa: E711
+            if values is not None and not np.any(values == None):  # noqa: E711
                 self.parameters[param] = values
                 self.org_parameters.add(param)
 
@@ -210,7 +212,6 @@ class _ParamDeriver:
 
         # Renaming transformations (makes a copy with a new name). The per-band information
         # has already been expanded out in init_from_obs_table().
-        self.add_formula(parameter="fwhm_px", inputs=["fwhm"], formula=lambda fwhm: fwhm)
         self.add_formula(parameter="zp", inputs=["zp_per_band"], formula=lambda zp_per_band: zp_per_band)
 
         # Formulas for deriving the psf_footprint (in pixels^2) and related information.

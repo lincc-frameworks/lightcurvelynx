@@ -39,10 +39,16 @@ def test_create_obs_table():
     assert t_max == 4.0
 
     # We can query which columns the ObsTable has.
-    assert "time" in ops_data.columns
-    assert "ra" in ops_data.columns
-    assert "dec" in ops_data.columns
-    assert "is_good_obs" not in ops_data.columns
+    assert set(ops_data.columns) == {"time", "ra", "dec", "zp"}
+    assert "time" in ops_data
+    assert "ra" in ops_data
+    assert "dec" in ops_data
+    assert "is_good_obs" not in ops_data
+
+    # We can query which parameter values the ObsTable has.
+    assert "dark_current" not in ops_data
+    assert "survey_name" in ops_data
+    assert "random_param" not in ops_data
 
     # We can access columns directly as though it was a table.
     assert np.allclose(ops_data["ra"], values["ra"])
@@ -86,12 +92,12 @@ def test_create_obs_table_override():
     )
 
     # We have loaded the non-default values.
-    assert ops_data.survey_values["dark_current"] == 0.1
-    assert ops_data.survey_values["ext_coeff"] == {"u": 0.1, "g": 0.2, "r": 0.3, "i": 0.4, "z": 0.5, "y": 0.6}
-    assert ops_data.survey_values["pixel_scale"] == 0.1
-    assert ops_data.survey_values["radius"] == 1.0
-    assert ops_data.survey_values["read_noise"] == 5.0
-    assert ops_data.survey_values["zp_per_sec"] == {
+    assert ops_data["dark_current"] == 0.1
+    assert ops_data["ext_coeff"] == {"u": 0.1, "g": 0.2, "r": 0.3, "i": 0.4, "z": 0.5, "y": 0.6}
+    assert ops_data["pixel_scale"] == 0.1
+    assert ops_data["radius"] == 1.0
+    assert ops_data["read_noise"] == 5.0
+    assert ops_data["zp_per_sec"] == {
         "u": 25.0,
         "g": 26.0,
         "r": 27.0,
@@ -99,6 +105,11 @@ def test_create_obs_table_override():
         "z": 29.0,
         "y": 30.0,
     }
+
+    # We can check if parameters are set.
+    assert "dark_current" in ops_data
+    assert "zp_per_sec" in ops_data
+    assert "random_param" not in ops_data
 
     # We can access the filters.
     assert set(ops_data.filters) == {"r", "g", "i"}
