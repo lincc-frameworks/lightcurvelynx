@@ -182,18 +182,24 @@ class ObsTable:
         return len(self._table)
 
     def __getitem__(self, key):
-        """Access the underlying observation table by column name."""
+        """Access the underlying observation table by column or parameter name. This will
+        return either a full column from the table or a survey parameter value.
+        """
         if key in self._table.columns:
             return self._table[key]
         if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
             return self._table[self._inv_colmap[key]]
-        raise KeyError(f"Column not found: {key}")
+        if key in self.survey_values:
+            return self.survey_values[key]
+        raise KeyError(f"Column or parameter not found: {key}")
 
     def __contains__(self, key):
-        """Check if a column exists in the survey table."""
+        """Check if a column exists in the survey table or a parameter in the parameter table."""
         if key in self._table.columns:
             return True
         if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
+            return True
+        if key in self.survey_values and self.survey_values[key] is not None:
             return True
         return False
 
