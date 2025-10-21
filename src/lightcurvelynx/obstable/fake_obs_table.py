@@ -12,10 +12,8 @@ class FakeObsTable(ObsTable):
     The class uses a flexible deriver to try to compute any missing parameters needed from
     what is provided. Suppported parameters include:
     - adu_bias: Bias level in ADU
-    - airmass: Airmass (unitless)
     - dark_current: Dark current in electrons / second / pixel
     - exptime: Exposure time in seconds
-    - ext_coeff: Extinction coefficient in mag / airmass
     - filter: Photometric filter (e.g., g, r, i)
     - fwhm_px: Full-width at half-maximum of the PSF in pixels
     - gain: CCD gain in electrons / ADU

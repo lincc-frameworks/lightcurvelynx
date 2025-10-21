@@ -76,7 +76,6 @@ class _ParamDeriver:
 
     Supported parameters (and their units) include:
     - adu_bias: Bias level in ADU
-    - airmass: Airmass (unitless)
     - dark_current: Dark current in electrons / second / pixel
     - exptime: Exposure time in seconds
     - filter: Photometric filter (e.g., g, r, i)
@@ -98,7 +97,6 @@ class _ParamDeriver:
     def __init__(self):
         self.parameters = {
             "adu_bias": None,  # Bias level in ADU
-            "airmass": None,  # Airmass (unitless)
             "dark_current": None,  # Dark current in electrons / second / pixel
             "exptime": None,  # Exposure time in seconds
             "filter": None,  # Photometric filter (e.g., g, r, i)
