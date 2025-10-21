@@ -26,7 +26,7 @@ def sky_bg_adu_to_electrons(sky_bg_adu, gain):
 
 def magnitude_electron_zeropoint(
     *,
-    band: npt.ArrayLike,
+    filter: npt.ArrayLike,
     airmass: npt.ArrayLike,
     exptime: npt.ArrayLike,
     instr_zp_mag: dict[str, float] | float | npt.ArrayLike,
@@ -38,7 +38,7 @@ def magnitude_electron_zeropoint(
 
     Parameters
     ----------
-    band : ndarray of str
+    filter : ndarray of str
         The filter for which to return the photometric zeropoint.
     airmass : ndarray of float
         The airmass at which to return the photometric zeropoint.
@@ -68,12 +68,11 @@ def magnitude_electron_zeropoint(
     Lynne Jones - https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
     """
     # If we are given dictionaries mapping filter to value for either instr_zp_mag or ext_coeff,
-    # convert them to the corresponding array of values for the input band array.
+    # convert them to the corresponding array of values for the input filter array.
     if isinstance(instr_zp_mag, dict):
-        instr_zp_mag = np.vectorize(instr_zp_mag.get)(band)
+        instr_zp_mag = np.vectorize(instr_zp_mag.get)(filter)
     if isinstance(ext_coeff, dict):
-        ext_coeff = np.vectorize(ext_coeff.get)(band)
-
+        ext_coeff = np.vectorize(ext_coeff.get)(filter)
     return instr_zp_mag + ext_coeff * (airmass - 1) + 2.5 * np.log10(exptime)
 
 
@@ -81,7 +80,7 @@ def flux_electron_zeropoint(
     *,
     instr_zp_mag: dict[str, float] | float | npt.ArrayLike,
     ext_coeff: dict[str, float] | float | npt.ArrayLike,
-    band: npt.ArrayLike,
+    filter: npt.ArrayLike,
     airmass: npt.ArrayLike,
     exptime: npt.ArrayLike,
 ) -> npt.ArrayLike:
@@ -89,11 +88,11 @@ def flux_electron_zeropoint(
 
     Parameters
     ----------
-    band : nparray of str
+    filter : npt.ArrayLike
         The filter for which to return the photometric zeropoint.
-    airmass : ndarray of float
+    airmass : npt.ArrayLike
         The airmass at which to return the photometric zeropoint.
-    exptime : ndarray of float
+    exptime : npt.ArrayLike
         The exposure time for which to return the photometric zeropoint.
     instr_zp_mag : dict[str, float], float, or ndarray of float
         The instrumental zeropoint for each bandpass in AB magnitudes,
@@ -111,7 +110,7 @@ def flux_electron_zeropoint(
     mag_zp_electron = magnitude_electron_zeropoint(
         instr_zp_mag=instr_zp_mag,
         ext_coeff=ext_coeff,
-        band=band,
+        filter=filter,
         airmass=airmass,
         exptime=exptime,
     )
@@ -121,7 +120,7 @@ def flux_electron_zeropoint(
 def calculate_zp_from_maglim(
     maglim=None,
     sky_bg_electrons=None,
-    fwhm=None,
+    fwhm_px=None,
     readnoise=None,
     darkcurrent=None,
     exptime=None,
@@ -149,7 +148,7 @@ def calculate_zp_from_maglim(
         Five-sigma magnitude limit.
     sky_bg_electrons : float or ndarray
         Sky background in electrons/pixel.
-    fwhm : float or ndarray
+    fwhm_px : float or ndarray
         PSF in pixels.
     readnoise : float or ndarray
         Read noise (in e-/pixel).
@@ -165,7 +164,7 @@ def calculate_zp_from_maglim(
     zp: float or ndarray
         Instrument zero point (that converts 1 e- to magnitude).
     """
-    npix = 2.266 * fwhm**2  # = 4 * pi * sigma**2 = pi/2/ln2 * FWHM**2
+    npix = 2.266 * fwhm_px**2  # = 4 * pi * sigma**2 = pi/2/ln2 * FWHM**2
     flux_at_5sigma_limit = 12.5 + 2.5 * np.sqrt(
         25.0
         + 4.0
