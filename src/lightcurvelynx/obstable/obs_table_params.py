@@ -7,7 +7,6 @@ import numpy as np
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.zeropoint import (
     calculate_zp_from_maglim,
-    flux_electron_zeropoint,
     sky_bg_adu_to_electrons,
 )
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
@@ -80,11 +79,9 @@ class _ParamDeriver:
     - airmass: Airmass (unitless)
     - dark_current: Dark current in electrons / second / pixel
     - exptime: Exposure time in seconds
-    - ext_coeff: Extinction coefficient in mag / airmass
     - filter: Photometric filter (e.g., g, r, i)
     - fwhm_px: Full-width at half-maximum of the PSF in pixels
     - gain: CCD gain in electrons / ADU
-    - instr_zp_mag: Instrumental zero point magnitude (mag)
     - maglim: Limiting magnitude (5-sigma) in mag
     - nexposure: Number of exposures per observation (unitless)
     - pixel_scale: Pixel scale in arcseconds per pixel
@@ -104,11 +101,9 @@ class _ParamDeriver:
             "airmass": None,  # Airmass (unitless)
             "dark_current": None,  # Dark current in electrons / second / pixel
             "exptime": None,  # Exposure time in seconds
-            "ext_coeff": None,  # Extinction coefficient in mag / airmass
             "filter": None,  # Photometric filter (e.g., g, r, i)
             "fwhm_px": None,  # Full-width at half-maximum of the PSF in pixels
             "gain": None,  # CCD gain in electrons / ADU
-            "instr_zp_mag": None,  # Instrumental zero point magnitude (mag)
             "maglim": None,  # Limiting magnitude (5-sigma) in mag
             "nexposure": None,  # Number of exposures per observation (unitless)
             "pixel_scale": None,  # Pixel scale in arcseconds per pixel
@@ -254,11 +249,6 @@ class _ParamDeriver:
         )
 
         # Formulas for deriving the zero point (in nJy per electron) and related information.
-        self.add_formula(
-            parameter="zp",
-            inputs=["filter", "airmass", "exptime", "instr_zp_mag", "ext_coeff"],
-            formula=flux_electron_zeropoint,
-        )
         self.add_formula(
             parameter="zp",
             inputs=[

@@ -124,8 +124,8 @@ class ZTFObsTable(ObsTable):
             maglim=self._table["maglim"],
             sky_bg_electrons=sky_bg_electrons,
             fwhm_px=self._table["fwhm"],
-            readnoise=_ztfcam_readout_noise,
-            darkcurrent=_ztfcam_dark_current,
+            read_noise=_ztfcam_readout_noise,
+            dark_current=_ztfcam_dark_current,
             exptime=self._table["exptime"],
             nexposure=1,
         )

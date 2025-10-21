@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from lightcurvelynx.astro_utils.zeropoint import flux_electron_zeropoint
+from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.obstable.obs_table_params import _ParamDeriver
@@ -54,21 +54,28 @@ def test_param_deriver_zp():
         "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
         "filter": np.array(["r", "g", "r", "i", "g"]),
+        "maglim": np.array([22.0] * 5),
     }
     pdf = pd.DataFrame(values)
 
-    instr_zp_mag = {"g": 26.0, "r": 27.0, "i": 28.0}
-    ops_data = ObsTable(pdf, instr_zp_mag=instr_zp_mag, airmass=0.01, ext_coeff=0.1, exptime=30.0)
+    ops_data = ObsTable(
+        pdf,
+        maglim=22.0,
+        sky_bg_electrons=1000.0,
+        fwhm_px=3.0,
+        read_noise=5.0,
+        dark_current=0.01,
+        nexposure=1,
+        exptime=30.0,
+    )
     assert len(ops_data) == 5
 
     # The table contains only the information provided.
-    assert np.all(
-        [
-            key in ops_data
-            for key in ["time", "ra", "dec", "filter", "instr_zp_mag", "airmass", "ext_coeff", "exptime"]
-        ]
-    )
-    assert np.all([key not in ops_data for key in ["nexposure", "zp", "psf_footprint", "seeing"]])
+    given_cols = ["time", "ra", "dec", "filter", "maglim"]
+    assert np.all([col in ops_data for col in given_cols])
+    given_params = ["sky_bg_electrons", "fwhm_px", "read_noise", "dark_current", "exptime", "nexposure"]
+    assert np.all([param in ops_data for param in given_params])
+    assert np.all([key not in ops_data for key in ["zp", "psf_footprint", "seeing"]])
 
     # We can derive additional parameters.
     deriver = _ParamDeriver()
@@ -76,11 +83,13 @@ def test_param_deriver_zp():
 
     # Derived keys (one step of derivation)
     assert "zp" in ops_data
-    expected_zp = flux_electron_zeropoint(
-        instr_zp_mag=instr_zp_mag,
-        ext_coeff=0.1,
-        filter=ops_data["filter"],
-        airmass=0.01,
+    expected_zp = calculate_zp_from_maglim(
+        maglim=22.0,
+        sky_bg_electrons=1000.0,
+        fwhm_px=3.0,
+        read_noise=5.0,
+        dark_current=0.01,
         exptime=30.0,
+        nexposure=1,
     )
     assert np.allclose(ops_data["zp"], expected_zp)
