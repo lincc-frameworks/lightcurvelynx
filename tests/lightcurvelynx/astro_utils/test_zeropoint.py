@@ -154,7 +154,7 @@ def test_flux_electron_zeropoint():
 
 
 def _fluxeq(
-    flux, sky=None, gain=None, readnoise=None, nexposure=1, fwhm_px=None, darkcurrent=None, exptime=None
+    flux, sky=None, gain=None, read_noise=None, nexposure=1, fwhm_px=None, dark_current=None, exptime=None
 ):
     """Define the equation to solve for flux at 5-sigma limit"""
 
@@ -163,7 +163,7 @@ def _fluxeq(
         flux**2
         - 25 * flux
         - 25
-        * (sky * npix * gain + readnoise**2 * nexposure * npix + darkcurrent * npix * exptime * nexposure)
+        * (sky * npix * gain + read_noise**2 * nexposure * npix + dark_current * npix * exptime * nexposure)
     )
     return y
 
@@ -174,8 +174,8 @@ def test_zp_from_maglim():
     sky = 100.0
     fwhm = 1.5
     gain = 1.0
-    readnoise = 10.0
-    darkcurrent = 0.1
+    read_noise = 10.0
+    dark_current = 0.1
     exptime = 30.0
 
     root = fsolve(
@@ -183,9 +183,9 @@ def test_zp_from_maglim():
             x,
             sky=sky,
             gain=gain,
-            readnoise=readnoise,
+            read_noise=read_noise,
             fwhm_px=fwhm,
-            darkcurrent=darkcurrent,
+            dark_current=dark_current,
             exptime=exptime,
         ),
         [100],
@@ -196,8 +196,8 @@ def test_zp_from_maglim():
         maglim=maglim,
         sky_bg_electrons=sky_bg_adu_to_electrons(sky, gain),
         fwhm_px=fwhm,
-        readnoise=readnoise,
-        darkcurrent=darkcurrent,
+        read_noise=read_noise,
+        dark_current=dark_current,
         exptime=exptime,
         nexposure=1,
     )

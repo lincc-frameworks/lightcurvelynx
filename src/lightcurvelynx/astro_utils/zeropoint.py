@@ -121,8 +121,8 @@ def calculate_zp_from_maglim(
     maglim=None,
     sky_bg_electrons=None,
     fwhm_px=None,
-    readnoise=None,
-    darkcurrent=None,
+    read_noise=None,
+    dark_current=None,
     exptime=None,
     nexposure=1,
 ):
@@ -150,9 +150,9 @@ def calculate_zp_from_maglim(
         Sky background in electrons/pixel.
     fwhm_px : float or ndarray
         PSF in pixels.
-    readnoise : float or ndarray
+    read_noise : float or ndarray
         Read noise (in e-/pixel).
-    darkcurrent : float or ndarray
+    dark_current : float or ndarray
         Dark current (in e-/pixel/second).
     exptime : float or ndarray
         Exposure time (in seconds).
@@ -170,8 +170,8 @@ def calculate_zp_from_maglim(
         + 4.0
         * (
             sky_bg_electrons * npix
-            + readnoise**2 * nexposure * npix
-            + darkcurrent * npix * exptime * nexposure
+            + read_noise**2 * nexposure * npix
+            + dark_current * npix * exptime * nexposure
         )
     )
     zp = 2.5 * np.log10(flux_at_5sigma_limit) + maglim
