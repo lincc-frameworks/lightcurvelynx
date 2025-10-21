@@ -70,7 +70,7 @@ def test_simulation_info():
         "filter": np.array(["r", "g", "r", "i", "g"]),
     }
     zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
-    ops_data = FakeObsTable(values, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0)
+    ops_data = FakeObsTable(values, zp_per_band=zp_per_band, fwhm_px=2.0, sky_bg_electrons=100.0)
 
     sim_info = SimulationInfo(
         model=model,
@@ -704,7 +704,7 @@ def test_saturation_mags_initialization(test_data_dir):
         nexposure=2,
         radius=100.0,
         read_noise=5.0,
-        sky={"g": 150.0, "r": 140.0},
+        sky_bg_electrons={"g": 150.0, "r": 140.0},
         survey_name="MY_SURVEY",
     )
     assert fake_obs._saturation_mags is None
@@ -745,7 +745,7 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
         nexposure=200,
         radius=100.0,
         read_noise=5.0,
-        sky={"g": 150.0, "r": 140.0, "i": 155.0},
+        sky_bg_electrons={"g": 150.0, "r": 140.0, "i": 155.0},
         survey_name="MY_SURVEY",
     )
     assert ops_data._saturation_mags is None
@@ -861,7 +861,7 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
         nexposure=200,
         radius=100.0,
         read_noise=5.0,
-        sky={"g": 150.0, "r": 140.0, "i": 155.0},
+        sky_bg_electrons={"g": 150.0, "r": 140.0, "i": 155.0},
         survey_name="MY_SURVEY",
         saturation_mags=toy_sat_thresholds,
     )

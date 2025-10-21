@@ -16,7 +16,7 @@ def test_create_fake_obs_table_consts():
     pdf = pd.DataFrame(values)
 
     zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
-    ops_data = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0)
+    ops_data = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky_bg_electrons=100.0)
     assert len(ops_data) == 5
 
     # We use the defaults when we do not provide values in the table. Not all of these
@@ -27,7 +27,7 @@ def test_create_fake_obs_table_consts():
     assert np.array_equal(ops_data["filter"], values["filter"])
     assert np.allclose(ops_data["zp"], [27.0, 26.0, 27.0, 28.0, 26.0])
     assert np.allclose(ops_data.get_value_per_row("fwhm_px"), [2.0] * 5)
-    assert np.allclose(ops_data.get_value_per_row("sky"), [100.0] * 5)
+    assert np.allclose(ops_data.get_value_per_row("sky_bg_electrons"), [100.0] * 5)
     assert np.allclose(ops_data.get_value_per_row("exptime"), [30.0] * 5)
     assert np.allclose(ops_data.get_value_per_row("nexposure"), [1] * 5)
 
@@ -39,10 +39,13 @@ def test_create_fake_obs_table_consts():
 
     assert ops_data.survey_values["dark_current"] == 0
     assert ops_data.survey_values["nexposure"] == 1
-    assert ops_data.survey_values["sky"] == 100
+    assert ops_data.survey_values["sky_bg_electrons"] == 100
     assert ops_data.survey_values["radius"] is None
     assert ops_data.survey_values["read_noise"] == 0
     assert ops_data.survey_values["survey_name"] == "FAKE_SURVEY"
+
+    # Successfully derived a zp column.
+    assert "zp" in ops_data
 
     # We can compute noise.
     flux_error = ops_data.bandflux_error_point_source(
@@ -54,7 +57,9 @@ def test_create_fake_obs_table_consts():
     assert len(np.unique(flux_error)) > 1  # Not all the same
 
     # If we give psf_footprint, we use that instead of fwhm_px.
-    ops_data = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, psf_footprint=1.0, sky=100.0)
+    ops_data = FakeObsTable(
+        pdf, zp_per_band=zp_per_band, fwhm_px=2.0, psf_footprint=1.0, sky_bg_electrons=100.0
+    )
     assert np.allclose(ops_data.get_value_per_row("psf_footprint"), [1.0] * 5)
 
     # We can override the defaults, using dictionaries of values for fwhm_px and sky.
@@ -66,7 +71,7 @@ def test_create_fake_obs_table_consts():
         nexposure=2,
         radius=1.0,
         read_noise=5.0,
-        sky={"g": 150.0, "r": 140.0, "i": 155.0},
+        sky_bg_electrons={"g": 150.0, "r": 140.0, "i": 155.0},
         survey_name="MY_SURVEY",
     )
     assert len(ops_data) == 5
@@ -79,13 +84,13 @@ def test_create_fake_obs_table_consts():
     assert np.array_equal(ops_data["filter"], values["filter"])
     assert np.allclose(ops_data["zp"], [27.0, 26.0, 27.0, 28.0, 26.0])
     assert np.allclose(ops_data.get_value_per_row("fwhm_px"), [3.1, 2.5, 3.1, 1.9, 2.5])
-    assert np.allclose(ops_data.get_value_per_row("sky"), [140.0, 150.0, 140.0, 155.0, 150.0])
+    assert np.allclose(ops_data.get_value_per_row("sky_bg_electrons"), [140.0, 150.0, 140.0, 155.0, 150.0])
     assert np.allclose(ops_data.get_value_per_row("exptime"), [60.0] * 5)
     assert np.allclose(ops_data.get_value_per_row("nexposure"), [2] * 5)
 
     assert ops_data.survey_values["dark_current"] == 0
     assert ops_data.survey_values["nexposure"] == 2
-    assert ops_data.survey_values["sky"] == {"g": 150.0, "r": 140.0, "i": 155.0}
+    assert ops_data.survey_values["sky_bg_electrons"] == {"g": 150.0, "r": 140.0, "i": 155.0}
     assert ops_data.survey_values["radius"] == 1.0
     assert ops_data.survey_values["read_noise"] == 5.0
     assert ops_data.survey_values["survey_name"] == "MY_SURVEY"
@@ -109,7 +114,7 @@ def test_create_fake_obs_table_non_consts():
         "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
         "filter": np.array(["r", "g", "r", "i", "g"]),
         "fwhm_px": np.array([2.0, 2.5, 3.0, 2.0, 1.5]),
-        "sky": np.array([100.0, 150.0, 200.0, 100.0, 50.0]),
+        "sky_bg_electrons": np.array([100.0, 150.0, 200.0, 100.0, 50.0]),
         "exptime": np.array([20.0, 30.0, 40.0, 20.0, 10.0]),
         "nexposure": np.array([1, 2, 3, 1, 1]),
         "zp": np.array([10.0, 11.0, 12.0, 13.0, 14.0]),
@@ -124,7 +129,7 @@ def test_create_fake_obs_table_non_consts():
     assert np.allclose(ops_data["time"], values["time"])
     assert np.array_equal(ops_data["filter"], values["filter"])
     assert np.allclose(ops_data["fwhm_px"], values["fwhm_px"])
-    assert np.allclose(ops_data["sky"], values["sky"])
+    assert np.allclose(ops_data["sky_bg_electrons"], values["sky_bg_electrons"])
     assert np.allclose(ops_data["exptime"], values["exptime"])
     assert np.allclose(ops_data["nexposure"], values["nexposure"])
     assert np.allclose(ops_data["zp"], values["zp"])
@@ -150,25 +155,25 @@ def test_create_fake_obs_table_cols_fail():
     pdf = pd.DataFrame(values)
 
     # Missing fwhm_px.
-    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    zp_per_band = None
     with pytest.raises(ValueError):
-        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, sky=100.0)
+        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, sky_bg_electrons=100.0)
 
-    # Missing sky.
+    # Missing sky_bg_electrons.
     with pytest.raises(ValueError):
         _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0)
 
     # Missing or invalid exptime.
     with pytest.raises(ValueError):
-        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0, exptime=None)
+        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky_bg_electrons=100.0, exptime=None)
     with pytest.raises(ValueError):
-        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0, exptime=-10.0)
+        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky_bg_electrons=100.0, exptime=-10.0)
 
     # Missing or invalid nexposure.
     with pytest.raises(ValueError):
-        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0, nexposure=None)
+        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky_bg_electrons=100.0, nexposure=None)
     with pytest.raises(ValueError):
-        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0, nexposure=-1)
+        _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky_bg_electrons=100.0, nexposure=-1)
 
 
 def test_create_fake_obs_table_zp_fail():
@@ -182,7 +187,7 @@ def test_create_fake_obs_table_zp_fail():
 
     # No filters from which to computer zp.
     zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
-    with pytest.raises(ValueError):
+    with pytest.raises(KeyError):
         _ = FakeObsTable(pdf, zp_per_band=zp_per_band, fwhm_px=2.0, sky=100.0)
 
     # Mismatched filters.
