@@ -1,8 +1,12 @@
+import logging
+
 import numpy as np
 
 from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
-from lightcurvelynx.obstable.obs_table_params import _ParamDeriver
+from lightcurvelynx.obstable.obs_table_params import ParamDeriver
+
+logger = logging.getLogger(__name__)
 
 
 class FakeObsTable(ObsTable):
@@ -10,26 +14,7 @@ class FakeObsTable(ObsTable):
     flux error to use or enough information to compute the poisson_bandflux_std noise model.
 
     The class uses a flexible deriver to try to compute any missing parameters needed from
-    what is provided. Suppported parameters include:
-    - adu_bias: Bias level in ADU
-    - dark_current: Dark current in electrons / second / pixel
-    - exptime: Exposure time in seconds
-    - filter: Photometric filter (e.g., g, r, i)
-    - fwhm_px: Full-width at half-maximum of the PSF in pixels
-    - gain: CCD gain in electrons / ADU
-    - instr_zp_mag: Instrumental zero point magnitude (mag)
-    - maglim: Limiting magnitude (5-sigma) in mag
-    - nexposure: Number of exposures per observation (unitless)
-    - pixel_scale: Pixel scale in arcseconds per pixel
-    - psf_footprint: Effective footprint of the PSF in pixels^2
-    - read_noise: Read noise in electrons
-    - seeing: Seeing in arcseconds
-    - sky_bg_adu: Sky background in ADU / pixel
-    - sky_bg_electrons: Sky background in electrons / pixel^2
-    - skybrightness: Sky brightness in mag / arcsec^2
-    - zp: Instrumental zero point (nJy per electron)
-    - zp_per_band: Instrumental zero point per band (nJy per electron)
-    These can be provided either as columns in the input table or as keyword arguments to the constructor.
+    what is provided.
 
     Defaults are set for other parameters (e.g. exptime, nexposure, read_noise, dark_current), which
     the user can override with keyword arguments to the constructor.
@@ -55,6 +40,9 @@ class FakeObsTable(ObsTable):
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, saturation effects will not be applied.
+    param_deriver: str, optional
+        The name of the ParamDeriver subclass to use to derive missing ObsTable parameters.
+        If not provided, the base ParamDeriver will be used, which does not derive any parameters.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -79,10 +67,9 @@ class FakeObsTable(ObsTable):
         *,
         colmap=None,
         const_flux_error=None,
+        param_deriver=None,
         **kwargs,
     ):
-        self.const_flux_error = const_flux_error
-
         # Pass along all the survey parameters to the parent class.
         super().__init__(
             table,
@@ -90,27 +77,40 @@ class FakeObsTable(ObsTable):
             **kwargs,
         )
 
-        # Derive any missing parameters needed for the flux error computation.
-        deriver = _ParamDeriver()
-        deriver.derive_parameters(self)
+        # Derive any missing parameters needed for the flux error computation. We always create
+        # a new ParamDeriver instance here, because they are stateful.
+        if param_deriver is None:
+            param_deriver = "NoopParamDeriver"
+        param_deriver_obj = ParamDeriver.create_deriver(param_deriver)
+        param_deriver_obj.derive_parameters(self)
 
         # If a constant flux error is provided, validate it.
         if const_flux_error is not None:
             # Convert a constant into a per-band dictionary.
             if isinstance(const_flux_error, int | float):
-                self.const_flux_error = {fil: const_flux_error for fil in self.filters}
+                const_flux_error = {fil: const_flux_error for fil in self.filters}
 
-            # Check that every filter occurs in the dictionary with a non-negative value.
+            # Check that every filter occurs in the dictionary.
             for fil in self.filters:
-                if fil not in self.const_flux_error:
+                if fil not in const_flux_error:
                     raise ValueError(
                         "`const_flux_error` must include all the filters in the table. Missing '{fil}'."
                     )
-            for fil, val in self.const_flux_error.items():
-                if val < 0:
-                    raise ValueError(f"Constant flux error for band {fil} must be non-negative. Got {val}.")
-        elif "zp" not in self._table.columns:
-            raise ValueError("Insufficient information to compute flux errors or zeropoints.")
+
+            # Translate the constant flux errors into a table column.
+            bandflux_errors = np.array([const_flux_error[fil] for fil in self._table["filter"]])
+            if np.any(bandflux_errors < 0):
+                raise ValueError("Constant flux errors must be non-negative.")
+            self._table["bandflux_error"] = bandflux_errors
+
+        # Validate that we have enough information to compute flux errors.
+        if "zp" not in self._table and "bandflux_error" not in self._table:
+            column_names = self._table.columns.tolist()
+            param_names = list(self.survey_values.keys())
+            raise ValueError(
+                f"Insufficient information to compute flux errors or zeropoints using {param_deriver}. "
+                f"Table columns: {column_names}. Survey parameters: {param_names}."
+            )
 
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
@@ -127,10 +127,9 @@ class FakeObsTable(ObsTable):
         flux_err : array_like of float
             Simulated bandflux noise in nJy.
         """
-        # If we have a constant flux error, use that.
-        if self.const_flux_error is not None:
-            filters = self._table["filter"].iloc[index]
-            return np.array([self.const_flux_error[fil] for fil in filters])
+        # If we have a bandflux_error in the table (including from constant flux error), use that.
+        if "bandflux_error" in self._table:
+            return self.get_value_per_row("bandflux_error", indices=index)
 
         # Otherwise compute the flux error using the poisson_bandflux_std noise model.
         return poisson_bandflux_std(

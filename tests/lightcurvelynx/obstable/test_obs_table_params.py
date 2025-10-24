@@ -4,14 +4,14 @@ from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.obstable.obs_table_params import (
-    BaseParamDeriver,
     FiveSigmaDepthDeriver,
     FullParamDeriver,
+    NoopParamDeriver,
 )
 
 
-def test_base_param_deriver():
-    """Use the BaseParamDeriver object to fill in missing ObsTable parameters."""
+def test_noop_param_deriver():
+    """Use the NoopParamDeriver object to fill in missing ObsTable parameters."""
     values = {
         "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
@@ -30,7 +30,7 @@ def test_base_param_deriver():
     assert np.all([key not in ops_data for key in not_given])
 
     # We can derive additional parameters.
-    deriver = BaseParamDeriver()
+    deriver = NoopParamDeriver()
     deriver.derive_parameters(ops_data)
 
     # Original keys

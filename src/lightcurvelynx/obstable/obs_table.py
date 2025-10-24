@@ -128,6 +128,7 @@ class ObsTable:
         for col in self._required_columns:
             if col not in self._table.columns:
                 raise KeyError(f"Missing required column: {col}")
+        logger.debug(f"ObsTable initialized with columns: {self._table.columns.tolist()}")
 
         # Save the survey values, with table metadata and keyword arguments overwriting the defaults.
         self.survey_values = self._default_survey_values.copy()
@@ -139,6 +140,7 @@ class ObsTable:
                 self.survey_values[key] = value
         for key, value in kwargs.items():
             self.survey_values[key] = value
+        logger.debug(f"ObsTable survey values: {self.survey_values}")
 
         self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
 

@@ -1,6 +1,7 @@
 """This is a file with helper functions for deriving different parameters from an ObsTable."""
 
 import logging
+from abc import ABC, abstractmethod
 
 import numpy as np
 
@@ -10,6 +11,8 @@ from lightcurvelynx.astro_utils.zeropoint import (
     sky_bg_adu_to_electrons,
 )
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
+
+logger = logging.getLogger(__name__)
 
 
 class _ParamFormula:
@@ -57,11 +60,11 @@ class _ParamFormula:
         -------
         The value of the derived parameter.
         """
-        logging.getLogger(__name__).debug(f"Deriving parameter {self.parameter} from {self.inputs}")
+        logger.debug(f"Deriving parameter {self.parameter} from {self.inputs}")
         return self.formula(**{k: params[k] for k in self.inputs})
 
 
-class BaseParamDeriver:
+class ParamDeriver(ABC):
     """Base class to derive parameters from an ObsTable using predefined formulas.
 
     Attributes
@@ -80,6 +83,8 @@ class BaseParamDeriver:
         A list of the parameters supported by this deriver. If None, no parameters are supported.
     """
 
+    _registered_derivers = {}  # A mapping of class name to class object for subclasses.
+
     def __init__(self, parameter_list=None):
         if parameter_list is None:
             parameter_list = []
@@ -88,6 +93,41 @@ class BaseParamDeriver:
         self.formulas = []
         self.org_parameters = set()
         self._init_formulas()
+
+    def __init_subclass__(cls, **kwargs):
+        # Register all subclasses in a dictionary mapping class name to the
+        # class object, so we can programmatically create objects from the names.
+        super().__init_subclass__(**kwargs)
+        cls._registered_derivers[cls.__name__] = cls
+
+    @classmethod
+    def create_deriver(cls, deriver_name):
+        """Create a deriver instance from its class name.
+
+        Parameters
+        ----------
+        deriver_name : str
+            The name of the deriver class to instantiate.
+
+        Returns
+        -------
+        ParamDeriver
+            An instance of the specified deriver class.
+
+        Raises
+        ------
+        ValueError
+            If the deriver name is not recognized.
+        """
+        if deriver_name not in cls._registered_derivers:
+            raise ValueError(f"Unknown deriver name: {deriver_name}")
+        return cls._registered_derivers[deriver_name]()
+
+    def __str__(self):
+        return (
+            f"{self.__class__.__name__} with parameters: {list(self.parameters.keys())} "
+            f"and {len(self.formulas)} formulas."
+        )
 
     def add_formula(self, parameter, inputs, formula):
         """Add a new formula to the list of formulas.
@@ -148,7 +188,9 @@ class BaseParamDeriver:
         obs_table : ObsTable
             The observation table from which to derive parameters.
         """
+        logger.debug(f"Deriving parameters using {self.__class__.__name__}.")
         self.init_from_obs_table(obs_table)
+        logger.debug(f"Starting parameter derivation with parameters: {self.parameters}")
 
         # Keep iterating through the formulas, trying to solve them, until we do a full iteration
         # through all of them without making any new progress.
@@ -159,6 +201,7 @@ class BaseParamDeriver:
                 if self.parameters[formula.parameter] is None and formula.can_solve(self.parameters):
                     self.parameters[formula.parameter] = formula.solve(self.parameters)
                     made_progress = True
+        logger.debug(f"After derivation, parameters = {self.parameters}")
 
         # Update the ObsTable with the derived parameters. Do not overrwrite anything already
         # there. Always prefer to add scalars to the survey values over adding entire columns.
@@ -171,12 +214,24 @@ class BaseParamDeriver:
                 else:
                     obs_table.add_column(param, value)
 
+    @abstractmethod
+    def _init_formulas(self):
+        """Initialize the formulas for deriving parameters. To be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement _init_formulas().")
+
+
+class NoopParamDeriver(ParamDeriver):
+    """A ParamDeriver that does nothing. Used as a placeholder."""
+
+    def __init__(self):
+        super().__init__(parameter_list=[])
+
     def _init_formulas(self):
         """Initialize the formulas for deriving parameters. To be implemented by subclasses."""
         pass
 
 
-class FullParamDeriver(BaseParamDeriver):
+class FullParamDeriver(ParamDeriver):
     """Class to derive all supported parameters from an ObsTable using predefined formulas.
 
     Supported parameters (and their units) include:
@@ -293,7 +348,7 @@ class FullParamDeriver(BaseParamDeriver):
         )
 
 
-class FiveSigmaDepthDeriver(BaseParamDeriver):
+class FiveSigmaDepthDeriver(ParamDeriver):
     """Class to derive the noise parameters from only the five-sigma depth information.
 
     Supported parameters (and their units) include:
