@@ -73,10 +73,18 @@ class BaseParamDeriver:
         A list of _ParamFormula instances for deriving parameters.
     org_parameters : set of str
         A set of parameter names that are original parameters from the ObsTable.
+
+    Parameters
+    ----------
+    parameter_list : iterable, optional
+        A list of the parameters supported by this deriver. If None, no parameters are supported.
     """
 
-    def __init__(self, parameters=None):
-        self.parameters = parameters.copy() if parameters is not None else {}
+    def __init__(self, parameter_list=None):
+        if parameter_list is None:
+            parameter_list = []
+        self.parameters = {param: None for param in parameter_list}
+
         self.formulas = []
         self.org_parameters = set()
         self._init_formulas()
@@ -171,17 +179,6 @@ class BaseParamDeriver:
 class FullParamDeriver(BaseParamDeriver):
     """Class to derive all supported parameters from an ObsTable using predefined formulas.
 
-
-    Attributes
-    ----------
-    parameters : dict
-        A dictionary mapping parameter names to their values. With None for parameters
-        that do not have a valid value yet.
-    formulas : list of _ParamFormula
-        A list of _ParamFormula instances for deriving parameters.
-    org_parameters : set of str
-        A set of parameter names that are original parameters from the ObsTable.
-
     Supported parameters (and their units) include:
     - adu_bias: Bias level in ADU
     - dark_current: Dark current in electrons / second / pixel
@@ -200,29 +197,39 @@ class FullParamDeriver(BaseParamDeriver):
     - skybrightness: Sky brightness in mag / arcsec^2
     - zp: Instrumental zero point (nJy per electron)
     - zp_per_band: Instrumental zero point per band (nJy per electron)
+
+    Attributes
+    ----------
+    parameters : dict
+        A dictionary mapping parameter names to their values. With None for parameters
+        that do not have a valid value yet.
+    formulas : list of _ParamFormula
+        A list of _ParamFormula instances for deriving parameters.
+    org_parameters : set of str
+        A set of parameter names that are original parameters from the ObsTable.
     """
 
     def __init__(self):
-        parameters = {
-            "adu_bias": None,  # Bias level in ADU
-            "dark_current": None,  # Dark current in electrons / second / pixel
-            "exptime": None,  # Exposure time in seconds
-            "filter": None,  # Photometric filter (e.g., g, r, i)
-            "fwhm_px": None,  # Full-width at half-maximum of the PSF in pixels
-            "gain": None,  # CCD gain in electrons / ADU
-            "maglim": None,  # Limiting magnitude (5-sigma) in mag
-            "nexposure": None,  # Number of exposures per observation (unitless)
-            "pixel_scale": None,  # Pixel scale in arcseconds per pixel
-            "psf_footprint": None,  # Effective footprint of the PSF in pixels
-            "read_noise": None,  # Read noise in electrons
-            "seeing": None,  # Seeing in arcseconds
-            "sky_bg_adu": None,  # Sky background in ADU / pixel
-            "sky_bg_electrons": None,  # Sky background in electrons / pixel^2
-            "skybrightness": None,  # Sky brightness in mag / arcsec^2
-            "zp": None,  # Instrumental zero point (nJy per electron)
-            "zp_per_band": None,  # Instrumental zero point per band (nJy per electron)
-        }
-        super().__init__(parameters=parameters)
+        parameter_list = [
+            "adu_bias",  # Bias level in ADU
+            "dark_current",  # Dark current in electrons / second / pixel
+            "exptime",  # Exposure time in seconds
+            "filter",  # Photometric filter (e.g., g, r, i)
+            "fwhm_px",  # Full-width at half-maximum of the PSF in pixels
+            "gain",  # CCD gain in electrons / ADU
+            "maglim",  # Limiting magnitude (5-sigma) in mag
+            "nexposure",  # Number of exposures per observation (unitless)
+            "pixel_scale",  # Pixel scale in arcseconds per pixel
+            "psf_footprint",  # Effective footprint of the PSF in pixels
+            "read_noise",  # Read noise in electrons
+            "seeing",  # Seeing in arcseconds
+            "sky_bg_adu",  # Sky background in ADU / pixel
+            "sky_bg_electrons",  # Sky background in electrons / pixel^2
+            "skybrightness",  # Sky brightness in mag / arcsec^2
+            "zp",  # Instrumental zero point (nJy per electron)
+            "zp_per_band",  # Instrumental zero point per band (nJy per electron)
+        ]
+        super().__init__(parameter_list=parameter_list)
 
     def _init_formulas(self):
         """Initialize the standard formulas for deriving parameters."""
@@ -283,4 +290,62 @@ class FullParamDeriver(BaseParamDeriver):
                 "nexposure",
             ],
             formula=calculate_zp_from_maglim,
+        )
+
+
+class FiveSigmaDepthDeriver(BaseParamDeriver):
+    """Class to derive the noise parameters from only the five-sigma depth information.
+
+    Supported parameters (and their units) include:
+    - bandflux_error: The error associated with the computed bandflux.
+    - bandflux_ref: The total flux that would be transmitted through the given bandfilter.
+    - five_sigma_depth: Five-sigma depth in magnitudes
+
+    Attributes
+    ----------
+    parameters : dict
+        A dictionary mapping parameter names to their values. With None for parameters
+        that do not have a valid value yet.
+    formulas : list of _ParamFormula
+        A list of _ParamFormula instances for deriving parameters.
+    org_parameters : set of str
+        A set of parameter names that are original parameters from the ObsTable.
+    """
+
+    def __init__(self):
+        parameter_list = [
+            "bandflux_error",  # The error associated with the computed bandflux.
+            "bandflux_ref",  # The total flux that would be transmitted through the given bandfilter.
+            "five_sigma_depth",  # Five-sigma depth in magnitudes
+        ]
+        super().__init__(parameter_list=parameter_list)
+
+    @staticmethod
+    def _bandflux_error_from_five_sigma_depth(five_sigma_depth, bandflux_ref):
+        """Derive the bandflux error from the five-sigma depth and bandflux reference.
+
+        Based on redback's bandflux_error_from_limiting_mag()
+        https://github.com/nikhil-sarin/redback
+
+        Parameters
+        ----------
+        five_sigma_depth : float or np.ndarray
+            The five-sigma depth in magnitudes.
+        bandflux_ref : float or np.ndarray
+            The reference bandflux.
+
+        Returns
+        -------
+        bandflux_error : float or np.ndarray
+            The error associated with the computed bandflux.
+        """
+        flux_five_sigma = bandflux_ref * np.power(10.0, -0.4 * five_sigma_depth)
+        bandflux_error = flux_five_sigma / 5.0
+        return bandflux_error
+
+    def _init_formulas(self):
+        self.add_formula(
+            parameter="bandflux_error",
+            inputs=["five_sigma_depth", "bandflux_ref"],
+            formula=FiveSigmaDepthDeriver._bandflux_error_from_five_sigma_depth,
         )

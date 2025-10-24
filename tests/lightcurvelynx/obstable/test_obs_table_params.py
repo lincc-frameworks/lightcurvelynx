@@ -3,7 +3,11 @@ import pandas as pd
 from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
-from lightcurvelynx.obstable.obs_table_params import BaseParamDeriver, FullParamDeriver
+from lightcurvelynx.obstable.obs_table_params import (
+    BaseParamDeriver,
+    FiveSigmaDepthDeriver,
+    FullParamDeriver,
+)
 
 
 def test_base_param_deriver():
@@ -123,3 +127,36 @@ def test_full_param_deriver_zp():
         nexposure=1,
     )
     assert np.allclose(ops_data["zp"], expected_zp)
+
+
+def test_five_sigma_depth_deriver():
+    """Use the FiveSigmaDepthDeriver object to compute the five-sigma depth."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+        "five_sigma_depth": 20.0 + np.arange(5),
+    }
+    pdf = pd.DataFrame(values)
+
+    bandflux_ref = {"g": 3630e6, "r": 3635e6, "i": 3625e6}
+    ops_data = ObsTable(pdf, bandflux_ref=bandflux_ref)
+    assert len(ops_data) == 5
+
+    # The table contains only the information provided.
+    given_data = ["time", "ra", "dec", "filter", "five_sigma_depth", "bandflux_ref"]
+    assert np.all([col in ops_data for col in given_data])
+    assert np.all([key not in ops_data for key in ["zp", "bandflux_error", "seeing"]])
+
+    # We can derive additional parameters.
+    deriver = FiveSigmaDepthDeriver()
+    deriver.derive_parameters(ops_data)
+
+    # Derived keys (one step of derivation)
+    assert "bandflux_error" in ops_data
+    bandflux_ref_arr = np.array([bandflux_ref[filt] for filt in ops_data["filter"]])
+    expected_bandflux_error = (
+        bandflux_ref_arr * np.power(10.0, -0.4 * ops_data["five_sigma_depth"].to_numpy()) / 5.0
+    )
+    assert np.allclose(ops_data["bandflux_error"], expected_bandflux_error)
