@@ -61,8 +61,8 @@ class _ParamFormula:
         return self.formula(**{k: params[k] for k in self.inputs})
 
 
-class _ParamDeriver:
-    """Class to derive parameters from an ObsTable using predefined formulas.
+class BaseParamDeriver:
+    """Base class to derive parameters from an ObsTable using predefined formulas.
 
     Attributes
     ----------
@@ -73,47 +73,10 @@ class _ParamDeriver:
         A list of _ParamFormula instances for deriving parameters.
     org_parameters : set of str
         A set of parameter names that are original parameters from the ObsTable.
-
-    Supported parameters (and their units) include:
-    - adu_bias: Bias level in ADU
-    - dark_current: Dark current in electrons / second / pixel
-    - exptime: Exposure time in seconds
-    - filter: Photometric filter (e.g., g, r, i)
-    - fwhm_px: Full-width at half-maximum of the PSF in pixels
-    - gain: CCD gain in electrons / ADU
-    - maglim: Limiting magnitude (5-sigma) in mag
-    - nexposure: Number of exposures per observation (unitless)
-    - pixel_scale: Pixel scale in arcseconds per pixel
-    - psf_footprint: Effective footprint of the PSF in pixels^2
-    - read_noise: Read noise in electrons
-    - seeing: Seeing in arcseconds
-    - sky_bg_adu: Sky background in ADU / pixel
-    - sky_bg_electrons: Sky background in electrons / pixel^2
-    - skybrightness: Sky brightness in mag / arcsec^2
-    - zp: Instrumental zero point (nJy per electron)
-    - zp_per_band: Instrumental zero point per band (nJy per electron)
     """
 
-    def __init__(self):
-        self.parameters = {
-            "adu_bias": None,  # Bias level in ADU
-            "dark_current": None,  # Dark current in electrons / second / pixel
-            "exptime": None,  # Exposure time in seconds
-            "filter": None,  # Photometric filter (e.g., g, r, i)
-            "fwhm_px": None,  # Full-width at half-maximum of the PSF in pixels
-            "gain": None,  # CCD gain in electrons / ADU
-            "maglim": None,  # Limiting magnitude (5-sigma) in mag
-            "nexposure": None,  # Number of exposures per observation (unitless)
-            "pixel_scale": None,  # Pixel scale in arcseconds per pixel
-            "psf_footprint": None,  # Effective footprint of the PSF in pixels
-            "read_noise": None,  # Read noise in electrons
-            "seeing": None,  # Seeing in arcseconds
-            "sky_bg_adu": None,  # Sky background in ADU / pixel
-            "sky_bg_electrons": None,  # Sky background in electrons / pixel^2
-            "skybrightness": None,  # Sky brightness in mag / arcsec^2
-            "zp": None,  # Instrumental zero point (nJy per electron)
-            "zp_per_band": None,  # Instrumental zero point per band (nJy per electron)
-        }
+    def __init__(self, parameters=None):
+        self.parameters = parameters.copy() if parameters is not None else {}
         self.formulas = []
         self.org_parameters = set()
         self._init_formulas()
@@ -199,6 +162,67 @@ class _ParamDeriver:
                     obs_table.survey_values[param] = value[0]
                 else:
                     obs_table.add_column(param, value)
+
+    def _init_formulas(self):
+        """Initialize the formulas for deriving parameters. To be implemented by subclasses."""
+        pass
+
+
+class FullParamDeriver(BaseParamDeriver):
+    """Class to derive all supported parameters from an ObsTable using predefined formulas.
+
+
+    Attributes
+    ----------
+    parameters : dict
+        A dictionary mapping parameter names to their values. With None for parameters
+        that do not have a valid value yet.
+    formulas : list of _ParamFormula
+        A list of _ParamFormula instances for deriving parameters.
+    org_parameters : set of str
+        A set of parameter names that are original parameters from the ObsTable.
+
+    Supported parameters (and their units) include:
+    - adu_bias: Bias level in ADU
+    - dark_current: Dark current in electrons / second / pixel
+    - exptime: Exposure time in seconds
+    - filter: Photometric filter (e.g., g, r, i)
+    - fwhm_px: Full-width at half-maximum of the PSF in pixels
+    - gain: CCD gain in electrons / ADU
+    - maglim: Limiting magnitude (5-sigma) in mag
+    - nexposure: Number of exposures per observation (unitless)
+    - pixel_scale: Pixel scale in arcseconds per pixel
+    - psf_footprint: Effective footprint of the PSF in pixels^2
+    - read_noise: Read noise in electrons
+    - seeing: Seeing in arcseconds
+    - sky_bg_adu: Sky background in ADU / pixel
+    - sky_bg_electrons: Sky background in electrons / pixel^2
+    - skybrightness: Sky brightness in mag / arcsec^2
+    - zp: Instrumental zero point (nJy per electron)
+    - zp_per_band: Instrumental zero point per band (nJy per electron)
+    """
+
+    def __init__(self):
+        parameters = {
+            "adu_bias": None,  # Bias level in ADU
+            "dark_current": None,  # Dark current in electrons / second / pixel
+            "exptime": None,  # Exposure time in seconds
+            "filter": None,  # Photometric filter (e.g., g, r, i)
+            "fwhm_px": None,  # Full-width at half-maximum of the PSF in pixels
+            "gain": None,  # CCD gain in electrons / ADU
+            "maglim": None,  # Limiting magnitude (5-sigma) in mag
+            "nexposure": None,  # Number of exposures per observation (unitless)
+            "pixel_scale": None,  # Pixel scale in arcseconds per pixel
+            "psf_footprint": None,  # Effective footprint of the PSF in pixels
+            "read_noise": None,  # Read noise in electrons
+            "seeing": None,  # Seeing in arcseconds
+            "sky_bg_adu": None,  # Sky background in ADU / pixel
+            "sky_bg_electrons": None,  # Sky background in electrons / pixel^2
+            "skybrightness": None,  # Sky brightness in mag / arcsec^2
+            "zp": None,  # Instrumental zero point (nJy per electron)
+            "zp_per_band": None,  # Instrumental zero point per band (nJy per electron)
+        }
+        super().__init__(parameters=parameters)
 
     def _init_formulas(self):
         """Initialize the standard formulas for deriving parameters."""
