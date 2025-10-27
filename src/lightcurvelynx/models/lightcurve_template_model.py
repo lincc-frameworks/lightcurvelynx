@@ -23,9 +23,9 @@ from lightcurvelynx.utils.io_utils import read_lclib_data
 logger = logging.getLogger(__name__)
 
 
-class LightcurveData:
-    """A class to hold data for a single model light curve (set of fluxes over time for
-    each filter).
+class LightcurveBandData:
+    """A class to hold data for a single model light curve defined at the band level (a set of
+    fluxes over time for each filter).
 
     Data can be passed in as fluxes (in nJy) or AB magnitudes (if magnitudes_in=True), but
     is always stored internally as fluxes.
@@ -204,7 +204,7 @@ class LightcurveData:
 
     @classmethod
     def from_lclib_table(cls, lightcurves_table, *, forced_lc_t0=None, filters=None):
-        """Break up a light curves table in LCLIB format into a LightcurveData instance.
+        """Break up a light curves table in LCLIB format into a LightcurveBandData instance.
         This function expects the table to have a "time" column, an optional "type" column,
         and a column for each filter. The "type" column should use "S" for source observation
         and "T" for template (background) observation.
@@ -305,7 +305,7 @@ class LightcurveData:
 
         return cls(lightcurves, lc_data_t0, periodic=periodic, baseline=baseline)
 
-    def evaluate_sed(self, times, filter):
+    def evaluate_bandfluxes(self, times, filter):
         """Get the bandflux values for a given filter at the specified times. These can
         be multiplied by a basis SED function to produce estimated SED values
         for the given filter at the specified times or can be used directly as bandfluxes.
@@ -386,7 +386,7 @@ class LightcurveData:
         ax.legend()
 
 
-class BaseLightcurveTemplateModel(BandfluxModel, ABC):
+class BaseLightcurveBandTemplateModel(BandfluxModel, ABC):
     """A base class for light curve template models. This class is not meant to be used directly,
     but rather as a base for other light curve template models that may have additional functionality.
     It provides the basic structure (primarily SED basis functions) and validation for
@@ -502,7 +502,7 @@ class BaseLightcurveTemplateModel(BandfluxModel, ABC):
 
         Parameters
         ----------
-        lc : LightcurveData
+        lc : LightcurveBandData
             The light curve data to use for computing the flux density.
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
@@ -534,7 +534,7 @@ class BaseLightcurveTemplateModel(BandfluxModel, ABC):
 
             # Compute the multipliers for the SEDs at different time steps along this light curve.
             # We use the light curve's baseline value for all times outside the light curve's range.
-            sed_time_mult = lc.evaluate_sed(shifted_times, filter)
+            sed_time_mult = lc.evaluate_bandfluxes(shifted_times, filter)
 
             # The contribution of this filter to the overall SED is the light curve's (interpolated)
             # value at each time multiplied by the SED values at each query wavelength.
@@ -573,7 +573,7 @@ class BaseLightcurveTemplateModel(BandfluxModel, ABC):
         ax.legend()
 
 
-class LightcurveTemplateModel(BaseLightcurveTemplateModel):
+class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     """A model that generates either the SED or bandflux of a source based on
     given light curves in each band. When generating the bandflux, it interpolates
     the light curves directly. When generating the SED, the model uses a box-shaped SED
@@ -600,7 +600,7 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
 
     Attributes
     ----------
-    lightcurves : LightcurveData
+    lightcurves : LightcurveBandData
         The data for the light curves, such as the times and bandfluxes in each filter.
     sed_values : dict
         A dictionary mapping filters to the SED basis values for that passband.
@@ -613,7 +613,7 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
     ----------
     lightcurves : dict or numpy.ndarray
         The light curves can be passed as either:
-        1) a LightcurveData instance,
+        1) a LightcurveBandData instance,
         2) a dictionary mapping filter names to a (T, 2) array of the bandlfuxes in that filter
         where the first column is time and the second column is the flux density (in nJy), or
         3) a numpy array of shape (T, 3) array where the first column is time (in days), the
@@ -646,10 +646,10 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
         **kwargs,
     ):
         # Store the light curve data, parsing out different formats if needed.
-        if isinstance(lightcurves, LightcurveData):
+        if isinstance(lightcurves, LightcurveBandData):
             self.lightcurves = lightcurves
         else:
-            self.lightcurves = LightcurveData(
+            self.lightcurves = LightcurveBandData(
                 lightcurves,
                 lc_data_t0,
                 periodic=periodic,
@@ -715,7 +715,7 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
         bandfluxes = np.zeros(len(times))
         for filter in self.lightcurves.filters:
             filter_mask = filters == filter
-            bandfluxes[filter_mask] = self.lightcurves.evaluate_sed(shifted_times[filter_mask], filter)
+            bandfluxes[filter_mask] = self.lightcurves.evaluate_bandfluxes(shifted_times[filter_mask], filter)
 
         return bandfluxes
 
@@ -737,7 +737,7 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
         self.lightcurves.plot_lightcurves(times=times, ax=ax, figure=figure)
 
 
-class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
+class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     """A MultiLightcurveTemplateModel randomly selects a light curve at each evaluation
     computes the flux from that source. The models can generate either the SED or
     bandflux of a source based of given light curves in each band. When generating
@@ -765,7 +765,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
 
     Attributes
     ----------
-    lightcurves : list of LightcurveData
+    lightcurves : list of LightcurveBandData
         The data for each set of light curves.
     sed_values : dict
         A dictionary mapping filters to the SED basis values for that passband.
@@ -779,7 +779,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
 
     Parameters
     ----------
-    lightcurves : list of LightcurveData
+    lightcurves : list of LightcurveBandData
         The data for each set of light curves. One light curve will be randomly selected
         at each evaluation.
     passbands : Passband or PassbandGroup
@@ -800,8 +800,8 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
         # Validate the light curve input and create a union of all filters used.
         self.all_filters = set()
         for lc in lightcurves:
-            if not isinstance(lc, LightcurveData):
-                raise TypeError("Each light curve must be an instance of LightcurveData.")
+            if not isinstance(lc, LightcurveBandData):
+                raise TypeError("Each light curve must be an instance of LightcurveBandData.")
             self.all_filters.update(lc.filters)
         self.lightcurves = lightcurves
 
@@ -844,7 +844,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
             Used to select a subset of filters that match the survey to simulate.
             Default: None
         **kwargs
-            Additional keyword arguments to pass to the LightcurveData constructor, including
+            Additional keyword arguments to pass to the LightcurveBandData constructor, including
             the parameters for the model such as `dec`, `ra`, and `t0` and metadata
             such as `node_label`.
 
@@ -869,7 +869,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
 
         lightcurves = []
         for table, lc_t0 in zip(lightcurve_tables, forced_lc_t0, strict=False):
-            lc_data = LightcurveData.from_lclib_table(table, forced_lc_t0=lc_t0, filters=filters)
+            lc_data = LightcurveBandData.from_lclib_table(table, forced_lc_t0=lc_t0, filters=filters)
             lightcurves.append(lc_data)
 
         return cls(lightcurves, passbands, **kwargs)
@@ -936,6 +936,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
         bandfluxes = np.zeros(len(times))
         for filter in lc.filters:
             filter_mask = filters == filter
-            bandfluxes[filter_mask] = lc.evaluate_sed(shifted_times[filter_mask], filter)
+            bandfluxes[filter_mask] = lc.evaluate_bandfluxes(shifted_times[filter_mask], filter)
 
         return bandfluxes
