@@ -71,7 +71,11 @@ def test_simulation_info():
     }
     zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
     ops_data = FakeObsTable(
-        values, param_deriver="FullParamDeriver", zp_per_band=zp_per_band, fwhm_px=2.0, sky_bg_electrons=100.0
+        values,
+        noise_parameter_strategy="exhaustive",
+        zp_per_band=zp_per_band,
+        fwhm_px=2.0,
+        sky_bg_electrons=100.0,
     )
 
     sim_info = SimulationInfo(
@@ -700,7 +704,7 @@ def test_saturation_mags_initialization(test_data_dir):
                 "filter": ["g", "r"],
             }
         ),
-        param_deriver="FullParamDeriver",
+        noise_parameter_strategy="exhaustive",
         zp_per_band={"g": 26.0, "r": 27.0},
         exptime=30.0,
         fwhm_px={"g": 2.5, "r": 3.1},
@@ -742,7 +746,7 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
 
     ops_data = FakeObsTable(
         pdf,
-        param_deriver="FullParamDeriver",
+        noise_parameter_strategy="exhaustive",
         zp_per_band=zp_per_band,
         exptime=60.0,
         fwhm_px={"g": 2.5, "r": 3.1, "i": 1.9},
@@ -859,7 +863,7 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
 
     ops_data = FakeObsTable(
         pdf,
-        param_deriver="FullParamDeriver",
+        noise_parameter_strategy="exhaustive",
         zp_per_band=zp_per_band,
         exptime=60.0,
         fwhm_px={"g": 2.5, "r": 3.1, "i": 1.9},

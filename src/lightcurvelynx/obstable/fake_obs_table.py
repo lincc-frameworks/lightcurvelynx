@@ -40,9 +40,15 @@ class FakeObsTable(ObsTable):
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, saturation effects will not be applied.
-    param_deriver: str, optional
-        The name of the ParamDeriver subclass to use to derive missing ObsTable parameters.
-        If not provided, the base ParamDeriver will be used, which does not derive any parameters.
+    noise_parameter_strategy : str, optional
+        The name of the strategy to use to derive any missing table parameters needed to compute the noise.
+        This is used if the table does not provide all the necessary parameters for the given noise model.
+        Should be one of:
+        - "given_only" : Use only the parameters already provided in the table and survey values.
+        - "five_sigma_depth": Derive approximate noise from only the 5-sigma depth values if available
+          (no survey values like PSF, sky background, etc. are used).
+        - "exhaustive": Try all available derivation methods to fill in missing parameters.
+        Default is "given_only" which does not attempt any derivation.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -67,7 +73,7 @@ class FakeObsTable(ObsTable):
         *,
         colmap=None,
         const_flux_error=None,
-        param_deriver=None,
+        noise_parameter_strategy="given_only",
         **kwargs,
     ):
         # Pass along all the survey parameters to the parent class.
@@ -79,8 +85,17 @@ class FakeObsTable(ObsTable):
 
         # Derive any missing parameters needed for the flux error computation. We always create
         # a new ParamDeriver instance here, because they are stateful.
-        if param_deriver is None:
+        if noise_parameter_strategy == "given_only":
             param_deriver = "NoopParamDeriver"
+        elif noise_parameter_strategy == "five_sigma_depth":
+            param_deriver = "FiveSigmaDepthParamDeriver"
+        elif noise_parameter_strategy == "exhaustive":
+            param_deriver = "FullParamDeriver"
+        else:
+            raise ValueError(
+                f"Invalid noise_parameter_strategy '{noise_parameter_strategy}'. "
+                "Should be one of: 'given_only', 'five_sigma_depth', 'exhaustive'."
+            )
         param_deriver_obj = ParamDeriver.create_deriver(param_deriver)
         param_deriver_obj.derive_parameters(self)
 
