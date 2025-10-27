@@ -5,7 +5,7 @@ from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.effects.basic_effects import ConstantDimming
 from lightcurvelynx.models.lightcurve_template_model import (
-    LightcurveData,
+    LightcurveBandData,
     LightcurveTemplateModel,
     MultiLightcurveTemplateModel,
 )
@@ -36,11 +36,11 @@ def _create_toy_lightcurves() -> dict:
 
 
 def test_create_lightcurve_data_from_dict() -> None:
-    """Test that we can create a simple LightcurveData object from a dict."""
+    """Test that we can create a simple LightcurveBandData object from a dict."""
     lightcurves = _create_toy_lightcurves()
-    lc_data = LightcurveData(lightcurves, lc_data_t0=0.0)
+    lc_data = LightcurveBandData(lightcurves, lc_data_t0=0.0)
 
-    # Check the internal structure of the LightcurveData.
+    # Check the internal structure of the LightcurveBandData.
     assert len(lc_data) == 3
     assert lc_data.lc_data_t0 == 0.0
     assert lc_data.period is None
@@ -51,7 +51,7 @@ def test_create_lightcurve_data_from_dict() -> None:
 
     # If we use an lc_data_t0, we should shift the light curves' times accordingly
     # and provide a baseline.
-    lc_data2 = LightcurveData(lightcurves, lc_data_t0=2.0, baseline={"u": 0.1, "g": 0.2, "r": 0.3})
+    lc_data2 = LightcurveBandData(lightcurves, lc_data_t0=2.0, baseline={"u": 0.1, "g": 0.2, "r": 0.3})
     assert lc_data2.lc_data_t0 == 2.0
     assert lc_data2.period is None
     for filt in ["u", "g", "r"]:
@@ -61,14 +61,14 @@ def test_create_lightcurve_data_from_dict() -> None:
 
     # We fail if the baseline does not match the filters.
     with pytest.raises(ValueError):
-        _ = LightcurveData(lightcurves, lc_data_t0=2.0, baseline={"u": 0.1, "g": 0.2, "i": 0.3})
+        _ = LightcurveBandData(lightcurves, lc_data_t0=2.0, baseline={"u": 0.1, "g": 0.2, "i": 0.3})
 
     # If we mark them as periodic we should fail because the times do not match.
     with pytest.raises(ValueError):
-        _ = LightcurveData(lightcurves, lc_data_t0=0.0, periodic=True)
+        _ = LightcurveBandData(lightcurves, lc_data_t0=0.0, periodic=True)
 
     # Check that we can specify the light curves in magnitudes.
-    lc_data3 = LightcurveData(
+    lc_data3 = LightcurveBandData(
         lightcurves,
         lc_data_t0=0.0,
         magnitudes_in=True,
@@ -83,17 +83,17 @@ def test_create_lightcurve_data_from_dict() -> None:
 
     # We fail if we try to create a light curve without a t0.
     with pytest.raises(ValueError):
-        _ = LightcurveData(lightcurves, lc_data_t0=None)
+        _ = LightcurveBandData(lightcurves, lc_data_t0=None)
 
 
 def test_create_lightcurve_data_periodic_from_dict() -> None:
-    """Test that we can create a periodic LightcurveData object from a dict."""
+    """Test that we can create a periodic LightcurveBandData object from a dict."""
     times = np.linspace(3, 13, 20)
     lightcurves = {
         "u": np.array([times, 2.0 * np.ones_like(times)]).T,
         "g": np.array([times, 3.0 * np.ones_like(times)]).T,
     }
-    lc_data = LightcurveData(lightcurves, lc_data_t0=0.0, periodic=True)
+    lc_data = LightcurveBandData(lightcurves, lc_data_t0=0.0, periodic=True)
 
     assert len(lc_data) == 2
     assert lc_data.filters == ["u", "g"]
@@ -108,7 +108,7 @@ def test_create_lightcurve_data_periodic_from_dict() -> None:
 
 
 def test_create_lightcurve_data_from_numpy() -> None:
-    """Test that we can create a simple LightcurveData object from a numpy array."""
+    """Test that we can create a simple LightcurveBandData object from a numpy array."""
     lightcurves = np.array(
         [
             [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
@@ -116,9 +116,9 @@ def test_create_lightcurve_data_from_numpy() -> None:
             ["u", "g", "r", "u", "g", "r", "u", "g", "r", "u"],
         ]
     ).T
-    lc_data = LightcurveData(lightcurves, lc_data_t0=0.0)
+    lc_data = LightcurveBandData(lightcurves, lc_data_t0=0.0)
 
-    # Check the internal structure of the LightcurveData.
+    # Check the internal structure of the LightcurveBandData.
     assert len(lc_data) == 3
     assert lc_data.lc_data_t0 == 0.0
     assert lc_data.period is None
@@ -133,8 +133,8 @@ def test_create_lightcurve_data_from_numpy() -> None:
 
 
 def test_create_lightcurve_data_from_lclib_table() -> None:
-    """Test that we can create a simple LightcurveData object from a LCLIB table."""
-    # When creating the LightcurveData from a table, we specifc the values in magnitude,
+    """Test that we can create a simple LightcurveBandData object from a LCLIB table."""
+    # When creating the LightcurveBandData from a table, we specifc the values in magnitude,
     # instead of flux.
     data = {
         "time": [0.0, 1.0, 2.0, 3.0, 4.0, 0.0],
@@ -146,9 +146,9 @@ def test_create_lightcurve_data_from_lclib_table() -> None:
     }
     table = Table(data)
     table.meta["RECUR_CLASS"] = "NON-RECUR"
-    lc_data = LightcurveData.from_lclib_table(table)
+    lc_data = LightcurveBandData.from_lclib_table(table)
 
-    # Check the internal structure of the LightcurveData.
+    # Check the internal structure of the LightcurveBandData.
     assert len(lc_data) == 4
     assert lc_data.lc_data_t0 == 0.0
     assert lc_data.period is None
@@ -169,7 +169,7 @@ def test_create_lightcurve_data_from_lclib_table() -> None:
     assert lc_data.baseline["i"] == mag2flux(1.5)
 
     # If we specify a subset of filters, only load those.
-    lc_data = LightcurveData.from_lclib_table(table, filters=["u", "g"])
+    lc_data = LightcurveBandData.from_lclib_table(table, filters=["u", "g"])
     assert set(lc_data.filters) == set(["u", "g"])
     assert "r" not in lc_data.lightcurves
     assert "i" not in lc_data.lightcurves
@@ -178,9 +178,9 @@ def test_create_lightcurve_data_from_lclib_table() -> None:
 
 
 def test_create_lightcurve_data_from_lclib_table_times() -> None:
-    """Test that we can create a simple LightcurveData object from a LCLIB table
+    """Test that we can create a simple LightcurveBandData object from a LCLIB table
     with non-zero starting times."""
-    # When creating the LightcurveData from a table, we specifc the values in magnitude,
+    # When creating the LightcurveBandData from a table, we specifc the values in magnitude,
     # instead of flux.
     data = {
         "time": [5.0, 6.0, 7.0, 8.0, 9.0],
@@ -190,9 +190,9 @@ def test_create_lightcurve_data_from_lclib_table_times() -> None:
     }
     table = Table(data)
     table.meta["RECUR_CLASS"] = "NON-RECUR"
-    lc_data = LightcurveData.from_lclib_table(table)
+    lc_data = LightcurveBandData.from_lclib_table(table)
 
-    # Check the internal structure of the LightcurveData. And that we automatically zero shift
+    # Check the internal structure of the LightcurveBandData. And that we automatically zero shift
     # things from an LCLIB table.
     assert len(lc_data) == 2
     assert lc_data.lc_data_t0 == 5.0
@@ -201,7 +201,7 @@ def test_create_lightcurve_data_from_lclib_table_times() -> None:
     assert np.allclose(lc_data.lightcurves["g"][:, 0], [0.0, 1.0, 2.0, 3.0, 4.0])
 
     # Check that we can override the default zero-shifting behavior.
-    lc_data = LightcurveData.from_lclib_table(table, forced_lc_t0=3.0)
+    lc_data = LightcurveBandData.from_lclib_table(table, forced_lc_t0=3.0)
     assert len(lc_data) == 2
     assert lc_data.lc_data_t0 == 3.0
     assert lc_data.filters == ["u", "g"]
@@ -210,8 +210,8 @@ def test_create_lightcurve_data_from_lclib_table_times() -> None:
 
 
 def test_create_lightcurve_data_from_lclib_table_periodic() -> None:
-    """Test that we can create a periodic LightcurveData object from a LCLIB table."""
-    # When creating the LightcurveData from a table, we specifc the values in magnitude,
+    """Test that we can create a periodic LightcurveBandData object from a LCLIB table."""
+    # When creating the LightcurveBandData from a table, we specifc the values in magnitude,
     # instead of flux.
     data = {
         "time": [0.0, 1.0, 2.0, 3.0, 4.0],
@@ -222,9 +222,9 @@ def test_create_lightcurve_data_from_lclib_table_periodic() -> None:
     }
     table = Table(data)
     table.meta["RECUR_CLASS"] = "RECUR-PERIODIC"
-    lc_data = LightcurveData.from_lclib_table(table)
+    lc_data = LightcurveBandData.from_lclib_table(table)
 
-    # Check the internal structure of the LightcurveData.
+    # Check the internal structure of the LightcurveBandData.
     assert len(lc_data) == 3
     assert lc_data.lc_data_t0 == 0.0
     assert np.allclose(lc_data.period, 5.0)
@@ -284,10 +284,10 @@ def test_create_lightcurve_template_model() -> None:
 
 
 def test_create_lightcurve_template_model_from_data() -> None:
-    """Test that we can create a simple LightcurveTemplateModel object for LightcurveData."""
+    """Test that we can create a simple LightcurveTemplateModel object for LightcurveBandData."""
     pb_group = _create_toy_passbands()
     lightcurves = _create_toy_lightcurves()
-    lc_data = LightcurveData(lightcurves, lc_data_t0=0.0)
+    lc_data = LightcurveBandData(lightcurves, lc_data_t0=0.0)
     lc_model = LightcurveTemplateModel(lc_data, pb_group, lc_data_t0=0.0, t0=0.0)
 
     # Check the internal structure of the LightcurveTemplateModel.
@@ -598,7 +598,7 @@ def test_create_multilightcurve_template_model() -> None:
         "u": np.array([lc1_times + 0.1, 2.0 * np.ones_like(lc1_times)]).T,
         "g": np.array([lc1_times, 3.0 * np.ones_like(lc1_times)]).T,
     }
-    lc1_data = LightcurveData(lc1_lightcurves, lc_data_t0=0.0, baseline={"u": 0.1, "g": 0.2})
+    lc1_data = LightcurveBandData(lc1_lightcurves, lc_data_t0=0.0, baseline={"u": 0.1, "g": 0.2})
 
     # Light curve 2 is periodic and covers r and g.
     lc2_times = np.arange(0.0, 19.0, 1.0)
@@ -606,7 +606,7 @@ def test_create_multilightcurve_template_model() -> None:
         "r": np.array([lc2_times, lc2_times % 2]).T,
         "g": np.array([lc2_times, lc2_times % 2 + 0.5]).T,
     }
-    lc2_data = LightcurveData(lc2_lightcurves, lc_data_t0=0.0, periodic=True)
+    lc2_data = LightcurveBandData(lc2_lightcurves, lc_data_t0=0.0, periodic=True)
 
     # Create the MultiLightcurveTemplateModel with both light curves.
     model = MultiLightcurveTemplateModel(
@@ -671,7 +671,7 @@ def test_create_multilightcurve_template_model_fail() -> None:
         "g": np.array([lc1_times, 3.0 * np.ones_like(lc1_times)]).T,
         "r": np.array([lc1_times, 3.0 * np.ones_like(lc1_times)]).T,
     }
-    lc1_data = LightcurveData(lc1_lightcurves, lc_data_t0=0.0, baseline={"u": 0.1, "g": 0.2, "r": 0.3})
+    lc1_data = LightcurveBandData(lc1_lightcurves, lc_data_t0=0.0, baseline={"u": 0.1, "g": 0.2, "r": 0.3})
 
     # This single template works.
     _ = MultiLightcurveTemplateModel([lc1_data], pb_group, t0=0.0)
@@ -687,7 +687,7 @@ def test_create_multilightcurve_template_model_fail() -> None:
         "g": np.array([lc2_times, lc2_times % 2 + 0.5]).T,
         "i": np.array([lc2_times, lc2_times % 2 + 0.5]).T,
     }
-    lc2_data = LightcurveData(lc2_lightcurves, lc_data_t0=0.0, periodic=True)
+    lc2_data = LightcurveBandData(lc2_lightcurves, lc_data_t0=0.0, periodic=True)
 
     with pytest.raises(ValueError):
         # The passband group does not have data for the 'i' band.
