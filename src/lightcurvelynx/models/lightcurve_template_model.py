@@ -15,6 +15,7 @@ import numpy as np
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
+from lightcurvelynx.astro_utils.sed_basis_models import SEDBasisModel
 from lightcurvelynx.consts import lsst_filter_plot_colors
 from lightcurvelynx.math_nodes.given_sampler import GivenValueSampler, GivenValueSelector
 from lightcurvelynx.models.physical_model import BandfluxModel
@@ -23,9 +24,9 @@ from lightcurvelynx.utils.io_utils import read_lclib_data
 logger = logging.getLogger(__name__)
 
 
-class LightcurveData:
-    """A class to hold data for a single model light curve (set of fluxes over time for
-    each filter).
+class LightcurveBandData:
+    """A class to hold data for a single model light curve defined at the band level (a set of
+    fluxes over time for each filter).
 
     Data can be passed in as fluxes (in nJy) or AB magnitudes (if magnitudes_in=True), but
     is always stored internally as fluxes.
@@ -204,7 +205,7 @@ class LightcurveData:
 
     @classmethod
     def from_lclib_table(cls, lightcurves_table, *, forced_lc_t0=None, filters=None):
-        """Break up a light curves table in LCLIB format into a LightcurveData instance.
+        """Break up a light curves table in LCLIB format into a LightcurveBandData instance.
         This function expects the table to have a "time" column, an optional "type" column,
         and a column for each filter. The "type" column should use "S" for source observation
         and "T" for template (background) observation.
@@ -305,7 +306,7 @@ class LightcurveData:
 
         return cls(lightcurves, lc_data_t0, periodic=periodic, baseline=baseline)
 
-    def evaluate_sed(self, times, filter):
+    def evaluate_bandfluxes(self, times, filter):
         """Get the bandflux values for a given filter at the specified times. These can
         be multiplied by a basis SED function to produce estimated SED values
         for the given filter at the specified times or can be used directly as bandfluxes.
@@ -386,7 +387,7 @@ class LightcurveData:
         ax.legend()
 
 
-class BaseLightcurveTemplateModel(BandfluxModel, ABC):
+class BaseLightcurveBandTemplateModel(BandfluxModel, ABC):
     """A base class for light curve template models. This class is not meant to be used directly,
     but rather as a base for other light curve template models that may have additional functionality.
     It provides the basic structure (primarily SED basis functions) and validation for
@@ -402,9 +403,8 @@ class BaseLightcurveTemplateModel(BandfluxModel, ABC):
 
     Attributes
     ----------
-    sed_values : dict
-        A dictionary mapping filters to the SED basis values for that passband. These SED values can
-        be scaled by the light curve (bandfluxes) and added together to produce an estimated SED.
+    sed_basis: SEDBasisModel, optional
+        An SEDBasisModel mapping representing the fake SED basis functions for each filter.
     all_waves : numpy.ndarray
         A 1d array of all of the wavelengths used by the passband group.
     filters : list
@@ -414,7 +414,7 @@ class BaseLightcurveTemplateModel(BandfluxModel, ABC):
     ----------
     passbands : Passband or PassbandGroup
         The passband or passband group to use for defining the light curve.
-    filters : list
+    filters : list, optional
         A list of filter names that the model supports. If None then
         all available filters will be used.
     """
@@ -426,83 +426,21 @@ class BaseLightcurveTemplateModel(BandfluxModel, ABC):
         if isinstance(passbands, Passband):
             passbands = PassbandGroup(given_passbands=[passbands])
 
-        # Check that we have passbands for each filter.
-        if filters is None:
-            filters = passbands.filters
-        else:
-            for filter in filters:
-                if filter not in passbands:
-                    raise ValueError(f"Light curve model requires a passband for filter {filter}.")
-        self.filters = filters
-
-        self.all_waves = passbands.waves
-        self.sed_values = self._create_sed_basis(self.filters, passbands)
+        # Create the SED basis functions for each filter.
+        self.sed_basis = SEDBasisModel.from_box_approximation(passbands, filters=filters)
+        self.filters = self.sed_basis.filters
+        self.all_waves = self.sed_basis.wavelengths
 
         # Check that t0 is set.
         if "t0" not in kwargs or kwargs["t0"] is None:
             raise ValueError("Light curve models require a t0 parameter.")
-
-    def _create_sed_basis(self, filters, passbands):
-        """Create the SED basis functions. For each passband this creates a box shaped SED
-        that does not overlap with any other passband. The height of the SED is normalized
-        such that the total flux density will be 1.0 after passing through the passband.
-
-        Parameters
-        ----------
-        filters : list
-            A list of filters to use for the model.
-        passbands : PassbandGroup
-            The passband group to use for defining the light curve.
-
-        Returns
-        -------
-        sed_basis_values : dict
-            A dictionary mapping the filter names to the SED basis values over all wavelengths.
-        """
-        # Mark which wavelengths are used by each passband.
-        waves_per_filter = np.zeros((len(filters), len(passbands.waves)))
-        for idx, filter in enumerate(filters):
-            # Get all of the wavelengths that have a non-negligible transmission value
-            # for this filter and find their indices in the passband group.
-            is_significant = passbands[filter].normalized_system_response[:, 1] > 1e-5
-            significant_waves = passbands[filter].waves[is_significant]
-            indices = np.searchsorted(passbands.waves, significant_waves)
-
-            # Mark all non-negligible wavelengths as used by this filter.
-            waves_per_filter[idx, indices] = 1.0
-
-        # Find which wavelengths are used by multiple filters.
-        filter_counts = np.sum(waves_per_filter, axis=0)
-
-        # Create the sed values for each wavelength.
-        sed_basis_values = {}
-        for idx, filter in enumerate(filters):
-            # Get the wavelengths that are used by ONLY this filter.
-            valid_waves = (waves_per_filter[idx, :] == 1) & (filter_counts == 1)
-            if np.sum(valid_waves) == 0:
-                raise ValueError(
-                    f"Passband {filter} has no valid wavelengths where it: a) has a non-negligible "
-                    "transmission value (>0.001) and b) does not overlap with another passband."
-                )
-
-            # Compute how much flux is passed through these wavelengths of this filter
-            # and use this to normalize the sed values.
-            filter_sed_basis = np.zeros((1, len(passbands.waves)))
-            filter_sed_basis[0, valid_waves] = 1.0
-
-            total_flux = passbands.fluxes_to_bandflux(filter_sed_basis, filter)
-            if total_flux[0] <= 0:
-                raise ValueError(f"Total flux for filter {filter} is {total_flux[0]}.")
-            sed_basis_values[filter] = filter_sed_basis[0, :] / total_flux[0]
-
-        return sed_basis_values
 
     def compute_sed_given_lc(self, lc, times, wavelengths, graph_state):
         """Compute the flux density for a given light curve at specified times and wavelengths.
 
         Parameters
         ----------
-        lc : LightcurveData
+        lc : LightcurveBandData
             The light curve data to use for computing the flux density.
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
@@ -524,17 +462,11 @@ class BaseLightcurveTemplateModel(BandfluxModel, ABC):
         flux_density = np.zeros((len(times), len(wavelengths)))
         for filter in lc.filters:
             # Compute the SED values for the wavelengths we are actually sampling.
-            sed_waves = np.interp(
-                wavelengths,  # The query wavelengths
-                self.all_waves,  # All of the passband group's wavelengths
-                self.sed_values[filter],  # The SED values at each of the passband group's wavelengths
-                left=0.0,  # Do not extrapolate in wavelength
-                right=0.0,  # Do not extrapolate in wavelength
-            )
+            sed_waves = self.sed_basis.compute_sed(filter, wavelengths=wavelengths)
 
             # Compute the multipliers for the SEDs at different time steps along this light curve.
             # We use the light curve's baseline value for all times outside the light curve's range.
-            sed_time_mult = lc.evaluate_sed(shifted_times, filter)
+            sed_time_mult = lc.evaluate_bandfluxes(shifted_times, filter)
 
             # The contribution of this filter to the overall SED is the light curve's (interpolated)
             # value at each time multiplied by the SED values at each query wavelength.
@@ -556,24 +488,10 @@ class BaseLightcurveTemplateModel(BandfluxModel, ABC):
         figure : matplotlib.pyplot.Figure or None
             Figure, None by default.
         """
-        if ax is None:
-            if figure is None:
-                figure = plt.figure()
-            ax = figure.add_axes([0, 0, 1, 1])
-
-        # Plot each passband.
-        for filter_name, filter_curve in self.sed_values.items():
-            color = lsst_filter_plot_colors.get(filter_name, "black")
-            ax.plot(self.all_waves, filter_curve, color=color, label=filter_name)
-
-        # Set the x and y axis labels.
-        ax.set_xlabel("Wavelength (Angstroms)")
-        ax.set_ylabel("SED (nJy)")
-        ax.set_title("SED Basis Functions")
-        ax.legend()
+        self.sed_basis.plot(ax=ax, figure=figure)
 
 
-class LightcurveTemplateModel(BaseLightcurveTemplateModel):
+class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     """A model that generates either the SED or bandflux of a source based on
     given light curves in each band. When generating the bandflux, it interpolates
     the light curves directly. When generating the SED, the model uses a box-shaped SED
@@ -600,7 +518,7 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
 
     Attributes
     ----------
-    lightcurves : LightcurveData
+    lightcurves : LightcurveBandData
         The data for the light curves, such as the times and bandfluxes in each filter.
     sed_values : dict
         A dictionary mapping filters to the SED basis values for that passband.
@@ -613,7 +531,7 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
     ----------
     lightcurves : dict or numpy.ndarray
         The light curves can be passed as either:
-        1) a LightcurveData instance,
+        1) a LightcurveBandData instance,
         2) a dictionary mapping filter names to a (T, 2) array of the bandlfuxes in that filter
         where the first column is time and the second column is the flux density (in nJy), or
         3) a numpy array of shape (T, 3) array where the first column is time (in days), the
@@ -646,10 +564,10 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
         **kwargs,
     ):
         # Store the light curve data, parsing out different formats if needed.
-        if isinstance(lightcurves, LightcurveData):
+        if isinstance(lightcurves, LightcurveBandData):
             self.lightcurves = lightcurves
         else:
-            self.lightcurves = LightcurveData(
+            self.lightcurves = LightcurveBandData(
                 lightcurves,
                 lc_data_t0,
                 periodic=periodic,
@@ -715,7 +633,7 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
         bandfluxes = np.zeros(len(times))
         for filter in self.lightcurves.filters:
             filter_mask = filters == filter
-            bandfluxes[filter_mask] = self.lightcurves.evaluate_sed(shifted_times[filter_mask], filter)
+            bandfluxes[filter_mask] = self.lightcurves.evaluate_bandfluxes(shifted_times[filter_mask], filter)
 
         return bandfluxes
 
@@ -737,7 +655,7 @@ class LightcurveTemplateModel(BaseLightcurveTemplateModel):
         self.lightcurves.plot_lightcurves(times=times, ax=ax, figure=figure)
 
 
-class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
+class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     """A MultiLightcurveTemplateModel randomly selects a light curve at each evaluation
     computes the flux from that source. The models can generate either the SED or
     bandflux of a source based of given light curves in each band. When generating
@@ -765,7 +683,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
 
     Attributes
     ----------
-    lightcurves : list of LightcurveData
+    lightcurves : list of LightcurveBandData
         The data for each set of light curves.
     sed_values : dict
         A dictionary mapping filters to the SED basis values for that passband.
@@ -779,7 +697,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
 
     Parameters
     ----------
-    lightcurves : list of LightcurveData
+    lightcurves : list of LightcurveBandData
         The data for each set of light curves. One light curve will be randomly selected
         at each evaluation.
     passbands : Passband or PassbandGroup
@@ -800,8 +718,8 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
         # Validate the light curve input and create a union of all filters used.
         self.all_filters = set()
         for lc in lightcurves:
-            if not isinstance(lc, LightcurveData):
-                raise TypeError("Each light curve must be an instance of LightcurveData.")
+            if not isinstance(lc, LightcurveBandData):
+                raise TypeError("Each light curve must be an instance of LightcurveBandData.")
             self.all_filters.update(lc.filters)
         self.lightcurves = lightcurves
 
@@ -844,7 +762,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
             Used to select a subset of filters that match the survey to simulate.
             Default: None
         **kwargs
-            Additional keyword arguments to pass to the LightcurveData constructor, including
+            Additional keyword arguments to pass to the LightcurveBandData constructor, including
             the parameters for the model such as `dec`, `ra`, and `t0` and metadata
             such as `node_label`.
 
@@ -869,7 +787,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
 
         lightcurves = []
         for table, lc_t0 in zip(lightcurve_tables, forced_lc_t0, strict=False):
-            lc_data = LightcurveData.from_lclib_table(table, forced_lc_t0=lc_t0, filters=filters)
+            lc_data = LightcurveBandData.from_lclib_table(table, forced_lc_t0=lc_t0, filters=filters)
             lightcurves.append(lc_data)
 
         return cls(lightcurves, passbands, **kwargs)
@@ -936,6 +854,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveTemplateModel):
         bandfluxes = np.zeros(len(times))
         for filter in lc.filters:
             filter_mask = filters == filter
-            bandfluxes[filter_mask] = lc.evaluate_sed(shifted_times[filter_mask], filter)
+            bandfluxes[filter_mask] = lc.evaluate_bandfluxes(shifted_times[filter_mask], filter)
 
         return bandfluxes
