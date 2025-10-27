@@ -35,7 +35,7 @@ def _create_toy_lightcurves() -> dict:
     return lightcurves
 
 
-def test_create_lightcurve_data_from_dict() -> None:
+def test_create_lightcurve_band_data_from_dict() -> None:
     """Test that we can create a simple LightcurveBandData object from a dict."""
     lightcurves = _create_toy_lightcurves()
     lc_data = LightcurveBandData(lightcurves, lc_data_t0=0.0)
@@ -86,7 +86,7 @@ def test_create_lightcurve_data_from_dict() -> None:
         _ = LightcurveBandData(lightcurves, lc_data_t0=None)
 
 
-def test_create_lightcurve_data_periodic_from_dict() -> None:
+def test_create_lightcurve_band_data_periodic_from_dict() -> None:
     """Test that we can create a periodic LightcurveBandData object from a dict."""
     times = np.linspace(3, 13, 20)
     lightcurves = {
@@ -107,7 +107,7 @@ def test_create_lightcurve_data_periodic_from_dict() -> None:
     assert lc_data.baseline == {"u": 0.0, "g": 0.0}
 
 
-def test_create_lightcurve_data_from_numpy() -> None:
+def test_create_lightcurve_band_data_from_numpy() -> None:
     """Test that we can create a simple LightcurveBandData object from a numpy array."""
     lightcurves = np.array(
         [
@@ -132,7 +132,7 @@ def test_create_lightcurve_data_from_numpy() -> None:
     assert lc_data.baseline == {"u": 0.0, "g": 0.0, "r": 0.0}
 
 
-def test_create_lightcurve_data_from_lclib_table() -> None:
+def test_create_lightcurve_band_data_from_lclib_table() -> None:
     """Test that we can create a simple LightcurveBandData object from a LCLIB table."""
     # When creating the LightcurveBandData from a table, we specifc the values in magnitude,
     # instead of flux.
@@ -177,7 +177,7 @@ def test_create_lightcurve_data_from_lclib_table() -> None:
     assert "g" in lc_data.lightcurves
 
 
-def test_create_lightcurve_data_from_lclib_table_times() -> None:
+def test_create_lightcurve_band_data_from_lclib_table_times() -> None:
     """Test that we can create a simple LightcurveBandData object from a LCLIB table
     with non-zero starting times."""
     # When creating the LightcurveBandData from a table, we specifc the values in magnitude,
@@ -209,7 +209,7 @@ def test_create_lightcurve_data_from_lclib_table_times() -> None:
     assert np.allclose(lc_data.lightcurves["g"][:, 0], [2.0, 3.0, 4.0, 5.0, 6.0])
 
 
-def test_create_lightcurve_data_from_lclib_table_periodic() -> None:
+def test_create_lightcurve_band_data_from_lclib_table_periodic() -> None:
     """Test that we can create a periodic LightcurveBandData object from a LCLIB table."""
     # When creating the LightcurveBandData from a table, we specifc the values in magnitude,
     # instead of flux.
@@ -255,15 +255,8 @@ def test_create_lightcurve_template_model() -> None:
 
     # Check the internal structure of the LightcurveTemplateModel.
     assert len(lc_model.lightcurves) == 3
-    assert len(lc_model.sed_values) == 3
     assert np.allclose(lc_model.all_waves, pb_group.waves)
     assert lc_model.filters == ["u", "g", "r"]
-
-    # Check that no two SED basis functions overlap.
-    for f1 in lc_model.filters:
-        for f2 in lc_model.filters:
-            if f1 != f2:
-                assert np.count_nonzero(lc_model.sed_values[f1] * lc_model.sed_values[f2]) == 0
 
     # A call to evaluate_bandfluxes should return the desired light curves.  We only use two of the passbands.
     graph_state = lc_model.sample_parameters(num_samples=1)
@@ -292,15 +285,8 @@ def test_create_lightcurve_template_model_from_data() -> None:
 
     # Check the internal structure of the LightcurveTemplateModel.
     assert len(lc_model.lightcurves) == 3
-    assert len(lc_model.sed_values) == 3
     assert np.allclose(lc_model.all_waves, pb_group.waves)
     assert lc_model.filters == ["u", "g", "r"]
-
-    # Check that no two SED basis functions overlap.
-    for f1 in lc_model.filters:
-        for f2 in lc_model.filters:
-            if f1 != f2:
-                assert np.count_nonzero(lc_model.sed_values[f1] * lc_model.sed_values[f2]) == 0
 
     # A call to evaluate_bandfluxes should return the desired light curves.  We only use two of the passbands.
     graph_state = lc_model.sample_parameters(num_samples=1)
@@ -491,7 +477,6 @@ def test_create_lightcurve_template_model_numpy() -> None:
 
     # Check the internal structure of the LightcurveTemplateModel.
     assert len(lc_model.lightcurves) == 3
-    assert len(lc_model.sed_values) == 3
     assert np.allclose(lc_model.all_waves, pb_group.waves)
     assert set(lc_model.filters) == set(["u", "g", "r"])
 

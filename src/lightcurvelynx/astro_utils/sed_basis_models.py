@@ -71,6 +71,9 @@ class SEDBasisModel:
         # Mark which wavelengths are used by each passband.
         waves_per_filter = np.zeros((len(filters), len(passbands.waves)))
         for idx, filter in enumerate(filters):
+            if filter not in passbands.filters:
+                raise ValueError(f"Filter {filter} not found in passband group.")
+
             # Get all of the wavelengths that have a non-negligible transmission value
             # for this filter and find their indices in the passband group.
             is_significant = passbands[filter].normalized_system_response[:, 1] > 1e-5
