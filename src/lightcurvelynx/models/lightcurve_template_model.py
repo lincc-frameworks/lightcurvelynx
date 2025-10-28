@@ -5,6 +5,10 @@ If we are generating the bandfluxes directly, the models interpolate the given l
 at the requested times and filters. If we are generating an SED for a given set of
 wavelengths, the model computes a box-shaped SED basis function for each filter that
 will produce the same bandflux after being passed through the passband filter.
+
+Note: If you are interested in generating light curves from SED-level curves, use
+the SEDCurveModel in src/lightcurvelynx/models/sed_curve_model.py
+instead.
 """
 
 import logging
@@ -515,6 +519,12 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
       * dec - The object's declination in degrees.
       * ra - The object's right ascension in degrees.
       * t0 - The t0 of the zero phase (if applicable), date.
+
+    Notes
+    -----
+    If you are interested in generating light curves from SED-level curves, use
+    the SEDCurveModel in src/lightcurvelynx/models/sed_curve_model.py
+    instead.
 
     Attributes
     ----------
