@@ -40,7 +40,7 @@ class FakeObsTable(ObsTable):
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, saturation effects will not be applied.
-    noise_parameter_strategy : str, optional
+    noise_strategy : str, optional
         The name of the strategy to use to derive any missing table parameters needed to compute the noise.
         This is used if the table does not provide all the necessary parameters for the given noise model.
         Should be one of:
@@ -73,7 +73,7 @@ class FakeObsTable(ObsTable):
         *,
         colmap=None,
         const_flux_error=None,
-        noise_parameter_strategy="given_only",
+        noise_strategy="given_only",
         **kwargs,
     ):
         # Pass along all the survey parameters to the parent class.
@@ -85,15 +85,15 @@ class FakeObsTable(ObsTable):
 
         # Derive any missing parameters needed for the flux error computation. We always create
         # a new ParamDeriver instance here, because they are stateful.
-        if noise_parameter_strategy == "given_only":
+        if noise_strategy == "given_only":
             param_deriver = "NoopParamDeriver"
-        elif noise_parameter_strategy == "five_sigma_depth":
+        elif noise_strategy == "five_sigma_depth":
             param_deriver = "FiveSigmaDepthParamDeriver"
-        elif noise_parameter_strategy == "exhaustive":
+        elif noise_strategy == "exhaustive":
             param_deriver = "FullParamDeriver"
         else:
             raise ValueError(
-                f"Invalid noise_parameter_strategy '{noise_parameter_strategy}'. "
+                f"Invalid noise_strategy '{noise_strategy}'. "
                 "Should be one of: 'given_only', 'five_sigma_depth', 'exhaustive'."
             )
         param_deriver_obj = ParamDeriver.create_deriver(param_deriver)

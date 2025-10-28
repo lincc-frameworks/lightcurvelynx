@@ -18,7 +18,7 @@ def test_create_fake_obs_table_consts():
     zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
     ops_data = FakeObsTable(
         pdf,
-        noise_parameter_strategy="exhaustive",
+        noise_strategy="exhaustive",
         zp_per_band=zp_per_band,
         fwhm_px=2.0,
         sky_bg_electrons=100.0,
@@ -65,7 +65,7 @@ def test_create_fake_obs_table_consts():
     # If we give psf_footprint, we use that instead of fwhm_px.
     ops_data = FakeObsTable(
         pdf,
-        noise_parameter_strategy="exhaustive",
+        noise_strategy="exhaustive",
         zp_per_band=zp_per_band,
         fwhm_px=2.0,
         psf_footprint=1.0,
@@ -76,7 +76,7 @@ def test_create_fake_obs_table_consts():
     # We can override the defaults, using dictionaries of values for fwhm_px and sky.
     ops_data = FakeObsTable(
         pdf,
-        noise_parameter_strategy="exhaustive",
+        noise_strategy="exhaustive",
         zp_per_band=zp_per_band,
         exptime=60.0,
         fwhm_px={"g": 2.5, "r": 3.1, "i": 1.9},
@@ -131,7 +131,7 @@ def test_create_fake_obs_table_consts():
     with pytest.raises(ValueError):
         _ = FakeObsTable(
             pdf,
-            noise_parameter_strategy="given_only",
+            noise_strategy="given_only",
             zp_per_band=zp_per_band,
             fwhm_px=2.0,
             psf_footprint=1.0,
@@ -157,7 +157,7 @@ def test_create_fake_obs_table_non_consts():
     zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
     ops_data = FakeObsTable(
         pdf,
-        noise_parameter_strategy="exhaustive",
+        noise_strategy="exhaustive",
         zp_per_band=zp_per_band,
         fwhm_px=2.0,
         sky=100.0,
@@ -198,7 +198,7 @@ def test_create_fake_obs_table_cols_fail():
     with pytest.raises(ValueError):
         _ = FakeObsTable(
             pdf,
-            noise_parameter_strategy="exhaustive",
+            noise_strategy="exhaustive",
             zp_per_band=zp_per_band,
             sky_bg_electrons=100.0,
         )
@@ -207,7 +207,7 @@ def test_create_fake_obs_table_cols_fail():
     with pytest.raises(ValueError):
         _ = FakeObsTable(
             pdf,
-            noise_parameter_strategy="exhaustive",
+            noise_strategy="exhaustive",
             zp_per_band=zp_per_band,
             fwhm_px=2.0,
         )
@@ -216,7 +216,7 @@ def test_create_fake_obs_table_cols_fail():
     with pytest.raises(ValueError):
         _ = FakeObsTable(
             pdf,
-            noise_parameter_strategy="exhaustive",
+            noise_strategy="exhaustive",
             zp_per_band=zp_per_band,
             fwhm_px=2.0,
             sky_bg_electrons=100.0,
@@ -225,7 +225,7 @@ def test_create_fake_obs_table_cols_fail():
     with pytest.raises(ValueError):
         _ = FakeObsTable(
             pdf,
-            noise_parameter_strategy="exhaustive",
+            noise_strategy="exhaustive",
             zp_per_band=zp_per_band,
             fwhm_px=2.0,
             sky_bg_electrons=100.0,
@@ -236,7 +236,7 @@ def test_create_fake_obs_table_cols_fail():
     with pytest.raises(ValueError):
         _ = FakeObsTable(
             pdf,
-            noise_parameter_strategy="exhaustive",
+            noise_strategy="exhaustive",
             zp_per_band=zp_per_band,
             fwhm_px=2.0,
             sky_bg_electrons=100.0,
@@ -245,7 +245,7 @@ def test_create_fake_obs_table_cols_fail():
     with pytest.raises(ValueError):
         _ = FakeObsTable(
             pdf,
-            noise_parameter_strategy="exhaustive",
+            noise_strategy="exhaustive",
             zp_per_band=zp_per_band,
             fwhm_px=2.0,
             sky_bg_electrons=100.0,
@@ -267,7 +267,7 @@ def test_create_fake_obs_table_zp_fail():
     with pytest.raises(KeyError):
         _ = FakeObsTable(
             pdf,
-            noise_parameter_strategy="exhaustive",
+            noise_strategy="exhaustive",
             zp_per_band=zp_per_band,
             fwhm_px=2.0,
             sky=100.0,
@@ -281,7 +281,7 @@ def test_create_fake_obs_table_zp_fail():
     with pytest.raises(ValueError):
         _ = FakeObsTable(
             pdf,
-            noise_parameter_strategy="exhaustive",
+            noise_strategy="exhaustive",
             zp_per_band=zp_per_band,
             fwhm_px=2.0,
             sky=100.0,
