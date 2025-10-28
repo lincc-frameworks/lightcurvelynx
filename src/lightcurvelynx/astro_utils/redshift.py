@@ -55,6 +55,8 @@ def rest_to_obs_flux(flux_density, redshift):
     flux_density : numpy.ndarray
         The observer frame flux (in nJy).
     """
+    # Note that since we are f_nu the flux density gets multiplied by (1+z)
+    # instead of divided by it as it would be in f_lambda.
     return flux_density * (1 + redshift)
 
 

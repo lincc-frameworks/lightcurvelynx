@@ -18,6 +18,8 @@ def test_redshifted_flux_densities() -> None:
 
         for i, time in enumerate(times):
             if t0 <= time and time <= (t1 - t0) * (1 + redshift) + t0:
+                # Note that since we are f_nu the flux density gets multiplied by (1+z)
+                # instead of divided by it as it would be in f_lambda.
                 assert np.all(values_redshift[i] == brightness * (1 + redshift))
             else:
                 assert np.all(values_redshift[i] == 0.0)
