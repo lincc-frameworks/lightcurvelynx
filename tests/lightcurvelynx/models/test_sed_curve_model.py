@@ -7,35 +7,6 @@ from lightcurvelynx.models.sed_curve_model import (
 )
 
 
-def test_three_column_to_matrix() -> None:
-    """Test that we can transform a 3-column SED data to a matrix form."""
-    data = np.array(
-        [
-            [1.0, 1000.0, 10.0],
-            [1.0, 2000.0, 20.0],
-            [2.0, 1000.0, 15.0],
-            [2.0, 2000.0, 25.0],
-            [3.0, 1000.0, 20.0],
-            [3.0, 2000.0, 30.0],
-        ]
-    )
-    unique_times, unique_wavelengths, lightcurve_matrix = LightcurveSEDData.three_column_to_matrix(data)
-
-    expected_wavelengths = np.array([1000.0, 2000.0])
-    expected_times = np.array([1.0, 2.0, 3.0])
-    expected_matrix = np.array(
-        [
-            [10.0, 20.0],
-            [15.0, 25.0],
-            [20.0, 30.0],
-        ]
-    )
-
-    np.testing.assert_array_equal(unique_wavelengths, expected_wavelengths)
-    np.testing.assert_array_equal(unique_times, expected_times)
-    np.testing.assert_array_equal(lightcurve_matrix, expected_matrix)
-
-
 def test_linear_lightcurve_sed_data() -> None:
     """Test that we can create a LightcurveSEDData object with linear interpolation."""
     data = np.array(

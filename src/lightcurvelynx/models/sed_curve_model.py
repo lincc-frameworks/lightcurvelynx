@@ -62,7 +62,7 @@ class LightcurveSEDData:
             raise ValueError(
                 f"lightcurves must be a 2D array with shape (N x 3). Got {lightcurves.shape} instead."
             )
-        self.phases, self.wavelengths, sed_values = LightcurveSEDData.three_column_to_matrix(lightcurves)
+        self.phases, self.wavelengths, sed_values = LightcurveSEDData._three_column_to_matrix(lightcurves)
 
         # Apply the lc_data_t0 offset to the phases to get the times.
         self.times = self.phases - lc_data_t0
@@ -136,7 +136,7 @@ class LightcurveSEDData:
         return sed_values
 
     @staticmethod
-    def three_column_to_matrix(data):
+    def _three_column_to_matrix(data):
         """Convert 3-column SED data to a matrix form.
 
         Parameters
