@@ -11,20 +11,22 @@ import logging
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
+from lightcurvelynx.math_nodes.given_sampler import GivenValueSampler
 from lightcurvelynx.models.physical_model import SEDModel
 
 logger = logging.getLogger(__name__)
 
 
 class LightcurveSEDData:
-    """A class to hold data for a single lightcurve SED model.
+    """A class to hold a grid of SED data over time and wavelength, and provide
+    interpolation capabilities. The quantities can use whichever units are desired.
 
     Attributes
     ----------
     wavelengths : np.ndarray
-        A length W array of the wavelengths (in Angstroms) for the SED.
+        A length W array of the wavelengths for the SED.
     times : np.ndarray
-        A length T array of the times (in days) for the SED relative to the reference epoch.
+        A length T array of the times for the SED relative to the reference epoch.
     interp : scipy.interpolate object
         The type of interpolation to use. One of 'linear' or 'spline'.
     period : float or None
@@ -33,8 +35,7 @@ class LightcurveSEDData:
     Parameters
     ----------
     lightcurves : np.ndarray
-        A 2D array of shape (N x 3) containing phases (in days), wavelengths (in Angstroms),
-        and fluxes (in nJy).
+        A 2D array of shape (N x 3) containing phases, wavelengths, and fluxes.
     lc_data_t0 : float, optional
         The reference epoch of the input light curve. This is the time stamp of the input
         array that will correspond to t0 in the model. Default is 0.0.
@@ -105,14 +106,15 @@ class LightcurveSEDData:
         Parameters
         ----------
         times : np.ndarray
-            A length T array of times (in days) at which to evaluate the SED (relative to t0).
+            A length T array of times (in the given units) at which to evaluate the SED
+            (relative to t0).
         wavelengths : np.ndarray
-            A length W array of wavelengths (in Angstroms) at which to evaluate the SED.
+            A length W array of wavelengths (in the given units) at which to evaluate the SED.
 
         Returns
         -------
         sed_values : np.ndarray
-            A (T x W) matrix of SED values (in nJy) at the given times and wavelengths.
+            A (T x W) matrix of SED values (in the given units) at the given times and wavelengths.
         """
         if self.period is None:
             sed_values = np.zeros((len(times), len(wavelengths)))
@@ -272,3 +274,77 @@ class SEDCurveModel(SEDModel):
         """
         shifted_times = times - self.get_param(graph_state, "t0")
         return self.lightcurves.evaluate_sed(shifted_times, wavelengths)
+
+
+class MultiSEDCurveModel(SEDModel):
+    """A MultiSEDCurveModel randomly selects a SED-based light curve at each evaluation
+    computes the flux from that source at given times and wavelengths.
+
+    MultiSEDCurveModel supports both periodic and non-periodic light curves. See the
+    LightcurveSEDData documentation for details on how each light curve is handled.
+
+    Parameterized values include:
+      * dec - The object's declination in degrees.
+      * ra - The object's right ascension in degrees.
+      * t0 - The t0 of the zero phase (if applicable), date.
+
+    Attributes
+    ----------
+    lightcurves : list of LightcurveSEDData
+        The data for the light curves, such as the times and bandfluxes in each filter.
+
+    Parameters
+    ----------
+    lightcurves : list of LightcurveSEDData
+        The data for the light curves, such as the times and bandfluxes in each filter.
+    weights : numpy.ndarray, optional
+        A length N array indicating the relative weight from which to select
+        a light curve at random. If None, all light curves will be weighted equally.
+    """
+
+    def __init__(
+        self,
+        lightcurves,
+        *,
+        weights=None,
+        **kwargs,
+    ):
+        # Validate the light curve input.
+        for lc in lightcurves:
+            if not isinstance(lc, LightcurveSEDData):
+                raise TypeError("Each light curve must be an instance of LightcurveSEDData.")
+        self.lightcurves = lightcurves
+
+        super().__init__(**kwargs)
+
+        all_inds = [i for i in range(len(lightcurves))]
+        self._sampler_node = GivenValueSampler(all_inds, weights=weights)
+        self.add_parameter("selected_lightcurve", value=self._sampler_node, allow_gradient=False)
+
+    def __len__(self):
+        """Get the number of light curves."""
+        return len(self.lightcurves)
+
+    def compute_sed(self, times, wavelengths, graph_state):
+        """Draw effect-free observer frame flux densities.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        wavelengths : numpy.ndarray, optional
+            A length N array of observer frame wavelengths (in angstroms).
+        graph_state : GraphState
+            An object mapping graph parameters to their values.
+
+        Returns
+        -------
+        flux_density : numpy.ndarray
+            A length T x N matrix of observer frame SED values (in nJy). These are generated
+            from non-overlapping box-shaped SED basis functions for each filter and
+            scaled by the light curve values.
+        """
+        # Use the light curve selected by the sampler node to compute the flux density.
+        model_ind = self.get_param(graph_state, "selected_lightcurve")
+        shifted_times = times - self.get_param(graph_state, "t0")
+        return self.lightcurves[model_ind].evaluate_sed(shifted_times, wavelengths)

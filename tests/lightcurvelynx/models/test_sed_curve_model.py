@@ -1,6 +1,10 @@
 import numpy as np
 import pytest
-from lightcurvelynx.models.sed_curve_model import LightcurveSEDData, SEDCurveModel
+from lightcurvelynx.models.sed_curve_model import (
+    LightcurveSEDData,
+    MultiSEDCurveModel,
+    SEDCurveModel,
+)
 
 
 def test_three_column_to_matrix() -> None:
@@ -183,3 +187,39 @@ def test_create_sed_curve_model() -> None:
         ]
     )
     assert np.allclose(sed_values2, expected_values2)
+
+
+def test_create_multi_sed_curve_model() -> None:
+    """Test that we can create a MultiSEDCurveModel object."""
+    data1 = np.array(
+        [
+            [0.0, 1000.0, 5.0],
+            [0.0, 2000.0, 15.0],
+            [1.0, 1000.0, 10.0],
+            [1.0, 2000.0, 20.0],
+        ]
+    )
+    lc1 = LightcurveSEDData(data1, interpolation_type="linear", periodic=False)
+
+    data2 = np.array(
+        [
+            [0.0, 1000.0, 20.0],
+            [0.0, 2000.0, 30.0],
+            [1.0, 1000.0, 25.0],
+            [1.0, 2000.0, 35.0],
+        ]
+    )
+    lc2 = LightcurveSEDData(data2, interpolation_type="linear", periodic=False)
+    model = MultiSEDCurveModel([lc1, lc2], weights=[0.25, 0.75], t0=0.0, node_label="model")
+    assert len(model) == 2
+
+    # Evaluate the model at some times and wavelengths.
+    eval_times = np.array([0.5])
+    eval_waves = np.array([1000.0])
+
+    state = model.sample_parameters(num_samples=10_000)
+    sed_values = model.evaluate_sed(eval_times, eval_waves, graph_state=state)
+    chose_first = state["model"]["selected_lightcurve"] == 0
+    assert 0.15 < np.count_nonzero(chose_first) / 10000.0 < 0.35  # Check weights are roughly correct.
+    assert np.allclose(sed_values[chose_first, 0, 0], 7.5)
+    assert np.allclose(sed_values[~chose_first, 0, 0], 22.5)
