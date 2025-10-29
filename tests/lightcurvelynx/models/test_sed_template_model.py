@@ -111,6 +111,48 @@ def test_linear_sed_template_data_periodic() -> None:
     assert np.allclose(sed_values, expected_values)
 
 
+def test_sed_template_data_from_components() -> None:
+    """Test that we can create a SEDTemplate object from separate time, wavelength, and flux arrays."""
+    times = np.array([1.0, 2.0, 3.0])
+    wavelengths = np.array([1000.0, 2000.0])
+    fluxes = np.array(
+        [
+            [10.0, 20.0],
+            [15.0, 25.0],
+            [20.0, 30.0],
+        ]
+    )
+    data_obj = SEDTemplate.from_components(
+        times,
+        wavelengths,
+        fluxes,
+        interpolation_type="linear",
+        periodic=False,
+    )
+
+    eval_times = np.array([1.5, 2.5])
+    eval_waves = np.array([1000.0, 2000.0])
+    sed_values = data_obj.evaluate_sed(eval_times, eval_waves)
+    expected_values = np.array(
+        [
+            [12.5, 22.5],
+            [17.5, 27.5],
+        ]
+    )
+    assert np.allclose(sed_values, expected_values)
+
+
+def test_sed_template_data_from_file(test_data_dir):
+    """Test that we can create a SEDTemplate from a file."""
+    filename = test_data_dir / "truncated-salt2-h17" / "salt2_template_0.dat"
+    data = SEDTemplate.from_file(filename)
+    assert len(data.times) == 26
+    assert len(data.wavelengths) == 401
+
+    with pytest.raises(FileNotFoundError):
+        SEDTemplate.from_file(test_data_dir / "nonexistent-file.dat")
+
+
 def test_create_sed_template_model() -> None:
     """Test that we can create an SEDTemplateModel object."""
     data = np.array(
@@ -129,7 +171,7 @@ def test_create_sed_template_model() -> None:
             [3.0, 3000.0, 5.0],
         ]
     )
-    model = SEDTemplateModel(data, 0.0, interpolation_type="linear", periodic=False, t0=0.0)
+    model = SEDTemplateModel(data, sed_data_t0=0.0, interpolation_type="linear", periodic=False, t0=0.0)
     assert len(model.times) == 4
     assert len(model.wavelengths) == 3
 
@@ -148,8 +190,12 @@ def test_create_sed_template_model() -> None:
     )
     assert np.allclose(sed_values, expected_values)
 
+    # We fail is we provide the data in numpy array form without sed_data_t0.
+    with pytest.raises(ValueError):
+        _ = SEDTemplateModel(data, interpolation_type="linear", periodic=False, t0=0.0)
+
     # Set a non-zero t0. An evaluation time of 2.0 now corresponds to phase 0.0 in the curve.
-    model2 = SEDTemplateModel(data, 0.0, interpolation_type="linear", periodic=False, t0=2.0)
+    model2 = SEDTemplateModel(data, sed_data_t0=0.0, interpolation_type="linear", periodic=False, t0=2.0)
     state2 = model2.sample_parameters(num_samples=1)
     sed_values2 = model2.evaluate_sed(eval_times, eval_waves, graph_state=state2)
     expected_values2 = np.array(

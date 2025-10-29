@@ -51,6 +51,8 @@ class SEDTemplate:
     baseline : np.ndarray or None, optional
         A length W array of baseline SED values for each wavelength. This is only used
         for non-periodic SED templates when they are not active. Default is None.
+    **kwargs : dict
+        Additional keyword arguments that are ignored.
     """
 
     def __init__(
@@ -61,6 +63,7 @@ class SEDTemplate:
         interpolation_type="linear",
         periodic=False,
         baseline=None,
+        **kwargs,
     ):
         grid_data = np.asarray(grid_data)
         if grid_data.ndim != 2 or grid_data.shape[1] != 3:
@@ -105,6 +108,68 @@ class SEDTemplate:
             kx=interp_degree,
             ky=interp_degree,
         )
+
+    @classmethod
+    def from_file(cls, file_path, **kwargs):
+        """Create a SEDTemplate from a file containing three-column data.
+
+        Parameters
+        ----------
+        file_path : str or Path
+            The path to the file containing the SED data.
+        **kwargs : dict
+            Additional keyword arguments to pass to the SEDTemplate constructor.
+
+        Returns
+        -------
+        SEDTemplate
+            The created SEDTemplate instance.
+        """
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"SED data file not found: {file_path}.")
+
+        data = np.loadtxt(file_path, comments="#")
+        return cls(data, **kwargs)
+
+    @classmethod
+    def from_components(cls, times, wavelengths, sed_values, **kwargs):
+        """Create a SEDTemplate from separate time, wavelength, and SED value arrays. This is
+        a convenience method that packs the data into (and then later unpacks the data from) the
+        required three-column format.
+
+        Parameters
+        ----------
+        times : np.ndarray
+            A length T array of times.
+        wavelengths : np.ndarray
+            A length W array of wavelengths.
+        sed_values : np.ndarray
+            A 2D array of shape (T x W) containing the SED values.
+        **kwargs : dict
+            Additional keyword arguments to pass to the SEDTemplate constructor.
+        """
+        times = np.asarray(times)
+        wavelengths = np.asarray(wavelengths)
+        sed_values = np.asarray(sed_values)
+
+        if sed_values.shape != (len(times), len(wavelengths)):
+            raise ValueError(
+                f"sed_values shape {sed_values.shape} must match (len(times), len(wavelengths)) "
+                f"= ({len(times)}, {len(wavelengths)})."
+            )
+
+        # Pack the data into three-column format.
+        grid_data = np.zeros((len(times) * len(wavelengths), 3))
+        row = 0
+        for t_idx, time in enumerate(times):
+            for w_idx, wavelength in enumerate(wavelengths):
+                grid_data[row, 0] = time
+                grid_data[row, 1] = wavelength
+                grid_data[row, 2] = sed_values[t_idx, w_idx]
+                row += 1
+
+        return cls(grid_data, **kwargs)
 
     def evaluate_sed(self, times, wavelengths):
         """Evaluate the SED at the given times and wavelengths.
@@ -207,11 +272,10 @@ class SEDTemplateModel(SEDModel):
         1) a SEDTemplate instance, or
         2) a numpy array of shape (T, 3) array where the first column is phase (in days), the
         second column is wavelength (in Angstroms), and the third column is the SED value (in nJy).
-    sed_data_t0 : float
+    sed_data_t0 : float or None, optional
         The reference epoch of the input template. This is the time stamp of the input
-        array that will correspond to t0 in the model. For periodic templates, this either
-        must be set to the first time of the template or set as 0.0 to automatically
-        derive the sed_data_t0 from the template.
+        array that will correspond to t0 in the model. This is only required if the template
+        is passed as a numpy array. Default is None.
     interpolation_type : str, optional
         The type of interpolation to use. One of 'linear' or 'cubic'. Default is 'linear'.
     periodic : bool, optional
@@ -224,8 +288,8 @@ class SEDTemplateModel(SEDModel):
     def __init__(
         self,
         template,
-        sed_data_t0,
         *,
+        sed_data_t0=None,
         interpolation_type="linear",
         periodic=False,
         baseline=None,
@@ -237,6 +301,8 @@ class SEDTemplateModel(SEDModel):
         if isinstance(template, SEDTemplate):
             self.template = template
         else:
+            if sed_data_t0 is None:
+                raise ValueError("sed_data_t0 must be provided when template is not a SEDTemplate instance.")
             self.template = SEDTemplate(
                 template,
                 sed_data_t0=sed_data_t0,
@@ -247,7 +313,26 @@ class SEDTemplateModel(SEDModel):
 
         # Check that t0 is set.
         if "t0" not in kwargs or kwargs["t0"] is None:
-            raise ValueError("SED curve models require a t0 parameter.")
+            raise ValueError("SED template models require a t0 parameter.")
+
+    @classmethod
+    def from_file(cls, file_path, **kwargs):
+        """Create a SEDTemplateModel from a file containing three-column data.
+
+        Parameters
+        ----------
+        file_path : str or Path
+            The path to the file containing the SED data.
+        **kwargs : dict
+            Additional keyword arguments to pass to the SEDTemplateModel constructor.
+
+        Returns
+        -------
+        SEDTemplateModel
+            The created SEDTemplateModel instance.
+        """
+        template = SEDTemplate.from_file(file_path, **kwargs)
+        return cls(template, **kwargs)
 
     @property
     def times(self):

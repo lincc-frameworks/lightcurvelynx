@@ -3,7 +3,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
-from lightcurvelynx.models.spline_model import SplineModel
+from lightcurvelynx.models.sed_template_model import SEDTemplateModel
 from sncosmo import Bandpass
 
 
@@ -526,10 +526,21 @@ def test_passband_group_fluxes_to_bandfluxes(passbands_dir):
 
 def test_passband_group_wrapped_from_physical_source(passbands_dir, tmp_path):
     """Test evaluate_bandflux, SEDModel's wrapped version of PassbandGroup's fluxes_to_bandfluxes."""
-    times = np.array([1.0, 2.0, 3.0])
-    wavelengths = np.array([10.0, 20.0, 30.0])
-    fluxes = np.array([[1.0, 5.0, 1.0], [5.0, 10.0, 5.0], [1.0, 5.0, 3.0]])
-    model = SplineModel(times, wavelengths, fluxes, time_degree=1, wave_degree=1)
+    # Set up physical model
+    sed_values = np.array(
+        [
+            [1.0, 10.0, 1.0],
+            [1.0, 20.0, 5.0],
+            [1.0, 30.0, 1.0],
+            [2.0, 10.0, 5.0],
+            [2.0, 20.0, 10.0],
+            [2.0, 30.0, 5.0],
+            [3.0, 10.0, 1.0],
+            [3.0, 20.0, 5.0],
+            [3.0, 30.0, 3.0],
+        ]
+    )
+    model = SEDTemplateModel(sed_values, sed_data_t0=0.0, t0=0.0, interpolation_type="linear")
     state = model.sample_parameters()
 
     test_times = np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
