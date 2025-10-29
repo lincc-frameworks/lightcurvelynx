@@ -6,9 +6,8 @@ at the requested times and filters. If we are generating an SED for a given set 
 wavelengths, the model computes a box-shaped SED basis function for each filter that
 will produce the same bandflux after being passed through the passband filter.
 
-Note: If you are interested in generating light curves from SED-level curves, use
-the SEDCurveModel in src/lightcurvelynx/models/sed_curve_model.py
-instead.
+Note: If you are interested in generating SED-level data, use the SEDTemplateModel in
+src/lightcurvelynx/models/sed_template_model.py instead.
 """
 
 import logging
@@ -522,9 +521,8 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
     Notes
     -----
-    If you are interested in generating light curves from SED-level curves, use
-    the SEDCurveModel in src/lightcurvelynx/models/sed_curve_model.py
-    instead.
+    If you are interested in generating SED-level data, use the SEDTemplateModel in
+    src/lightcurvelynx/models/sed_template_model.py instead.
 
     Attributes
     ----------

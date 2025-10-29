@@ -1,15 +1,15 @@
 import numpy as np
 import pytest
-from lightcurvelynx.models.sed_curve_model import (
-    LightcurveSEDData,
-    MultiSEDCurveModel,
-    SEDCurveModel,
+from lightcurvelynx.models.sed_template_model import (
+    MultiSEDTemplateModel,
+    SEDTemplate,
+    SEDTemplateModel,
     SIMSEDModel,
 )
 
 
-def test_linear_lightcurve_sed_data() -> None:
-    """Test that we can create a LightcurveSEDData object with linear interpolation."""
+def test_linear_sed_template_data() -> None:
+    """Test that we can create a SEDTemplate object with linear interpolation."""
     data = np.array(
         [
             [1.0, 1000.0, 10.0],
@@ -20,7 +20,7 @@ def test_linear_lightcurve_sed_data() -> None:
             [3.0, 2000.0, 30.0],
         ]
     )
-    data_obj = LightcurveSEDData(data, interpolation_type="linear", periodic=False)
+    data_obj = SEDTemplate(data, interpolation_type="linear", periodic=False)
 
     eval_times = np.array([-1.5, 1.5, 2.5, 3.5])
     eval_waves = np.array([1000.0, 2000.0])
@@ -35,12 +35,12 @@ def test_linear_lightcurve_sed_data() -> None:
     )
     assert np.allclose(sed_values, expected_values)
 
-    # We correct for lc_data_t0.
-    data_obj2 = LightcurveSEDData(
+    # We correct for sed_data_t0.
+    data_obj2 = SEDTemplate(
         data,
         interpolation_type="linear",
         periodic=False,
-        lc_data_t0=1.0,
+        sed_data_t0=1.0,
     )
     sed_values = data_obj2.evaluate_sed(eval_times, eval_waves)
     expected_values = np.array(
@@ -55,7 +55,7 @@ def test_linear_lightcurve_sed_data() -> None:
 
     # Add a baseline and check that it is used outside the time range.
     baseline = np.array([1.0, 2.0])
-    data_obj3 = LightcurveSEDData(
+    data_obj3 = SEDTemplate(
         data,
         interpolation_type="linear",
         periodic=False,
@@ -74,7 +74,7 @@ def test_linear_lightcurve_sed_data() -> None:
 
     # We fail if we use a incorrectly shaped baseline.
     with pytest.raises(ValueError):
-        LightcurveSEDData(
+        SEDTemplate(
             data,
             interpolation_type="linear",
             periodic=False,
@@ -82,8 +82,8 @@ def test_linear_lightcurve_sed_data() -> None:
         )
 
 
-def test_linear_lightcurve_sed_data_periodic() -> None:
-    """Test that we can create periodic LightcurveSEDData object with linear interpolation."""
+def test_linear_sed_template_data_periodic() -> None:
+    """Test that we can create periodic SEDTemplate object with linear interpolation."""
     data = np.array(
         [
             [1.0, 1000.0, 10.0],
@@ -94,7 +94,7 @@ def test_linear_lightcurve_sed_data_periodic() -> None:
             [3.0, 2000.0, 20.0],
         ]
     )
-    data_obj = LightcurveSEDData(data, interpolation_type="linear", periodic=True)
+    data_obj = SEDTemplate(data, interpolation_type="linear", periodic=True)
 
     eval_times = np.array([0.5, 1.5, 2.25, 3.25])
     eval_waves = np.array([1000.0, 2000.0])
@@ -110,8 +110,8 @@ def test_linear_lightcurve_sed_data_periodic() -> None:
     assert np.allclose(sed_values, expected_values)
 
 
-def test_create_sed_curve_model() -> None:
-    """Test that we can create an SEDCurveModel object."""
+def test_create_sed_template_model() -> None:
+    """Test that we can create an SEDTemplateModel object."""
     data = np.array(
         [
             [0.0, 1000.0, 5.0],
@@ -128,7 +128,7 @@ def test_create_sed_curve_model() -> None:
             [3.0, 3000.0, 5.0],
         ]
     )
-    model = SEDCurveModel(data, 0.0, interpolation_type="linear", periodic=False, t0=0.0)
+    model = SEDTemplateModel(data, 0.0, interpolation_type="linear", periodic=False, t0=0.0)
     assert len(model.times) == 4
     assert len(model.wavelengths) == 3
 
@@ -148,7 +148,7 @@ def test_create_sed_curve_model() -> None:
     assert np.allclose(sed_values, expected_values)
 
     # Set a non-zero t0. An evaluation time of 2.0 now corresponds to phase 0.0 in the curve.
-    model2 = SEDCurveModel(data, 0.0, interpolation_type="linear", periodic=False, t0=2.0)
+    model2 = SEDTemplateModel(data, 0.0, interpolation_type="linear", periodic=False, t0=2.0)
     state2 = model2.sample_parameters(num_samples=1)
     sed_values2 = model2.evaluate_sed(eval_times, eval_waves, graph_state=state2)
     expected_values2 = np.array(
@@ -161,8 +161,8 @@ def test_create_sed_curve_model() -> None:
     assert np.allclose(sed_values2, expected_values2)
 
 
-def test_create_multi_sed_curve_model() -> None:
-    """Test that we can create a MultiSEDCurveModel object."""
+def test_create_multi_sed_template_model() -> None:
+    """Test that we can create a MultiSEDTemplateModel object."""
     data1 = np.array(
         [
             [0.0, 1000.0, 5.0],
@@ -171,7 +171,7 @@ def test_create_multi_sed_curve_model() -> None:
             [1.0, 2000.0, 20.0],
         ]
     )
-    lc1 = LightcurveSEDData(data1, interpolation_type="linear", periodic=False)
+    lc1 = SEDTemplate(data1, interpolation_type="linear", periodic=False)
 
     data2 = np.array(
         [
@@ -181,8 +181,8 @@ def test_create_multi_sed_curve_model() -> None:
             [1.0, 2000.0, 35.0],
         ]
     )
-    lc2 = LightcurveSEDData(data2, interpolation_type="linear", periodic=False)
-    model = MultiSEDCurveModel([lc1, lc2], weights=[0.25, 0.75], t0=0.0, node_label="model")
+    lc2 = SEDTemplate(data2, interpolation_type="linear", periodic=False)
+    model = MultiSEDTemplateModel([lc1, lc2], weights=[0.25, 0.75], t0=0.0, node_label="model")
     assert len(model) == 2
 
     # Evaluate the model at some times and wavelengths.
@@ -191,7 +191,7 @@ def test_create_multi_sed_curve_model() -> None:
 
     state = model.sample_parameters(num_samples=10_000)
     sed_values = model.evaluate_sed(eval_times, eval_waves, graph_state=state)
-    chose_first = state["model"]["selected_lightcurve"] == 0
+    chose_first = state["model"]["selected_template"] == 0
     assert 0.15 < np.count_nonzero(chose_first) / 10000.0 < 0.35  # Check weights are roughly correct.
     assert np.allclose(sed_values[chose_first, 0, 0], 7.5)
     assert np.allclose(sed_values[~chose_first, 0, 0], 22.5)
