@@ -12,6 +12,7 @@ from pathlib import Path
 
 import astropy.units as u
 import numpy as np
+import yaml
 from scipy.interpolate import RectBivariateSpline
 
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
@@ -429,21 +430,17 @@ class SIMSEDModel(MultiSEDTemplateModel):
         parameters = {}
         file_names = []
         with open(info_file, "r") as f:
-            for line in f:
-                # Remove blank space and comments.
-                line = line.strip()
-                comment_start = line.find("#")
-                if comment_start != -1:
-                    line = line[:comment_start].strip()
+            # Read the header as YAML data.
+            parameters = yaml.safe_load(f)
 
-                key_end = line.find(":")
-                if key_end != -1:
-                    key = line[:key_end].strip().upper()
-                    value = line[key_end + 1 :].strip()
-                    if key == "SED":
-                        file_names.append(simsed_dir / value.split()[0])
-                    else:
-                        parameters[key] = value
+            # Reset the file pointer to read line by line for the file names,
+            # because the YAML parser will only return the first one.
+            f.seek(0)
+            for line in f:
+                line = line.strip()
+                if line and line.upper().startswith("SED:"):
+                    tokens = line.split()
+                    file_names.append(simsed_dir / tokens[1].strip())
         return file_names, parameters
 
     @staticmethod
