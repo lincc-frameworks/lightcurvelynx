@@ -26,6 +26,7 @@ dependencies = [
     "numpy>=2.0",
     "pandas",
     "pooch",
+    "PyYAML>=6.0",
     "regions",
     "scipy",
     "tqdm",
