@@ -4,6 +4,7 @@ from lightcurvelynx.models.sed_curve_model import (
     LightcurveSEDData,
     MultiSEDCurveModel,
     SEDCurveModel,
+    SIMSEDModel,
 )
 
 
@@ -194,3 +195,16 @@ def test_create_multi_sed_curve_model() -> None:
     assert 0.15 < np.count_nonzero(chose_first) / 10000.0 < 0.35  # Check weights are roughly correct.
     assert np.allclose(sed_values[chose_first, 0, 0], 7.5)
     assert np.allclose(sed_values[~chose_first, 0, 0], 22.5)
+
+
+def test_simsed_model_compute_sed(test_data_dir) -> None:
+    """Test that we can load and compute SEDs from a SIMSEDModel."""
+    model = SIMSEDModel.from_dir(test_data_dir / "fake_simsed", t0=0.0, distance=10.0)
+    assert len(model) == 2
+    assert model.flux_scale == 2.0
+
+    # Compute the SED at a specific time and wavelength.
+    times = np.array([0.0, 1.0, 2.0])
+    wavelengths = np.array([4500.0, 5000.0])
+    sed_values = model.evaluate_sed(times, wavelengths)
+    assert sed_values.shape == (3, 2)

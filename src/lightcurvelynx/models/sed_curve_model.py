@@ -7,10 +7,14 @@ instead.
 """
 
 import logging
+import warnings
+from pathlib import Path
 
+import astropy.units as u
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 
+from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
 from lightcurvelynx.math_nodes.given_sampler import GivenValueSampler
 from lightcurvelynx.models.physical_model import SEDModel
 
@@ -348,3 +352,169 @@ class MultiSEDCurveModel(SEDModel):
         model_ind = self.get_param(graph_state, "selected_lightcurve")
         shifted_times = times - self.get_param(graph_state, "t0")
         return self.lightcurves[model_ind].evaluate_sed(shifted_times, wavelengths)
+
+
+class SIMSEDModel(MultiSEDCurveModel):
+    """Generate lightcurves from SIMSED-formated data.
+
+    Parameterized values include:
+      * dec - The object's declination in degrees.
+      * distance - The object's luminosity distance in pc.
+      * ra - The object's right ascension in degrees.
+      * t0 - The t0 of the zero phase (if applicable), date.
+
+    Attributes
+    ----------
+    lightcurves : list of LightcurveSEDData
+        The data for the light curves, such as the times and bandfluxes in each filter.
+    flux_scale : float
+        A scale factor to apply to all fluxes read from the SIMSED data files.
+    """
+
+    def __init__(self, lightcurves, flux_scale=1.0, **kwargs):
+        self.flux_scale = flux_scale
+        super().__init__(lightcurves=lightcurves, **kwargs)
+
+    @classmethod
+    def from_dir(cls, simsed_dir, **kwargs):
+        """Read SIMSED-formatted data from a directory and create a SIMSEDModel.
+
+        Parameters
+        ----------
+        simsed_dir : str or Path
+            The directory containing the SIMSED-formatted data files.
+        **kwargs : dict
+            Additional keyword arguments to pass to the SIMSEDModel constructor.
+
+        Returns
+        -------
+        SIMSEDModel
+            The created SIMSEDModel instance.
+        """
+        simsed_dir = Path(simsed_dir)
+        logger.debug(f"Reading SIMSED data from {simsed_dir}.")
+        lc_files, simsed_params = SIMSEDModel._read_simsed_info_file(simsed_dir)
+
+        # Extract the parameters that we need.
+        if "FLUX_SCALE" not in simsed_params:
+            warnings.warn("SIMSED SED.INFO file does not contain a FLUX_SCALE parameter. Using 1.0.")
+            flux_scale = 1.0
+        else:
+            flux_scale = float(simsed_params["FLUX_SCALE"])
+
+        # Read in each light curve file.
+        lightcurves = [SIMSEDModel._read_simsed_data_file(simsed_dir / lc_file) for lc_file in lc_files]
+        return cls(lightcurves, flux_scale=flux_scale, **kwargs)
+
+    @staticmethod
+    def _read_simsed_info_file(simsed_dir):
+        """Read the SED.INFO file to get the list of light curve files and their properties.
+
+        Parameters
+        ----------
+        simsed_dir : Path
+            The directory containing the SIMSED-formatted data files.
+
+        Returns
+        -------
+        lc_files : list of Path
+            A list of paths to the light curve files.
+        parameters : dict
+            A dictionary of parameters read from the SED.INFO file.
+        """
+        info_file = simsed_dir / "SED.INFO"
+        if not info_file.exists():
+            raise FileNotFoundError(f"SED.INFO file not found in {simsed_dir}.")
+        logger.debug(f"Reading SIMSED data from {info_file}.")
+
+        parameters = {}
+        lc_files = []
+        with open(info_file, "r") as f:
+            for line in f:
+                # Remove blank space and comments.
+                line = line.strip()
+                comment_start = line.find("#")
+                if comment_start != -1:
+                    line = line[:comment_start].strip()
+
+                key_end = line.find(":")
+                if key_end != -1:
+                    key = line[:key_end].strip().upper()
+                    value = line[key_end + 1 :].strip()
+                    if key == "SED":
+                        lc_files.append(simsed_dir / value.split()[0])
+                    else:
+                        parameters[key] = value
+        return lc_files, parameters
+
+    @staticmethod
+    def _read_simsed_data_file(file_path):
+        """Read a simsed data file to get an individual light curve.
+
+        Parameters
+        ----------
+        file_path : Path
+            The path to the SIMSED-formatted data file.
+
+        Returns
+        -------
+        LightcurveSEDData
+            The light curve data extracted from the file.
+        """
+        if not file_path.exists() and file_path.suffix != ".gz":
+            # If the file is not found, check for a .gz version.
+            file_path = file_path.with_suffix(file_path.suffix + ".gz")
+        if not file_path.exists():
+            raise FileNotFoundError(f"SIMSED data file not found: {file_path}.")
+
+        # Read in the data file.
+        data = np.loadtxt(file_path, comments="#")
+        if data.ndim != 2 or data.shape[1] != 3:
+            raise ValueError(
+                f"SIMSED data file {file_path} must have three columns (phase, wavelength, flux)."
+            )
+
+        sed_data = LightcurveSEDData(
+            data,
+            lc_data_t0=0.0,
+            interpolation_type="linear",
+            periodic=False,
+        )
+        return sed_data
+
+    def compute_sed(self, times, wavelengths, graph_state):
+        """Draw effect-free observer frame flux densities.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        wavelengths : numpy.ndarray, optional
+            A length N array of observer frame wavelengths (in angstroms).
+        graph_state : GraphState
+            An object mapping graph parameters to their values.
+
+        Returns
+        -------
+        flux_density : numpy.ndarray
+            A length T x N matrix of observer frame SED values (in nJy). These are generated
+            from non-overlapping box-shaped SED basis functions for each filter and
+            scaled by the light curve values.
+        """
+        sed_values_flam = super().compute_sed(times, wavelengths, graph_state)
+
+        # SIMSED data files provide flux in units of erg/cm²/s/Å at 10 pc (with a scale factor), so we
+        # apply the scale factor, account for the actual distance, and convert it to fnu in nJy.
+        luminosity_distance_pc = self.get_param(graph_state, "distance")
+        if luminosity_distance_pc is None or luminosity_distance_pc <= 0:
+            raise ValueError(
+                f"Received invalid luminosity distance (pc) in SIMSED model {luminosity_distance_pc}."
+            )
+        sed_values_fnu = flam_to_fnu(
+            flux_flam=sed_values_flam * self.flux_scale * (10 / luminosity_distance_pc) ** 2,
+            wavelengths=wavelengths,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        return sed_values_fnu
