@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from lightcurvelynx.astro_utils.mag_flux import flux2mag
 from lightcurvelynx.models.sed_template_model import (
     MultiSEDTemplateModel,
     SEDTemplate,
@@ -199,12 +200,48 @@ def test_create_multi_sed_template_model() -> None:
 
 def test_simsed_model_compute_sed(test_data_dir) -> None:
     """Test that we can load and compute SEDs from a SIMSEDModel."""
-    model = SIMSEDModel.from_dir(test_data_dir / "fake_simsed", t0=0.0, distance=10.0)
+    model = SIMSEDModel.from_dir(test_data_dir / "fake_simsed", t0=0.0, distance=10.0, node_label="model")
     assert len(model) == 2
     assert model.flux_scale == 2.0
 
-    # Compute the SED at a specific time and wavelength.
+    # Compute the SLSN SED at a specific time and wavelength.
     times = np.array([0.0, 1.0, 2.0])
     wavelengths = np.array([4500.0, 5000.0])
     sed_values = model.evaluate_sed(times, wavelengths)
     assert sed_values.shape == (3, 2)
+    assert np.all(sed_values > 0.0)
+
+
+def test_slsn_simsed_model(test_data_dir) -> None:
+    """Test that we can compute the fluxes from a fake SLSN SIMSEDModel."""
+    # Use fake data that sits around the peak of the SLSN lightcurve defined in
+    # SIMSED.SLSN-I-MOSFIT/slsn0.dat.gz from https://zenodo.org/records/2612896
+    # and use a similar flux_scale as given in SIMSED.SLSN-I-MOSFIT/SED.INFO to give
+    # reasonable fluxes.
+    data = np.array(
+        [
+            [0.0, 1000.0, 5.0e41],
+            [0.0, 2000.0, 5.0e41],
+            [1.0, 1000.0, 5.0e41],
+            [1.0, 2000.0, 5.0e41],
+            [2.0, 1000.0, 5.0e41],
+            [3.0, 1000.0, 5.0e41],
+            [2.0, 1000.0, 5.0e41],
+            [3.0, 2000.0, 5.0e41],
+        ]
+    )
+    template = SEDTemplate(data, interpolation_type="linear", periodic=False)
+    model = SIMSEDModel([template], flux_scale=8.4e-41, t0=0.0, distance=10.0)
+    assert len(model) == 1
+    assert model.flux_scale == 8.4e-41
+
+    # Compute the SLSN SED at a specific time and wavelength.
+    times = np.array([0.5, 1.0])
+    wavelengths = np.array([1200.0])
+    sed_values = model.evaluate_sed(times, wavelengths)
+    assert sed_values.shape == (2, 1)
+    assert np.all(sed_values > 0.0)
+
+    # We know that the expected magntiudes for a SLSN at 10 Mpc will be around -22.
+    mag_vals = flux2mag(sed_values.flatten())
+    assert np.all((mag_vals > -23.0) & (mag_vals < -21.0))

@@ -1,5 +1,5 @@
 # SIMSED data for testing.
-# These data are subsets of the SIMSED.SNIa-91bg data at: https://zenodo.org/records/2612896
+# These data are subsets of the data at: https://zenodo.org/records/2612896
 # See the readme.txt file in this directory for how the data was generated and the
 # correct attribution.
 
@@ -8,5 +8,5 @@ FLUX_SCALE:        2.0
 RESTLAMBDA_RANGE:        3000.0000       8000.000
 NPAR: 2
 PARNAMES:              param1    param2
-SED: fake_simsed1.sed   0.1   0.00000
-SED: fake_simsed2.sed   0.5    0.250000
+SED: fake_snia1.sed   0.1   0.00000
+SED: fake_snia2.sed   0.5    0.250000
