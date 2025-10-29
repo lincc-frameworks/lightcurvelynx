@@ -242,6 +242,6 @@ def test_slsn_simsed_model(test_data_dir) -> None:
     assert sed_values.shape == (2, 1)
     assert np.all(sed_values > 0.0)
 
-    # We know that the expected magntiudes for a SLSN at 10 Mpc will be around -22.
+    # We know that the expected magntiudes for a SLSN at 10 pc will be around -22.
     mag_vals = flux2mag(sed_values.flatten())
     assert np.all((mag_vals > -23.0) & (mag_vals < -21.0))
