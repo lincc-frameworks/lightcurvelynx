@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from astropy.coordinates import SkyCoord
+from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.obstable.obs_table import ObsTable
 from regions import CircleSkyRegion
 
@@ -587,3 +588,49 @@ def test_build_moc():
     assert not moc.contains_skycoords(SkyCoord(ra=46.00, dec=0.0, unit="deg"))
     assert not moc.contains_skycoords(SkyCoord(ra=14.00, dec=0.0, unit="deg"))
     assert not moc.contains_skycoords(SkyCoord(ra=52.00, dec=-10.0, unit="deg"))
+
+    # Although we have 3 pointings of ~7 deg^2 each, there is overlap between two of them.
+    # So we check approximate bounds.
+    coverage = ops_data.estimate_coverage(radius=1.5)
+    assert coverage > 16.0
+    assert coverage < 21.0
+
+
+def test_build_moc_footprint():
+    """Test building a Multi-Order Coverage Map (MOC) from the ObsTable with a
+    rectangular detector footprint."""
+    # Create an ObsTable with three pointings and a 1.0 degree wide (RA) by 0.5 degree high (Dec)
+    # detector footprint. Pixel scale is not needed in this test.
+    footprint = DetectorFootprint.from_sky_rect(1.0, 0.5, pixel_scale=36.0)
+    values = {
+        "time": np.array([0.0, 1.0, 2.0]),
+        "ra": np.array([10.0, 15.0, 45.0]),
+        "dec": np.array([0.0, 0.0, -10.0]),
+        "zp": np.ones(3),
+    }
+    ops_data = ObsTable(values, detector_footprint=footprint)
+
+    moc = ops_data.build_moc(use_footprint=True, max_depth=14)
+    assert moc is not None
+    assert moc.max_order == 14
+
+    # Test that the MOC covers the correct area.
+    for ra, dec in zip(values["ra"], values["dec"], strict=False):
+        print(f"Testing pointing at RA={ra}, Dec={dec}")
+        # Center is always included.
+        assert moc.contains_skycoords(SkyCoord(ra=ra, dec=dec, unit="deg"))
+
+        # Include near corners (We don't do exact corners because of spherical geometry).
+        assert moc.contains_skycoords(SkyCoord(ra=ra + 0.4, dec=dec + 0.2, unit="deg"))
+        assert moc.contains_skycoords(SkyCoord(ra=ra + 0.4, dec=dec - 0.2, unit="deg"))
+        assert moc.contains_skycoords(SkyCoord(ra=ra - 0.4, dec=dec + 0.2, unit="deg"))
+        assert moc.contains_skycoords(SkyCoord(ra=ra - 0.4, dec=dec - 0.2, unit="deg"))
+
+        # Exclude just outside the box in each direction.
+        assert not moc.contains_skycoords(SkyCoord(ra=ra, dec=dec + 0.3, unit="deg"))
+        assert not moc.contains_skycoords(SkyCoord(ra=ra, dec=dec - 0.3, unit="deg"))
+        assert not moc.contains_skycoords(SkyCoord(ra=ra + 0.6, dec=dec, unit="deg"))
+        assert not moc.contains_skycoords(SkyCoord(ra=ra - 0.6, dec=dec, unit="deg"))
+
+    coverage = ops_data.estimate_coverage(use_footprint=True, max_depth=14)
+    assert coverage == pytest.approx(1.5, 0.1)  # 3 pointings x 0.5 deg^2 each
