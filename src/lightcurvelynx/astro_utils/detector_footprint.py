@@ -291,6 +291,43 @@ class DetectorFootprint:
         separations = center.separation(sky_corners)
         return np.max(separations.deg)
 
+    def compute_sky_region(self, center_ra, center_dec, *, rotation=0.0):
+        """Compute the sky region of the footprint at the given center position.
+
+        Parameters
+        ----------
+        center_ra : float
+            Center right ascension of the detector in degrees.
+        center_dec : float
+            Center declination of the detector in degrees.
+        rotation : float, optional
+            The rotation angle of the detector for each pointing in degrees clockwise.
+            Used to represent non-axis-aligned footprints. Default is 0.0.
+
+        Returns
+        -------
+        astropy.regions.SkyRegion
+            The sky region representing the footprint at the given center position.
+        astropy.wcs.WCS
+            The WCS representing the footprint at the given center position.
+        """
+        # Perform the rotation in pixel coordinates first.
+        if rotation != 0.0:
+            center = PixCoord(x=0.0, y=0.0)
+            pixel_region = self.region.rotate(center, rotation * u.deg)
+        else:
+            pixel_region = self.region
+
+        # Convert to sky region and set the center.
+        sky_region = pixel_region.to_sky(self.wcs)
+        sky_region.center = SkyCoord(ra=center_ra, dec=center_dec, unit="deg", frame="icrs")
+
+        # Create a copy of the WCS with the new center.
+        sky_wcs = self.wcs.deepcopy()
+        sky_wcs.wcs.crval = [center_ra, center_dec]
+
+        return sky_region, sky_wcs
+
     def plot(
         self,
         *,

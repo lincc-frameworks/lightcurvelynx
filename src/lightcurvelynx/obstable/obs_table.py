@@ -352,36 +352,90 @@ class ObsTable:
         survey_data = pd.read_parquet(filename)
         return cls(survey_data)
 
-    def build_moc(self, *, radius=None, max_depth=10):
-        """Build a Multi-Order Coverage Map from the regions in the data set.
+    def estimate_coverage(self, *, radius=None, max_depth=15, use_footprint=False):
+        """Estimate the sky coverage of the observations in the ObsTable. This is an
+        approximate calculation based on a constructed MOC at a given depth.
 
         Parameters
         ----------
         radius : float, optional
-            The radius to use for each image (in degrees). If not provided, the default
-            radius from the survey values will be used.
+            The radius to use for each image (in degrees). Only used if use_footprint
+            is False. If None, the radius from the survey values will be used.
+        max_depth : int, optional
+            The maximum depth of the MOC. Default is 15.
+        use_footprint : bool, optional
+            Whether to use the detector footprint to build the MOC. If True, the
+            footprint will be used to compute the MOC regions for each pointing.
+            If False, a simple cone with the given radius will be used.
+
+        Returns
+        -------
+        coverage : float
+            The estimated sky coverage in square degrees.
+        """
+        moc = self.build_moc(radius=radius, max_depth=max_depth, use_footprint=use_footprint)
+        coverage = moc.sky_fraction * 41253.0  # Approximate sky area in deg^2
+        return coverage
+
+    def build_moc(self, *, radius=None, max_depth=10, use_footprint=False):
+        """Build a Multi-Order Coverage Map from the regions in the data set.
+
+        The MOCs can be either from simple cones around each pointing or from the
+        detector footprint if available. The code does not currently support rotation
+        when dealing with detector footprints.
+
+        Note
+        ----
+        This can be **very** slow for large ObsTables or high max_depth values, especially
+        when using detector footprints.
+
+        Parameters
+        ----------
+        radius : float, optional
+            The radius to use for each image (in degrees). Only used if use_footprint
+            is False. If None, the radius from the survey values will be used.
         max_depth : int, optional
             The maximum depth of the MOC. Default is 10.
+        use_footprint : bool, optional
+            Whether to use the detector footprint to build the MOC. If True, the
+            footprint will be used to compute the MOC regions for each pointing.
+            If False, a simple cone with the given radius will be used.
 
         Returns
         -------
         MOC
             The Multi-Order Coverage Map constructed from the data set.
         """
-        radius = radius if radius is not None else self.survey_values.get("radius", None)
-        if radius is None:
-            raise ValueError("Radius must be provided for MOC construction or as a default. Got None.")
+        if not use_footprint or self._detector_footprint is None:
+            radius = radius if radius is not None else self.survey_values.get("radius", None)
+            if radius is None:
+                raise ValueError("Radius must be provided for MOC construction or as a default. Got None.")
 
-        longitudes = Longitude(self._table["ra"].to_list(), unit="deg")
-        latitudes = Latitude(self._table["dec"].to_list(), unit="deg")
-        moc = MOC.from_cones(
-            lon=longitudes,
-            lat=latitudes,
-            radius=radius * u.deg,
-            max_depth=max_depth,
-            delta_depth=0,
-            union_strategy="large_cones",
-        )
+            longitudes = Longitude(self._table["ra"].to_list(), unit="deg")
+            latitudes = Latitude(self._table["dec"].to_list(), unit="deg")
+            moc = MOC.from_cones(
+                lon=longitudes,
+                lat=latitudes,
+                radius=radius * u.deg,
+                max_depth=max_depth,
+                delta_depth=0,
+                union_strategy="large_cones",
+            )
+        else:
+            # The combination of arbitrary rotations and mocpy does not currently work together
+            # (e.g. a rotated rectangle of 90.1 degrees will fail, because the max rotation is capped
+            # at pi radians). So we ignore rotation for now.
+            if "rotation" in self._table.columns:
+                warnings.warn(
+                    "MOC construction with footprint does not support rotation. Ignoring rotation values."
+                )
+
+            moc = None
+            for ra, dec in zip(self._table["ra"], self._table["dec"], strict=False):
+                sky_region, _ = self._detector_footprint.compute_sky_region(ra, dec)
+                new_moc = MOC.from_astropy_regions(sky_region, max_depth=max_depth)
+                moc = new_moc if moc is None else MOC.union(moc, new_moc)
+
         return moc
 
     def _build_kd_tree(self):
