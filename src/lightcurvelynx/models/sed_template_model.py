@@ -459,6 +459,12 @@ class SIMSEDModel(MultiSEDTemplateModel):
     def __init__(self, templates, flux_scale=1.0, **kwargs):
         self.flux_scale = flux_scale
         super().__init__(templates, **kwargs)
+        if not self.has_valid_param("distance"):
+            raise ValueError(
+                "SIMSEDModel requires a valid 'distance' parameter representing luminosity distance in pc. "
+                "This can be specified as 'distance' directly or derived by a combination of the 'redshift' "
+                "and 'cosmology' parameters."
+            )
 
     @classmethod
     def from_dir(cls, simsed_dir, **kwargs):

@@ -62,6 +62,7 @@ The following notebooks provide example simulations using the LightCurveLynx pac
     AGN Damped Random Walk Model <notebooks/pre_executed/agn>
     PZFlow Source Demo <notebooks/pre_executed/using_pzflow>
     Resampling LCLIB <notebooks/pre_executed/lclib_example>
+    SNANA Models <notebooks/pre_executed/snana_example>
     Synphot-based Models <notebooks/pre_executed/synphot_example>
     Redback Models <notebooks/pre_executed/redback_example>
 
