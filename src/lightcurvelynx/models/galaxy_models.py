@@ -30,8 +30,18 @@ class GaussianGalaxy(SEDModel):
 
     def __init__(self, brightness, radius, **kwargs):
         super().__init__(**kwargs)
-        self.add_parameter("galaxy_radius_std", radius, **kwargs)
-        self.add_parameter("brightness", brightness, **kwargs)
+        self.add_parameter(
+            "galaxy_radius_std",
+            radius,
+            description="The standard deviation of the brightness in degrees.",
+            **kwargs,
+        )
+        self.add_parameter(
+            "brightness",
+            brightness,
+            description="The inherent brightness at the center of the galaxy.",
+            **kwargs,
+        )
 
     def compute_sed(self, times, wavelengths, graph_state, ra=None, dec=None, **kwargs):
         """Draw effect-free observations for this object.

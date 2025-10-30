@@ -26,7 +26,12 @@ class ConstantSEDModel(SEDModel):
 
     def __init__(self, brightness, **kwargs):
         super().__init__(**kwargs)
-        self.add_parameter("brightness", brightness, **kwargs)
+        self.add_parameter(
+            "brightness",
+            brightness,
+            description="The inherent brightness of the object.",
+            **kwargs,
+        )
 
     def compute_sed(self, times, wavelengths, graph_state, **kwargs):
         """Draw effect-free observations for this object.
@@ -79,7 +84,7 @@ class StepModel(ConstantSEDModel):
         super().__init__(brightness, **kwargs)
 
         # t0 is added in the PhysicalModel constructor.
-        self.add_parameter("t1", t1, **kwargs)
+        self.add_parameter("t1", t1, description="The time the step function ends, in MJD.", **kwargs)
 
     def compute_sed(self, times, wavelengths, graph_state, **kwargs):
         """Draw effect-free observations for this object.
@@ -139,9 +144,14 @@ class SinWaveModel(SEDModel):
 
     def __init__(self, *, brightness=0.0, amplitude=0.0, frequency=1.0, **kwargs):
         super().__init__(**kwargs)
-        self.add_parameter("brightness", brightness, **kwargs)
-        self.add_parameter("amplitude", amplitude, **kwargs)
-        self.add_parameter("frequency", frequency, **kwargs)
+        self.add_parameter(
+            "brightness",
+            brightness,
+            description="The inherent brightness of the object.",
+            **kwargs,
+        )
+        self.add_parameter("amplitude", amplitude, description="The amplitude of the sine wave.", **kwargs)
+        self.add_parameter("frequency", frequency, description="The frequency of the sine wave.", **kwargs)
 
     def compute_sed(self, times, wavelengths, graph_state, **kwargs):
         """Draw effect-free observations for this object.

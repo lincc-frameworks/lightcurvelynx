@@ -26,7 +26,7 @@ class PeriodicModel(SEDModel, ABC):
         super().__init__(**kwargs)
 
         # t0 is added in the BasePhysicalModel constructor.
-        self.add_parameter("period", period, **kwargs)
+        self.add_parameter("period", period, description="The period of the source, in days.", **kwargs)
 
     @abstractmethod
     def _evaluate_phases(self, phases, wavelengths, graph_state, **kwargs):

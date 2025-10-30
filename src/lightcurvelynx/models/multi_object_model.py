@@ -109,7 +109,12 @@ class MultiObjectModel(SEDModel):
             # Add any effect parameters that are not already in the model.
             for param_name, setter in effect.parameters.items():
                 if param_name not in self.setters:
-                    self.add_parameter(param_name, setter, allow_gradient=False)
+                    self.add_parameter(
+                        param_name,
+                        setter,
+                        description=f"A parameter added by Effect {effect}",
+                        allow_gradient=False,
+                    )
             self.obs_frame_effects.append(effect)
 
     def sample_parameters(self, given_args=None, num_samples=1, rng_info=None):
@@ -441,7 +446,12 @@ class RandomMultiObjectModel(MultiObjectModel):
         object_names = object_names or [src.node_string for src in objects]
         self.object_map = {name: src for name, src in zip(object_names, objects, strict=False)}
         self._sampler_node = GivenValueSampler(object_names, weights=weights)
-        self.add_parameter("selected_object", value=self._sampler_node, allow_gradient=False)
+        self.add_parameter(
+            "selected_object",
+            value=self._sampler_node,
+            allow_gradient=False,
+            description="Index of the object selected for sampling.",
+        )
 
     def minwave(self, graph_state=None):
         """Get the minimum wavelength of the model.

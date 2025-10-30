@@ -77,6 +77,8 @@ class _ParameterSource:
         or the attribute name of a dependency node.
     dependency : ParameterizedNode or None
         The node on which this parameter is dependent.
+    description : str (optional)
+        A brief description of the parameter.
     allow_gradient : bool
         Allow gradients to be computed at this variable.
         Default: False
@@ -89,13 +91,33 @@ class _ParameterSource:
     FUNCTION_NODE = 3
     COMPUTE_OUTPUT = 4
 
-    def __init__(self, parameter_name, source_type=0, node_name=""):
+    def __init__(self, parameter_name, source_type=0, node_name="", description=None):
         self.parameter_name = parameter_name
         self.node_name = node_name
         self.source_type = source_type
         self.allow_gradient = False
         self.value = None
         self.dependency = None
+        self.description = description
+
+    def help(self):
+        """Display help information about this parameter."""
+        print(f"{self.parameter_name}:")
+        if self.description is not None:
+            print(f"    Description: {self.description}")
+        else:
+            print("    Description: None")
+
+        if self.source_type == self.UNDEFINED:
+            print("    Source: UNDEFINED")
+        elif self.source_type == self.CONSTANT:
+            print(f"    Source: CONSTANT with value = {self.value}")
+        elif self.source_type == self.MODEL_PARAMETER:
+            print(f"    Source: MODEL_PARAMETER {self.value} of node {str(self.dependency)}")
+        elif self.source_type == self.FUNCTION_NODE:
+            print(f"    Source: Result of FUNCTION_NODE {str(self.dependency)}")
+        elif self.source_type == self.COMPUTE_OUTPUT:
+            print("    Source: Result of computation within this node")
 
     def set_as_constant(self, value, allow_gradient=True):
         """Set the parameter as a constant value.
@@ -304,6 +326,26 @@ class ParameterizedNode:
         """
         return list(self.setters.keys())
 
+    def describe_params(self, names=None):
+        """Print out a description of the node's parameters.
+
+        Parameters
+        ----------
+        names : list[str], optional
+            A list of parameter names to describe. If None, describes all parameters.
+        """
+        if names is None:
+            names = self.list_params()
+
+        if len(names) > 1:
+            print(f"Parameters in {self.node_string}:\n")
+        for name in names:
+            if name in self.setters:
+                self.setters[name].help()
+                print()
+            else:
+                print(f"Parameter: {name} not found in node {self.node_string}.")
+
     def has_valid_param(self, name):
         """Check whether the node has a given parameterized value and that it is not
         always set to None.
@@ -479,7 +521,7 @@ class ParameterizedNode:
         """
         self.setters[name].allow_gradient = allow_gradient
 
-    def add_parameter(self, name, value=None, allow_gradient=None, **kwargs):
+    def add_parameter(self, name, value=None, allow_gradient=None, description=None, **kwargs):
         """Add a single *new* parameter to the ParameterizedNode.
 
         Notes
@@ -501,6 +543,8 @@ class ParameterizedNode:
             Allow gradients to be computed for this variable. If set to None uses the default
             for the setter type (True for constant and False for everything else).
             Default: None
+        description : str, optional
+            A brief description of the parameter.
         **kwargs : dict, optional
            All other keyword arguments, possibly including the parameter setters.
 
@@ -525,6 +569,7 @@ class ParameterizedNode:
             parameter_name=name,
             source_type=_ParameterSource.UNDEFINED,
             node_name=str(self),
+            description=description,
         )
         self.set_parameter(name, value, **kwargs)
 
@@ -852,7 +897,7 @@ class FunctionNode(ParameterizedNode):
         self.arg_names = []
         for key, value in kwargs.items():
             self.arg_names.append(key)
-            self.add_parameter(key, value)
+            self.add_parameter(key, value, description="Input argument for function.")
 
         # Add the output arguments.
         if not outputs:
@@ -862,7 +907,7 @@ class FunctionNode(ParameterizedNode):
             # For output parameters we add a placeholder of None to set up the basic data, such as
             # the getter function and the entry in parameters. Then we change the
             # type to point to own result.
-            self.add_parameter(name, None)
+            self.add_parameter(name, None, description="Output result of function.")
             self.setters[name].set_as_compute_output(param_name=name)
 
     def _non_func(self):

@@ -742,7 +742,12 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
         all_inds = [i for i in range(len(lightcurves))]
         self._sampler_node = GivenValueSampler(all_inds, weights=weights)
-        self.add_parameter("selected_lightcurve", value=self._sampler_node, allow_gradient=False)
+        self.add_parameter(
+            "selected_lightcurve",
+            value=self._sampler_node,
+            allow_gradient=False,
+            description="Index of the light curve selected for sampling.",
+        )
 
         # Assemble a list of baseline values for each filter across all light curves.
         # Create a parameter to track the baseline values for the selected light curve. The node
@@ -751,7 +756,12 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         for fltr in self.filters:
             baselines = [lc.baseline.get(fltr, 0.0) for lc in lightcurves]
             baseline_selector = GivenValueSelector(baselines, self.selected_lightcurve)
-            self.add_parameter(f"baseline_{fltr}", value=baseline_selector, allow_gradient=False)
+            self.add_parameter(
+                f"baseline_{fltr}",
+                value=baseline_selector,
+                allow_gradient=False,
+                description=f"Baseline value for filter {fltr} from the selected light curve.",
+            )
 
     def __len__(self):
         """Get the number of light curves."""

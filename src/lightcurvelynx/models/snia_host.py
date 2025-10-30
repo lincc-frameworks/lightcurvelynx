@@ -15,4 +15,4 @@ class SNIaHost(SEDModel):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.add_parameter("hostmass", **kwargs)
+        self.add_parameter("hostmass", description="The hostmass value.", **kwargs)
