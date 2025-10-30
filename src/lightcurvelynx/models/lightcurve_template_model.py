@@ -15,6 +15,7 @@ from abc import ABC
 
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
@@ -801,7 +802,9 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             )
 
         lightcurves = []
-        for table, lc_t0 in zip(lightcurve_tables, forced_lc_t0, strict=False):
+        for table, lc_t0 in tqdm(
+            zip(lightcurve_tables, forced_lc_t0, strict=False), desc="Loading", unit="lc"
+        ):
             lc_data = LightcurveBandData.from_lclib_table(table, forced_lc_t0=lc_t0, filters=filters)
             lightcurves.append(lc_data)
 
