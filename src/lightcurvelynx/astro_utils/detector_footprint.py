@@ -1,5 +1,5 @@
 """A wrapper class for representing detector footprints (which are stored as
-astropy SkyRegions). This class provides methods for checking if points are within
+astropy PixelRegion). This class provides methods for checking if points are within
 the footprint and for plotting the footprint."""
 
 import matplotlib.pyplot as plt
