@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from citation_compass import find_in_citations
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
 from lightcurvelynx.models.sed_template_model import (
     MultiSEDTemplateModel,
@@ -256,6 +257,11 @@ def test_simsed_model_compute_sed(test_data_dir) -> None:
     sed_values = model.evaluate_sed(times, wavelengths)
     assert sed_values.shape == (3, 2)
     assert np.all(sed_values > 0.0)
+
+    # Confirm that we have noted the data in the citations registry.
+    citations = find_in_citations("SIMSED Data")
+    assert len(citations) == 1
+    assert str(test_data_dir / "fake_simsed") in citations[0]
 
 
 def test_slsn_simsed_model(test_data_dir) -> None:
