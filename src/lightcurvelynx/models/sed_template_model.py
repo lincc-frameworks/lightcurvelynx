@@ -13,6 +13,7 @@ from pathlib import Path
 import astropy.units as u
 import numpy as np
 import yaml
+from citation_compass import cite_inline
 from scipy.interpolate import RectBivariateSpline
 from tqdm import tqdm
 
@@ -498,6 +499,13 @@ class SIMSEDModel(MultiSEDTemplateModel):
         templates = []
         for file_name in tqdm(file_names, total=len(file_names), desc="Loading", unit="file"):
             templates.append(SIMSEDModel._read_simsed_data_file(simsed_dir / file_name))
+
+        # Add a citation for this data file.
+        cite_inline(
+            "SIMSED Data",
+            f"SIMSED data files from {simsed_dir}. Check the SED.INFO file for citation information.",
+        )
+
         return cls(templates, flux_scale=flux_scale, **kwargs)
 
     @staticmethod

@@ -15,6 +15,7 @@ from abc import ABC
 
 import matplotlib.pyplot as plt
 import numpy as np
+from citation_compass import cite_inline
 from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
@@ -807,6 +808,9 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         ):
             lc_data = LightcurveBandData.from_lclib_table(table, forced_lc_t0=lc_t0, filters=filters)
             lightcurves.append(lc_data)
+
+        # Add a citation for LCLIB if we loaded from an LCLIB file.
+        cite_inline("LCLIB Data", f"LCLIB Data from the file {lightcurves_file}")
 
         return cls(lightcurves, passbands, **kwargs)
 
