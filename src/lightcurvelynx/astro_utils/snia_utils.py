@@ -95,12 +95,12 @@ class HostmassX1Distr:
     Attributes
     ----------
     hostmass: float
-        The hostmass value.
+        The hostmass value in units of log10(M/M_solar).
 
     Parameters
     ----------
     hostmass: float
-        The hostmass value.
+        The hostmass value in units of log10(M/M_solar).
     """
 
     def __init__(self, hostmass):
@@ -115,7 +115,7 @@ class HostmassX1Distr:
         x1: numpy.ndarray
             The x1 value.
         hostmass: float
-            The hostmass value.
+            The hostmass value in units of log10(M/M_solar).
 
         Returns
         -------
@@ -138,7 +138,7 @@ class HostmassX1Distr:
         x1: numpy.ndarray
             The x1 value.
         hostmass: float
-            The hostmass value.
+            The hostmass value in units of log10(M/M_solar).
 
         Returns
         -------
@@ -184,7 +184,7 @@ class HostmassX1Func(NumericalInversePolynomialFunc):
     Parameters
     ----------
     hostmass : function or constant
-        The function or constant providing the hostmass value.
+        The function or constant providing the hostmass value in units of log10(M/M_solar).
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
