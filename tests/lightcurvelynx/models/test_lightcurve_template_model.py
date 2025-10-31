@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from astropy.table import Table
+from citation_compass import find_in_citations
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.effects.basic_effects import ConstantDimming
@@ -717,6 +718,11 @@ def test_create_multilightcurve_from_lclib_file(test_data_dir):
     assert set(model.filters) == {"u", "g", "r", "i", "z"}
     for lc in model.lightcurves:
         assert lc.lc_data_t0 > 0.0
+
+    # Confirm that we have noted the data in the citations registry.
+    citations = find_in_citations("LCLIB Data")
+    assert len(citations) == 1
+    assert str(lc_file) in citations[0]
 
     # Check that we can override the times.
     forced_lc_t0 = np.array([0.0, 1.0, 2.0])

@@ -13,7 +13,9 @@ from pathlib import Path
 import astropy.units as u
 import numpy as np
 import yaml
+from citation_compass import cite_inline
 from scipy.interpolate import RectBivariateSpline
+from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
 from lightcurvelynx.math_nodes.given_sampler import GivenValueSampler
@@ -499,7 +501,16 @@ class SIMSEDModel(MultiSEDTemplateModel):
             flux_scale = float(simsed_params["FLUX_SCALE"])
 
         # Read in each template file.
-        templates = [SIMSEDModel._read_simsed_data_file(simsed_dir / lc_file) for lc_file in file_names]
+        templates = []
+        for file_name in tqdm(file_names, total=len(file_names), desc="Loading", unit="file"):
+            templates.append(SIMSEDModel._read_simsed_data_file(simsed_dir / file_name))
+
+        # Add a citation for this data file.
+        cite_inline(
+            "SIMSED Data",
+            f"SIMSED data files from {simsed_dir}. Check the SED.INFO file for citation information.",
+        )
+
         return cls(templates, flux_scale=flux_scale, **kwargs)
 
     @staticmethod

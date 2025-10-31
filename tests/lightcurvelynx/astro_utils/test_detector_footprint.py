@@ -106,25 +106,39 @@ def test_rectangular_sky_footprint():
     height = 1.0  # degrees = 100 pixels at 0.01 deg/pix
     fp = DetectorFootprint.from_sky_rect(width=width, height=height, pixel_scale=36.0)  # 0.01 deg/pix
 
-    ra = np.array([90.0, 91.0, 90.5, 91.5, 92.0, 90.5, 90.0])
-    center_ra = np.array([90.0, 90.0, 90.0, 90.0, 92.0, 93.0, 90.0])
-    dec = np.array([-10.0, -13.0, -10.0, -10.0, -8.0, -10.25, -9.25])
-    center_dec = np.array([-10.0, -10.0, -10.0, -10.0, -8.0, -10.0, -10.0])
-
     # Test that we can compute an approximate radius.
     radius = fp.compute_radius()
     approx_radius = np.sqrt((height / 2.0) ** 2 + (width / 2.0) ** 2)
     assert radius >= approx_radius
     assert np.isclose(radius, approx_radius, rtol=0.1)
 
+    # Generate data for the contains tests.
+    ra = np.array([90.0, 91.0, 90.5, 91.5, 92.0, 90.5, 90.0])
+    center_ra = np.array([90.0, 90.0, 90.0, 90.0, 92.0, 93.0, 90.0])
+    dec = np.array([-10.0, -13.0, -10.0, -10.0, -8.0, -10.25, -9.25])
+    center_dec = np.array([-10.0, -10.0, -10.0, -10.0, -8.0, -10.0, -10.0])
+
     # Test contains without rotation.
     contained = fp.contains(ra, dec, center_ra, center_dec)
     assert np.all(contained == np.array([True, False, True, False, True, False, False]))
+
+    # Test that we can generate a SkyRegion, WCS, and MOC at each center and they
+    # give the same results for contains.
+    for idx, (c_ra, c_dec) in enumerate(zip(center_ra, center_dec, strict=False)):
+        sky_region, sky_wcs = fp.compute_sky_region(c_ra, c_dec)
+        assert sky_region.contains(SkyCoord(ra=ra[idx], dec=dec[idx], unit="deg"), sky_wcs) == contained[idx]
 
     # Test contains with rotation. The last point should now be contained.
     rotation = np.full(ra.shape, 90.0)
     contained = fp.contains(ra, dec, center_ra, center_dec, rotation=rotation)
     assert np.all(contained == np.array([True, False, True, False, True, False, True]))
+
+    # Test that we can generate a SkyRegion, WCS, and MOC at each center and they
+    # give the same results for contains.
+    for idx, (c_ra, c_dec) in enumerate(zip(center_ra, center_dec, strict=False)):
+        print(f"Testing index {idx} with center RA={c_ra}, DEC={c_dec}")
+        sky_region, sky_wcs = fp.compute_sky_region(c_ra, c_dec, rotation=90.0)
+        assert sky_region.contains(SkyCoord(ra=ra[idx], dec=dec[idx], unit="deg"), sky_wcs) == contained[idx]
 
     # We can query scalars as well.
     assert fp.contains(90.5, -10.25, 90.0, -10.0)
