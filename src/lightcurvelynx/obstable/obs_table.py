@@ -14,7 +14,9 @@ from astropy.coordinates import Latitude, Longitude
 from mocpy import MOC
 from regions import Region
 from scipy.spatial import KDTree
+from tqdm import tqdm
 
+from lightcurvelynx.astro_utils.coordinate_utils import dedup_coords, ra_dec_to_cartesian
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 
@@ -352,7 +354,7 @@ class ObsTable:
         survey_data = pd.read_parquet(filename)
         return cls(survey_data)
 
-    def estimate_coverage(self, *, radius=None, max_depth=15, use_footprint=False):
+    def estimate_coverage(self, *, radius=None, max_depth=12, use_footprint=False):
         """Estimate the sky coverage of the observations in the ObsTable. This is an
         approximate calculation based on a constructed MOC at a given depth.
 
@@ -362,7 +364,7 @@ class ObsTable:
             The radius to use for each image (in degrees). Only used if use_footprint
             is False. If None, the radius from the survey values will be used.
         max_depth : int, optional
-            The maximum depth of the MOC. Default is 15.
+            The maximum depth of the MOC. Default is 12.
         use_footprint : bool, optional
             Whether to use the detector footprint to build the MOC. If True, the
             footprint will be used to compute the MOC regions for each pointing.
@@ -377,7 +379,14 @@ class ObsTable:
         coverage = moc.sky_fraction * 41253.0  # Approximate sky area in deg^2
         return coverage
 
-    def build_moc(self, *, radius=None, max_depth=10, use_footprint=False):
+    def build_moc(
+        self,
+        *,
+        duplicate_threshold=100.0 / 3600.0,
+        max_depth=10,
+        radius=None,
+        use_footprint=False,
+    ):
         """Build a Multi-Order Coverage Map from the regions in the data set.
 
         The MOCs can be either from simple cones around each pointing or from the
@@ -391,11 +400,14 @@ class ObsTable:
 
         Parameters
         ----------
+        duplicate_threshold : float, optional
+            The threshold to use for identifying duplicate pointings (in degrees).
+            Default is 100.0 / 3600.0 degrees = 100 arcseconds.
+        max_depth : int, optional
+            The maximum depth of the MOC. Default is 10.
         radius : float, optional
             The radius to use for each image (in degrees). Only used if use_footprint
             is False. If None, the radius from the survey values will be used.
-        max_depth : int, optional
-            The maximum depth of the MOC. Default is 10.
         use_footprint : bool, optional
             Whether to use the detector footprint to build the MOC. If True, the
             footprint will be used to compute the MOC regions for each pointing.
@@ -406,16 +418,27 @@ class ObsTable:
         MOC
             The Multi-Order Coverage Map constructed from the data set.
         """
+        logger.debug(
+            f"Building MOC from ObsTable data: Depth={max_depth}, use_footprint={use_footprint}, "
+            f"duplicate_threshold={duplicate_threshold}"
+        )
+
+        # Deduplicate near-matching pointings to save computation time.
+        ra = self._table["ra"].to_numpy()
+        dec = self._table["dec"].to_numpy()
+        if duplicate_threshold > 0.0:
+            ra, dec, _ = dedup_coords(ra, dec, threshold=duplicate_threshold)
+            logger.debug(f"Filtered {len(self._table) - len(ra)} duplicate pointings for MOC construction.")
+        logger.debug(f"Building MOC from {len(ra)} unique pointings.")
+
         if not use_footprint or self._detector_footprint is None:
             radius = radius if radius is not None else self.survey_values.get("radius", None)
             if radius is None:
                 raise ValueError("Radius must be provided for MOC construction or as a default. Got None.")
 
-            longitudes = Longitude(self._table["ra"].to_list(), unit="deg")
-            latitudes = Latitude(self._table["dec"].to_list(), unit="deg")
             moc = MOC.from_cones(
-                lon=longitudes,
-                lat=latitudes,
+                lon=Longitude(ra, unit="deg"),
+                lat=Latitude(dec, unit="deg"),
                 radius=radius * u.deg,
                 max_depth=max_depth,
                 delta_depth=0,
@@ -431,8 +454,10 @@ class ObsTable:
                 )
 
             moc = None
-            for ra, dec in zip(self._table["ra"], self._table["dec"], strict=False):
-                sky_region, _ = self._detector_footprint.compute_sky_region(ra, dec)
+            for curr_ra, curr_dec in tqdm(
+                zip(ra, dec, strict=False), total=len(ra), desc="Evaluating Region"
+            ):
+                sky_region, _ = self._detector_footprint.compute_sky_region(curr_ra, curr_dec)
                 new_moc = MOC.from_astropy_regions(sky_region, max_depth=max_depth)
                 moc = new_moc if moc is None else MOC.union(moc, new_moc)
 
@@ -440,12 +465,8 @@ class ObsTable:
 
     def _build_kd_tree(self):
         """Construct the KD-tree from the ObsTable."""
-        ra_rad = np.radians(self._table["ra"].to_numpy())
-        dec_rad = np.radians(self._table["dec"].to_numpy())
         # Convert the pointings to Cartesian coordinates on a unit sphere.
-        x = np.cos(dec_rad) * np.cos(ra_rad)
-        y = np.cos(dec_rad) * np.sin(ra_rad)
-        z = np.sin(dec_rad)
+        x, y, z = ra_dec_to_cartesian(self._table["ra"].to_numpy(), self._table["dec"].to_numpy())
         cart_coords = np.array([x, y, z]).T
 
         # Construct the kd-tree.
@@ -661,11 +682,7 @@ class ObsTable:
             raise ValueError("Query RA and dec cannot contain None.")
 
         # Transform the query point(s) to 3-d Cartesian coordinate(s).
-        ra_rad = np.radians(query_ra)
-        dec_rad = np.radians(query_dec)
-        x = np.cos(dec_rad) * np.cos(ra_rad)
-        y = np.cos(dec_rad) * np.sin(ra_rad)
-        z = np.sin(dec_rad)
+        x, y, z = ra_dec_to_cartesian(query_ra, query_dec)
         cart_query = np.array([x, y, z]).T
 
         # Adjust the angular radius to a cartesian search radius and perform the search.
