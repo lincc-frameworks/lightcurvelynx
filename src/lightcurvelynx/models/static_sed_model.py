@@ -64,7 +64,12 @@ class StaticSEDModel(SEDModel):
         # Create a parameter that indicates which SED was sampled in each simulation.
         all_inds = [i for i in range(len(self.sed_values))]
         self._sampler_node = GivenValueSampler(all_inds, weights=weights)
-        self.add_parameter("selected_idx", value=self._sampler_node, allow_gradient=False)
+        self.add_parameter(
+            "selected_idx",
+            value=self._sampler_node,
+            allow_gradient=False,
+            description="Index of the SED selected for sampling.",
+        )
 
     def __len__(self):
         """Get the number of SED value."""

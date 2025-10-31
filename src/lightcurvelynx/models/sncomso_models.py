@@ -88,7 +88,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         self.source_param_names = []
         for key, value in kwargs.items():
             if key not in self.setters:
-                self.add_parameter(key, value)
+                self.add_parameter(key, value, description="Parameter for sncosmo model.")
             if key in self.source.param_names:
                 self.source_param_names.append(key)
 
@@ -172,7 +172,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             if hasattr(self, key):
                 self.set_parameter(key, value)
             else:
-                self.add_parameter(key, value)
+                self.add_parameter(key, value, description="Parameter for sncosmo model.")
             if key not in self.source_param_names:
                 self.source_param_names.append(key)
         self.source.set(**kwargs)

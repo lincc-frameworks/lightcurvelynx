@@ -95,7 +95,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             if key in self.setters:
                 self.set_parameter(key, value)
             else:
-                self.add_parameter(key, value)
+                self.add_parameter(key, value, description="Parameter for redback model.")
             self.source_param_names.append(key)
 
         # Create the source itself.

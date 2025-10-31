@@ -73,20 +73,36 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         super().__init__(node_label=node_label, **kwargs)
 
         # Set the parameters for the model.
-        self.add_parameter("ra", ra, allow_gradient=False)
-        self.add_parameter("dec", dec, allow_gradient=False)
-        self.add_parameter("redshift", redshift, allow_gradient=False)
-        self.add_parameter("t0", t0)
+        self.add_parameter(
+            "ra", ra, description="The object's right ascension (in degrees)", allow_gradient=False
+        )
+        self.add_parameter(
+            "dec", dec, description="The object's declination (in degrees)", allow_gradient=False
+        )
+        self.add_parameter("redshift", redshift, description="The object's redshift.", allow_gradient=False)
+        self.add_parameter("t0", t0, description="The phase offset in MJD.")
 
         # If the luminosity distance is provided, use that. Otherwise try the
         # redshift value using the cosmology (if given). Finally, default to None.
         if distance is not None:
-            self.add_parameter("distance", distance, allow_gradient=False)
+            self.add_parameter(
+                "distance",
+                distance,
+                description="The object's luminosity distance (in pc)",
+                allow_gradient=False,
+            )
         elif redshift is not None and kwargs.get("cosmology") is not None:
             self._redshift_func = RedshiftDistFunc(redshift=self.redshift, **kwargs)
-            self.add_parameter("distance", self._redshift_func, allow_gradient=False)
+            self.add_parameter(
+                "distance",
+                self._redshift_func,
+                description="The object's luminosity distance (in pc)",
+                allow_gradient=False,
+            )
         else:
-            self.add_parameter("distance", None, allow_gradient=False)
+            self.add_parameter(
+                "distance", None, description="The object's luminosity distance (in pc)", allow_gradient=False
+            )
 
         # Get a default random number generator for this object, using the
         # given seed if one is provided.
@@ -295,7 +311,12 @@ class SEDModel(BasePhysicalModel):
         if not skip_params:
             for param_name, setter in effect.parameters.items():
                 if param_name not in self.setters:
-                    self.add_parameter(param_name, setter, allow_gradient=False)
+                    self.add_parameter(
+                        param_name,
+                        setter,
+                        description=f"Added parameter by effect {effect}",
+                        allow_gradient=False,
+                    )
 
         # Add the effect to the appropriate list.
         if effect.rest_frame:
@@ -609,7 +630,12 @@ class BandfluxModel(BasePhysicalModel, ABC):
         if not skip_params:
             for param_name, setter in effect.parameters.items():
                 if param_name not in self.setters:
-                    self.add_parameter(param_name, setter, allow_gradient=False)
+                    self.add_parameter(
+                        param_name,
+                        setter,
+                        description=f"Added parameter by effect {effect}",
+                        allow_gradient=False,
+                    )
 
         # Add the effect to the band pass effects list.
         self.band_pass_effects.append(effect)

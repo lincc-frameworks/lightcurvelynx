@@ -117,20 +117,42 @@ class AGN(SEDModel):
             )
 
         # Add the parameters for the AGN. t0 already set in BasePhysicalModel.
-        self.add_parameter("blackhole_mass", blackhole_mass, **kwargs)
-        self.add_parameter("edd_ratio", edd_ratio, **kwargs)
-        self.add_parameter("inclination_rad", NumpyRandomFunc("uniform", low=0, high=np.pi / 2.0), **kwargs)
+        self.add_parameter(
+            "blackhole_mass",
+            blackhole_mass,
+            description="The black hole mass in solar mass.",
+            **kwargs,
+        )
+        self.add_parameter(
+            "edd_ratio",
+            edd_ratio,
+            description="The Eddington ratio.",
+            **kwargs,
+        )
+        self.add_parameter(
+            "inclination_rad",
+            NumpyRandomFunc("uniform", low=0, high=np.pi / 2.0),
+            description=(
+                "The inclination of the accretion disk in radians (sampled uniformly between 0 and pi/2)."
+            ),
+            **kwargs,
+        )
 
         # Add the derived parameters using FunctionNodes built from the object's static methods.
         # Each of these will be computed for each sample value of the input parameters.
         self.add_parameter(
             "blackhole_mass_gram",
             FunctionNode(lambda m_sun: m_sun * M_SUN_G, m_sun=self.blackhole_mass),
+            description="The black hole mass in grams. Automatically computed from the blackhole_mass.",
             **kwargs,
         )
         self.add_parameter(
             "critical_accretion_rate",
             FunctionNode(self.compute_critical_accretion_rate, blackhole_mass=self.blackhole_mass_gram),
+            description=(
+                "The critical accretion rate (ME_dot) at Eddington luminosity in g/s. "
+                "Automatically computed from the blackhole_mass_gram."
+            ),
             **kwargs,
         )
         self.add_parameter(
@@ -139,6 +161,10 @@ class AGN(SEDModel):
                 self.compute_blackhole_accretion_rate,
                 accretion_rate=self.critical_accretion_rate,  # Pull from computed accretion rate
                 edd_ratio=self.edd_ratio,  # Pull from sampled ratio
+            ),
+            description=(
+                "The accretion rate of the black hole in g/s. Automatically computed from critical "
+                "accretion rate and Eddington ratio."
             ),
             **kwargs,
         )
@@ -149,6 +175,10 @@ class AGN(SEDModel):
                 edd_ratio=self.edd_ratio,  # Pull from sampled ratio
                 blackhole_mass=self.blackhole_mass_gram,  # Pull from the sampled mass
             ),
+            description=(
+                "The bolometric luminosity in erg/s. Automatically computed from Eddington "
+                "ratio and blackhole mass.",
+            ),
             **kwargs,
         )
         self.add_parameter(
@@ -156,6 +186,9 @@ class AGN(SEDModel):
             FunctionNode(
                 self.compute_mag_i,
                 bolometric_luminosity=self.bolometric_luminosity,  # Pull from computed value.
+            ),
+            description=(
+                "The i band absolute magnitude. Automatically computed from the bolometric luminosity.",
             ),
             **kwargs,
         )

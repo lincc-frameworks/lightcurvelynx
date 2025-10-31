@@ -410,7 +410,12 @@ class MultiSEDTemplateModel(SEDModel):
 
         all_inds = [i for i in range(len(templates))]
         self._sampler_node = GivenValueSampler(all_inds, weights=weights)
-        self.add_parameter("selected_template", value=self._sampler_node, allow_gradient=False)
+        self.add_parameter(
+            "selected_template",
+            value=self._sampler_node,
+            allow_gradient=False,
+            description="Index of the SED template selected for sampling.",
+        )
 
     def __len__(self):
         """Get the number of SED templates."""

@@ -130,12 +130,24 @@ class EclipsingBinaryStar(PeriodicVariableStar):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.add_parameter("major_semiaxis", **kwargs)
-        self.add_parameter("inclination", **kwargs)
-        self.add_parameter("primary_radius", **kwargs)
-        self.add_parameter("secondary_radius", **kwargs)
-        self.add_parameter("primary_temperature", **kwargs)
-        self.add_parameter("secondary_temperature", **kwargs)
+        self.add_parameter("major_semiaxis", description="The major semiaxis of the orbit, in AU.", **kwargs)
+        self.add_parameter("inclination", description="The inclination of the orbit, in degrees.", **kwargs)
+        self.add_parameter(
+            "primary_radius", description="The radius of the primary star, in solar radii.", **kwargs
+        )
+        self.add_parameter(
+            "secondary_radius", description="The radius of the secondary star, in solar radii.", **kwargs
+        )
+        self.add_parameter(
+            "primary_temperature",
+            description="The effective temperature of the primary star, in kelvins.",
+            **kwargs,
+        )
+        self.add_parameter(
+            "secondary_temperature",
+            description="The effective temperature of the secondary star, in kelvins.",
+            **kwargs,
+        )
 
     def _dl_dnu_domega_phases(self, phases, wavelengths_cm, graph_state, **kwargs):
         """Draw effect-free luminosity density for this object, as a function of phase.

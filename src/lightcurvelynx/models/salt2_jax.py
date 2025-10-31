@@ -94,9 +94,9 @@ class SALT2JaxModel(SEDModel, CiteClass):
         super().__init__(**kwargs)
 
         # Add the model specific parameters.
-        self.add_parameter("x0", x0, **kwargs)
-        self.add_parameter("x1", x1, **kwargs)
-        self.add_parameter("c", c, **kwargs)
+        self.add_parameter("x0", x0, description="The SALT2 x0 parameter.", **kwargs)
+        self.add_parameter("x1", x1, description="The SALT2 x1 parameter.", **kwargs)
+        self.add_parameter("c", c, description="The SALT2 c parameter.", **kwargs)
 
         # Load the data files.
         from lightcurvelynx.utils.bicubic_interp import BicubicInterpolator
