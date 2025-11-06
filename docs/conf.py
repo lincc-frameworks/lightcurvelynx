@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.abspath("../src/"))
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "LightCurveLynx"
-copyright = "2024, LINCC Frameworks"
+project = "lightcurvelynx"
+copyright = "2025, LINCC Frameworks"
 author = "LINCC Frameworks"
 release = version("lightcurvelynx")
 # for example take major/minor
