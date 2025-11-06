@@ -50,6 +50,25 @@ def test_sncomso_models_hsiao() -> None:
     expected_mask = (sample_times > -20.0) & (sample_times < 85.0)
     assert np.array_equal(mask, expected_mask)
 
+    # Check that we zero out times outside the model phase range.
+    t0 = 100.0
+    times = np.array(
+        [
+            t0 + model.source.minphase() - 1.0,
+            t0 + model.source.minphase() + 1.0,
+            t0 + (model.source.minphase() + model.source.maxphase()) / 2.0,
+            t0 + model.source.maxphase() - 1.0,
+            t0 + model.source.maxphase() + 1.0,
+        ]
+    )
+    print(times)
+    model2 = SncosmoWrapperModel("hsiao", t0=t0, amplitude=2.0e10)
+    fluxes_fnu2 = model2.evaluate_sed(times, [4000.0, 4100.0, 4200.0])
+    assert fluxes_fnu2.shape == (5, 3)
+    assert np.all(fluxes_fnu2[0, :] == 0.0)
+    assert np.all(fluxes_fnu2[1:4, :] > 0.0)
+    assert np.all(fluxes_fnu2[4, :] == 0.0)
+
 
 def test_sncomso_models_hsiao_t0() -> None:
     """Test that we can create and evalue a 'hsiao' model with a t0."""
@@ -90,7 +109,7 @@ def test_sncomso_models_bounds() -> None:
     # that is cached in the test data directory. This is okay because we are only using
     # the model's wavelength bounds.
     with patch("sncosmo.utils.DataMirror.abspath", side_effect=_fake_nugent_data_path):
-        model = SncosmoWrapperModel("nugent-sn1a", amplitude=2.0e10, t0=0.0)
+        model = SncosmoWrapperModel("nugent-sn1a", amplitude=2.0e10, t0=54990.0)
     min_w = model.source.minwave()
     max_w = model.source.maxwave()
 
@@ -119,7 +138,7 @@ def test_sncomso_models_linear_extrapolate() -> None:
         model = SncosmoWrapperModel(
             "nugent-sn1a",
             amplitude=2.0e10,
-            t0=0.0,
+            t0=54990.0,
             wave_extrapolation=ExponentialDecay(rate=0.1),
         )
     min_w = model.source.minwave()

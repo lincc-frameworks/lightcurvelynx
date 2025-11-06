@@ -267,8 +267,14 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         if np.any(wavelengths < self.source.minwave()) or np.any(wavelengths > self.source.maxwave()):
             return self.compute_sed_with_extrapolation(times, wavelengths, graph_state, **kwargs)
 
-        # Query the model and convert the output to nJy.
-        model_flam = self.source.flux(times - params["t0"], wavelengths)
+        # Query the model and convert the output to nJy. Only compute for the valid times,
+        # using 0.0 for the rest. Since these calculations are done in the rest frame, we do not
+        # need to account for redshift.
+        model_flam = np.zeros((len(times), len(wavelengths)))
+        shifted_times = times - params["t0"]
+        time_mask = (shifted_times >= self.source.minphase()) & (shifted_times <= self.source.maxphase())
+
+        model_flam[time_mask, :] = self.source.flux(shifted_times[time_mask], wavelengths)
         model_fnu = flam_to_fnu(
             model_flam,
             wavelengths,
