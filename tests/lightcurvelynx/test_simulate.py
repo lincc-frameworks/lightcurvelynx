@@ -31,7 +31,7 @@ def test_get_time_windows():
     assert get_time_windows(0.0, None) == (None, None)
     assert get_time_windows(None, (1.0, 2.0)) == (None, None)
 
-    result = get_time_windows(0.0, (1.0, 2.0))
+    result = get_time_windows(0.0, (-1.0, 2.0))
     assert np.array_equal(result[0], np.array([-1.0]))
     assert np.array_equal(result[1], np.array([2.0]))
 
@@ -39,11 +39,11 @@ def test_get_time_windows():
     assert result[0] is None
     assert np.array_equal(result[1], np.array([3.0]))
 
-    result = get_time_windows(-10.0, (1.0, None))
+    result = get_time_windows(-10.0, (-1.0, None))
     assert np.array_equal(result[0], np.array([-11.0]))
     assert result[1] is None
 
-    result = get_time_windows(np.array([0.0, 1.0, 2.0]), (1.0, 2.0))
+    result = get_time_windows(np.array([0.0, 1.0, 2.0]), (-1.0, 2.0))
     assert np.array_equal(result[0], np.array([-1.0, 0.0, 1.0]))
     assert np.array_equal(result[1], np.array([2.0, 3.0, 4.0]))
 
@@ -505,7 +505,7 @@ def test_simulate_with_time_window(test_data_dir):
         2,
         opsim_db,
         passband_group,
-        time_window_offset=(5.0, 10.0),
+        time_window_offset=(-5.0, 10.0),
     )
     assert len(results) == 2
 

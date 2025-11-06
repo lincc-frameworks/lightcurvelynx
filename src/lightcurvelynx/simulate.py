@@ -35,9 +35,9 @@ class SimulationInfo:
     apply_obs_mask: boolean
         If True, apply obs_mask to filter interesting indices/times.
     time_window_offset : tuple(float, float), optional
-        A tuple specifying the time window offset (before, after) t0 in days.
+        A tuple specifying the time window offset (start, end) relative to t0 in days.
         This is used to filter the observations to only those within the specified
-        time window (t0 - before, t0 + after). If None or the model does not have a
+        time window (t0 + start, t0 + end). If None or the model does not have a
         t0 specified, no time window is applied.
     obstable_save_cols : list of str, optional
         A list of ObsTable columns to be saved as part of the results. This is used
@@ -184,17 +184,17 @@ def get_time_windows(t0, time_window_offset):
     t0 : float or np.ndarray, optional
         The reference time (t0) for the time windows.
     time_window_offset : tuple(float, float), optional
-        A tuple specifying the time window offset (before, after) t0 in days.
+        A tuple specifying the time window offset (start, end) relative to t0 in days.
         If None, no time window is applied.
 
     Returns
     -------
     start_times : np.ndarray or None
-        The start times for each sample t0 - time_window_offset[0]. If a before time is given,
+        The start times for each sample t0 + time_window_offset[0]. If a before time is given,
         this is always returned as an array (even if t0 is a scalar). None returned if there is
         no start time.
     end_times : np.ndarray or None
-        The end times for each sample t0 - time_window_offset[1]. If an after time is given,
+        The end times for each sample t0 + time_window_offset[1]. If an after time is given,
         this is always returned as an array (even if t0 is a scalar). None returned if there is
         no end time.
     """
@@ -209,7 +209,7 @@ def get_time_windows(t0, time_window_offset):
     # If t0 is a scalar apply the offset directly.
     if np.isscalar(t0):
         t0 = np.array([t0])
-    start_times = t0 - before if before is not None else None
+    start_times = t0 + before if before is not None else None
     end_times = t0 + after if after is not None else None
 
     return start_times, end_times
@@ -459,9 +459,9 @@ def simulate_lightcurves(
     apply_obs_mask: boolean
         If True, apply obs_mask to filter interesting indices/times.
     time_window_offset : tuple(float, float), optional
-        A tuple specifying the time window offset (before, after) t0 in days.
+        A tuple specifying the time window offset (start, end) relative to t0 in days.
         This is used to filter the observations to only those within the specified
-        time window (t0 - before, t0 + after). If None or the model does not have a
+        time window (t0 + start, t0 + end). If None or the model does not have a
         t0 specified, no time window is applied.
     obstable_save_cols : list of str, optional
         A list of ObsTable columns to be saved as part of the results. This is used
