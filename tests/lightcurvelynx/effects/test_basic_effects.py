@@ -33,7 +33,7 @@ def test_scale_flux_effect_bandflux() -> None:
     with pytest.raises(ValueError):
         _ = effect.apply_bandflux(values)
 
-    # We fail is we use a negative flux scale.
+    # We fail if we use a negative flux scale.
     with pytest.raises(ValueError):
         _ = effect.apply_bandflux(values, flux_scale=-1.0)
 
