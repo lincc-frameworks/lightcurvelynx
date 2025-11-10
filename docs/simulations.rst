@@ -48,8 +48,14 @@ parameter values into the model, users can simulate an entire population of thes
 could use the `SALT2JaxModel` with parameterized values of `c`, `x0`, and `x1` to simulate a population of
 Type Ia supernovae. 
 
-In addition to the built-in models, the software provides wrappers to common modeling packages such as
-`sncosmo <https://sncosmo.readthedocs.io/en/stable/>`__ (see the `SncosmoModel` class).
+In addition to the built-in models, the software provides wrappers to common modeling packages such as:
+* `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/Bayesian>`).
+* `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
+* `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`_ - A package for simulating supernovae.
+* `synphot <https://synphot.readthedocs.io/en/latest/>`_ - A package for simulating photometric observations (:doc:`example <notebooks/pre_executed/synphot_example>`).
+LightCurveLynx also allows users to load and sample pre-generated light curves, such as the
+``LCLIB`` (:doc:`example <notebooks/pre_executed/lclib_example>`) and
+``SIMSED`` (:doc:`example <notebooks/pre_executed/snana_example>`) formats used by SNANA.
 Users can also create their own models by subclassing either ``SEDModel`` or ``BandfluxModel``.
 
 For new SED-type models, the class needs to implement a ``compute_sed()`` function that generates the
@@ -178,6 +184,19 @@ survey are consistent with respect to the parameterization. The times of observa
 used are determined by each survey. And the bandflux is computed using that survey's passbands.
 
 For an example see the :doc:`Simulating from Multiple Surveys notebook <notebooks/multiple_surveys>`.
+
+
+Running in Parallel
+-------------------------------------------------------------------------------
+
+Simulations can be performed in parallel by providing a ``concurrent.futures.Executor`` object.
+This object can be a built-in parallelization method, such as `ThreadPoolExecutor` or
+`ProcessPoolExecutor`, or other libraries, such as `dask <https://docs.dask.org/en/latest/>`_ or
+`ray <https://docs.ray.io/en/latest/>`_. Note that each process will load a full version of all the data,
+so they may be memory intensive.
+
+The :doc:`parallelization notebook <notebooks/parallelization>` provides an example of how to use
+LightCurveLynx to run simulations in parallel including using dask and ray.
 
 
 Saving Results
