@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
-from lightcurvelynx.effects.basic_effects import ConstantDimming
+from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.multi_object_model import AdditiveMultiObjectModel, RandomMultiObjectModel
@@ -140,8 +140,8 @@ def test_additive_multi_object_node_effects_rest_frame() -> None:
     """Test that we handle rest frame effects separately for each object."""
     object1 = StepModel(brightness=10.0, t0=1.0, t1=3.0, node_label="object1")
     object2 = StepModel(brightness=10.0, t0=2.0, t1=4.0, node_label="object2")
-    object1.add_effect(ConstantDimming(flux_fraction=0.5, rest_frame=True))
-    object2.add_effect(ConstantDimming(flux_fraction=0.1, rest_frame=True))
+    object1.add_effect(ScaleFluxEffect(flux_scale=0.5, rest_frame=True))
+    object2.add_effect(ScaleFluxEffect(flux_scale=0.1, rest_frame=True))
     model = AdditiveMultiObjectModel([object1, object2], node_label="my_multi_object")
 
     # We added the effect to each submodel's rest frame list.
@@ -168,7 +168,7 @@ def test_additive_multi_object_node_effects_rest_frame_add() -> None:
     object1 = StepModel(brightness=10.0, t0=1.0, t1=3.0, node_label="object1")
     object2 = StepModel(brightness=10.0, t0=2.0, t1=4.0, node_label="object2")
     model = AdditiveMultiObjectModel([object1, object2], node_label="my_multi_object")
-    model.add_effect(ConstantDimming(flux_fraction=0.5, rest_frame=True))
+    model.add_effect(ScaleFluxEffect(flux_scale=0.5, rest_frame=True))
 
     # We added the effect to each submodel's rest frame list.
     assert len(object1.rest_frame_effects) == 1
@@ -194,7 +194,7 @@ def test_additive_multi_object_node_effects_obs_frame() -> None:
     object1 = StepModel(brightness=10.0, t0=1.0, t1=3.0, node_label="object1")
     object2 = StepModel(brightness=10.0, t0=2.0, t1=4.0, node_label="object2")
     model = AdditiveMultiObjectModel([object1, object2], node_label="my_multi_object")
-    model.add_effect(ConstantDimming(flux_fraction=0.5, rest_frame=False))
+    model.add_effect(ScaleFluxEffect(flux_scale=0.5, rest_frame=False))
 
     # We added the effect to the joint model's rest frame list.
     assert len(object1.rest_frame_effects) == 0
@@ -262,13 +262,13 @@ def test_additive_multi_object_node_bandflux() -> None:
 
     # Check that we can add a rest frame effect. This are applied at the bandpass
     # level for Bandpass models.
-    model.add_effect(ConstantDimming(flux_fraction=0.5, rest_frame=True))
+    model.add_effect(ScaleFluxEffect(flux_scale=0.5, rest_frame=True))
     state = model.sample_parameters()
     values = model.evaluate_bandfluxes(None, times, filters, state)
     assert np.allclose(values, [1.0, 1.0, 1.5, 1.0, 0.25])
 
     # Check that we can apply a observer frame effect. The two effects stack.
-    model.add_effect(ConstantDimming(flux_fraction=0.1, rest_frame=False))
+    model.add_effect(ScaleFluxEffect(flux_scale=0.1, rest_frame=False))
     state = model.sample_parameters()
     values = model.evaluate_bandfluxes(None, times, filters, state)
     assert np.allclose(values, [0.1, 0.1, 0.15, 0.1, 0.025])

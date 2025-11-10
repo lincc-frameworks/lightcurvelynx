@@ -3,25 +3,25 @@
 from lightcurvelynx.effects.effect_model import EffectModel
 
 
-class ConstantDimming(EffectModel):
-    """An effect that dims by a constant amount. Primarily used for testing.
+class ScaleFluxEffect(EffectModel):
+    """An effect that scales the flux by a constant multiplicative amount.
 
     Attributes
     ----------
-    flux_fraction : parameter
-        The fraction of flux that is passed through.
+    flux_scale : parameter
+        The multiplicative factor by which to scale the flux.
     """
 
-    def __init__(self, flux_fraction, **kwargs):
+    def __init__(self, flux_scale, **kwargs):
         super().__init__(**kwargs)
-        self.add_effect_parameter("flux_fraction", flux_fraction)
+        self.add_effect_parameter("flux_scale", flux_scale)
 
     def apply(
         self,
         flux_density,
         times=None,
         wavelengths=None,
-        flux_fraction=None,
+        flux_scale=None,
         rng_info=None,
         **kwargs,
     ):
@@ -35,8 +35,8 @@ class ConstantDimming(EffectModel):
             A length T array of times (in MJD). Not used for this effect.
         wavelengths : numpy.ndarray, optional
             A length N array of wavelengths (in angstroms). Not used for this effect.
-        flux_fraction : float, optional
-            The fraction of flux that is passed through. Raises an error if None is provided.
+        flux_scale : float, optional
+            The multiplicative factor by which to scale the flux. Raises an error if None is provided.
         rng_info : numpy.random._generator.Generator, optional
             A given numpy random number generator to use for this computation. If not
             provided, the function uses the node's random number generator.
@@ -49,9 +49,9 @@ class ConstantDimming(EffectModel):
         flux_density : numpy.ndarray
             A length T x N matrix of flux densities after the effect is applied (in nJy).
         """
-        if flux_fraction is None:
-            raise ValueError("flux_fraction must be provided")
-        return flux_density * flux_fraction
+        if flux_scale is None:
+            raise ValueError("flux_scale must be provided")
+        return flux_density * flux_scale
 
     def apply_bandflux(
         self,
@@ -59,7 +59,7 @@ class ConstantDimming(EffectModel):
         *,
         times=None,
         filters=None,
-        flux_fraction=None,
+        flux_scale=None,
         rng_info=None,
         **kwargs,
     ):
@@ -74,8 +74,8 @@ class ConstantDimming(EffectModel):
         filters : numpy.ndarray, optional
             A length N array of filters. If not provided, the effect is applied to all
             band fluxes.
-        flux_fraction : float, optional
-            The fraction of flux that is passed through. Raises an error if None is provided.
+        flux_scale : float, optional
+            The multiplicative factor by which to scale the flux. Raises an error if None is provided.
         rng_info : numpy.random._generator.Generator, optional
             A given numpy random number generator to use for this computation. If not
             provided, the function uses the node's random number generator.
@@ -88,6 +88,22 @@ class ConstantDimming(EffectModel):
         bandfluxes : numpy.ndarray
             A length T array of band fluxes after the effect is applied (in nJy).
         """
-        if flux_fraction is None:
-            raise ValueError("flux_fraction must be provided")
-        return bandfluxes * flux_fraction
+        if flux_scale is None:
+            raise ValueError("flux_scale must be provided")
+        if flux_scale < 0.0:
+            raise ValueError("flux_scale cannot be negative.")
+
+        return bandfluxes * flux_scale
+
+
+class ScaleFluxEffect(ScaleFluxEffect):
+    """An effect that dims by a constant amount. Primarily used for testing.
+
+    Attributes
+    ----------
+    flux_scale : parameter
+        The fraction of flux that is passed through.
+    """
+
+    def __init__(self, flux_scale, **kwargs):
+        super().__init__(flux_scale, **kwargs)
