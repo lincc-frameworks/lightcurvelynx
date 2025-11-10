@@ -4,7 +4,7 @@ from astropy.table import Table
 from citation_compass import find_in_citations
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
-from lightcurvelynx.effects.basic_effects import ConstantDimming
+from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
 from lightcurvelynx.models.lightcurve_template_model import (
     LightcurveBandData,
     LightcurveTemplateModel,
@@ -368,7 +368,7 @@ def test_create_lightcurve_template_model_baseline() -> None:
         LightcurveTemplateModel(lightcurves, pb_group, lc_data_t0=0.0, t0=0.0, baseline={"u": 0.5, "g": 1.2})
 
     # Test that we can add a constant dimming effect and it is applied in to the bandpass values.
-    effect = ConstantDimming(flux_fraction=0.1)
+    effect = ScaleFluxEffect(flux_scale=0.1)
     lc_model.add_effect(effect)
     graph_state = lc_model.sample_parameters(num_samples=1)
 

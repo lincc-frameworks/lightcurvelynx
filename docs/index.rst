@@ -42,6 +42,18 @@ LightCurveLynx can generate numerous random realizations of the parameters for t
 component is used to produce realistic light curves using the above components.  See the
 :doc:`simulations <simulations>` page for a more detailed description of the process.
 
+In addition to built-in and user-defined models, LightCurveLynx is designed to build off the
+many excellent existing modeling packages. Wrappers are provided for popular packages including:
+
+* `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/Bayesian>`).
+* `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
+* `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`_ - A package for simulating supernovae.
+* `synphot <https://synphot.readthedocs.io/en/latest/>`_ - A package for simulating photometric observations (:doc:`example <notebooks/pre_executed/synphot_example>`).
+
+LightCurveLynx also allows users to load and sample pre-generated light curves, such as the
+``LCLIB`` (:doc:`example <notebooks/pre_executed/lclib_example>`) and
+``SIMSED`` (:doc:`example <notebooks/pre_executed/snana_example>`) formats used by SNANA.
+
 For an overview of the package, we recommend starting with the notebooks in the "Getting Started"
 section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary <glossary>` provides definitions of
 key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*,
