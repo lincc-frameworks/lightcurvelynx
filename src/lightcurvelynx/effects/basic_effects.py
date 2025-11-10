@@ -94,16 +94,3 @@ class ScaleFluxEffect(EffectModel):
             raise ValueError("flux_scale cannot be negative.")
 
         return bandfluxes * flux_scale
-
-
-class ScaleFluxEffect(ScaleFluxEffect):
-    """An effect that dims by a constant amount. Primarily used for testing.
-
-    Attributes
-    ----------
-    flux_scale : parameter
-        The fraction of flux that is passed through.
-    """
-
-    def __init__(self, flux_scale, **kwargs):
-        super().__init__(flux_scale, **kwargs)
