@@ -26,9 +26,9 @@ Pandas DataFrame with one row for each observation.
     print(lightcurve)
 
 
-Each row also contains a copy of the parameters use to simulate that object (in the ``params`` column), allowing the
+Each row also contains a copy of the parameters used to simulate that object (in the ``params`` column), allowing the
 user to easily lookup the object's information. The parameters are stored as a dictionary using a structure
-based on the ``GraphState`` object. Each key consists to a combination of the node name and the parameter name
+based on the ``GraphState`` object. Each key consists of a combination of the node name and the parameter name
 (separated by a dot). For example, the parameter ``c`` from the node ``salt2`` would be stored under the key
 ``salt2.c``.
 
