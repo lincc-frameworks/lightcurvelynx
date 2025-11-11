@@ -206,4 +206,4 @@ Results and Output
 
 The results of a simulation are returned as a `nested-pandas DataFrame <https://nested-pandas.readthedocs.io/en/latest/>`_.
 For details on the structure of the output and how to save it, see the 
-:doc:`Results and Output notebook <notebooks/results_and_output>`.
+:doc:`Results and Output documentation page <results_and_output>`.
