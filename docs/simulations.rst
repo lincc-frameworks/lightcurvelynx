@@ -201,23 +201,8 @@ The :doc:`parallelization notebook <notebooks/parallelization>` provides an exam
 LightCurveLynx to run simulations in parallel including using dask and ray.
 
 
-Saving Results
+Results and Output
 -------------------------------------------------------------------------------
 
-After simulating a population of objects, users may want to save the results for later analysis.
-LightCurveLynx returns the results as a NestedDataFrame using the
-`nested-pandas <https://nested-pandas.readthedocs.io/en/latest/>`__ package.
-This allows users to easily save all the results in a single file using the
-``to_parquet()`` function.
-
-.. code-block:: python
-
-    results.to_parquet("simulated_lightcurves.parquet")
-
-In addition, each individual light curve is stored as a (nested) Pandas DataFrame. Users can
-access and save light curves individually using the standard Pandas functions such as
-``to_csv()`` or ``to_parquet()``.
-
-.. code-block:: python
-
-    results["lightcurve"][0].to_parquet("lightcurve_0.parquet")
+The results of a simulation are returned as a `nested-pandas DataFrame <https://nested-pandas.readthedocs.io/en/latest/>`_.
+For details on the structure of the output and how to save it, see the :doc:`Results and Output notebook <notebooks/results_output>`.
