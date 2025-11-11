@@ -919,6 +919,7 @@ class DependencyGraph:
             labels = component._make_readable_graph_labels()
             graph = component.to_networkx()
             layout = nx.multipartite_layout(graph, subset_key="layer")
+            layout = nx.spring_layout(graph, pos=layout)
             nx.draw(
                 graph,
                 layout,
