@@ -911,7 +911,9 @@ class DependencyGraph:
             components = [comp for comp in components if param_name in comp.all_params]
 
         num_components = len(components)
-        _, ax = plt.subplots(num_components, 1, figsize=(10, 8 * num_components))
+        _, ax = plt.subplots(num_components, 1, figsize=(12, 6 * num_components))
+        if num_components == 1:
+            ax = [ax]
 
         for idx, component in enumerate(components):
             labels = component._make_readable_graph_labels()
