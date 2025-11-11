@@ -1,3 +1,7 @@
+import matplotlib
+
+matplotlib.use("Agg")  # Suppress the plots
+
 import numpy as np
 import pytest
 from astropy.table import Table

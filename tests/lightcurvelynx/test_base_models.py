@@ -239,31 +239,37 @@ def test_parameterized_build_dependency_graph():
     assert "A.value_sum" in dep_graph.all_params
 
     # Check the incoming edges.
-    assert dep_graph.incoming["const_0=0.15"] == []
-    assert dep_graph.incoming["const_1=0.5"] == []
-    assert dep_graph.incoming["A.value1"] == ["const_0=0.15"]
-    assert dep_graph.incoming["A.value2"] == ["const_1=0.5"]
-    assert dep_graph.incoming["A.value_sum"] == ["FunctionNode:_test_func_1.function_node_result"]
-    assert dep_graph.incoming["FunctionNode:_test_func_1.value1"] == ["A.value1"]
-    assert dep_graph.incoming["FunctionNode:_test_func_1.value2"] == ["A.value2"]
-    assert dep_graph.incoming["FunctionNode:_test_func_1.function_node_result"] == [
-        "FunctionNode:_test_func_1.value1",
-        "FunctionNode:_test_func_1.value2",
-    ]
+    assert dep_graph.incoming["const_0=0.15"] == set([])
+    assert dep_graph.incoming["const_1=0.5"] == set([])
+    assert dep_graph.incoming["A.value1"] == set(["const_0=0.15"])
+    assert dep_graph.incoming["A.value2"] == set(["const_1=0.5"])
+    assert dep_graph.incoming["A.value_sum"] == set(["FunctionNode:_test_func_1.function_node_result"])
+    assert dep_graph.incoming["FunctionNode:_test_func_1.value1"] == set(["A.value1"])
+    assert dep_graph.incoming["FunctionNode:_test_func_1.value2"] == set(["A.value2"])
+    assert dep_graph.incoming["FunctionNode:_test_func_1.function_node_result"] == set(
+        [
+            "FunctionNode:_test_func_1.value1",
+            "FunctionNode:_test_func_1.value2",
+        ]
+    )
 
     # Check the outgoing edges.
-    assert dep_graph.outgoing["const_0=0.15"] == ["A.value1"]
-    assert dep_graph.outgoing["const_1=0.5"] == ["A.value2"]
-    assert dep_graph.outgoing["A.value1"] == ["FunctionNode:_test_func_1.value1"]
-    assert dep_graph.outgoing["A.value2"] == ["FunctionNode:_test_func_1.value2"]
-    assert dep_graph.outgoing["A.value_sum"] == []
-    assert dep_graph.outgoing["FunctionNode:_test_func_1.value1"] == [
-        "FunctionNode:_test_func_1.function_node_result",
-    ]
-    assert dep_graph.outgoing["FunctionNode:_test_func_1.value2"] == [
-        "FunctionNode:_test_func_1.function_node_result",
-    ]
-    assert dep_graph.outgoing["FunctionNode:_test_func_1.function_node_result"] == ["A.value_sum"]
+    assert dep_graph.outgoing["const_0=0.15"] == set(["A.value1"])
+    assert dep_graph.outgoing["const_1=0.5"] == set(["A.value2"])
+    assert dep_graph.outgoing["A.value1"] == set(["FunctionNode:_test_func_1.value1"])
+    assert dep_graph.outgoing["A.value2"] == set(["FunctionNode:_test_func_1.value2"])
+    assert dep_graph.outgoing["A.value_sum"] == set([])
+    assert dep_graph.outgoing["FunctionNode:_test_func_1.value1"] == set(
+        [
+            "FunctionNode:_test_func_1.function_node_result",
+        ]
+    )
+    assert dep_graph.outgoing["FunctionNode:_test_func_1.value2"] == set(
+        [
+            "FunctionNode:_test_func_1.function_node_result",
+        ]
+    )
+    assert dep_graph.outgoing["FunctionNode:_test_func_1.function_node_result"] == set(["A.value_sum"])
 
 
 def test_parameterized_node_from_node():
@@ -453,12 +459,12 @@ def test_function_node_multi():
     assert "test.value1" in dep_graph.all_params
     assert "test.value2" in dep_graph.all_params
 
-    assert dep_graph.incoming["test.sum_res"] == ["test.value1", "test.value2"]
-    assert dep_graph.incoming["test.diff_res"] == ["test.value1", "test.value2"]
-    assert dep_graph.outgoing["const_0=5.0"] == ["test.value1"]
-    assert dep_graph.outgoing["const_1=6.0"] == ["test.value2"]
-    assert dep_graph.outgoing["test.value1"] == ["test.sum_res", "test.diff_res"]
-    assert dep_graph.outgoing["test.value2"] == ["test.sum_res", "test.diff_res"]
+    assert dep_graph.incoming["test.sum_res"] == set(["test.value1", "test.value2"])
+    assert dep_graph.incoming["test.diff_res"] == set(["test.value1", "test.value2"])
+    assert dep_graph.outgoing["const_0=5.0"] == set(["test.value1"])
+    assert dep_graph.outgoing["const_1=6.0"] == set(["test.value2"])
+    assert dep_graph.outgoing["test.value1"] == set(["test.sum_res", "test.diff_res"])
+    assert dep_graph.outgoing["test.value2"] == set(["test.sum_res", "test.diff_res"])
 
     # Build a model that takes the two outputs of the FunctionNode as inputs.
     model = PairModel(value1=my_func.sum_res, value2=my_func.diff_res, node_label="A")
