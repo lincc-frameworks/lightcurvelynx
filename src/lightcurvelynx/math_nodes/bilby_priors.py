@@ -53,7 +53,7 @@ class BilbyPriorNode(FunctionNode, CiteClass):
         if isinstance(prior, dict):
             try:
                 from bilby.core.prior import PriorDict
-            except ImportError as err:
+            except ImportError as err:  # pragma: no cover
                 raise ImportError(
                     "Bilby package is not installed be default. To use the bilby priors, "
                     "please install it. For example, you can install it with `pip install bilby`."
@@ -78,7 +78,7 @@ class BilbyPriorNode(FunctionNode, CiteClass):
         # Import bilby to set the seed.
         try:
             from bilby.core.utils import random as bibly_random
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "Bilby package is not installed be default. To use the bilby priors, "
                 "please install it. For example, you can install it with `pip install bilby`."

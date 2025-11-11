@@ -238,6 +238,7 @@ def test_rectangular_pixel_footprint():
         DetectorFootprint(offset_region, pixel_scale=36.0)  # 0.01 deg/pix
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
 def test_detector_footprint_plot():
     """Test that plot does not throw an error."""
     width = 200.0  # pixels = 2 degrees at 0.01 deg/pix

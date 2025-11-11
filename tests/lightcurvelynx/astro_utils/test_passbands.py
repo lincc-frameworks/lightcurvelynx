@@ -1,3 +1,7 @@
+import matplotlib
+
+matplotlib.use("Agg")  # Suppress the plots during testing
+
 import warnings
 from pathlib import Path
 from unittest.mock import patch
@@ -315,7 +319,7 @@ def test_process_transmission_table(passbands_dir, tmp_path):
         a_band.process_transmission_table(delta_wave=delta_wave, trim_quantile=trim_quantile)
 
 
-def testinterpolate_transmission_table(passbands_dir, tmp_path):
+def test_interpolate_transmission_table(passbands_dir, tmp_path):
     """Test the interpolate_transmission_table method of the Passband class."""
     transmission_table = "100 0.5\n200 0.75\n300 0.25\n"
     a_band = create_toy_passband(tmp_path, transmission_table)
@@ -606,3 +610,11 @@ def test_passband_wrapped_from_physical_source(passbands_dir, tmp_path):
     evaluated_fluxes = model.evaluate_sed(test_times, LSST_g.waves, state)
     result_from_passband = LSST_g.fluxes_to_bandflux(evaluated_fluxes)
     np.testing.assert_allclose(result_from_source_model, result_from_passband)
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_passband_plot(tmp_path):
+    """Test the plot method of the Passband class to make sure it doesn't crash."""
+    transmission_table = "100 0.5\n200 0.75\n300 0.25\n"
+    a_band = create_toy_passband(tmp_path, transmission_table, delta_wave=100, trim_quantile=None)
+    _ = a_band.plot()

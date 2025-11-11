@@ -583,27 +583,6 @@ class PassbandGroup:
         filter_name_mask = np.isin(filters, list(self._filter_to_name.keys()))
         return full_name_mask | filter_name_mask
 
-    def process_transmission_tables(
-        self, *, delta_wave: float | None = 5.0, trim_quantile: float | None = 1e-3
-    ):
-        """Process the transmission tables for all passbands in the group; recalculate group's wave attribute.
-
-        Parameters
-        ----------
-        delta_wave : float or None, optional
-            The grid step of the wave grid. Default is 5.0.
-        trim_quantile : float or None, optional
-            The quantile to trim the transmission table by. For example, if trim_quantile is 1e-3, the
-            transmission table will be trimmed to include only the central 99.8% of rows.
-        """
-        for passband in self.passbands.values():
-            passband.process_transmission_table(
-                delta_wave=delta_wave,
-                trim_quantile=trim_quantile,
-            )
-
-        self._update_internal_data()
-
     def fluxes_to_bandflux(self, flux_density_matrix: np.ndarray, filter: str) -> np.ndarray:
         """Calculate bandfluxes for a single passband in the group.
 
@@ -629,7 +608,7 @@ class PassbandGroup:
 
         # Evaluate the bandflux using only the wavelengths for this passband.
         wave_indices = self._in_band_wave_indices[filter]
-        if wave_indices is None:
+        if wave_indices is None:  # pragma: no cover
             raise ValueError(
                 f"Passband {filter} does not have _in_band_wave_indices set. "
                 "This should have been calculated in PassbandGroup._update_internal_data."
@@ -907,7 +886,7 @@ class Passband:
             # Only import sncosmo if we need to.
             try:
                 from sncosmo import get_bandpass
-            except ImportError as err:
+            except ImportError as err:  # pragma: no cover
                 raise ImportError(
                     "sncosmo package is not installed be default. You can install it with "
                     "`pip install sncosmo` or `conda install conda-forge::sncosmo`."

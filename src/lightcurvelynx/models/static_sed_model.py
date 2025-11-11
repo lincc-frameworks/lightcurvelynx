@@ -125,7 +125,7 @@ class StaticSEDModel(SEDModel):
         """
         try:
             from synphot import units
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "synphot package is not installed be default. To use the synphot models, please "
                 "install it. For example, you can install it with `pip install synphot`."

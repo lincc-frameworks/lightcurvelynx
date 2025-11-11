@@ -102,7 +102,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         if isinstance(source, str):
             try:
                 import redback
-            except ImportError as err:
+            except ImportError as err:  # pragma: no cover
                 raise ImportError(
                     "redback package is not installed be default. To use the RedbackWrapperModel, "
                     "please install redback. For example, you can install it with "
