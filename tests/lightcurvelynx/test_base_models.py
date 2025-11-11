@@ -57,7 +57,7 @@ class PairModel(ParameterizedNode):
         )
 
 
-def test_parameter_source():
+def test_parameter_source(capsys):
     """Test the _ParameterSource creation and setter functions."""
     source = _ParameterSource("test")
     assert source.parameter_name == "test"
@@ -66,28 +66,45 @@ def test_parameter_source():
     assert source.dependency is None
     assert source.value is None
 
+    source.help()
+    captured = capsys.readouterr()
+    assert "test" in captured.out
+    assert "UNDEFINED" in captured.out
+
     source.set_as_constant(10.0)
     assert source.parameter_name == "test"
     assert source.source_type == _ParameterSource.CONSTANT
     assert source.dependency is None
     assert source.value == 10.0
 
+    source.help()
+    captured = capsys.readouterr()
+    assert "Source: CONSTANT with value = 10.0" in captured.out
+
     with pytest.raises(ValueError):
         source.set_as_constant(_test_func)
 
-    node = SingleVariableNode("A", 20.0)
+    node = SingleVariableNode("A", 20.0, node_label="single")
     source.set_as_parameter(node, "A")
     assert source.source_type == _ParameterSource.MODEL_PARAMETER
     assert source.dependency is node
     assert source.value == "A"
+
+    source.help()
+    captured = capsys.readouterr()
+    assert "Source: MODEL_PARAMETER A of node single" in captured.out
 
     func = FunctionNode(_test_func, value1=0.1, value2=0.4)
     source.set_as_function(func)
     assert source.source_type == _ParameterSource.FUNCTION_NODE
     assert source.dependency is func
 
+    source.help()
+    captured = capsys.readouterr()
+    assert "Source: Result of FUNCTION_NODE" in captured.out
 
-def test_parameterized_node():
+
+def test_parameterized_node(capsys):
     """Test that we can sample and create a PairModel object."""
     # Simple addition
     model1 = PairModel(value1=0.5, value2=0.5)
@@ -115,6 +132,21 @@ def test_parameterized_node():
 
     # Check that we can list the parameters.
     assert np.array_equal(model1.list_params(), ["value1", "value2", "value_sum"])
+
+    # We can print out help information for the parameters.
+    model1.describe_params()
+    captured = capsys.readouterr()
+    assert "value1" in captured.out
+    assert "value2" in captured.out
+    assert "value_sum" in captured.out
+
+    # We can also limit to specific parameters.
+    model1.describe_params(["value1", "value3"])
+    captured = capsys.readouterr()
+    assert "value1" in captured.out
+    assert "value2" not in captured.out
+    assert "value_sum" not in captured.out
+    assert "Parameter: value3 not found in node" in captured.out
 
     # If we set a position (and there is no node_label), the position shows up in the name.
     model1.node_pos = 100
