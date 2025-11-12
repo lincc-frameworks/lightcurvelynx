@@ -4,7 +4,6 @@ https://github.com/nikhil-sarin/redback
 https://redback.readthedocs.io/en/latest/
 """
 
-import math
 
 import astropy.units as uu
 import numpy as np
@@ -122,6 +121,9 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         # Redback models already handle redshift, so we do not want to double apply it.
         self.apply_redshift = False
 
+        # We save a cahced version of the last computed SED.
+        self._last_sed = None
+
     @property
     def param_names(self):
         """Return a list of the model's parameter names."""
@@ -142,7 +144,11 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
-        return 0.0
+        # The minwave of the redback model depends on the result of the
+        # last computed SED.
+        if self._last_sed is not None:
+            return self._last_sed.minwave()
+        return None
 
     def maxwave(self, graph_state=None):
         """Get the maximum wavelength of the model.
@@ -159,7 +165,11 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The maximum wavelength of the model (in angstroms) or None
             if the model does not have a defined maximum wavelength.
         """
-        return math.inf
+        # The maxwave of the redback model depends on the result of the
+        # last computed SED.
+        if self._last_sed is not None:
+            return self._last_sed.maxwave()
+        return None
 
     def compute_sed(self, times, wavelengths, graph_state=None, **kwargs):
         """Draw effect-free observations for this object.
@@ -200,6 +210,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             output_format="sncosmo_source",
             **fn_args,
         )
+        self._last_sed = rb_result
 
         # The sncosmo-type source gives an error if the wavelengths are out of bounds, so we
         # need to use extrapolation if the wavelengths are out of bounds. The function
@@ -217,4 +228,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             flam_unit=self._FLAM_UNIT,
             fnu_unit=uu.nJy,
         )
+
+        # Clear the cached SED value since we have now evaluated it.
+        self._last_sed = None
+
         return model_fnu
