@@ -25,7 +25,7 @@ class ToySNModel:
 
     def minwave(self):
         """Get the minimum wavelength of the model."""
-        return 0.0
+        return 5.0
 
     def maxwave(self):
         """Get the maximum wavelength of the model."""
