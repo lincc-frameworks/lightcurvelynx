@@ -488,7 +488,7 @@ class SEDModel(BasePhysicalModel):
             flux_density = np.zeros((len(times), len(wavelengths)))
             flux_density[in_time_range, :] = flux_density_all_waves[1:-1, :]
 
-            if self.time_extrapolation is None:
+            if self.time_extrapolation is not None:
                 # Compute the flux values before the model's first valid time.
                 flux_density[before_time_mask, :] = self.time_extrapolation.extrapolate_time(
                     min_valid_time,

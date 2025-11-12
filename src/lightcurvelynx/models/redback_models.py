@@ -4,7 +4,6 @@ https://github.com/nikhil-sarin/redback
 https://redback.readthedocs.io/en/latest/
 """
 
-
 import astropy.units as uu
 import numpy as np
 from citation_compass import CiteClass, cite_inline

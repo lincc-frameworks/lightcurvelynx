@@ -88,6 +88,28 @@ def test_sncomso_models_hsiao_t0() -> None:
         model.evaluate_sed([0.0], [4000.0, 4100.0])
 
 
+def test_sncomso_models_hsiao_extrap_time() -> None:
+    """Test that we can extrapolate to times outside the model bounds."""
+    time_extrapolation = ExponentialDecay(rate=0.1)
+    model = SncosmoWrapperModel(
+        "hsiao",
+        t0=55000.0,
+        amplitude=2.0e10,
+        time_extrapolation=time_extrapolation,
+    )
+
+    query_times = np.array([54500.0, 54900.0, 54960.0, 54990.0, 55000.0, 55010.0, 55100.0, 55620.0, 99990.0])
+    fluxes = model.evaluate_sed(query_times, [4000.0])
+
+    # All the times before are monotonically increasing to the first valid time.
+    assert np.all(fluxes[0:3] < fluxes[3])
+    assert np.all(np.diff(fluxes[0:3]) >= 0.0)
+    # All the times after are monotonically decreasing from the last valid time.
+
+    assert np.all(fluxes[7:9] < fluxes[6])
+    assert np.all(np.diff(fluxes[5:9]) <= 0.0)
+
+
 def test_sncomso_models_bounds() -> None:
     """Test that we do not crash if we give wavelengths outside the model bounds."""
     # Use a massively subsampled version of the 'nugent-sn1a' model (only 3 time steps)

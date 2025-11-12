@@ -109,6 +109,40 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         """Return a list of the model's parameter values."""
         return self.source.parameters
 
+    def minphase(self, graph_state=None):
+        """Get the minimum phase of the model (in days relative to t0).
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. Not used
+            for this model.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days relative to t0) or None
+            if the model does not have a defined minimum phase.
+        """
+        return self.source.minphase()
+
+    def maxphase(self, graph_state=None):
+        """Get the maximum phase of the model (in days relative to t0).
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. Not used
+            for this model.
+
+        Returns
+        -------
+        maxphase : float or None
+            The maximum phase of the model (in days relative to t0) or None
+            if the model does not have a defined maximum phase.
+        """
+        return self.source.maxphase()
+
     def minwave(self, graph_state=None):
         """Get the minimum wavelength of the model.
 
