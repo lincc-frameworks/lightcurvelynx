@@ -46,6 +46,7 @@ dev = [
     "jupyter", # Clears output from Jupyter notebooks
     "jax",
     "lsdb",
+    "networkx",  # Used for graph visualization
     "pre-commit", # Used to run checks before finalizing a git commit
     "pytest",
     "pytest-cov", # Used to report total code coverage
@@ -64,6 +65,7 @@ all = [
     "extinction>=0.4.7",  # Needed by sncosmo
     "jax",
     "lsdb",  # Used to read and write LSDB catalogs
+    "networkx",  # Used for graph visualization
     "pzflow",
     "sncosmo",
     "synphot",  # used for SED modeling tests

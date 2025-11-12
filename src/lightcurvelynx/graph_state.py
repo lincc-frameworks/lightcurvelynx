@@ -641,10 +641,10 @@ class DependencyGraph:
     all_nodes : set
         A set of all node names in the graph.
     incoming : dict
-        A dictionary mapping each parameter to the list of parameters that it depends on
+        A dictionary mapping each parameter to the set of parameters that it depends on
         (the incoming edges).
     outgoing : dict
-        A dictionary mapping each parameter to the list of parameters that depend on it
+        A dictionary mapping each parameter to the set of parameters that depend on it
         (the outgoing edges).
     num_constants : int
         The number of constant parameters in the graph.
@@ -685,8 +685,8 @@ class DependencyGraph:
         # If we haven't seen the parameter before, add it to the graph.
         if param_name not in self.all_params:
             self.all_params.add(param_name)
-            self.incoming[param_name] = []
-            self.outgoing[param_name] = []
+            self.incoming[param_name] = set()
+            self.outgoing[param_name] = set()
 
     def add_constant(self, value):
         """Add a constant parameter to the dependency graph.
@@ -718,8 +718,223 @@ class DependencyGraph:
         """
         if from_param not in self.all_params or to_param not in self.all_params:
             raise KeyError("Both parameters must be added to the graph before adding an edge.")
-        self.incoming[to_param].append(from_param)
-        self.outgoing[from_param].append(to_param)
+        self.incoming[to_param].add(from_param)
+        self.outgoing[from_param].add(to_param)
+
+    def build_subgraph(self, param_name, incoming=True, outgoing=True):
+        """Get the DAG subgraph that contains this parameter. This can be:
+        1) the parameters on which this parameter depends (incoming=True, outgoing=False),
+        2) the parameters that depend on this parameter (incoming=False, outgoing=True), or
+        3) all parameters in the same connected component as this parameter
+        (incoming=True, outgoing=True).
+
+        Parameters
+        ----------
+        param_name : str
+            The name of the parameter to get the subgraph for.
+        incoming : bool
+            If True, include the parameters that have incoming edges to nodes in the subgraph.
+            Default: True
+        outgoing : bool
+            If True, include the parameters that have outgoing edges from nodes in the subgraph.
+            Default: True
+
+        Returns
+        -------
+        subgraph : DependencyGraph
+            The resulting subgraph.
+        """
+        if param_name not in self.all_params:
+            raise KeyError(f"Parameter '{param_name}' not found in the graph.")
+
+        # Use breadth-first search to find all the parameters that should be included in
+        # the subgraph. This includes all the parameters that this parameter depends on and,
+        # if deps_only is False, all the parameters that depend on this parameter.
+        subgraph = DependencyGraph()
+        to_visit = [param_name]
+        while to_visit:
+            current = to_visit.pop()
+            if current not in subgraph.all_params:
+                subgraph.add_parameter(current)
+
+                if incoming:
+                    for dep in self.incoming[current]:
+                        to_visit.append(dep)
+
+                if outgoing:
+                    for dependent in self.outgoing[current]:
+                        to_visit.append(dependent)
+
+        # Add all edges where both nodes are in the subgraph.
+        for param in subgraph.all_params:
+            for dep in self.incoming[param]:
+                if dep in subgraph.all_params:
+                    subgraph.add_edge(dep, param)
+
+        return subgraph
+
+    def build_connected_components(self):
+        """Get the DAG subgraphs that are the connected components of the graph.
+
+        Returns
+        -------
+        components : list of DependencyGraph
+            The resulting subgraphs.
+        """
+        components = []
+        visited = set()
+        for param in self.all_params:
+            if param not in visited:
+                component = self.build_subgraph(param, incoming=True, outgoing=True)
+                components.append(component)
+                visited.update(component.all_params)
+        return components
+
+    def _compute_depths_helper(self, param, depths):
+        """Helper function to compute the depth of a parameter in the graph.
+
+        Parameters
+        ----------
+        param : str
+            The name of the parameter to compute the depth for.
+        depths : dict
+            A dictionary mapping parameter names to their depth.
+
+        Returns
+        -------
+        depth : int
+            The depth of the parameter.
+        """
+        if param in depths:
+            return depths[param]
+        elif len(self.incoming[param]) == 0:
+            # This is a root node.
+            depths[param] = 0
+            return 0
+        else:
+            # Compute the depth as one more than the maximum depth of the dependencies.
+            max_depth = max(self._compute_depths_helper(dep, depths) for dep in self.incoming[param])
+            depths[param] = max_depth + 1
+            return max_depth + 1
+
+    def compute_depths(self):
+        """Compute the depth of each parameter in the graph.
+
+        Note
+        ----
+        This function is primarily used for visualization purposes.
+
+        Returns
+        -------
+        depths : dict
+            A dictionary mapping parameter names to their depth.
+        """
+        depths = {}
+        for param in self.all_params:
+            if param not in depths:
+                depths[param] = self._compute_depths_helper(param, depths)
+        return depths
+
+    def to_networkx(self):
+        """Create a NetworkX graph from the dependency graph.
+
+        Returns
+        -------
+        graph : networkx.DiGraph
+            The resulting directed graph.
+        """
+        try:
+            import networkx as nx
+        except ImportError as err:
+            raise ImportError(
+                "NetworkX is required to convert the dependency graph to a NetworkX graph. "
+                "Please install it with 'pip install networkx'."
+            ) from err
+
+        # Compute a mapping from parameter names to their depths.
+        depths = self.compute_depths()
+
+        # Create the graph and add each node with its depth as an attribute.
+        graph = nx.DiGraph()
+        for param in depths:
+            graph.add_node(param, layer=depths[param])
+
+        # Add the edges. We do this after adding the nodes to ensure that all nodes are present.
+        for param in self.all_params:
+            for dep in self.incoming[param]:
+                graph.add_edge(dep, param)
+        return graph
+
+    def _make_readable_graph_labels(self):
+        """Create a mapping from parameter names to their labels for visualization.
+
+        Returns
+        -------
+        labels : dict
+            A dictionary mapping parameter names to their labels.
+        """
+        labels = {}
+        for param in self.all_params:
+            curr_label = param
+
+            # Remove the "const_NN=" prefix from constant parameters.
+            if "=" in param and param.startswith("const_"):
+                curr_label = curr_label.split("=")[1]
+
+            # Remove function node names and "function_node_result" from labels.
+            if ":" in param:
+                curr_label = "FN:" + curr_label.split(":")[-1]
+            if curr_label.endswith(".function_node_result"):
+                curr_label = curr_label[: -len(".function_node_result")]
+
+            labels[param] = curr_label
+        return labels
+
+    def draw(self, param_name=None):
+        """Draw the connected components of the graph using NetworkX and Matplotlib."""
+        try:
+            import matplotlib.pyplot as plt
+            import networkx as nx
+        except ImportError as err:
+            raise ImportError(
+                "NetworkX and Matplotlib are required to draw the graph. "
+                "Please install them with 'pip install networkx matplotlib'."
+            ) from err
+
+        # If a parameter name is provided, check that it exists in the graph.
+        if param_name is not None and param_name not in self.all_params:
+            raise KeyError(f"Parameter '{param_name}' not found in the graph.")
+
+        components = self.build_connected_components()
+        if param_name is not None:
+            # If a parameter name is provided, only draw the component that contains that parameter.
+            components = [comp for comp in components if param_name in comp.all_params]
+
+        num_components = len(components)
+        _, ax = plt.subplots(num_components, 1, figsize=(12, 6 * num_components))
+        if num_components == 1:
+            ax = [ax]
+
+        for idx, component in enumerate(components):
+            labels = component._make_readable_graph_labels()
+            graph = component.to_networkx()
+            layout = nx.multipartite_layout(graph, subset_key="layer")
+            layout = nx.spring_layout(graph, pos=layout)
+            nx.draw(
+                graph,
+                layout,
+                arrows=True,
+                labels=labels,
+                edge_color="gray",
+                with_labels=True,
+                node_color="lightgray",
+                node_size=2000,
+                font_size=10,
+                font_color="black",
+                font_weight="bold",
+                ax=ax[idx],
+            )
+        plt.show()
 
 
 def transpose_dict_of_list(input_dict, num_elem):

@@ -85,9 +85,9 @@ def test_numpy_random_normal():
     # Check that we can get a dependency graph that correctly includes this node.
     dep_graph = np_node.build_dependency_graph()
     assert dep_graph.all_nodes == {"normal1"}
-    assert dep_graph.incoming["normal1.function_node_result"] == ["normal1.loc", "normal1.scale"]
-    assert dep_graph.outgoing["normal1.loc"] == ["normal1.function_node_result"]
-    assert dep_graph.outgoing["normal1.scale"] == ["normal1.function_node_result"]
+    assert dep_graph.incoming["normal1.function_node_result"] == set(["normal1.loc", "normal1.scale"])
+    assert dep_graph.outgoing["normal1.loc"] == set(["normal1.function_node_result"])
+    assert dep_graph.outgoing["normal1.scale"] == set(["normal1.function_node_result"])
 
 
 def test_numpy_random_given_rng():

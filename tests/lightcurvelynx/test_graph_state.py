@@ -1,3 +1,7 @@
+import matplotlib
+
+matplotlib.use("Agg")  # Suppress the plots
+
 import numpy as np
 import pytest
 from astropy.table import Table
@@ -759,12 +763,12 @@ def test_dependency_graph():
     dep_graph.add_edge("a.1", "c.3")
     for param in all_params:
         if param == "a.1":
-            assert dep_graph.outgoing[param] == ["b.1", "c.3"]
+            assert dep_graph.outgoing[param] == set(["b.1", "c.3"])
         else:
             assert len(dep_graph.outgoing[param]) == 0
 
         if param in ["b.1", "c.3"]:
-            assert dep_graph.incoming[param] == ["a.1"]
+            assert dep_graph.incoming[param] == set(["a.1"])
         else:
             assert len(dep_graph.incoming[param]) == 0
 
@@ -776,18 +780,130 @@ def test_dependency_graph():
 
     # We can add edges from constants.
     dep_graph.add_edge(const_name, "a.2")
-    assert dep_graph.outgoing[const_name] == ["a.2"]
-    assert dep_graph.incoming["a.2"] == [const_name]
+    assert dep_graph.outgoing[const_name] == set(["a.2"])
+    assert dep_graph.incoming["a.2"] == set([const_name])
 
     const_name2 = dep_graph.add_constant(10)
     assert const_name2 == "const_1=10"
     dep_graph.add_edge(const_name2, "b.1")
-    assert dep_graph.outgoing[const_name2] == ["b.1"]
-    assert dep_graph.incoming["b.1"] == ["a.1", const_name2]
+    assert dep_graph.outgoing[const_name2] == set(["b.1"])
+    assert dep_graph.incoming["b.1"] == set(["a.1", const_name2])
+
+    # We can add edges multiple times without changing the lists
+    dep_graph.add_edge(const_name, "a.2")
+    dep_graph.add_edge(const_name, "a.2")
+    assert dep_graph.outgoing[const_name] == set(["a.2"])
+    assert dep_graph.incoming["a.2"] == set([const_name])
 
     # We can't add edges between parameters that do not exist.
     with pytest.raises(KeyError):
         dep_graph.add_edge("a.100", "b.1")
+
+    # Test we can export a networkx graph.
+    nx_graph = dep_graph.to_networkx()
+    assert nx_graph is not None
+
+    # Test that we can plot a dependency graph.
+    dep_graph.draw()
+
+
+def test_dependency_graph_depths():
+    """Test that we can create subgraphs of the dependency graph."""
+    # Create a graph as:
+    # a.1 --> b.1 -> c.2 -> a.2
+    #      /    \
+    # c.1 /      \-> d.1
+    #
+    # e.1 --> d.2 -> a.3
+    dep_graph = DependencyGraph()
+    dep_graph.add_parameter("1", node_name="a")
+    dep_graph.add_parameter("1", node_name="b")
+    dep_graph.add_parameter("1", node_name="c")
+    dep_graph.add_parameter("1", node_name="d")
+    dep_graph.add_parameter("1", node_name="e")
+    dep_graph.add_parameter("2", node_name="a")
+    dep_graph.add_parameter("2", node_name="c")
+    dep_graph.add_parameter("2", node_name="d")
+    dep_graph.add_parameter("3", node_name="a")
+    dep_graph.add_edge("a.1", "b.1")
+    dep_graph.add_edge("c.1", "b.1")
+    dep_graph.add_edge("b.1", "c.2")
+    dep_graph.add_edge("b.1", "d.1")
+    dep_graph.add_edge("e.1", "d.2")
+    dep_graph.add_edge("c.2", "a.2")
+    dep_graph.add_edge("d.2", "a.3")
+    assert len(dep_graph) == 9
+    assert set(dep_graph.all_nodes) == {"a", "b", "c", "d", "e"}
+    assert set(dep_graph.all_params) == {"a.1", "b.1", "c.1", "c.2", "d.1", "d.2", "e.1", "a.2", "a.3"}
+
+    depths = dep_graph.compute_depths()
+    assert depths["a.1"] == 0
+    assert depths["c.1"] == 0
+    assert depths["b.1"] == 1
+    assert depths["c.2"] == 2
+    assert depths["d.1"] == 2
+    assert depths["a.2"] == 3
+    assert depths["e.1"] == 0
+    assert depths["d.2"] == 1
+    assert depths["a.3"] == 2
+
+
+def test_dependency_graph_subgraphs():
+    """Test that we can create subgraphs of the dependency graph."""
+    # Create a graph as:
+    # a.1 --> b.1 -> c.2
+    #      /    \
+    # c.1 /      \-> d.1
+    #
+    # e.1 --> d.2
+    dep_graph = DependencyGraph()
+    dep_graph.add_parameter("1", node_name="a")
+    dep_graph.add_parameter("1", node_name="b")
+    dep_graph.add_parameter("1", node_name="c")
+    dep_graph.add_parameter("1", node_name="d")
+    dep_graph.add_parameter("1", node_name="e")
+    dep_graph.add_parameter("2", node_name="c")
+    dep_graph.add_parameter("2", node_name="d")
+    dep_graph.add_edge("a.1", "b.1")
+    dep_graph.add_edge("c.1", "b.1")
+    dep_graph.add_edge("b.1", "c.2")
+    dep_graph.add_edge("b.1", "d.1")
+    dep_graph.add_edge("e.1", "d.2")
+    assert len(dep_graph) == 7
+    assert set(dep_graph.all_nodes) == {"a", "b", "c", "d", "e"}
+    assert set(dep_graph.all_params) == {"a.1", "b.1", "c.1", "c.2", "d.1", "d.2", "e.1"}
+
+    # We can get the various types of subgraphs for a node, including:
+    # 1) All nodes on which this node depends (incoming=True, outgoing=False)
+    subgraph1 = dep_graph.build_subgraph("b.1", incoming=True, outgoing=False)
+    assert len(subgraph1) == 3
+    assert set(subgraph1.all_params) == {"a.1", "c.1", "b.1"}
+    assert subgraph1.incoming["b.1"] == set(["a.1", "c.1"])
+    assert subgraph1.outgoing["b.1"] == set()
+
+    # 2) All nodes that depend on this node (incoming=False, outgoing=True)
+    subgraph2 = dep_graph.build_subgraph("b.1", incoming=False, outgoing=True)
+    assert len(subgraph2) == 3
+    assert set(subgraph2.all_params) == {"b.1", "c.2", "d.1"}
+    assert subgraph2.incoming["b.1"] == set()
+    assert subgraph2.outgoing["b.1"] == set(["c.2", "d.1"])
+
+    # 3) All nodes in this connected component (incoming=True, outgoing=True)
+    subgraph3 = dep_graph.build_subgraph("b.1", incoming=True, outgoing=True)
+    assert len(subgraph3) == 5
+    assert set(subgraph3.all_params) == {"a.1", "c.1", "b.1", "c.2", "d.1"}
+    assert subgraph3.incoming["b.1"] == set(["a.1", "c.1"])
+    assert subgraph3.outgoing["b.1"] == set(["c.2", "d.1"])
+
+    # Test that we can extract all connected components.
+    components = dep_graph.build_connected_components()
+    assert len(components) == 2
+    if len(components[0]) == 5:
+        assert set(components[0].all_params) == {"a.1", "b.1", "c.1", "c.2", "d.1"}
+        assert set(components[1].all_params) == {"e.1", "d.2"}
+    else:
+        assert set(components[1].all_params) == {"a.1", "b.1", "c.1", "c.2", "d.1"}
+        assert set(components[0].all_params) == {"e.1", "d.2"}
 
 
 def test_transpose_dict_of_list():
