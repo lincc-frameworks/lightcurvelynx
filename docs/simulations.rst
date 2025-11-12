@@ -111,7 +111,8 @@ the graph state (and is stored in a ``GraphState`` object), because it represent
 Next, the ``ObsTable`` is used to determine at what times and in which bands the object will be evaluated.
 These times and wavelengths are based into the object's ``evaluate_sed()`` function along with the graph state.
 The ``evaluate_sed()`` function handles the mechanics of the simulation, such as applying redshifts to both the
-times and wavelengths before calling the ``compute_sed()``.
+times and wavelengths before calling the ``compute_sed()`` and handling any requested extrapolations outside
+the model's valid range.
 
 .. figure:: _static/compute_sed.png
    :class: no-scaled-link

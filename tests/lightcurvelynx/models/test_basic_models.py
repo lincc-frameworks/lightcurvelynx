@@ -8,7 +8,7 @@ from lightcurvelynx.models.basic_models import (
     SinWaveModel,
     StepModel,
 )
-from lightcurvelynx.utils.wave_extrapolate import ConstantExtrapolation, LinearDecay
+from lightcurvelynx.utils.extrapolate import ConstantExtrapolation, LinearDecay
 
 
 def _sampler_fun(magnitude, offset=0.0, **kwargs):

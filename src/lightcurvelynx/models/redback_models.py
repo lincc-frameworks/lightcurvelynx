@@ -142,7 +142,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
-        return 0.0
+        return 1.0
 
     def maxwave(self, graph_state=None):
         """Get the maximum wavelength of the model.

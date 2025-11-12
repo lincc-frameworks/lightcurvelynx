@@ -45,8 +45,11 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         The name used to set the source.
     node_label : str, optional
         An identifier (or name) for the current node.
-    wave_extrapolation : WaveExtrapolationModel, optional
+    wave_extrapolation : FluxExtrapolationModel, optional
         The extrapolation model to use for wavelengths that fall outside
+        the model's defined bounds.  If None then the model will use all zeros.
+    time_extrapolation : FluxExtrapolationModel, optional
+        The extrapolation model to use for times that fall outside
         the model's defined bounds.  If None then the model will use all zeros.
     seed : int, optional
         The seed for a random number generator.
@@ -62,6 +65,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         source_name,
         node_label=None,
         wave_extrapolation=None,
+        time_extrapolation=None,
         seed=None,
         **kwargs,
     ):
@@ -80,6 +84,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         super().__init__(
             node_label=node_label,
             wave_extrapolation=wave_extrapolation,
+            time_extrapolation=time_extrapolation,
             seed=seed,
             **kwargs,
         )
