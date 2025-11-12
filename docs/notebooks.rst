@@ -27,9 +27,10 @@ features and models of the LightCurveLynx package.
     Using Rubin OpSims in Simulations <notebooks/opsim_notebook>
     Passband Demo <notebooks/passband-demo>
     Adding New Model Types <notebooks/adding_models>
+    Debugging Models <notebooks/debugging>
+    Combining Models (including Hosts/Sources) <notebooks/host_source_models>
     Adding New Effect Types <notebooks/adding_effects>
     Creating Time Varying Effects <notebooks/time_varying_effects>
-    Combining Models (including Hosts/Sources) <notebooks/host_source_models>
     Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
     Advanced Sampling Techniques <notebooks/advanced_sampling>
     Simulating Multiple Surveys <notebooks/multiple_surveys>
