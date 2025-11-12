@@ -25,6 +25,8 @@ class ToySNModel:
 
     def minwave(self):
         """Get the minimum wavelength of the model."""
+        # The value of 5.0 is arbitrary. We just need something that provides
+        # a tighter lower bound than the wrapper model.
         return 5.0
 
     def maxwave(self):
