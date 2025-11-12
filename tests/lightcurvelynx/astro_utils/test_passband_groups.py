@@ -134,6 +134,23 @@ def test_passband_group_create(tmp_path):
         _ = PassbandGroup(given_passbands=[])
 
 
+def test_passband_group_process_transmission_tables(tmp_path):
+    """Test that we can create reprocess the passbands in a group."""
+    table_vals = np.array([[100, 0.5], [200, 0.75], [300, 0.25]])
+    pb1 = Passband(table_vals, "survey1", "a", delta_wave=5.0, trim_quantile=None)
+    pb2 = Passband(table_vals, "survey1", "b", delta_wave=5.0, trim_quantile=None)
+    pb_group = PassbandGroup(given_passbands=[pb1, pb2])
+
+    # The wavelengths are sampled every 5 AA.
+    assert np.allclose(pb_group["survey1_a"].waves, np.arange(100, 301, 5))
+    assert np.allclose(pb_group["survey1_b"].waves, np.arange(100, 301, 5))
+
+    # Reprocess with a different delta_wave. Check they are now sampled every 10 AA.
+    pb_group.process_transmission_tables(delta_wave=10.0, trim_quantile=None)
+    assert np.allclose(pb_group["survey1_a"].waves, np.arange(100, 301, 10))
+    assert np.allclose(pb_group["survey1_b"].waves, np.arange(100, 301, 10))
+
+
 def test_passband_group_init(tmp_path, passbands_dir):
     """Test the initialization of the Passband class, and implicitly, _load_preset."""
     # Test that we cannot create an empty PassbandGroup object

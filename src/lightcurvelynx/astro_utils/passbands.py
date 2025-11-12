@@ -583,6 +583,30 @@ class PassbandGroup:
         filter_name_mask = np.isin(filters, list(self._filter_to_name.keys()))
         return full_name_mask | filter_name_mask
 
+    def process_transmission_tables(
+        self, *, delta_wave: float | None = 5.0, trim_quantile: float | None = 1e-3
+    ):
+        """Process the transmission tables for all passbands in the group; recalculate group's wave
+        attribute. This function is used to change the preprocessing of the transmission tables after
+        the PassbandGroup has been initialized, such as using different delta_wave or trim_quantile
+        values.
+
+        Parameters
+        ----------
+        delta_wave : float or None, optional
+            The grid step of the wave grid. Default is 5.0.
+        trim_quantile : float or None, optional
+            The quantile to trim the transmission table by. For example, if trim_quantile is 1e-3, the
+            transmission table will be trimmed to include only the central 99.8% of rows.
+        """
+        for passband in self.passbands.values():
+            passband.process_transmission_table(
+                delta_wave=delta_wave,
+                trim_quantile=trim_quantile,
+            )
+
+        self._update_internal_data()
+
     def fluxes_to_bandflux(self, flux_density_matrix: np.ndarray, filter: str) -> np.ndarray:
         """Calculate bandfluxes for a single passband in the group.
 
