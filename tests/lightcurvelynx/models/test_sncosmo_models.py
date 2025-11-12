@@ -83,6 +83,10 @@ def test_sncomso_models_hsiao_t0() -> None:
     expected_mask = (sample_times > 54980.0) & (sample_times < 55085.0)
     assert np.array_equal(mask, expected_mask)
 
+    # We raise a warning if the time is outside the bounds.
+    with np.testing.assert_warns(UserWarning):
+        model.evaluate_sed([0.0], [4000.0, 4100.0])
+
 
 def test_sncomso_models_bounds() -> None:
     """Test that we do not crash if we give wavelengths outside the model bounds."""
@@ -90,7 +94,7 @@ def test_sncomso_models_bounds() -> None:
     # that is cached in the test data directory. This is okay because we are only using
     # the model's wavelength bounds.
     with patch("sncosmo.utils.DataMirror.abspath", side_effect=_fake_nugent_data_path):
-        model = SncosmoWrapperModel("nugent-sn1a", amplitude=2.0e10, t0=0.0)
+        model = SncosmoWrapperModel("nugent-sn1a", amplitude=2.0e10, t0=54990.0)
     min_w = model.source.minwave()
     max_w = model.source.maxwave()
 
@@ -119,7 +123,7 @@ def test_sncomso_models_linear_extrapolate() -> None:
         model = SncosmoWrapperModel(
             "nugent-sn1a",
             amplitude=2.0e10,
-            t0=0.0,
+            t0=54990.0,
             wave_extrapolation=ExponentialDecay(rate=0.1),
         )
     min_w = model.source.minwave()
