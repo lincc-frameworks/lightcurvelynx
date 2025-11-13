@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+import pytest
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.models.basic_models import (
     ConstantSEDModel,
@@ -219,7 +220,8 @@ def test_linear_wavelength_model_bounds() -> None:
 
     times = np.arange(0.0, 10.0, 0.5)
     wavelengths = np.array([500.0, 1000.0, 1500.0, 2000.0, 2500.0])
-    values = model.evaluate_sed(times, wavelengths, state)
+    with pytest.warns(UserWarning):
+        values = model.evaluate_sed(times, wavelengths, state)
 
     # Without any extrapolation, we zero pad the data.
     expected = np.tile(np.array([0.0, 101.0, 151.0, 201.0, 0.0]), (len(times), 1))

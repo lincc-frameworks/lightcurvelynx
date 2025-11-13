@@ -130,7 +130,9 @@ def test_sncomso_models_bounds() -> None:
     ]
 
     # Check that columns 0, 4, and 5 are all zeros and the other columns are not.
-    fluxes_fnu = model.evaluate_sed([54990.0, 54990.5], wavelengths)
+    with np.testing.assert_warns(UserWarning):
+        # We expect warnings for the out-of-bounds wavelengths.
+        fluxes_fnu = model.evaluate_sed([54990.0, 54990.5], wavelengths)
     assert np.all(fluxes_fnu[:, 0] == 0.0)
     assert not np.any(fluxes_fnu[:, 1:4] == 0.0)
     assert np.all(fluxes_fnu[:, 4:6] == 0.0)

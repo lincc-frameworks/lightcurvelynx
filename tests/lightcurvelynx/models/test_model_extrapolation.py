@@ -121,12 +121,15 @@ def test_linear_linear_model_bounds() -> None:
 
     # We fail a direct call to compute_sed with out-of-bounds wavelengths,
     # but extrapolate and pass with evaluate_sed. By default we fill in zeros
+    # and warn the user.
     query_times = np.array([10.0, 20.0])
     query_waves = np.array([0.0, 2000.0, 5000.0, 13000.0])
     with pytest.raises(ValueError):
         model.compute_sed(query_times, query_waves, state)
 
-    values = model.evaluate_sed(query_times, query_waves)
+    with pytest.warns(UserWarning):
+        # We expect warnings for both the out-of-bounds times and wavelengths.
+        values = model.evaluate_sed(query_times, query_waves)
     expected = np.array([[0.0, 1120.0, 2620.0, 0.0], [0.0, 1140.0, 2640.0, 0.0]])
     assert np.allclose(values, expected)
 

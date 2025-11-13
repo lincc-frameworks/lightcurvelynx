@@ -421,22 +421,38 @@ class SEDModel(BasePhysicalModel):
         max_query_time = np.max(times)
 
         # Get the model's defined wavelength bounds, the mask on the query points,
-        # and query points that include the end points of the valid range.
+        # and whether any points are before and after the range.
         min_valid_wave = self.minwave(graph_state=graph_state)
         if min_valid_wave is None:
             min_valid_wave = min_query_wave
         before_wave_mask = wavelengths < min_valid_wave
+        any_wave_before_range = np.any(before_wave_mask)
 
         max_valid_wave = self.maxwave(graph_state=graph_state)
         if max_valid_wave is None:
             max_valid_wave = max_query_wave
         after_wave_mask = wavelengths > max_valid_wave
+        any_wave_after_range = np.any(after_wave_mask)
 
+        # If everything is within the wavelength range, we can use the given query waves. Otherwise,
+        # we restrict the waves to those in the range and add endpoints to the directions where
+        # we need to extrapolate. We will not copy those endpoints into the final output.
         in_wave_range = ~before_wave_mask & ~after_wave_mask
-        query_waves = np.concatenate(([min_valid_wave], wavelengths[in_wave_range], [max_valid_wave]))
+        query_waves = wavelengths[in_wave_range]
+        if any_wave_before_range:
+            query_waves = np.concatenate(([min_valid_wave], query_waves))
+            wave_copy_start = 1  # Skip the first value since it is for extrapolation only.
+        else:
+            wave_copy_start = 0  # Include the first value
+        if any_wave_after_range:
+            query_waves = np.concatenate((query_waves, [max_valid_wave]))
+            wave_copy_end = -1  # Skip the last value since it is for extrapolation only.
+        else:
+            wave_copy_end = None  # Include the last value
 
-        # Get the model's defined time bounds and the mask on the query points. Note we account
-        # for the t0 offset since the bounds are given in phase.
+        # Get the model's defined time bounds, the mask on the query points and whether
+        # any points are before and after the range.
+        # Note we account for the t0 offset since the bounds are given in phase.
         t0 = self.get_param(graph_state, "t0")
         if t0 is None:
             t0 = 0.0
@@ -447,6 +463,7 @@ class SEDModel(BasePhysicalModel):
         else:
             min_valid_time = min_valid_phase + t0
         before_time_mask = times < min_valid_time
+        any_time_before_range = np.any(before_time_mask)
 
         max_valid_phase = self.maxphase(graph_state=graph_state)
         if max_valid_phase is None:
@@ -454,28 +471,41 @@ class SEDModel(BasePhysicalModel):
         else:
             max_valid_time = max_valid_phase + t0
         after_time_mask = times > max_valid_time
+        any_time_after_range = np.any(after_time_mask)
 
+        # If everything is within the time range, we can use the given query times. Otherwise,
+        # we restrict the times to those in the range and add endpoints to the directions where
+        # we need to extrapolate. We will not copy those endpoints into the final output.
         in_time_range = ~before_time_mask & ~after_time_mask
-        query_times = np.concatenate(([min_valid_time], times[in_time_range], [max_valid_time]))
+        query_times = times[in_time_range]
+        if any_time_before_range:
+            query_times = np.concatenate(([min_valid_time], query_times))
+            time_copy_start = 1  # Skip the first value since it is for extrapolation only.
+        else:
+            time_copy_start = 0  # Include the first value
+        if any_time_after_range:
+            query_times = np.concatenate((query_times, [max_valid_time]))
+            time_copy_end = -1  # Skip the last value since it is for extrapolation only.
+        else:
+            time_copy_end = None  # Include the last value
 
         # Get the flux density at all times and the valid wavelengths. Place these in a zero-padded
-        # array, trimming the first and last values along each axis since they were added to ensure
-        # the flux is computed at the min and max wavelengths and times.
+        # array, trimming the first and last values along each axis (if needed).
         computed_flux = self.compute_sed(query_times, query_waves, graph_state)
         flux_density_all_waves = np.zeros((len(query_times), len(wavelengths)))
-        flux_density_all_waves[:, in_wave_range] = computed_flux[:, 1:-1]
+        flux_density_all_waves[:, in_wave_range] = computed_flux[:, wave_copy_start:wave_copy_end]
 
         # We do the extrapolation in two steps: first for wavelengths and then for times. This is
         # because we extrapolate the fluxes at all wavelengths (included the extrapolated ones) to
         # each new time. The result is that we combine the extrapolation for both dimensions.
-        if self.wave_extrapolation is not None and not np.all(in_wave_range):
+        if any_wave_before_range and self.wave_extrapolation is not None:
             # Compute the flux values before the model's first valid wavelength.
             flux_density_all_waves[:, before_wave_mask] = self.wave_extrapolation.extrapolate_wavelength(
                 min_valid_wave,
                 computed_flux[:, 0],
                 wavelengths[before_wave_mask],
             )
-
+        if any_wave_after_range and self.wave_extrapolation is not None:
             # Compute the flux values after the model's last valid wavelength.
             flux_density_all_waves[:, after_wave_mask] = self.wave_extrapolation.extrapolate_wavelength(
                 max_valid_wave,
@@ -483,32 +513,37 @@ class SEDModel(BasePhysicalModel):
                 wavelengths[after_wave_mask],
             )
 
+        # Warn if the user queried wavelengths outside the model's bounds and no extrapolation is set.
+        if (any_wave_before_range or any_wave_after_range) and self.wave_extrapolation is None:
+            warnings.warn(
+                "Some wavelengths are outside the model's defined bounds and no wave_extrapolation is set. "
+                "These values will be set to zero."
+            )
+
         # Then do extrapolation for times that fell outside the model's bounds.
-        if not np.all(in_time_range):
-            flux_density = np.zeros((len(times), len(wavelengths)))
-            flux_density[in_time_range, :] = flux_density_all_waves[1:-1, :]
+        flux_density = np.zeros((len(times), len(wavelengths)))
+        flux_density[in_time_range, :] = flux_density_all_waves[time_copy_start:time_copy_end, :]
+        if any_time_before_range and self.time_extrapolation is not None:
+            # Compute the flux values before the model's first valid time.
+            flux_density[before_time_mask, :] = self.time_extrapolation.extrapolate_time(
+                min_valid_time,
+                flux_density_all_waves[0, :],
+                times[before_time_mask],
+            )
+        if any_time_after_range and self.time_extrapolation is not None:
+            # Compute the flux values after the model's last valid time.
+            flux_density[after_time_mask, :] = self.time_extrapolation.extrapolate_time(
+                max_valid_time,
+                flux_density_all_waves[-1, :],
+                times[after_time_mask],
+            )
 
-            if self.time_extrapolation is not None:
-                # Compute the flux values before the model's first valid time.
-                flux_density[before_time_mask, :] = self.time_extrapolation.extrapolate_time(
-                    min_valid_time,
-                    flux_density_all_waves[0, :],
-                    times[before_time_mask],
-                )
-
-                # Compute the flux values after the model's last valid time.
-                flux_density[after_time_mask, :] = self.time_extrapolation.extrapolate_time(
-                    max_valid_time,
-                    flux_density_all_waves[-1, :],
-                    times[after_time_mask],
-                )
-            else:
-                warnings.warn(
-                    "The time_extrapolation is None but some times are outside the model's valid range. "
-                    "These values will be set to zero."
-                )
-        else:
-            flux_density = flux_density_all_waves[1:-1, :]
+        # Warn if the user queried times outside the model's bounds and no extrapolation is set.
+        if (any_time_before_range or any_time_after_range) and self.time_extrapolation is None:
+            warnings.warn(
+                "Some times are outside the model's defined bounds and no time_extrapolation is set. "
+                "These values will be set to zero."
+            )
 
         return flux_density
 
