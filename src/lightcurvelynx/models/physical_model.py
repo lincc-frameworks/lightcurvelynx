@@ -517,7 +517,8 @@ class SEDModel(BasePhysicalModel):
         if (any_wave_before_range or any_wave_after_range) and self.wave_extrapolation is None:
             warnings.warn(
                 "Some wavelengths are outside the model's defined bounds and no wave_extrapolation is set. "
-                "These values will be set to zero."
+                "These values will be set to zero. If this is intended behavior, you can set "
+                "wave_extrapolation=FluxExtrapolationModel() which sets the out of range values to zero."
             )
 
         # Then do extrapolation for times that fell outside the model's bounds.
@@ -542,7 +543,8 @@ class SEDModel(BasePhysicalModel):
         if (any_time_before_range or any_time_after_range) and self.time_extrapolation is None:
             warnings.warn(
                 "Some times are outside the model's defined bounds and no time_extrapolation is set. "
-                "These values will be set to zero."
+                "These values will be set to zero. If this is intended behavior, you can set "
+                "time_extrapolation=FluxExtrapolationModel() which sets the out of range values to zero."
             )
 
         return flux_density
