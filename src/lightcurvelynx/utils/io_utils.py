@@ -28,7 +28,7 @@ def write_results_as_hats(base_catalog_path, results, *, catalog_name=None, over
     # See if the (optional) LSDB package is installed.
     try:
         from lsdb import from_dataframe
-    except ImportError as err:
+    except ImportError as err:  # pragma: no cover
         raise ImportError(
             "The lsdb package is required to write results as HATS files. "
             "Please install it via 'pip install lsdb'."

@@ -586,7 +586,10 @@ class PassbandGroup:
     def process_transmission_tables(
         self, *, delta_wave: float | None = 5.0, trim_quantile: float | None = 1e-3
     ):
-        """Process the transmission tables for all passbands in the group; recalculate group's wave attribute.
+        """Process the transmission tables for all passbands in the group; recalculate group's wave
+        attribute. This function is used to change the preprocessing of the transmission tables after
+        the PassbandGroup has been initialized, such as using different delta_wave or trim_quantile
+        values.
 
         Parameters
         ----------
@@ -629,7 +632,7 @@ class PassbandGroup:
 
         # Evaluate the bandflux using only the wavelengths for this passband.
         wave_indices = self._in_band_wave_indices[filter]
-        if wave_indices is None:
+        if wave_indices is None:  # pragma: no cover
             raise ValueError(
                 f"Passband {filter} does not have _in_band_wave_indices set. "
                 "This should have been calculated in PassbandGroup._update_internal_data."
@@ -907,7 +910,7 @@ class Passband:
             # Only import sncosmo if we need to.
             try:
                 from sncosmo import get_bandpass
-            except ImportError as err:
+            except ImportError as err:  # pragma: no cover
                 raise ImportError(
                     "sncosmo package is not installed be default. You can install it with "
                     "`pip install sncosmo` or `conda install conda-forge::sncosmo`."

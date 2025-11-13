@@ -111,7 +111,7 @@ class BasicMathNode(FunctionNode):
         if backend == "jax" or backend == "jnp":
             try:
                 import jax.numpy as jnp
-            except ImportError as err:
+            except ImportError as err:  # pragma: no cover
                 raise ImportError(
                     "JAX is required to use the BasicMathNode with backend='jax', please "
                     "install with `pip install jax` or `conda install conda-forge::jax`"

@@ -1,3 +1,7 @@
+import matplotlib
+
+matplotlib.use("Agg")  # Suppress the plots during testing
+
 import numpy as np
 import pytest
 from astropy import units as u
@@ -96,8 +100,11 @@ def test_create_detector_footprint():
         fp.contains(ra, np.array([0.0, 1.0]), center_ra=0.0, center_dec=0.0)
 
     # We fail to create a footprint if we do not pass in either wcs or pixel scale.
+    # We also fail if we pass a negative pixel scale.
     with pytest.raises(ValueError):
         _ = DetectorFootprint(circle_region)
+    with pytest.raises(ValueError):
+        _ = DetectorFootprint(circle_region, pixel_scale=-1.0)
 
 
 def test_rectangular_sky_footprint():
@@ -229,3 +236,14 @@ def test_rectangular_pixel_footprint():
     offset_region = RectanglePixelRegion(center=center, width=2.0, height=10.0, angle=0.0 * u.deg)
     with pytest.raises(ValueError):
         DetectorFootprint(offset_region, pixel_scale=36.0)  # 0.01 deg/pix
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_detector_footprint_plot():
+    """Test that plot does not throw an error."""
+    width = 200.0  # pixels = 2 degrees at 0.01 deg/pix
+    height = 100.0  # pixels = 1 degree at 0.01 deg/pix
+    fp = DetectorFootprint.from_pixel_rect(width=width, height=height, pixel_scale=36.0)  # 0.01 deg/pix
+
+    # Test that we can plot the footprint.
+    fp.plot()

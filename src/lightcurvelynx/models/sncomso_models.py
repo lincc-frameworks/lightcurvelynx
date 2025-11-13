@@ -71,7 +71,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
     ):
         try:
             from sncosmo.models import get_source
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "sncosmo package is not installed be default. To use the SncosmoWrapperModel, "
                 "please install sncosmo. For example, you can install it with "
