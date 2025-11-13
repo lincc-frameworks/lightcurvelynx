@@ -49,7 +49,7 @@ class SALT2ColorLaw(CiteClass):
     def __init__(self, wave_min, wave_max, coeffs):
         try:
             import jax.numpy as jnp
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "JAX is required to use the SALT2ColorLaw class, please "
                 "install with `pip install jax` or `conda install conda-forge::jax`"
@@ -121,7 +121,7 @@ class SALT2ColorLaw(CiteClass):
         """
         try:
             import jax.numpy as jnp
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "JAX is required to use the SALT2ColorLaw class, please "
                 "install with `pip install jax` or `conda install conda-forge::jax`"

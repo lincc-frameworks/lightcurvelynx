@@ -164,7 +164,7 @@ class ObsTableRADECSampler(TableSampler):
         # See if the (optional) LSDB package is installed.
         try:
             from lsdb import read_hats
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "The lsdb package is required to read HATS catalogs. "
                 "Please install it via 'pip install lsdb' or 'conda install conda-forge::lsdb'."

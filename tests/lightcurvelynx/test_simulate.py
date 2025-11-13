@@ -112,6 +112,30 @@ def test_simulation_info():
     assert sample0 != sample2
     assert sample1 != sample2
 
+    with pytest.raises(ValueError):
+        # Neither num_samples nor num_batches is specified.
+        sim_info.split()
+    with pytest.raises(ValueError):
+        # num_samples and batch_size are both specified.
+        sim_info.split(batch_size=10, num_batches=2)
+    with pytest.raises(ValueError):
+        # Negative num_batches.
+        sim_info.split(num_batches=-1)
+    with pytest.raises(ValueError):
+        # Negative batch_size.
+        sim_info.split(batch_size=-10)
+
+    # Fail with a negative number of samples.
+    with pytest.raises(ValueError):
+        _ = SimulationInfo(
+            model=model,
+            num_samples=-10,
+            obstable=ops_data,
+            passbands=pb_group,
+            time_window_offset=(-5.0, 10.0),  # A keyword argument to test
+            rng=np.random.default_rng(12345),
+        )
+
 
 def test_simulate_lightcurves(test_data_dir):
     """Test an end to end run of simulating the light curves."""

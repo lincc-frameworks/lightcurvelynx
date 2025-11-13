@@ -7,7 +7,7 @@ https://github.com/sncosmo/sncosmo/blob/v2.10.1/sncosmo/salt2utils.pyx
 try:
     import jax.numpy as jnp
     from jax import jit, vmap
-except ImportError as err:
+except ImportError as err:  # pragma: no cover
     raise ImportError(
         "JAX is required to use the BicubicInterpolator class, please "
         "install with `pip install jax` or `conda install conda-forge::jax`"

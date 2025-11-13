@@ -68,7 +68,7 @@ class ExtinctionEffect(EffectModel, CiteClass):
 
         try:
             import dust_extinction  # noqa: F401
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "The dust_extinction package is needed to use the ExtinctionEffect. Please install it via"
                 "`pip install dust_extinction` or `conda install conda-forge::dust_extinction`."
@@ -103,7 +103,7 @@ class ExtinctionEffect(EffectModel, CiteClass):
         """
         try:
             import dust_extinction  # noqa: F401
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "The dust_extinction package is needed to use the ExtinctionEffect. Please install it via"
                 "`pip install dust_extinction` or `conda install conda-forge::dust_extinction`."

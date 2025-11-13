@@ -349,7 +349,7 @@ class SNCoordGivenPhysicalSep(FunctionNode):
 
     def __init__(self, host_ra, host_dec, physical_sep_kpc, redshift, H0=73.0, Omega_m=0.3, **kwargs):
         # Create the cosmology once for this node.
-        if not isinstance(H0, float) or not isinstance(Omega_m, float):
+        if not isinstance(H0, float) or not isinstance(Omega_m, float):  # pragma: no cover
             raise ValueError("H0 and Omega_m must be constants.")
         self.cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
 
