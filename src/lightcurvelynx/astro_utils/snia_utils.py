@@ -10,10 +10,11 @@ from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.math_nodes.scipy_random import NumericalInversePolynomialFunc
 
 
-def snia_volumetric_rates(redshift):
+def snia_volumetric_rates(redshift, r0=2.27e-5, alpha=1.7):
     """
-    SN Ia volumetric rate based on Frohmaier et al. (2019).
+    SN Ia volumetric rate.
     r_v(z) = r0 * (1+z)^alpha （SNe Ia yr^-1 Mpc^-3 h_70^3）
+    The default values are from Frohmaier et al. (2019).
     r0 = 2.27+/-0.19e-5
     alpha = 1.7+/-0.21
 
@@ -21,6 +22,10 @@ def snia_volumetric_rates(redshift):
     ----------
     redshift: float or numpy.ndarray
         The redshift of the supernova
+    r0: float
+        The rate function parameter r0. Default is 2.27e-5.
+    alpha: float
+        The rate function parameter alpha. Default is 1.7
 
     Returns
     -------
@@ -28,14 +33,20 @@ def snia_volumetric_rates(redshift):
         The volumetric rate of the supernova given the redshift
     """
 
-    r0 = 2.27e-5
-    alpha = 1.7
     rate_vol = r0 * np.power(1.0 + redshift, alpha)
 
     return rate_vol
 
 
-def num_snia_per_redshift_bin(zmin=0.001, zmax=10, znbins=20, solid_angle=None, H0=73.0, Omega_m=0.3):
+def num_snia_per_redshift_bin(
+    zmin=0.001,
+    zmax=10,
+    znbins=20,
+    solid_angle=None,
+    H0=73.0,
+    Omega_m=0.3,
+    vol_rate_function=snia_volumetric_rates,
+):
     """
     Calculate the number of SNe Ia in each redshift bin based on rates.
 
@@ -58,6 +69,8 @@ def num_snia_per_redshift_bin(zmin=0.001, zmax=10, znbins=20, solid_angle=None, 
         The Hubble Constant.
     Omega_m: float
         The matter density.
+    vol_rate_function: Callable
+        The function that defines the volumetric rate. Default is snia_volumetric_rates.
 
     Returns
     -------
@@ -80,7 +93,7 @@ def num_snia_per_redshift_bin(zmin=0.001, zmax=10, znbins=20, solid_angle=None, 
     dV = (
         solid_angle * cosmo.differential_comoving_volume(int_arr) * (H0 / 70.0) ** 3
     )  # * 4pi because differential_comoving_volume is per solid angle
-    r_v = snia_volumetric_rates(int_arr)
+    r_v = vol_rate_function(int_arr)
     dn_dz = r_v * dV.value
 
     num_sn = integrate.trapezoid(dn_dz, int_arr, axis=1)
