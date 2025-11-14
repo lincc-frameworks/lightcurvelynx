@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+import pytest
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.models.basic_models import (
     ConstantSEDModel,
@@ -8,7 +9,7 @@ from lightcurvelynx.models.basic_models import (
     SinWaveModel,
     StepModel,
 )
-from lightcurvelynx.utils.wave_extrapolate import ConstantExtrapolation, LinearDecay
+from lightcurvelynx.utils.extrapolate import ConstantPadding, LinearDecay
 
 
 def _sampler_fun(magnitude, offset=0.0, **kwargs):
@@ -219,10 +220,11 @@ def test_linear_wavelength_model_bounds() -> None:
 
     times = np.arange(0.0, 10.0, 0.5)
     wavelengths = np.array([500.0, 1000.0, 1500.0, 2000.0, 2500.0])
-    values = model.evaluate_sed(times, wavelengths, state)
+    with pytest.warns(UserWarning):
+        values = model.evaluate_sed(times, wavelengths, state)
 
-    # Without any extrapolation, we zero pad the data.
-    expected = np.tile(np.array([0.0, 101.0, 151.0, 201.0, 0.0]), (len(times), 1))
+    # Without any extrapolation we query the model at the points anyway.
+    expected = np.tile(np.array([51.0, 101.0, 151.0, 201.0, 251.0]), (len(times), 1))
     assert np.allclose(values, expected)
 
     # We fill in with a constant value.
@@ -231,7 +233,7 @@ def test_linear_wavelength_model_bounds() -> None:
         linear_scale=0.1,
         min_wave=1000.0,
         max_wave=2000.0,
-        wave_extrapolation=ConstantExtrapolation(value=100.0),
+        wave_extrapolation=ConstantPadding(value=100.0),
     )
     state2 = model2.sample_parameters()
     values2 = model2.evaluate_sed(times, wavelengths, state2)

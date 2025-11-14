@@ -4,9 +4,7 @@ https://github.com/nikhil-sarin/redback
 https://redback.readthedocs.io/en/latest/
 """
 
-
 import astropy.units as uu
-import numpy as np
 from citation_compass import CiteClass, cite_inline
 
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
@@ -211,13 +209,6 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             **fn_args,
         )
         self._last_sed = rb_result
-
-        # The sncosmo-type source gives an error if the wavelengths are out of bounds, so we
-        # need to use extrapolation if the wavelengths are out of bounds. The function
-        # compute_sed_with_extrapolation() will trim the input wavelengths to be within the model's bounds
-        # and call this function again. So the second call passes this bounds check and does not recurse.
-        if np.any(wavelengths < rb_result.minwave()) or np.any(wavelengths > rb_result.maxwave()):
-            return self.compute_sed_with_extrapolation(times, wavelengths, graph_state, **kwargs)
 
         # Query the model and convert the output to nJy.
         model_flam = rb_result.get_flux_density(shifted_times, wavelengths)

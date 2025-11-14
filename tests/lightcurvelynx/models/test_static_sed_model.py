@@ -18,7 +18,9 @@ def test_single_static_sed() -> None:
     times = np.array([1, 2, 3, 10, 20])
     wavelengths = np.array([50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0])
 
-    values = model.evaluate_sed(times, wavelengths)
+    with pytest.warns(UserWarning):
+        # Warns for wavelengths outside the SED range.
+        values = model.evaluate_sed(times, wavelengths)
     assert values.shape == (5, 9)
 
     expected = np.array([0.0, 10.0, 15.0, 20.0, 20.0, 20.0, 15.0, 10.0, 0.0])
@@ -65,8 +67,8 @@ def test_static_sed_from_file(tmp_path) -> None:
         ]
     )
     times = np.array([1, 2, 3, 10, 20])
-    wavelengths = np.array([50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0])
-    expected = np.array([0.0, 10.0, 15.0, 20.0, 20.0, 20.0, 15.0, 10.0, 0.0])
+    wavelengths = np.array([100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0])
+    expected = np.array([10.0, 15.0, 20.0, 20.0, 20.0, 15.0, 10.0])
 
     for fmt in ["npy", "npz", "txt", "csv"]:
         file_path = tmp_path / f"test_sed.{fmt}"
@@ -76,7 +78,7 @@ def test_static_sed_from_file(tmp_path) -> None:
         assert len(model) == 1
 
         values = model.evaluate_sed(times, wavelengths)
-        assert values.shape == (5, 9)
+        assert values.shape == (5, 7)
 
         for t_idx in range(5):
             assert np.array_equal(values[t_idx, :], expected)
@@ -123,7 +125,9 @@ def test_multiple_static_seds() -> None:
 
     times = np.array([1, 2, 3])
     wavelengths = np.array([50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0])
-    values = model.evaluate_sed(times, wavelengths, params)
+    with pytest.warns(UserWarning):
+        # Warns for wavelengths outside the SED range.
+        values = model.evaluate_sed(times, wavelengths, params)
 
     expected_0 = np.tile([0.0, 10.0, 15.0, 20.0, 20.0, 20.0, 15.0, 10.0, 0.0], 3).reshape(3, 9)
     expected_1 = 2.0 * expected_0
@@ -268,7 +272,9 @@ def test_static_sed_from_synphot() -> None:
     times = np.array([1, 2, 3, 10, 20])
     wavelengths = np.array([500.0, 1000.0, 1500.0, 2000.0, 3000.0, 5000.0])
     expected = np.array([0.0, 10.0, 15.0, 20.0, 30.0, 0.0])
-    fluxes = model.evaluate_sed(times, wavelengths)
+    with pytest.warns(UserWarning):
+        # Warns for wavelengths outside the SED range.
+        fluxes = model.evaluate_sed(times, wavelengths)
     assert fluxes.shape == (len(times), len(wavelengths))
     for i in range(len(times)):
         np.testing.assert_allclose(fluxes[i, :], expected, rtol=1e-5)
