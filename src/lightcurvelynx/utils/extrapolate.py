@@ -2,15 +2,19 @@
 phases or wavelengths using flux = f(time, wavelengths).
 """
 
+import abc
+
 import numpy as np
 
 
-class FluxExtrapolationModel:
+class FluxExtrapolationModel(abc.ABC):
     """The base class for the flux extrapolation methods."""
 
+    @abc.abstractmethod
     def __init__(self):
         pass
 
+    @abc.abstractmethod
     def _extrapolate(self, last_value, last_flux, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
         query points.
@@ -38,9 +42,7 @@ class FluxExtrapolationModel:
             A N x M matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
-        N_len = len(last_flux)
-        M_len = len(query_values)
-        return np.zeros((N_len, M_len))
+        raise NotImplementedError("Subclasses must implement this method.")
 
     def extrapolate_time(self, last_time, last_flux, query_times):
         """Extrapolate along the time axis.
@@ -82,6 +84,44 @@ class FluxExtrapolationModel:
         """
         # We transpose the result to turn the W x T matrix into a T x W matrix.
         return self._extrapolate(last_wave, last_flux, query_waves)
+
+
+class ZeroExtrapolation(FluxExtrapolationModel):
+    """Extrapolate by zero padding the results."""
+
+    def __init__(self):
+        super().__init__()
+
+    def _extrapolate(self, last_value, last_flux, query_values):
+        """Evaluate the extrapolation given the last valid points(s) and a list of new
+        query points.
+
+        Note
+        ----
+        This function does not care which axis is being extrapolated. The returned values are
+        always len(query_values) x len(last_flux) and may need to be transposed by the calling
+        function.
+
+        Parameters
+        ----------
+        last_value : float
+            The last valid value along the extrapolation axis a which the flux was predicted
+            (e.g., wavelength in AA or time in days).
+        last_flux : numpy.ndarray
+            A length N array of the flux values at the last valid time or wavelength (in nJy).
+        query_values : numpy.ndarray
+            A length M array of values along the extrapolation axis (times in days or wavelengths
+            in AA) at which to extrapolate.
+
+        Returns
+        -------
+        flux : numpy.ndarray
+            A N x M matrix of extrapolated values. Where M is the number of query points and
+            N is the number of flux values at the last valid point.
+        """
+        N_len = len(last_flux)
+        M_len = len(query_values)
+        return np.zeros((N_len, M_len))
 
 
 class ConstantExtrapolation(FluxExtrapolationModel):

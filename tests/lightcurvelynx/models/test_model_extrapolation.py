@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from lightcurvelynx.models.physical_model import SEDModel
-from lightcurvelynx.utils.extrapolate import LinearDecay
+from lightcurvelynx.utils.extrapolate import LinearDecay, ZeroExtrapolation
 
 
 class _LinearLinearTestModel(SEDModel):
@@ -139,6 +139,7 @@ def test_linear_linear_model_extrapolators() -> None:
     # Three query times: one before (90% factor), three inside, and one after (80% factor).
     query_times = np.array([-10.0, 0.0, 50.0, 100.0, 120.0])
     values = model.evaluate_sed(query_times, query_waves)
+    print(values)
 
     expected = np.array(
         [
@@ -150,3 +151,73 @@ def test_linear_linear_model_extrapolators() -> None:
         ]
     )
     assert np.allclose(values, expected)
+
+
+def test_linear_linear_model_diff_extrapolators() -> None:
+    """Test the _LinearLinearTestModel with different extrapolators each
+    each direction (above/below) for times and wavelengths.
+    """
+    wave_linear = LinearDecay(decay_width=500.0)  # 500 angstroms to zero
+    time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
+    zero_extrap = ZeroExtrapolation()
+
+    # Three query wavelengths: one before, two inside, and one after.
+    query_waves = np.array([900.0, 2000.0, 5000.0, 12100.0])
+    # Three query times: one before, three inside, and one after .
+    query_times = np.array([-10.0, 0.0, 50.0, 100.0, 120.0])
+
+    # Start to (zero, linear) for wavelength, and (linear, zero) for time.
+    model = _LinearLinearTestModel(
+        wave_extrapolation=(zero_extrap, wave_linear),
+        time_extrapolation=(time_linear, zero_extrap),
+        t0=0.0,
+    )
+    values = model.evaluate_sed(query_times, query_waves)
+    expected = np.array(
+        [
+            [0.0, 990.0, 2340.0, 4392.0],
+            [0.0, 1100.0, 2600.0, 4880.0],
+            [0.0, 1200.0, 2700.0, 4960.0],
+            [0.0, 1300.0, 2800.0, 5040.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ]
+    )
+    assert np.allclose(values, expected)
+
+    # Start to (linear, zero) for wavelength, and (linear, linear) for time.
+    model = _LinearLinearTestModel(
+        wave_extrapolation=(wave_linear, zero_extrap),
+        time_extrapolation=(time_linear, time_linear),
+        t0=0.0,
+    )
+    values = model.evaluate_sed(query_times, query_waves)
+    print(values)
+    expected = np.array(
+        [
+            [432.0, 990.0, 2340.0, 0.0],
+            [480.0, 1100.0, 2600.0, 0.0],
+            [560.0, 1200.0, 2700.0, 0.0],
+            [640.0, 1300.0, 2800.0, 0.0],
+            [512.0, 1040.0, 2240.0, 0.0],
+        ]
+    )
+    assert np.allclose(values, expected)
+
+    # We fail if we use any Nones since the model doesn't know how to extrapolate.
+    model = _LinearLinearTestModel(
+        wave_extrapolation=(wave_linear, zero_extrap),
+        time_extrapolation=(None, time_linear),
+        t0=0.0,
+    )
+    with pytest.warns(UserWarning):
+        with pytest.raises(ValueError):
+            _ = model.evaluate_sed(query_times, query_waves)
+
+    model = _LinearLinearTestModel(
+        wave_extrapolation=(None, zero_extrap),
+        time_extrapolation=(time_linear, time_linear),
+        t0=0.0,
+    )
+    with pytest.warns(UserWarning):
+        with pytest.raises(ValueError):
+            _ = model.evaluate_sed(query_times, query_waves)

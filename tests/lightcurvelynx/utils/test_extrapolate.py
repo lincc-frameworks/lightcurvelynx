@@ -3,16 +3,16 @@ import pytest
 from lightcurvelynx.utils.extrapolate import (
     ConstantExtrapolation,
     ExponentialDecay,
-    FluxExtrapolationModel,
     LastValueExtrapolation,
     LinearDecay,
+    ZeroExtrapolation,
 )
 
 
 def test_flux_extrapolation_model():
     """Test the base class for the extrapolation methods."""
     # Create an instance of the base class
-    extrapolator = FluxExtrapolationModel()
+    extrapolator = ZeroExtrapolation()
 
     # Test that extrapolating along wavelength returns a zero matrix
     last_wave = 1000.0

@@ -4,7 +4,6 @@ https://github.com/sncosmo/sncosmo/blob/v2.10.1/sncosmo/models.py
 https://sncosmo.readthedocs.io/en/stable/models.html
 """
 
-
 from astropy import units as u
 from citation_compass import CiteClass
 
@@ -43,12 +42,18 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         The name used to set the source.
     node_label : str, optional
         An identifier (or name) for the current node.
-    wave_extrapolation : FluxExtrapolationModel, optional
-        The extrapolation model to use for wavelengths that fall outside
-        the model's defined bounds.  If None then the model will use all zeros.
-    time_extrapolation : FluxExtrapolationModel, optional
-        The extrapolation model to use for times that fall outside
-        the model's defined bounds.  If None then the model will use all zeros.
+    wave_extrapolation : FluxExtrapolationModel or tuple, optional
+        The extrapolation model(s) to use for wavelengths that fall outside the model's defined
+        bounds. If a tuple is provided, then it is expected to be of the form (before_model, after_model)
+        where before_model is the model for before the first valid wavelength and after_model is
+        the model for after the last valid wavelength. If None is provided the model will not try to
+        extrapolate, but rather call compute_sed() for all wavelengths.
+    time_extrapolation : FluxExtrapolationModel or tuple, optional
+        The extrapolation model(s) to use for times that fall outside the model's defined
+        bounds. If a tuple is provided, then it is expected to be of the form (before_model, after_model)
+        where before_model is the model for before the first valid time and after_model is
+        the model for after the last valid time. If None is provided the model will not try to
+        extrapolate, but rather call compute_sed() for all times.
     seed : int, optional
         The seed for a random number generator.
     **kwargs : dict, optional

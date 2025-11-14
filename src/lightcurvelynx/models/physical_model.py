@@ -18,6 +18,7 @@ import numpy as np
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.redshift import RedshiftDistFunc, obs_to_rest_times_waves, rest_to_obs_flux
 from lightcurvelynx.base_models import ParameterizedNode
+from lightcurvelynx.utils.extrapolate import FluxExtrapolationModel
 
 
 class BasePhysicalModel(ParameterizedNode, ABC):
@@ -284,26 +285,22 @@ class SEDModel(BasePhysicalModel):
         A list of effects to apply in the rest frame.
     obs_frame_effects : list of EffectModel
         A list of effects to apply in the observer frame.
-    wave_extrapolation : FluxExtrapolationModel, optional
-        The extrapolation model to use for wavelengths that fall outside
-        the model's defined bounds.  If None the model will not try to
-        extrapolate, but rather call compute_sed() for all wavelengths.
-    time_extrapolation : FluxExtrapolationModel, optional
-        The extrapolation model to use for times that fall outside
-        the model's defined bounds.  If None the model will not try to
-        extrapolate, but rather call compute_sed() for all times.
     apply_redshift : bool
         Whether to apply redshift to the model.
 
     Parameters
     ----------
-    wave_extrapolation : FluxExtrapolationModel, optional
-        The extrapolation model to use for wavelengths that fall outside
-        the model's defined bounds.  If None then the model will not try to
+    wave_extrapolation : FluxExtrapolationModel or tuple, optional
+        The extrapolation model(s) to use for wavelengths that fall outside the model's defined
+        bounds. If a tuple is provided, then it is expected to be of the form (before_model, after_model)
+        where before_model is the model for before the first valid wavelength and after_model is
+        the model for after the last valid wavelength. If None is provided the model will not try to
         extrapolate, but rather call compute_sed() for all wavelengths.
-    time_extrapolation : FluxExtrapolationModel, optional
-        The extrapolation model to use for times that fall outside
-        the model's defined bounds.  If None then the model will not try to
+    time_extrapolation : FluxExtrapolationModel or tuple, optional
+        The extrapolation model(s) to use for times that fall outside the model's defined
+        bounds. If a tuple is provided, then it is expected to be of the form (before_model, after_model)
+        where before_model is the model for before the first valid time and after_model is
+        the model for after the last valid time. If None is provided the model will not try to
         extrapolate, but rather call compute_sed() for all times.
     """
 
@@ -322,8 +319,33 @@ class SEDModel(BasePhysicalModel):
         self.obs_frame_effects = []
 
         # Set the extrapolation for values outside the model's defined bounds.
-        self.wave_extrapolation = wave_extrapolation
-        self.time_extrapolation = time_extrapolation
+        if wave_extrapolation is None:
+            self._wave_extrap_before = None
+            self._wave_extrap_after = None
+        elif isinstance(wave_extrapolation, tuple):
+            if len(wave_extrapolation) != 2:
+                raise ValueError("If wave_extrapolation is a tuple, it must have length 2.")
+            self._wave_extrap_before = wave_extrapolation[0]
+            self._wave_extrap_after = wave_extrapolation[1]
+        elif isinstance(wave_extrapolation, FluxExtrapolationModel):
+            self._wave_extrap_before = wave_extrapolation
+            self._wave_extrap_after = wave_extrapolation
+        else:
+            raise TypeError("wave_extrapolation must be a FluxExtrapolationModel or a tuple of two models.")
+
+        if time_extrapolation is None:
+            self._time_extrap_before = None
+            self._time_extrap_after = None
+        elif isinstance(time_extrapolation, tuple):
+            if len(time_extrapolation) != 2:
+                raise ValueError("If time_extrapolation is a tuple, it must have length 2.")
+            self._time_extrap_before = time_extrapolation[0]
+            self._time_extrap_after = time_extrapolation[1]
+        elif isinstance(time_extrapolation, FluxExtrapolationModel):
+            self._time_extrap_before = time_extrapolation
+            self._time_extrap_after = time_extrapolation
+        else:
+            raise TypeError("time_extrapolation must be a FluxExtrapolationModel or a tuple of two models.")
 
     def set_apply_redshift(self, apply_redshift):
         """Toggles the apply_redshift setting. If set to True, the model will
@@ -418,111 +440,125 @@ class SEDModel(BasePhysicalModel):
         flux_density : numpy.ndarray
             A length T x N matrix of SED values (in nJy).
         """
-        # We check if we can do extrapolation for wavelengths outside the range and, if so, set up all
-        # the data we need.
+        query_waves = np.copy(wavelengths)
+        query_times = np.copy(times)
+
+        # We check if we can do extrapolation for before the first valid wavelength and, if so, modify
+        # the queries and set up the data we need.
         min_query_wave = np.min(wavelengths)
         min_valid_wave = self.minwave(graph_state=graph_state)
         if min_valid_wave is None:
             min_valid_wave = min_query_wave
-        before_wave_mask = wavelengths < min_valid_wave
 
+        before_wave_queries = None
+        if min_query_wave < min_valid_wave:
+            if self._wave_extrap_before is None:
+                warnings.warn(
+                    "Some wavelengths are less than the model's defined bounds and no wave "
+                    "extrapolation is set. If this is not the intended, you can enable wavelength "
+                    "extrapolation using the 'wave_extrapolation' parameter."
+                )
+            else:
+                # Add the boundary point at the start for extrapolation and the list to extrapolate.
+                valid_mask = query_waves >= min_valid_wave
+                before_wave_queries = query_waves[~valid_mask]
+                query_waves = np.concatenate(([min_valid_wave], query_waves[valid_mask]))
+
+        # We check if we can do extrapolation for after the last valid wavelength and, if so, modify
+        # the queries and set up the data we need.
         max_query_wave = np.max(wavelengths)
         max_valid_wave = self.maxwave(graph_state=graph_state)
         if max_valid_wave is None:
             max_valid_wave = max_query_wave
-        after_wave_mask = wavelengths > max_valid_wave
 
-        if self.wave_extrapolation is None:
-            if np.any(before_wave_mask) or np.any(after_wave_mask):
+        after_wave_queries = None
+        if max_query_wave > max_valid_wave:
+            if self._wave_extrap_after is None:
                 warnings.warn(
-                    "Some wavelengths are outside the model's defined bounds and no wave_extrapolation is "
-                    "set. If this is not the intended, you can enable wavelength extrapolation using "
-                    "the wave_extrapolation parameter."
+                    "Some wavelengths are greater than the model's defined bounds and no wave "
+                    "extrapolation is set. If this is not the intended, you can enable wavelength "
+                    "extrapolation using the 'wave_extrapolation' parameter."
                 )
-            query_waves = wavelengths
-            extrapolate_before_waves = False
-            extrapolate_after_waves = False
-        else:
-            query_waves = wavelengths[~(before_wave_mask | after_wave_mask)]
+            else:
+                # Add the boundary point at the end for extrapolation and the list to extrapolate.
+                valid_mask = query_waves <= max_valid_wave
+                after_wave_queries = query_waves[~valid_mask]
+                query_waves = np.concatenate((query_waves[valid_mask], [max_valid_wave]))
 
-            extrapolate_before_waves = np.any(before_wave_mask)
-            if extrapolate_before_waves:
-                # Add the boundary point for extrapolation.
-                query_waves = np.concatenate(([min_valid_wave], query_waves))
-
-            extrapolate_after_waves = np.any(after_wave_mask)
-            if extrapolate_after_waves:
-                # Add the boundary point for extrapolation.
-                query_waves = np.concatenate((query_waves, [max_valid_wave]))
-
-        # We check if we can do extrapolation for times outside the range and, if so, set up all the
-        # data we need. We use the t0 offset since the bounds are given in phase.
+        # Get t0 offset since the time bounds are given in phase.
         t0 = self.get_param(graph_state, "t0")
         if t0 is None:
             t0 = 0.0
 
+        # We check if we can do extrapolation for times before the valid time range and, if so, modify
+        # the queries and set up the data we need.
         min_query_time = np.min(times)
         min_valid_phase = self.minphase(graph_state=graph_state)
         if min_valid_phase is None:
             min_valid_time = min_query_time
         else:
             min_valid_time = min_valid_phase + t0
-        before_time_mask = times < min_valid_time
 
+        before_time_queries = None
+        if min_query_time < min_valid_time:
+            if self._time_extrap_before is None:
+                warnings.warn(
+                    "Some times are less than the model's defined bounds and no time "
+                    "extrapolation is set. If this is not the intended, you can enable time "
+                    "extrapolation using the 'time_extrapolation' parameter."
+                )
+            else:
+                # Add the boundary point at the start for extrapolation and the list to extrapolate.
+                valid_mask = query_times >= min_valid_time
+                before_time_queries = query_times[~valid_mask]
+                query_times = np.concatenate(([min_valid_time], query_times[valid_mask]))
+
+        # We check if we can do extrapolation for times after the valid time range and, if so, modify
+        # the queries and set up the data we need.
         max_query_time = np.max(times)
         max_valid_phase = self.maxphase(graph_state=graph_state)
         if max_valid_phase is None:
             max_valid_time = max_query_time
         else:
             max_valid_time = max_valid_phase + t0
-        after_time_mask = times > max_valid_time
 
-        if self.time_extrapolation is None:
-            if np.any(before_time_mask) or np.any(after_time_mask):
+        after_time_queries = None
+        if max_query_time > max_valid_time:
+            if self._time_extrap_after is None:
                 warnings.warn(
-                    "Some times are outside the model's defined phase bounds and no time_extrapolation "
-                    "is set. If this is not the intended, you can enable time extrapolation using the "
-                    "time_extrapolation parameter."
+                    "Some times are greater than the model's defined bounds and no time "
+                    "extrapolation is set. If this is not the intended, you can enable time "
+                    "extrapolation using the 'time_extrapolation' parameter."
                 )
-            query_times = times
-            extrapolate_before_times = False
-            extrapolate_after_times = False
-        else:
-            query_times = times[~(before_time_mask | after_time_mask)]
-
-            extrapolate_before_times = np.any(before_time_mask)
-            if extrapolate_before_times:
-                # Add the boundary point for extrapolation.
-                query_times = np.concatenate(([min_valid_time], query_times))
-
-            extrapolate_after_times = np.any(after_time_mask)
-            if extrapolate_after_times:
-                # Add the boundary point for extrapolation.
-                query_times = np.concatenate((query_times, [max_valid_time]))
+            else:
+                # Add the boundary point at the end for extrapolation and the list to extrapolate.
+                valid_mask = query_times <= max_valid_time
+                after_time_queries = query_times[~valid_mask]
+                query_times = np.concatenate((query_times[valid_mask], [max_valid_time]))
 
         # Get the flux density at all times and wavelengths that we are not trying to extrapolate.
         computed_flux = self.compute_sed(query_times, query_waves, graph_state)
 
         # We do the extrapolation in two steps: first for wavelengths and then for times.
         # The result is that we combine the extrapolation for both dimensions at the corners.
-        if extrapolate_before_waves:
+        if before_wave_queries is not None:
             # Compute the flux values before the model's first valid wavelength.
-            extrapolated_values = self.wave_extrapolation.extrapolate_wavelength(
+            extrapolated_values = self._wave_extrap_before.extrapolate_wavelength(
                 min_valid_wave,
                 computed_flux[:, 0],
-                wavelengths[before_wave_mask],
+                before_wave_queries,
             )
 
             # Insert the extrapolated values at the beginning of the computed flux array and
             # remove the first column (which was added for extrapolation).
             computed_flux = np.concatenate((extrapolated_values, computed_flux[:, 1:]), axis=1)
 
-        if extrapolate_after_waves:
+        if after_wave_queries is not None:
             # Compute the flux values after the model's last valid wavelength.
-            extrapolated_values = self.wave_extrapolation.extrapolate_wavelength(
+            extrapolated_values = self._wave_extrap_after.extrapolate_wavelength(
                 max_valid_wave,
                 computed_flux[:, -1],
-                wavelengths[after_wave_mask],
+                after_wave_queries,
             )
 
             # Insert the extrapolated values at the end of the computed flux array and
@@ -530,24 +566,24 @@ class SEDModel(BasePhysicalModel):
             computed_flux = np.concatenate((computed_flux[:, :-1], extrapolated_values), axis=1)
 
         # Then do extrapolation for times that fell outside the model's bounds.
-        if extrapolate_before_times:
+        if before_time_queries is not None:
             # Compute the flux values before the model's first valid time.
-            extrapolated_values = self.time_extrapolation.extrapolate_time(
+            extrapolated_values = self._time_extrap_before.extrapolate_time(
                 min_valid_time,
                 computed_flux[0, :],
-                times[before_time_mask],
+                before_time_queries,
             )
 
             # Insert the extrapolated values at the beginning of the computed flux array and
             # remove the first row (which was added for extrapolation).
             computed_flux = np.concatenate((extrapolated_values, computed_flux[1:, :]), axis=0)
 
-        if extrapolate_after_times:
+        if after_time_queries is not None:
             # Compute the flux values after the model's last valid time.
-            extrapolated_values = self.time_extrapolation.extrapolate_time(
+            extrapolated_values = self._time_extrap_after.extrapolate_time(
                 max_valid_time,
                 computed_flux[-1, :],
-                times[after_time_mask],
+                after_time_queries,
             )
 
             # Insert the extrapolated values at the end of the computed flux array and
