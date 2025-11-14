@@ -286,10 +286,12 @@ class SEDModel(BasePhysicalModel):
         A list of effects to apply in the observer frame.
     wave_extrapolation : FluxExtrapolationModel, optional
         The extrapolation model to use for wavelengths that fall outside
-        the model's defined bounds.  If None then the model will use all zeros.
+        the model's defined bounds.  If None the model will not try to
+        extrapolate, but rather call compute_sed() for all wavelengths.
     time_extrapolation : FluxExtrapolationModel, optional
         The extrapolation model to use for times that fall outside
-        the model's defined bounds.  If None then the model will use all zeros.
+        the model's defined bounds.  If None the model will not try to
+        extrapolate, but rather call compute_sed() for all times.
     apply_redshift : bool
         Whether to apply redshift to the model.
 
@@ -297,10 +299,12 @@ class SEDModel(BasePhysicalModel):
     ----------
     wave_extrapolation : FluxExtrapolationModel, optional
         The extrapolation model to use for wavelengths that fall outside
-        the model's defined bounds.  If None then the model will use all zeros.
+        the model's defined bounds.  If None then the model will not try to
+        extrapolate, but rather call compute_sed() for all wavelengths.
     time_extrapolation : FluxExtrapolationModel, optional
         The extrapolation model to use for times that fall outside
-        the model's defined bounds.  If None then the model will use all zeros.
+        the model's defined bounds.  If None then the model will not try to
+        extrapolate, but rather call compute_sed() for all times.
     """
 
     def __init__(
