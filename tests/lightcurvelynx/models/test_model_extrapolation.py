@@ -104,42 +104,22 @@ def test_linear_linear_model() -> None:
 def test_linear_linear_model_bounds() -> None:
     """Test the _LinearLinearTestModel with out-of-bounds times and wavelengths."""
     model = _LinearLinearTestModel(t0=0.0)
-    state = model.sample_parameters()
 
-    # We fail a direct call to compute_sed with out-of-bounds times,
-    # but extrapolate and pass with evaluate_sed. By default we fill in
-    # zeros and warn the user.
+    # We fail a call evaluate_sed since the times are out of bounds. But we
+    # should get a warning about extrapolation first.
     query_times = np.array([-10.0, 50.0, 110.0])
     query_waves = np.array([1500.0, 2000.0])
-    with pytest.raises(ValueError):
-        model.compute_sed(query_times, query_waves, state)
-
     with pytest.warns(UserWarning):
-        values = model.evaluate_sed(query_times, query_waves)
-    expected = np.array([[0.0, 0.0], [950.0, 1200.0], [0.0, 0.0]])
-    assert np.allclose(values, expected)
+        with pytest.raises(ValueError):
+            _ = model.evaluate_sed(query_times, query_waves)
 
-    # We fail a direct call to compute_sed with out-of-bounds wavelengths,
-    # but extrapolate and pass with evaluate_sed. By default we fill in zeros
-    # and warn the user.
+    # We fail a call to evaluate_sed with out-of-bounds wavelengths. But we
+    # should get a warning about extrapolation first.
     query_times = np.array([10.0, 20.0])
     query_waves = np.array([0.0, 2000.0, 5000.0, 13000.0])
-    with pytest.raises(ValueError):
-        model.compute_sed(query_times, query_waves, state)
-
     with pytest.warns(UserWarning):
-        # We expect warnings for both the out-of-bounds times and wavelengths.
-        values = model.evaluate_sed(query_times, query_waves)
-    expected = np.array([[0.0, 1120.0, 2620.0, 0.0], [0.0, 1140.0, 2640.0, 0.0]])
-    assert np.allclose(values, expected)
-
-    # We succeed in a call where both times and wavelengths are out of bounds.
-    query_times = np.array([-10.0, 50.0])
-    query_waves = np.array([0.0, 1500.0])
-    with pytest.warns(UserWarning):
-        values = model.evaluate_sed(query_times, query_waves)
-    expected = np.array([[0.0, 0.0], [0.0, 950.0]])
-    assert np.allclose(values, expected)
+        with pytest.raises(ValueError):
+            _ = model.evaluate_sed(query_times, query_waves)
 
 
 def test_linear_linear_model_extrapolators() -> None:

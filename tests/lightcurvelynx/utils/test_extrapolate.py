@@ -22,6 +22,11 @@ def test_flux_extrapolation_model():
     expected_result = np.zeros((3, 4))
     np.testing.assert_allclose(result, expected_result)
 
+    # Test that we get a correctly shaped 2-D array back even if we have
+    # only one query point.
+    result = extrapolator.extrapolate_wavelength(last_wave, last_flux, np.array([1025.0]))
+    assert result.shape == (3, 1)
+
     # Test that extrapolating along time returns a zero matrix
     last_time = 0.0
     last_flux = np.array([100.0, 200.0, 300.0])
@@ -29,6 +34,11 @@ def test_flux_extrapolation_model():
     result = extrapolator.extrapolate_time(last_time, last_flux, query_times)
     expected_result = np.zeros((4, 3))
     np.testing.assert_allclose(result, expected_result)
+
+    # Test that we get a correctly shaped 2-D array back even if we have
+    # only one query point.
+    result = extrapolator.extrapolate_time(last_time, last_flux, np.array([1.0]))
+    assert result.shape == (1, 3)
 
 
 def test_constant_extrapolation():

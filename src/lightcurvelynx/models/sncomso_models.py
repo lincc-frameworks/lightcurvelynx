@@ -4,9 +4,7 @@ https://github.com/sncosmo/sncosmo/blob/v2.10.1/sncosmo/models.py
 https://sncosmo.readthedocs.io/en/stable/models.html
 """
 
-import warnings
 
-import numpy as np
 from astropy import units as u
 from citation_compass import CiteClass
 
@@ -303,20 +301,8 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         params = self.get_local_params(graph_state)
         self._update_sncosmo_model_parameters(graph_state)
 
-        # sncosmo gives an error if the wavelengths are out of bounds, so we need to use
-        # extrapolation if the wavelengths are out of bounds.
-        if np.any(wavelengths < self.source.minwave()) or np.any(wavelengths > self.source.maxwave()):
-            return self.compute_sed_with_extrapolation(times, wavelengths, graph_state, **kwargs)
-
-        # Compute the phase (times relative to t0).
-        phase = times - params["t0"]
-        if np.any(phase < self.source.minphase()) or np.any(phase > self.source.maxphase()):
-            warnings.warn(
-                "Some of the times are out of bounds for the sncosmo model. "
-                "Using extrapolation for those times. Results may be inaccurate."
-            )
-
         # Query the model and convert the output to nJy.
+        phase = times - params["t0"]
         model_flam = self.source.flux(phase, wavelengths)
         model_fnu = flam_to_fnu(
             model_flam,

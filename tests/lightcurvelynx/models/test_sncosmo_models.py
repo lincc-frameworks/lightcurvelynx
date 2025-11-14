@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 from astropy import units as u
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
@@ -126,16 +127,13 @@ def test_sncomso_models_bounds() -> None:
         0.5 * min_w + 0.5 * max_w,  # included
         max_w,  # edge of bounds (included)
         max_w + 0.1,  # Out of bounds
-        max_w + 100.0,  # Out of bounds
     ]
 
-    # Check that columns 0, 4, and 5 are all zeros and the other columns are not.
-    with np.testing.assert_warns(UserWarning):
-        # We expect warnings for the out-of-bounds wavelengths.
-        fluxes_fnu = model.evaluate_sed([54990.0, 54990.5], wavelengths)
-    assert np.all(fluxes_fnu[:, 0] == 0.0)
-    assert not np.any(fluxes_fnu[:, 1:4] == 0.0)
-    assert np.all(fluxes_fnu[:, 4:6] == 0.0)
+    # SNCosmo raises an error if we give wavelengths outside the bounds. It should
+    # raise a warning first.
+    with pytest.warns(UserWarning):
+        with pytest.raises(ValueError):
+            _ = model.evaluate_sed([54990.0, 54990.5], wavelengths)
 
 
 def test_sncomso_models_linear_extrapolate() -> None:

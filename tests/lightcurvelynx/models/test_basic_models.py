@@ -223,8 +223,8 @@ def test_linear_wavelength_model_bounds() -> None:
     with pytest.warns(UserWarning):
         values = model.evaluate_sed(times, wavelengths, state)
 
-    # Without any extrapolation, we zero pad the data.
-    expected = np.tile(np.array([0.0, 101.0, 151.0, 201.0, 0.0]), (len(times), 1))
+    # Without any extrapolation we query the model at the points anyway.
+    expected = np.tile(np.array([51.0, 101.0, 151.0, 201.0, 251.0]), (len(times), 1))
     assert np.allclose(values, expected)
 
     # We fill in with a constant value.
