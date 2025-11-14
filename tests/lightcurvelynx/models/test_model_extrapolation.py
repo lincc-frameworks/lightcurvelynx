@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from lightcurvelynx.models.physical_model import SEDModel
-from lightcurvelynx.utils.extrapolate import LinearDecay, ZeroExtrapolation
+from lightcurvelynx.utils.extrapolate import LinearDecay, ZeroPadding
 
 
 class _LinearLinearTestModel(SEDModel):
@@ -159,7 +159,7 @@ def test_linear_linear_model_diff_extrapolators() -> None:
     """
     wave_linear = LinearDecay(decay_width=500.0)  # 500 angstroms to zero
     time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
-    zero_extrap = ZeroExtrapolation()
+    zero_extrap = ZeroPadding()
 
     # Three query wavelengths: one before, two inside, and one after.
     query_waves = np.array([900.0, 2000.0, 5000.0, 12100.0])

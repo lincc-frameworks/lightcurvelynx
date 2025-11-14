@@ -86,7 +86,7 @@ class FluxExtrapolationModel(abc.ABC):
         return self._extrapolate(last_wave, last_flux, query_waves)
 
 
-class ZeroExtrapolation(FluxExtrapolationModel):
+class ZeroPadding(FluxExtrapolationModel):
     """Extrapolate by zero padding the results."""
 
     def __init__(self):
@@ -124,7 +124,7 @@ class ZeroExtrapolation(FluxExtrapolationModel):
         return np.zeros((N_len, M_len))
 
 
-class ConstantExtrapolation(FluxExtrapolationModel):
+class ConstantPadding(FluxExtrapolationModel):
     """Extrapolate using a constant value in nJy.
 
     Attributes
@@ -172,7 +172,7 @@ class ConstantExtrapolation(FluxExtrapolationModel):
         return np.full((N_len, M_len), self.value)
 
 
-class LastValueExtrapolation(FluxExtrapolationModel):
+class LastValue(FluxExtrapolationModel):
     """Extrapolate using the last valid value along the desired axis."""
 
     def __init__(self):

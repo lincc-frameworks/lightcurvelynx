@@ -1,18 +1,18 @@
 import numpy as np
 import pytest
 from lightcurvelynx.utils.extrapolate import (
-    ConstantExtrapolation,
+    ConstantPadding,
     ExponentialDecay,
-    LastValueExtrapolation,
+    LastValue,
     LinearDecay,
-    ZeroExtrapolation,
+    ZeroPadding,
 )
 
 
 def test_flux_extrapolation_model():
     """Test the base class for the extrapolation methods."""
     # Create an instance of the base class
-    extrapolator = ZeroExtrapolation()
+    extrapolator = ZeroPadding()
 
     # Test that extrapolating along wavelength returns a zero matrix
     last_wave = 1000.0
@@ -43,8 +43,8 @@ def test_flux_extrapolation_model():
 
 def test_constant_extrapolation():
     """Test that the constant extrapolation function works."""
-    # Create an instance of the ConstantExtrapolation class
-    extrapolator = ConstantExtrapolation(value=100.0)
+    # Create an instance of the ConstantPadding class
+    extrapolator = ConstantPadding(value=100.0)
 
     # Test extrapolation past the last valid point.
     last_wave = 1000.0
@@ -64,13 +64,13 @@ def test_constant_extrapolation():
 
     # Test that we fail if the value is not positive
     with pytest.raises(ValueError):
-        _ = ConstantExtrapolation(value=-1)
+        _ = ConstantPadding(value=-1)
 
 
 def test_last_value_extrapolation():
     """Test that the last value extrapolation function works."""
-    # Create an instance of the LastValueExtrapolation class
-    extrapolator = LastValueExtrapolation()
+    # Create an instance of the LastValue class
+    extrapolator = LastValue()
 
     # Test extrapolation past the last valid point.
     last_wave = 1000.0

@@ -9,7 +9,7 @@ from lightcurvelynx.models.basic_models import (
     SinWaveModel,
     StepModel,
 )
-from lightcurvelynx.utils.extrapolate import ConstantExtrapolation, LinearDecay
+from lightcurvelynx.utils.extrapolate import ConstantPadding, LinearDecay
 
 
 def _sampler_fun(magnitude, offset=0.0, **kwargs):
@@ -233,7 +233,7 @@ def test_linear_wavelength_model_bounds() -> None:
         linear_scale=0.1,
         min_wave=1000.0,
         max_wave=2000.0,
-        wave_extrapolation=ConstantExtrapolation(value=100.0),
+        wave_extrapolation=ConstantPadding(value=100.0),
     )
     state2 = model2.sample_parameters()
     values2 = model2.evaluate_sed(times, wavelengths, state2)
