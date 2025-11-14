@@ -459,7 +459,8 @@ class SEDModel(BasePhysicalModel):
                     "extrapolation using the 'wave_extrapolation' parameter."
                 )
             else:
-                # Add the boundary point at the start for extrapolation and the list to extrapolate.
+                # Add the boundary point at the start for extrapolation and compute
+                # the list of wavelengths to extrapolate.
                 valid_mask = query_waves >= min_valid_wave
                 before_wave_queries = query_waves[~valid_mask]
                 query_waves = np.concatenate(([min_valid_wave], query_waves[valid_mask]))
@@ -480,7 +481,8 @@ class SEDModel(BasePhysicalModel):
                     "extrapolation using the 'wave_extrapolation' parameter."
                 )
             else:
-                # Add the boundary point at the end for extrapolation and the list to extrapolate.
+                # Add the boundary point at the end for extrapolation and compute
+                # the list of wavelengths to extrapolate.
                 valid_mask = query_waves <= max_valid_wave
                 after_wave_queries = query_waves[~valid_mask]
                 query_waves = np.concatenate((query_waves[valid_mask], [max_valid_wave]))
@@ -508,7 +510,8 @@ class SEDModel(BasePhysicalModel):
                     "extrapolation using the 'time_extrapolation' parameter."
                 )
             else:
-                # Add the boundary point at the start for extrapolation and the list to extrapolate.
+                # Add the boundary point at the start for extrapolation and compute
+                # the list of times to extrapolate.
                 valid_mask = query_times >= min_valid_time
                 before_time_queries = query_times[~valid_mask]
                 query_times = np.concatenate(([min_valid_time], query_times[valid_mask]))
@@ -531,12 +534,13 @@ class SEDModel(BasePhysicalModel):
                     "extrapolation using the 'time_extrapolation' parameter."
                 )
             else:
-                # Add the boundary point at the end for extrapolation and the list to extrapolate.
+                # Add the boundary point at the end for extrapolation and compute
+                # the list of times to extrapolate.
                 valid_mask = query_times <= max_valid_time
                 after_time_queries = query_times[~valid_mask]
                 query_times = np.concatenate((query_times[valid_mask], [max_valid_time]))
 
-        # Get the flux density at all times and wavelengths that we are not trying to extrapolate.
+        # Get the flux density at all times and wavelengths (except those we will extrapolate).
         computed_flux = self.compute_sed(query_times, query_waves, graph_state)
 
         # We do the extrapolation in two steps: first for wavelengths and then for times.
