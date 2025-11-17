@@ -615,6 +615,30 @@ def test_create_lightcurve_template_model_extrapolation() -> None:
     # and use linear extrapolation from their respective edge values in the bands.
     assert np.allclose(fluxes, [1.7, 0.935, 1.9, 1.045, 2.0, 1.2, 2.0, 1.4, 0.1, 0.0])
 
+    lc_model2 = LightcurveTemplateModel(
+        lightcurves,
+        None,  # No passband data
+        lc_data_t0=0.0,
+        t0=60676.0,
+        time_extrapolation=(extrap, None),  # Only extrapolate on the left
+    )
+    graph_state2 = lc_model2.sample_parameters(num_samples=1)  # needed for t0
+    with pytest.warns(UserWarning):
+        fluxes2 = lc_model2.evaluate_bandfluxes(None, query_times, query_filters, graph_state2)
+    assert np.allclose(fluxes2, [1.7, 0.935, 1.9, 1.045, 2.0, 1.2, 2.0, 1.4, 0.0, 0.0])
+
+    lc_model3 = LightcurveTemplateModel(
+        lightcurves,
+        None,  # No passband data
+        lc_data_t0=0.0,
+        t0=60676.0,
+        time_extrapolation=(None, extrap),  # Only extrapolate on the right
+    )
+    graph_state3 = lc_model3.sample_parameters(num_samples=1)  # needed for t0
+    with pytest.warns(UserWarning):
+        fluxes3 = lc_model3.evaluate_bandfluxes(None, query_times, query_filters, graph_state3)
+    assert np.allclose(fluxes3, [0.0, 0.0, 0.0, 0.0, 2.0, 1.2, 2.0, 1.4, 0.1, 0.0])
+
 
 def test_create_lightcurve_template_model_fail() -> None:
     """Test fail cases for creating the LightcurveTemplateModel object."""
