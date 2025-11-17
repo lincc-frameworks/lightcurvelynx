@@ -902,6 +902,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
             min_valid_time = min_query_time
         else:
             min_valid_time = min_valid_phase + t0
+        before_time_mask = times < min_valid_time
 
         before_time_queries = None
         if min_query_time < min_valid_time:
@@ -926,6 +927,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
             max_valid_time = max_query_time
         else:
             max_valid_time = max_valid_phase + t0
+        after_time_mask = times > max_valid_time
 
         after_time_queries = None
         if max_query_time > max_valid_time:
@@ -945,30 +947,38 @@ class BandfluxModel(BasePhysicalModel, ABC):
         # Get the band flux at all times (except those we will extrapolate).
         computed_flux = self.compute_bandflux(query_times, filter, state, rng_info=rng_info)
 
-        # Then do extrapolation for times that fell outside the model's bounds.
-        if before_time_queries is not None:
-            # Compute the flux values before the model's first valid time.
-            extrapolated_values = self._time_extrap_before.extrapolate_time(
-                min_valid_time,
-                np.array([computed_flux[0]]),
-                before_time_queries,
-            )
+        # Then do extrapolation for times that fell outside the model's bounds. These might
+        # not be in order, so we use masks to keep track of where they go.
+        if before_time_queries is not None or after_time_queries is not None:
+            new_computed_flux = np.zeros(len(times))
 
-            # Insert the extrapolated values at the beginning of the computed flux array and
-            # remove the first value (which was added for extrapolation).
-            computed_flux = np.concatenate((extrapolated_values[:, 0], computed_flux[1:]))
+            if before_time_queries is not None:
+                # Compute the flux values before the model's first valid time.
+                extrapolated_values = self._time_extrap_before.extrapolate_time(
+                    min_valid_time,
+                    np.array([computed_flux[0]]),
+                    before_time_queries,
+                )
+                new_computed_flux[before_time_mask] = extrapolated_values[:, 0]
 
-        if after_time_queries is not None:
-            # Compute the flux values after the model's last valid time.
-            extrapolated_values = self._time_extrap_after.extrapolate_time(
-                max_valid_time,
-                np.array([computed_flux[-1]]),
-                after_time_queries,
-            )
+                # Drop the first entry (which was added for extrapolation).
+                computed_flux = computed_flux[1:]
 
-            # Insert the extrapolated values at the end of the computed flux array and
-            # remove the last value (which was added for extrapolation).
-            computed_flux = np.concatenate((computed_flux[:-1], extrapolated_values[:, 0]))
+            if after_time_queries is not None:
+                # Compute the flux values after the model's last valid time.
+                extrapolated_values = self._time_extrap_after.extrapolate_time(
+                    max_valid_time,
+                    np.array([computed_flux[-1]]),
+                    after_time_queries,
+                )
+                new_computed_flux[after_time_mask] = extrapolated_values[:, 0]
+
+                # Drop the last entry (which was added for extrapolation).
+                computed_flux = computed_flux[:-1]
+
+            # Fill in the valid flux values.
+            new_computed_flux[~before_time_mask & ~after_time_mask] = computed_flux
+            computed_flux = new_computed_flux
 
         return computed_flux
 
