@@ -14,6 +14,7 @@ from lightcurvelynx.models.lightcurve_template_model import (
     LightcurveTemplateModel,
     MultiLightcurveTemplateModel,
 )
+from lightcurvelynx.utils.extrapolate import LinearDecay
 
 
 def _create_toy_passbands() -> PassbandGroup:
@@ -53,6 +54,9 @@ def test_create_lightcurve_band_data_from_dict() -> None:
     for filt in ["u", "g", "r"]:
         assert np.allclose(lc_data.lightcurves[filt], lightcurves[filt])
         assert lc_data.baseline[filt] == 0.0
+    assert lc_data.has_time_bounds
+    assert lc_data.min_times == {"u": 0.8, "g": 0.9, "r": 1.0}
+    assert lc_data.max_times == {"u": 10.8, "g": 10.9, "r": 11.0}
 
     # If we use an lc_data_t0, we should shift the light curves' times accordingly
     # and provide a baseline.
@@ -63,6 +67,7 @@ def test_create_lightcurve_band_data_from_dict() -> None:
         assert np.allclose(lc_data2.lightcurves[filt][:, 0], lightcurves[filt][:, 0] - 2.0)
         assert np.allclose(lc_data2.lightcurves[filt][:, 1], lightcurves[filt][:, 1])
     assert lc_data2.baseline == {"u": 0.1, "g": 0.2, "r": 0.3}
+    assert not lc_data2.has_time_bounds  # baseline provided
 
     # We fail if the baseline does not match the filters.
     with pytest.raises(ValueError):
@@ -85,6 +90,7 @@ def test_create_lightcurve_band_data_from_dict() -> None:
         assert np.allclose(lc_data3.lightcurves[filt][:, 0], lightcurves[filt][:, 0])
         assert np.allclose(lc_data3.lightcurves[filt][:, 1], mag2flux(lightcurves[filt][:, 1]))
     assert lc_data3.baseline == {"u": mag2flux(0.1), "g": mag2flux(0.2), "r": mag2flux(0.3)}
+    assert not lc_data3.has_time_bounds  # baseline provided
 
     # We fail if we try to create a light curve without a t0.
     with pytest.raises(ValueError):
@@ -104,6 +110,7 @@ def test_create_lightcurve_band_data_periodic_from_dict() -> None:
     assert lc_data.filters == ["u", "g"]
     assert lc_data.lc_data_t0 == 3.0
     assert lc_data.period == 10.0
+    assert not lc_data.has_time_bounds  # periodic
 
     # The values should be the same and the times should be shifted by 3.0.
     for filt in ["u", "g"]:
@@ -135,6 +142,9 @@ def test_create_lightcurve_band_data_from_numpy() -> None:
     assert np.allclose(lc_data.lightcurves["r"][:, 0], [2.0, 5.0, 8.0])
     assert np.allclose(lc_data.lightcurves["r"][:, 1], [1.0, 2.5, 0.0])
     assert lc_data.baseline == {"u": 0.0, "g": 0.0, "r": 0.0}
+    assert lc_data.has_time_bounds
+    assert lc_data.min_times == {"u": 0.0, "g": 1.0, "r": 2.0}
+    assert lc_data.max_times == {"u": 9.0, "g": 7.0, "r": 8.0}
 
 
 def test_create_lightcurve_band_data_from_lclib_table() -> None:
@@ -257,6 +267,16 @@ def test_create_lightcurve_template_model() -> None:
     pb_group = _create_toy_passbands()
     lightcurves = _create_toy_lightcurves()
     lc_model = LightcurveTemplateModel(lightcurves, pb_group, lc_data_t0=0.0, t0=0.0)
+    assert lc_model.minphase(filter="u") == 0.8
+    assert lc_model.minphase(filter="g") == 0.9
+    assert lc_model.minphase(filter="r") == 1.0
+    assert lc_model.maxphase(filter="u") == 10.8
+    assert lc_model.maxphase(filter="g") == 10.9
+    assert lc_model.maxphase(filter="r") == 11.0
+    with pytest.raises(ValueError):
+        lc_model.minphase()  # No filter provided
+    with pytest.raises(ValueError):
+        lc_model.maxphase()  # No filter provided
 
     # Check the internal structure of the LightcurveTemplateModel.
     assert len(lc_model.lightcurves) == 3
@@ -266,7 +286,10 @@ def test_create_lightcurve_template_model() -> None:
     graph_state = lc_model.sample_parameters(num_samples=1)
     query_times = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 20.0, 21.0])
     query_filters = np.array(["u", "r", "u", "r", "u", "r", "u", "r"])
-    fluxes = lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
+
+    # Catch the warning since there are times outside the range and no baseline is provided.
+    with pytest.warns(UserWarning):
+        fluxes = lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
     assert len(fluxes) == len(query_times)
 
     # Timesteps 0.0, 0.5, 20.0, and 21.0 fall outside the range of the model and are set to 0.0.
@@ -295,7 +318,9 @@ def test_create_lightcurve_template_model_no_pb() -> None:
     query_times = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 20.0, 21.0])
     query_filters = np.array(["u", "r", "u", "r", "u", "r", "u", "r"])
     pb_group = _create_toy_passbands()
-    fluxes = lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
+
+    with pytest.warns(UserWarning):
+        fluxes = lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
     assert np.allclose(fluxes, [0.0, 0.0, 2.0, 1.2, 2.0, 1.4, 0.0, 0.0])
 
     # We fail if we try to compute and SED or plot the basis functions.
@@ -320,7 +345,9 @@ def test_create_lightcurve_template_model_from_data() -> None:
     graph_state = lc_model.sample_parameters(num_samples=1)
     query_times = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 20.0, 21.0])
     query_filters = np.array(["u", "r", "u", "r", "u", "r", "u", "r"])
-    fluxes = lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
+
+    with pytest.warns(UserWarning):
+        fluxes = lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
     assert len(fluxes) == len(query_times)
 
     # Timesteps 0.0, 0.5, 20.0, and 21.0 fall outside the range of the model and are set to 0.0.
@@ -527,7 +554,9 @@ def test_create_lightcurve_template_model_t0() -> None:
     graph_state = lc_model.sample_parameters(num_samples=1)  # needed for t0
     query_times = 60676.0 + np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 20.0, 21.0])
     query_filters = np.array(["u", "r", "u", "r", "u", "r", "u", "r"])
-    fluxes = lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
+
+    with pytest.warns(UserWarning):
+        fluxes = lc_model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
     assert len(fluxes) == len(query_times)
 
     # Timesteps +0.0, +0.5, +20.0, and +21.0 fall outside the range of the model and are set to 0.0.
@@ -539,7 +568,8 @@ def test_create_lightcurve_template_model_t0() -> None:
     # Test that we can also handle a light curve with a different lc_data_t0.
     lc_model2 = LightcurveTemplateModel(lightcurves, pb_group, t0=60676.0, lc_data_t0=1.0)
     graph_state2 = lc_model2.sample_parameters(num_samples=1)  # needed for t0
-    fluxes2 = lc_model2.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state2)
+    with pytest.warns(UserWarning):
+        fluxes2 = lc_model2.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state2)
 
     # Timesteps +20.0 and +21.0 fall outside the range of the model and are set to 0.0.
     # Timesteps +0.0, +1.0 and +3.0 correspond to the original times (in the light curve definition)
@@ -548,6 +578,66 @@ def test_create_lightcurve_template_model_t0() -> None:
     # of +1.5, +2.0, and +5.0 which are from the r band which is linearly increasing with time
     # as 0.1 * t + 1.0.
     assert np.allclose(fluxes2, [2.0, 1.15, 2.0, 1.3, 2.0, 1.5, 0.0, 0.0])
+
+
+def test_create_lightcurve_template_model_extrapolation() -> None:
+    """Test that we can create a simple LightcurveTemplateModel object with a given t0
+    and time extrapolation outside those bounds."""
+    # We offset "u" by -0.5 days, so it uses a different ending point value
+    # for its time extrapolation than the "r" band.
+    times = np.linspace(1, 11, 20)
+    lightcurves = {
+        "u": np.array([times - 0.5, 2.0 * np.ones_like(times)]).T,
+        "g": np.array([times, 3.0 * np.ones_like(times)]).T,
+        "r": np.array([times, 0.1 * times + 1.0]).T,
+    }
+    extrap = LinearDecay(decay_width=10.0)  # Decay to 0 over 10 days
+    lc_model = LightcurveTemplateModel(
+        lightcurves,
+        None,  # No passband data
+        lc_data_t0=0.0,
+        t0=60676.0,
+        time_extrapolation=extrap,
+    )
+
+    graph_state = lc_model.sample_parameters(num_samples=1)  # needed for t0
+    query_times = 60676.0 + np.array([-1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 20.0, 21.0])
+    query_filters = np.array(["u", "r", "u", "r", "u", "r", "u", "r", "u", "r"])
+
+    # No warning because we have extrapolation.
+    fluxes = lc_model.evaluate_bandfluxes(None, query_times, query_filters, graph_state)
+    assert len(fluxes) == len(query_times)
+
+    # Timesteps +1.0 and +3.0 are from the u band which is constant at 2.
+    # Timesteps +2.0 and +4.0 are from the r band which is linearly increasing with time
+    # as 0.1 * t + 1.0.
+    # Timesteps -1.0, -0.5, +0.0, +0.5, +20.0, and +21.0 fall outside the range of the model
+    # and use linear extrapolation from their respective edge values in the bands.
+    assert np.allclose(fluxes, [1.7, 0.935, 1.9, 1.045, 2.0, 1.2, 2.0, 1.4, 0.1, 0.0])
+
+    lc_model2 = LightcurveTemplateModel(
+        lightcurves,
+        None,  # No passband data
+        lc_data_t0=0.0,
+        t0=60676.0,
+        time_extrapolation=(extrap, None),  # Only extrapolate on the left
+    )
+    graph_state2 = lc_model2.sample_parameters(num_samples=1)  # needed for t0
+    with pytest.warns(UserWarning):
+        fluxes2 = lc_model2.evaluate_bandfluxes(None, query_times, query_filters, graph_state2)
+    assert np.allclose(fluxes2, [1.7, 0.935, 1.9, 1.045, 2.0, 1.2, 2.0, 1.4, 0.0, 0.0])
+
+    lc_model3 = LightcurveTemplateModel(
+        lightcurves,
+        None,  # No passband data
+        lc_data_t0=0.0,
+        t0=60676.0,
+        time_extrapolation=(None, extrap),  # Only extrapolate on the right
+    )
+    graph_state3 = lc_model3.sample_parameters(num_samples=1)  # needed for t0
+    with pytest.warns(UserWarning):
+        fluxes3 = lc_model3.evaluate_bandfluxes(None, query_times, query_filters, graph_state3)
+    assert np.allclose(fluxes3, [0.0, 0.0, 0.0, 0.0, 2.0, 1.2, 2.0, 1.4, 0.1, 0.0])
 
 
 def test_create_lightcurve_template_model_fail() -> None:
@@ -666,10 +756,22 @@ def test_create_multilightcurve_template_model() -> None:
         else:
             assert np.allclose(fluxes[idx], expected_1)
 
+    # We cannot compute phase bounds from a graph state with 1000 samples.
+    with pytest.raises(ValueError):
+        _ = model.minphase(filter="g", graph_state=graph_state)
+    with pytest.raises(ValueError):
+        _ = model.maxphase(filter="g", graph_state=graph_state)
+
     # A call to evaluate_bandfluxes with an unsupported filter should raise an error.
     query_filters[2] = "x"  # Change one filter to an unsupported one
     with pytest.raises(ValueError):
-        model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
+        _ = model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
+
+    # Check that we can get the bounds for a single light curve. Neither has bounds because
+    # model 0 has a baseline and model 1 is periodic.
+    single_state = model.sample_parameters(num_samples=1)
+    assert model.minphase(filter="g", graph_state=single_state) is None
+    assert model.maxphase(filter="g", graph_state=single_state) is None
 
 
 def test_create_multilightcurve_template_model_fail() -> None:

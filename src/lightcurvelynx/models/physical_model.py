@@ -112,14 +112,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             seed = int.from_bytes(urandom(4), "big")
         self._rng = np.random.default_rng(seed=seed)
 
-    def minwave(self, graph_state=None):
+    def minwave(self, **kwargs):
         """Get the minimum supported wavelength of the model.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the minimum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -129,14 +128,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         """
         return None
 
-    def maxwave(self, graph_state=None):
+    def maxwave(self, **kwargs):
         """Get the maximum supported wavelength of the model.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the maximum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -146,14 +144,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         """
         return None
 
-    def minphase(self, graph_state=None):
+    def minphase(self, **kwargs):
         """Get the minimum supported phase of the model in days.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the minimum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -163,14 +160,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         """
         return None
 
-    def maxphase(self, graph_state=None):
+    def maxphase(self, **kwargs):
         """Get the maximum supported phase of the model in days.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the maximum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -786,8 +782,8 @@ class BandfluxModel(BasePhysicalModel, ABC):
     """A model of a source of flux that is only defined by band pass values
     in the observer frame (instead of a full SED).
 
-    Instead of calling `compute_sed()` the model calls `compute_bandflux()` during
-    its computation.
+    Instead of calling `compute_sed()` the model calls `compute_bandflux()` for each
+    filter during its computation.
 
     Note
     ----
@@ -799,11 +795,37 @@ class BandfluxModel(BasePhysicalModel, ABC):
     ----------
     band_pass_effects : list of EffectModel
         A list of effects to apply in to the band pass fluxes.
+
+    Parameters
+    ----------
+    time_extrapolation : FluxExtrapolationModel or tuple, optional
+        The extrapolation model(s) to use for times that fall outside the model's defined
+        bounds. If a tuple is provided, then it is expected to be of the form (before_model, after_model)
+        where before_model is the model for before the first valid time and after_model is
+        the model for after the last valid time. If None is provided the model will not try to
+        extrapolate, but rather call compute_bandflux() for all times.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, time_extrapolation=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.band_pass_effects = []
+
+        if time_extrapolation is None:
+            self._time_extrap_before = None
+            self._time_extrap_after = None
+        elif isinstance(time_extrapolation, tuple):
+            if len(time_extrapolation) != 2:
+                raise ValueError("If time_extrapolation is a tuple, it must have length 2.")
+            self._time_extrap_before = time_extrapolation[0]
+            self._time_extrap_after = time_extrapolation[1]
+        elif isinstance(time_extrapolation, FluxExtrapolationModel):
+            self._time_extrap_before = time_extrapolation
+            self._time_extrap_after = time_extrapolation
+        else:
+            raise TypeError("time_extrapolation must be a FluxExtrapolationModel or a tuple of two models.")
+
+        if "wave_extrapolation" in kwargs and kwargs["wave_extrapolation"] is not None:
+            warnings.warn("BandfluxModel does not support wave_extrapolation, but value provided.")
 
     def set_apply_redshift(self, apply_redshift):
         """Toggles the apply_redshift setting.
@@ -846,22 +868,146 @@ class BandfluxModel(BasePhysicalModel, ABC):
         """Return a list of all effects in the order in which they are applied."""
         return self.band_pass_effects
 
-    def compute_bandflux(self, times, filters, state, rng_info=None):
-        """Evaluate the model at the passband level for a single, given graph state.
+    def compute_bandflux(self, times, filter, state, rng_info=None):
+        """Evaluate the model at the passband level for a single, given graph state and filter.
 
         Parameters
         ----------
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
-        filters : numpy.ndarray
-            A length T array of filter names.
+        filter : str
+            The name of the filter.
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
         rng_info : numpy.random._generator.Generator, optional
             A given numpy random number generator to use for this computation. If not
             provided, the function uses the node's random number generator.
+
+        Returns
+        -------
+        bandflux : numpy.ndarray
+            A length T array of band fluxes for this model in this filter.
         """
         raise NotImplementedError
+
+    def compute_bandflux_with_extrapolation(self, times, filter, state, rng_info=None):
+        """Evaluate the model at the passband level for a single, given graph state and filter,
+        extrapolating to times where the model is not defined.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        filter : str
+            The name of the filter.
+        state : GraphState
+            An object mapping graph parameters to their values with num_samples=1.
+        rng_info : numpy.random._generator.Generator, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator.
+
+        Returns
+        -------
+        bandflux : numpy.ndarray
+            A length T array of band fluxes for this model in this filter.
+        """
+        query_times = np.copy(times)
+
+        # Get t0 offset since the time bounds are given in phase.
+        t0 = self.get_param(state, "t0")
+        if t0 is None:
+            t0 = 0.0
+
+        # We check if we can do extrapolation for times before the valid time range and, if so, modify
+        # the queries and set up the data we need.
+        min_query_time = np.min(times)
+        min_valid_phase = self.minphase(filter=filter, graph_state=state)
+        if min_valid_phase is None:
+            min_valid_time = min_query_time
+        else:
+            min_valid_time = min_valid_phase + t0
+
+        before_time_queries = None
+        if min_query_time < min_valid_time:
+            if self._time_extrap_before is None:
+                warnings.warn(
+                    "Some times are less than the model's defined bounds and no time "
+                    "extrapolation is set. If this is not the intended, you can enable time "
+                    "extrapolation using the 'time_extrapolation' parameter."
+                )
+            else:
+                # Add the boundary point at the start for extrapolation and compute
+                # the list of times to extrapolate.
+                valid_mask = query_times >= min_valid_time
+                before_time_queries = query_times[~valid_mask]
+                query_times = np.concatenate(([min_valid_time], query_times[valid_mask]))
+
+        # We check if we can do extrapolation for times after the valid time range and, if so, modify
+        # the queries and set up the data we need.
+        max_query_time = np.max(times)
+        max_valid_phase = self.maxphase(filter=filter, graph_state=state)
+        if max_valid_phase is None:
+            max_valid_time = max_query_time
+        else:
+            max_valid_time = max_valid_phase + t0
+
+        after_time_queries = None
+        if max_query_time > max_valid_time:
+            if self._time_extrap_after is None:
+                warnings.warn(
+                    "Some times are greater than the model's defined bounds and no time "
+                    "extrapolation is set. If this is not the intended, you can enable time "
+                    "extrapolation using the 'time_extrapolation' parameter."
+                )
+            else:
+                # Add the boundary point at the end for extrapolation and compute
+                # the list of times to extrapolate.
+                valid_mask = query_times <= max_valid_time
+                after_time_queries = query_times[~valid_mask]
+                query_times = np.concatenate((query_times[valid_mask], [max_valid_time]))
+
+        # Get the band flux at all times (except those we will extrapolate).
+        computed_flux = self.compute_bandflux(query_times, filter, state, rng_info=rng_info)
+
+        # Then do extrapolation for times that fell outside the model's bounds. These might
+        # not be in order, so we use masks to keep track of where they go.
+        if before_time_queries is not None or after_time_queries is not None:
+            new_computed_flux = np.zeros(len(times))
+            in_bounds_mask = np.full(len(times), True)
+
+            if before_time_queries is not None:
+                # Compute the flux values before the model's first valid time.
+                before_time_mask = times < min_valid_time
+                extrapolated_values = self._time_extrap_before.extrapolate_time(
+                    min_valid_time,
+                    np.array([computed_flux[0]]),
+                    before_time_queries,
+                )
+                new_computed_flux[before_time_mask] = extrapolated_values[:, 0]
+                in_bounds_mask[before_time_mask] = False
+
+                # Drop the first entry (which was added for extrapolation).
+                computed_flux = computed_flux[1:]
+
+            if after_time_queries is not None:
+                # Compute the flux values after the model's last valid time.
+                after_time_mask = times > max_valid_time
+                extrapolated_values = self._time_extrap_after.extrapolate_time(
+                    max_valid_time,
+                    np.array([computed_flux[-1]]),
+                    after_time_queries,
+                )
+                new_computed_flux[after_time_mask] = extrapolated_values[:, 0]
+                in_bounds_mask[after_time_mask] = False
+
+                # Drop the last entry (which was added for extrapolation).
+                computed_flux = computed_flux[:-1]
+
+            # Fill in the valid flux values.
+            new_computed_flux[in_bounds_mask] = computed_flux
+            computed_flux = new_computed_flux
+
+        return computed_flux
 
     def _evaluate_bandfluxes_single(self, passband_group, times, filters, state, rng_info=None) -> np.ndarray:
         """Get the band fluxes for a given PassbandGroup and a single, given graph state.
@@ -892,9 +1038,19 @@ class BandfluxModel(BasePhysicalModel, ABC):
         """
         params = self.get_local_params(state)
 
-        # Compute the flux (applying all effects) and save the result. Note that
-        # BandfluxModel does not apply redshift, so all effects are applied in observer frame.
-        bandfluxes = self.compute_bandflux(times, filters, state, rng_info=rng_info)
+        # Compute the bandflux for each filter.
+        bandfluxes = np.zeros(len(times))
+        for filter_name in np.unique(filters):
+            filter_mask = filters == filter_name
+            bandfluxes[filter_mask] = self.compute_bandflux_with_extrapolation(
+                times[filter_mask],
+                filter_name,
+                state,
+                rng_info=rng_info,
+            )
+
+        # Apply all effects. Note that BandfluxModel does not apply redshift, so all effects
+        # are applied in observer frame.
         for effect in self.band_pass_effects:
             bandfluxes = effect.apply_bandflux(
                 bandfluxes,

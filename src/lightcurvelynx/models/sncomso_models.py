@@ -112,14 +112,13 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         """Return a list of the model's parameter values."""
         return self.source.parameters
 
-    def minphase(self, graph_state=None):
+    def minphase(self, **kwargs):
         """Get the minimum phase of the model (in days relative to t0).
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. Not used
-            for this model.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -129,14 +128,13 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         """
         return self.source.minphase()
 
-    def maxphase(self, graph_state=None):
+    def maxphase(self, **kwargs):
         """Get the maximum phase of the model (in days relative to t0).
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. Not used
-            for this model.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -146,14 +144,13 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         """
         return self.source.maxphase()
 
-    def minwave(self, graph_state=None):
+    def minwave(self, **kwargs):
         """Get the minimum wavelength of the model.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. Not used
-            for this model.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -163,14 +160,13 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         """
         return self.source.minwave()
 
-    def maxwave(self, graph_state=None):
+    def maxwave(self, **kwargs):
         """Get the maximum wavelength of the model.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. Not used
-            for this model.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
