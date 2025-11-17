@@ -586,30 +586,44 @@ def test_simulate_multiple_surveys(test_data_dir):
         filters=["r", "z"],
     )
 
-    # Create a constant SED model with known brightnesses and RA, dec values that
+    # Create constant SED models with known brightnesses and RA, dec values that
     # match the (0.0, 10.0) pointing.
-    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=10.0, redshift=0.0, node_label="source")
+    brightnesses = [1000.0, 2000.0, 1500.0, 3000.0, 4000.0, 5000.0]
+    model = ConstantSEDModel(
+        brightness=GivenValueList(brightnesses),
+        t0=0.0,
+        ra=0.0,
+        dec=10.0,
+        redshift=0.0,
+        node_label="source",
+    )
     results = simulate_lightcurves(
         model,
-        1,
+        3,
         [obstable1, obstable2],
         [passband_group1, passband_group2],
         obstable_save_cols=["zp", "custom_col"],
     )
-    assert len(results) == 1
-    assert results["nobs"][0] == 4
+    assert len(results) == 3
 
-    # Check that the light curve was simulated correctly, including saving the zeropoint information
-    # from each ObsTable.
-    lightcurve = results["lightcurve"][0]
-    assert np.allclose(lightcurve["mjd"], np.array([0.0, 1.0, 0.5, 2.5]))
-    assert np.allclose(lightcurve["zp"], np.array([0.4, 0.5, 0.05, 0.2]))
-    assert np.array_equal(lightcurve["filter"], np.array(["g", "r", "r", "r"]))
-    assert np.array_equal(lightcurve["survey_idx"], np.array([0, 0, 1, 1]))
+    # Check all three results.
+    for result_idx in range(3):
+        assert results["nobs"][result_idx] == 4
 
-    # The custom column should only exist for observations from one of the surveys.
-    assert np.all(lightcurve["custom_col"][0:2] == 1)
-    assert np.all(np.isnan(lightcurve["custom_col"][2:4]))
+        # Check that the light curve was simulated correctly, including saving the
+        # zeropoint information from each ObsTable. Everything should be ordered by time.
+        lightcurve = results["lightcurve"][result_idx]
+        assert np.allclose(lightcurve["mjd"], np.array([0.0, 0.5, 1.0, 2.5]))
+        assert np.allclose(lightcurve["zp"], np.array([0.4, 0.05, 0.5, 0.2]))
+        assert np.array_equal(lightcurve["filter"], np.array(["g", "r", "r", "r"]))
+        assert np.array_equal(lightcurve["survey_idx"], np.array([0, 1, 0, 1]))
+        assert np.allclose(lightcurve["flux_perfect"], np.full(4, brightnesses[result_idx]))
+
+        # The custom column should only exist for observations from one of the surveys.
+        assert lightcurve["custom_col"][0] == 1
+        assert lightcurve["custom_col"][2] == 1
+        assert np.isnan(lightcurve["custom_col"][1])
+        assert np.isnan(lightcurve["custom_col"][3])
 
     # We fail if we pass in lists of different lengths.
     with pytest.raises(ValueError):
