@@ -617,15 +617,15 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             graph_state,
         )
 
-    def compute_bandflux(self, times, filters, state, **kwargs):
+    def compute_bandflux(self, times, filter, state, **kwargs):
         """Evaluate the model at the passband level for a single, given graph state.
 
         Parameters
         ----------
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
-        filters : numpy.ndarray
-            A length T array of filter names.
+        filter : str
+            The name of the filter.
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
         **kwargs : dict
@@ -639,18 +639,12 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         params = self.get_local_params(state)
 
         # Check that the filters are all supported by the model.
-        for flt in np.unique(filters):
-            if flt not in self.lightcurves.lightcurves:
-                raise ValueError(f"Filter '{flt}' is not supported by LightcurveTemplateModel.")
+        if filter not in self.lightcurves.lightcurves:
+            raise ValueError(f"Filter '{filter}' is not supported by LightcurveTemplateModel.")
 
         # Shift the times for the model's t0 aligned with the light curve's reference epoch.
         shifted_times = times - params["t0"]
-
-        bandfluxes = np.zeros(len(times))
-        for filter in self.lightcurves.filters:
-            filter_mask = filters == filter
-            bandfluxes[filter_mask] = self.lightcurves.evaluate_bandfluxes(shifted_times[filter_mask], filter)
-
+        bandfluxes = self.lightcurves.evaluate_bandfluxes(shifted_times, filter)
         return bandfluxes
 
     def plot_lightcurves(self, times=None, ax=None, figure=None):
@@ -852,15 +846,15 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             graph_state,
         )
 
-    def compute_bandflux(self, times, filters, state, **kwargs):
+    def compute_bandflux(self, times, filter, state, **kwargs):
         """Evaluate the model at the passband level for a single, given graph state.
 
         Parameters
         ----------
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
-        filters : numpy.ndarray
-            A length T array of filter names.
+        filter : str
+            The name of the filter.
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
         **kwargs : dict
@@ -875,17 +869,11 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         model_ind = params["selected_lightcurve"]
         lc = self.lightcurves[model_ind]
 
-        # Check that the filters are all supported by the model.
-        for flt in np.unique(filters):
-            if flt not in lc.lightcurves:
-                raise ValueError(f"Filter '{flt}' is not supported by LightcurveTemplateModel {model_ind}.")
+        # Check that the filter is supported by the model.
+        if filter not in lc.lightcurves:
+            raise ValueError(f"Filter '{filter}' is not supported by LightcurveTemplateModel {model_ind}.")
 
         # Shift the times for the model's t0 aligned with the light curve's reference epoch.
         shifted_times = times - params["t0"]
-
-        bandfluxes = np.zeros(len(times))
-        for filter in lc.filters:
-            filter_mask = filters == filter
-            bandfluxes[filter_mask] = lc.evaluate_bandfluxes(shifted_times[filter_mask], filter)
-
+        bandfluxes = lc.evaluate_bandfluxes(shifted_times, filter)
         return bandfluxes

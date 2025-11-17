@@ -762,8 +762,8 @@ class BandfluxModel(BasePhysicalModel, ABC):
     """A model of a source of flux that is only defined by band pass values
     in the observer frame (instead of a full SED).
 
-    Instead of calling `compute_sed()` the model calls `compute_bandflux()` during
-    its computation.
+    Instead of calling `compute_sed()` the model calls `compute_bandflux()` for each
+    filter during its computation.
 
     Note
     ----
@@ -822,15 +822,15 @@ class BandfluxModel(BasePhysicalModel, ABC):
         """Return a list of all effects in the order in which they are applied."""
         return self.band_pass_effects
 
-    def compute_bandflux(self, times, filters, state, rng_info=None):
-        """Evaluate the model at the passband level for a single, given graph state.
+    def compute_bandflux(self, times, filter, state, rng_info=None):
+        """Evaluate the model at the passband level for a single, given graph state and filter.
 
         Parameters
         ----------
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
-        filters : numpy.ndarray
-            A length T array of filter names.
+        filter : str
+            The name of the filter.
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
         rng_info : numpy.random._generator.Generator, optional
@@ -868,9 +868,19 @@ class BandfluxModel(BasePhysicalModel, ABC):
         """
         params = self.get_local_params(state)
 
-        # Compute the flux (applying all effects) and save the result. Note that
-        # BandfluxModel does not apply redshift, so all effects are applied in observer frame.
-        bandfluxes = self.compute_bandflux(times, filters, state, rng_info=rng_info)
+        # Compute the bandflux for each filter.
+        bandfluxes = np.zeros(len(times))
+        for filter_name in np.unique(filters):
+            filter_mask = filters == filter_name
+            bandfluxes[filter_mask] = self.compute_bandflux(
+                times[filter_mask],
+                filter_name,
+                state,
+                rng_info=rng_info,
+            )
+
+        # Apply all effects. Note that BandfluxModel does not apply redshift, so all effects
+        # are applied in observer frame.
         for effect in self.band_pass_effects:
             bandfluxes = effect.apply_bandflux(
                 bandfluxes,
