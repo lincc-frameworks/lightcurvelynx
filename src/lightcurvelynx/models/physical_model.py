@@ -936,6 +936,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
                     "extrapolation is set. If this is not the intended, you can enable time "
                     "extrapolation using the 'time_extrapolation' parameter."
                 )
+                before_time_mask = np.full(len(times), False)  # No extrapolation, so no before time queries.
             else:
                 # Add the boundary point at the start for extrapolation and compute
                 # the list of times to extrapolate.
@@ -961,6 +962,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
                     "extrapolation is set. If this is not the intended, you can enable time "
                     "extrapolation using the 'time_extrapolation' parameter."
                 )
+                after_time_mask = np.full(len(times), False)  # No extrapolation, so no after time queries.
             else:
                 # Add the boundary point at the end for extrapolation and compute
                 # the list of times to extrapolate.
