@@ -33,19 +33,19 @@ class _LinearLinearTestModel(SEDModel):
         self.min_wave = min_wave
         self.max_wave = max_wave
 
-    def minwave(self, graph_state=None):
+    def minwave(self, **kwargs):
         """Get the minimum wavelength of the model."""
         return self.min_wave
 
-    def maxwave(self, graph_state=None):
+    def maxwave(self, **kwargs):
         """Get the maximum wavelength of the model."""
         return self.max_wave
 
-    def minphase(self, graph_state=None):
+    def minphase(self, **kwargs):
         """Get the minimum phase of the model."""
         return self.min_phase
 
-    def maxphase(self, graph_state=None):
+    def maxphase(self, **kwargs):
         """Get the maximum phase of the model."""
         return self.max_phase
 

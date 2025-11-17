@@ -59,6 +59,9 @@ class LightcurveBandData:
     baseline : dict
         A dictionary of baseline bandfluxes for each filter (in nJy). This is only used
         for non-periodic light curves when they are not active.
+    has_time_bounds : bool
+        Whether the model has time bounds where it is valid. This is True for non-periodic
+        light curves without a baseline, and False otherwise.
 
     Parameters
     ----------
@@ -144,14 +147,9 @@ class LightcurveBandData:
         self.min_times = {filter: lc[0, 0] for filter, lc in self.lightcurves.items()}
         self.max_times = {filter: lc[-1, 0] for filter, lc in self.lightcurves.items()}
 
-        # Compute the overall minimum and maximum valid times across all light curves,
-        # using None for either periodic light curves or light curves with a baseline.
-        if periodic or baseline is not None:
-            self.min_valid_time = None
-            self.max_valid_time = None
-        else:
-            self.min_valid_time = np.min(list(self.min_times.values()))
-            self.max_valid_time = np.max(list(self.max_times.values()))
+        # If the model is periodic or has a given baseline, it is considered valid
+        # outside the minimum and maximum times of each light curve.
+        self.has_time_bounds = (not periodic) and baseline is None
 
         # Store the baseline values for each filter. If the baseline is provided,
         # make sure it contains all of the filters. If no baseline is provided,
@@ -609,14 +607,15 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
                     "time_extrapolation is provided, but is not used for light curves without a baseline. "
                 )
 
-    def minphase(self, graph_state=None):
-        """Get the minimum supported phase of the model in days.
+    def minphase(self, filter=None, **kwargs):
+        """Get the minimum supported phase of the model (for this filter) in days.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the minimum wavelength.
+        filter : str
+            The name of the filter (required). An error is raised if no value is provided.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -624,16 +623,26 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             The minimum phase of the model (in days) or None
             if the model does not have a defined minimum phase.
         """
-        return self.lightcurves.min_valid_time
+        if filter is None:
+            raise ValueError("Filter must be provided to compute minphase.")
 
-    def maxphase(self, graph_state=None):
-        """Get the maximum supported phase of the model in days.
+        if self.lightcurves.has_time_bounds:
+            return self.lightcurves.min_times[filter]
+        else:
+            return None
+
+    def maxphase(self, filter=None, **kwargs):
+        """Get the maximum supported phase of the model (for this filter) in days.
 
         Parameters
         ----------
+        filter : str
+            The name of the filter (required). An error is raised if no value is provided.
         graph_state : GraphState, optional
             An object mapping graph parameters to their values. If provided,
             the function will use the graph state to compute the maximum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -641,7 +650,13 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             The maximum phase of the model (in days) or None
             if the model does not have a defined maximum phase.
         """
-        return self.lightcurves.max_valid_time
+        if filter is None:
+            raise ValueError("Filter must be provided to compute maxphase.")
+
+        if self.lightcurves.has_time_bounds:
+            return self.lightcurves.max_times[filter]
+        else:
+            return None
 
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.
@@ -870,14 +885,18 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
         return cls(lightcurves, passbands, **kwargs)
 
-    def minphase(self, graph_state=None):
-        """Get the minimum supported phase of the model in days.
+    def minphase(self, filter=None, graph_state=None, **kwargs):
+        """Get the minimum supported phase of the model (for this filter) in days.
 
         Parameters
         ----------
+        filter : str
+            The name of the filter (required). An error is raised if no value is provided.
         graph_state : GraphState, optional
             An object mapping graph parameters to their values. If provided,
             the function will use the graph state to compute the minimum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -885,17 +904,32 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             The minimum phase of the model (in days) or None
             if the model does not have a defined minimum phase.
         """
-        model_ind = self.get_param(graph_state, "selected_lightcurve")
-        return self.lightcurves[model_ind].min_valid_time
+        if filter is None:
+            raise ValueError("Filter must be provided to compute minphase.")
+        if graph_state is None:
+            raise ValueError("Graph state must be provided to compute minphase.")
+        if graph_state.num_samples > 1:
+            raise ValueError("Graph state must have num_samples=1 to compute maxphase.")
 
-    def maxphase(self, graph_state=None):
-        """Get the maximum supported phase of the model in days.
+        model_ind = self.get_param(graph_state, "selected_lightcurve")
+        lc_model = self.lightcurves[model_ind]
+        if lc_model.has_time_bounds:
+            return lc_model.min_times[filter]
+        else:
+            return None
+
+    def maxphase(self, filter=None, graph_state=None, **kwargs):
+        """Get the maximum supported phase of the model (for this filter) in days.
 
         Parameters
         ----------
+        filter : str
+            The name of the filter (required). An error is raised if no value is provided.
         graph_state : GraphState, optional
             An object mapping graph parameters to their values. If provided,
             the function will use the graph state to compute the maximum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -903,8 +937,19 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             The maximum phase of the model (in days) or None
             if the model does not have a defined maximum phase.
         """
+        if filter is None:
+            raise ValueError("Filter must be provided to compute maxphase.")
+        if graph_state is None:
+            raise ValueError("Graph state must be provided to compute maxphase.")
+        if graph_state.num_samples > 1:
+            raise ValueError("Graph state must have num_samples=1 to compute maxphase.")
+
         model_ind = self.get_param(graph_state, "selected_lightcurve")
-        return self.lightcurves[model_ind].max_valid_time
+        lc_model = self.lightcurves[model_ind]
+        if lc_model.has_time_bounds:
+            return lc_model.max_times[filter]
+        else:
+            return None
 
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.

@@ -112,14 +112,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             seed = int.from_bytes(urandom(4), "big")
         self._rng = np.random.default_rng(seed=seed)
 
-    def minwave(self, graph_state=None):
+    def minwave(self, **kwargs):
         """Get the minimum supported wavelength of the model.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the minimum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -129,14 +128,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         """
         return None
 
-    def maxwave(self, graph_state=None):
+    def maxwave(self, **kwargs):
         """Get the maximum supported wavelength of the model.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the maximum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -146,14 +144,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         """
         return None
 
-    def minphase(self, graph_state=None):
+    def minphase(self, **kwargs):
         """Get the minimum supported phase of the model in days.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the minimum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -163,14 +160,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         """
         return None
 
-    def maxphase(self, graph_state=None):
+    def maxphase(self, **kwargs):
         """Get the maximum supported phase of the model in days.
 
         Parameters
         ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the maximum wavelength.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
@@ -901,7 +897,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         # We check if we can do extrapolation for times before the valid time range and, if so, modify
         # the queries and set up the data we need.
         min_query_time = np.min(times)
-        min_valid_phase = self.minphase(graph_state=state)
+        min_valid_phase = self.minphase(filter=filter, graph_state=state)
         if min_valid_phase is None:
             min_valid_time = min_query_time
         else:
@@ -925,7 +921,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         # We check if we can do extrapolation for times after the valid time range and, if so, modify
         # the queries and set up the data we need.
         max_query_time = np.max(times)
-        max_valid_phase = self.maxphase(graph_state=state)
+        max_valid_phase = self.maxphase(filter=filter, graph_state=state)
         if max_valid_phase is None:
             max_valid_time = max_query_time
         else:

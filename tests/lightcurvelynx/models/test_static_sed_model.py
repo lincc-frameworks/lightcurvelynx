@@ -311,11 +311,11 @@ def test_static_bandflux_with_extrapolation():
             super().__init__(*args, **kwargs)
             self._time_bounds = (0.0, 10.0)
 
-        def minphase(self, graph_state=None):
+        def minphase(self, **kwargs):
             """Return the minimum phase for the model."""
             return self._time_bounds[0]
 
-        def maxphase(self, graph_state=None):
+        def maxphase(self, **kwargs):
             """Return the maximum phase for the model."""
             return self._time_bounds[1]
 
