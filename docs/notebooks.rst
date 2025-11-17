@@ -29,6 +29,7 @@ features and models of the LightCurveLynx package.
     Adding New Model Types <notebooks/adding_models>
     Debugging Models <notebooks/debugging>
     Combining Models (including Hosts/Sources) <notebooks/host_source_models>
+    Extrapolation in Time and Wavelength <notebooks/extrapolation>
     Adding New Effect Types <notebooks/adding_effects>
     Creating Time Varying Effects <notebooks/time_varying_effects>
     Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
