@@ -234,7 +234,7 @@ def test_static_bandflux_set_extrapolation():
 
     # We provide a warning if the user tries to set wave_extrapolation.
     with pytest.warns(UserWarning):
-        model.set_extrapolation(bandflux, wave_extrapolation=LinearDecay(decay_width=5.0))
+        _ = StaticBandfluxModel(bandflux, wave_extrapolation=LinearDecay(decay_width=5.0))
 
 
 class DummySynphotModel:
