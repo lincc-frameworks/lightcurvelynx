@@ -221,3 +221,37 @@ def test_linear_linear_model_diff_extrapolators() -> None:
     with pytest.warns(UserWarning):
         with pytest.raises(ValueError):
             _ = model.evaluate_sed(query_times, query_waves)
+
+
+def test_linear_linear_model_ooo_time() -> None:
+    """Test the _LinearLinearTestModel with extrapolators on out-of-order times."""
+    time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
+
+    query_waves = np.array([2000.0])
+    query_times = np.array([-10.0, 0.0, -15.0, 50.0, 125.0, 100.0, 75.0, 120.0])
+
+    # Start to (zero, linear) for wavelength, and (linear, zero) for time.
+    model = _LinearLinearTestModel(
+        time_extrapolation=(time_linear, time_linear),
+        t0=0.0,
+    )
+    values = model.evaluate_sed(query_times, query_waves)
+    expected = np.array([[990.0], [1100.0], [935.0], [1200.0], [975.0], [1300.0], [1250.0], [1040.0]])
+    assert np.allclose(values, expected)
+
+
+def test_linear_linear_model_ooo_wavelength() -> None:
+    """Test the _LinearLinearTestModel with extrapolators on out-of-order wavelengths."""
+    wave_linear = LinearDecay(decay_width=500.0)  # 500 angstroms to zero
+
+    query_waves = np.array([900.0, 1000.0, 2000.0, 800.0, 12200.0, 5000.0, 12100.0])
+    query_times = np.array([50.0])
+
+    # Start to (zero, linear) for wavelength, and (linear, zero) for time.
+    model = _LinearLinearTestModel(
+        wave_extrapolation=(wave_linear, wave_linear),
+        t0=0.0,
+    )
+    values = model.evaluate_sed(query_times, query_waves)
+    expected = np.array([560.0, 700.0, 1200.0, 420.0, 3720.0, 2700.0, 4960.0])
+    assert np.allclose(values, expected)
