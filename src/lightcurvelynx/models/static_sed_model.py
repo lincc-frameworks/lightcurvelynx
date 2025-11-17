@@ -268,15 +268,15 @@ class StaticBandfluxModel(BandfluxModel):
         """Get the number of band flux values."""
         return len(self.bandflux_values)
 
-    def compute_bandflux(self, times, filters, state, rng_info=None):
+    def compute_bandflux(self, times, filter, state, rng_info=None):
         """Evaluate the model at the passband level for a single, given graph state.
 
         Parameters
         ----------
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
-        filters : numpy.ndarray
-            A length T array of filter names.
+        filter : str
+            The name of the filter.
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
         rng_info : numpy.random._generator.Generator, optional
@@ -288,8 +288,5 @@ class StaticBandfluxModel(BandfluxModel):
         model_bandflux = self.bandflux_values[model_ind]
 
         # Fill in the bandflux values corresponding to the filter at each time.
-        bandflux = np.zeros(len(times), dtype=float)
-        for filter in np.unique(filters):
-            filter_mask = filters == filter
-            bandflux[filter_mask] = model_bandflux[filter]
-        return bandflux
+        bandflux = model_bandflux[filter]
+        return np.full(len(times), bandflux)
