@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel, StaticSEDModel
+from lightcurvelynx.utils.extrapolate import LinearDecay
 from lightcurvelynx.utils.io_utils import write_numpy_data
 
 
@@ -176,11 +177,7 @@ def test_multiple_static_seds_min_max():
 
 def test_single_static_bandflux() -> None:
     """Test that we can create and sample a StaticBandfluxModel object with a single bandflux."""
-    bandflux = {
-        "r": 10.0,
-        "g": 20.0,
-        "b": 30.0,
-    }
+    bandflux = {"r": 10.0, "g": 20.0, "b": 30.0}
     model = StaticBandfluxModel(bandflux, node_label="test")
     assert len(model) == 1
 
@@ -221,6 +218,23 @@ def test_multiple_static_bandflux() -> None:
             assert np.array_equal(fluxes[idx], expected0)
         else:
             assert np.array_equal(fluxes[idx], expected1)
+
+
+def test_static_bandflux_set_extrapolation():
+    """Test that we can set the time extrapolation for a StaticBandfluxModel."""
+    bandflux = {"r": 10.0, "g": 20.0, "b": 30.0}
+
+    before_extrap = LinearDecay(decay_width=10.0)  # 10 days to go to zero
+    after_extrap = LinearDecay(decay_width=20.0)  # 20 days to go to zero
+    model = StaticBandfluxModel(bandflux, time_extrapolation=(before_extrap, after_extrap), node_label="test")
+    assert model._time_extrap_before is not None
+    assert model._time_extrap_after is not None
+    assert isinstance(model._time_extrap_before, LinearDecay)
+    assert isinstance(model._time_extrap_after, LinearDecay)
+
+    # We provide a warning if the user tries to set wave_extrapolation.
+    with pytest.warns(UserWarning):
+        model.set_extrapolation(bandflux, wave_extrapolation=LinearDecay(decay_width=5.0))
 
 
 class DummySynphotModel:
@@ -283,3 +297,62 @@ def test_static_sed_from_synphot() -> None:
     sp_model.z = 0.5
     with pytest.raises(ValueError):
         _ = StaticSEDModel.from_synphot(sp_model)
+
+
+def test_static_bandflux_with_extrapolation():
+    """Test that we can extrapolate a Bandflux model by adding time bounds
+    to a StaticBandfluxModel.
+    """
+
+    class _BoundStaticBandfluxModel(StaticBandfluxModel):
+        """A StaticBandfluxModel that defines time bounds for extrapolation."""
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._time_bounds = (0.0, 10.0)
+
+        def minphase(self, graph_state=None):
+            """Return the minimum phase for the model."""
+            return self._time_bounds[0]
+
+        def maxphase(self, graph_state=None):
+            """Return the maximum phase for the model."""
+            return self._time_bounds[1]
+
+    before_extrap = LinearDecay(decay_width=10.0)  # 10 days to go to zero
+    after_extrap = LinearDecay(decay_width=20.0)  # 20 days to go to zero
+    bandflux = {"r": 10.0, "g": 20.0, "b": 30.0}
+    model = _BoundStaticBandfluxModel(
+        bandflux,
+        time_extrapolation=(before_extrap, after_extrap),
+        node_label="test",
+    )
+
+    # Data in the form of (time, filter, expected_flux)
+    data = np.array(
+        [
+            [-5.0, "r", 5.0],  # 50% of red
+            [-4.0, "r", 6.0],  # 60% of red
+            [-2.0, "g", 16.0],  # 80% of green
+            [-1.0, "b", 27.0],  # 90% of blue
+            [0.0, "r", 10.0],  # No extrapolation
+            [1.0, "g", 20.0],  # No extrapolation
+            [2.0, "b", 30.0],  # No extrapolation
+            [3.0, "r", 10.0],  # No extrapolation
+            [4.0, "g", 20.0],  # No extrapolation
+            [5.0, "b", 30.0],  # No extrapolation
+            [5.0, "b", 30.0],  # No extrapolation
+            [11.0, "r", 9.5],  # 95% of red
+            [12.0, "g", 18.0],  # 90% of green
+            [13.0, "b", 25.5],  # 85% of blue
+            [14.0, "r", 8.0],  # 80% of red
+            [15.0, "b", 22.5],  # 75% of blue
+        ]
+    )
+
+    times = data[:, 0].astype(float)
+    filters = data[:, 1]
+    expected = data[:, 2].astype(float)
+    state = model.sample_parameters(num_samples=1)
+    fluxes = model.evaluate_bandfluxes(None, times, filters, state)
+    assert np.array_equal(fluxes, expected)

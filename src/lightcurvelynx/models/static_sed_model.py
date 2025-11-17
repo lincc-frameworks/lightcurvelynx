@@ -289,4 +289,4 @@ class StaticBandfluxModel(BandfluxModel):
 
         # Fill in the bandflux values corresponding to the filter at each time.
         bandflux = model_bandflux[filter]
-        return bandflux
+        return np.full(len(times), bandflux)

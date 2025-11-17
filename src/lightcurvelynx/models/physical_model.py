@@ -775,11 +775,37 @@ class BandfluxModel(BasePhysicalModel, ABC):
     ----------
     band_pass_effects : list of EffectModel
         A list of effects to apply in to the band pass fluxes.
+
+    Parameters
+    ----------
+    time_extrapolation : FluxExtrapolationModel or tuple, optional
+        The extrapolation model(s) to use for times that fall outside the model's defined
+        bounds. If a tuple is provided, then it is expected to be of the form (before_model, after_model)
+        where before_model is the model for before the first valid time and after_model is
+        the model for after the last valid time. If None is provided the model will not try to
+        extrapolate, but rather call compute_bandflux() for all times.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, time_extrapolation=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.band_pass_effects = []
+
+        if time_extrapolation is None:
+            self._time_extrap_before = None
+            self._time_extrap_after = None
+        elif isinstance(time_extrapolation, tuple):
+            if len(time_extrapolation) != 2:
+                raise ValueError("If time_extrapolation is a tuple, it must have length 2.")
+            self._time_extrap_before = time_extrapolation[0]
+            self._time_extrap_after = time_extrapolation[1]
+        elif isinstance(time_extrapolation, FluxExtrapolationModel):
+            self._time_extrap_before = time_extrapolation
+            self._time_extrap_after = time_extrapolation
+        else:
+            raise TypeError("time_extrapolation must be a FluxExtrapolationModel or a tuple of two models.")
+
+        if "wave_extrapolation" in kwargs and kwargs["wave_extrapolation"] is not None:
+            raise warnings.warn("BandfluxModel does not support wave_extrapolation, but value provided.")
 
     def set_apply_redshift(self, apply_redshift):
         """Toggles the apply_redshift setting.
@@ -836,8 +862,119 @@ class BandfluxModel(BasePhysicalModel, ABC):
         rng_info : numpy.random._generator.Generator, optional
             A given numpy random number generator to use for this computation. If not
             provided, the function uses the node's random number generator.
+
+        Returns
+        -------
+        bandflux : numpy.ndarray
+            A length T array of band fluxes for this model in this filter.
         """
         raise NotImplementedError
+
+    def compute_bandflux_with_extrapolation(self, times, filter, state, rng_info=None):
+        """Evaluate the model at the passband level for a single, given graph state and filter,
+        extrapolating to times where the model is not defined.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        filter : str
+            The name of the filter.
+        state : GraphState
+            An object mapping graph parameters to their values with num_samples=1.
+        rng_info : numpy.random._generator.Generator, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator.
+
+        Returns
+        -------
+        bandflux : numpy.ndarray
+            A length T array of band fluxes for this model in this filter.
+        """
+        query_times = np.copy(times)
+
+        # Get t0 offset since the time bounds are given in phase.
+        t0 = self.get_param(state, "t0")
+        if t0 is None:
+            t0 = 0.0
+
+        # We check if we can do extrapolation for times before the valid time range and, if so, modify
+        # the queries and set up the data we need.
+        min_query_time = np.min(times)
+        min_valid_phase = self.minphase(graph_state=state)
+        if min_valid_phase is None:
+            min_valid_time = min_query_time
+        else:
+            min_valid_time = min_valid_phase + t0
+
+        before_time_queries = None
+        if min_query_time < min_valid_time:
+            if self._time_extrap_before is None:
+                warnings.warn(
+                    "Some times are less than the model's defined bounds and no time "
+                    "extrapolation is set. If this is not the intended, you can enable time "
+                    "extrapolation using the 'time_extrapolation' parameter."
+                )
+            else:
+                # Add the boundary point at the start for extrapolation and compute
+                # the list of times to extrapolate.
+                valid_mask = query_times >= min_valid_time
+                before_time_queries = query_times[~valid_mask]
+                query_times = np.concatenate(([min_valid_time], query_times[valid_mask]))
+
+        # We check if we can do extrapolation for times after the valid time range and, if so, modify
+        # the queries and set up the data we need.
+        max_query_time = np.max(times)
+        max_valid_phase = self.maxphase(graph_state=state)
+        if max_valid_phase is None:
+            max_valid_time = max_query_time
+        else:
+            max_valid_time = max_valid_phase + t0
+
+        after_time_queries = None
+        if max_query_time > max_valid_time:
+            if self._time_extrap_after is None:
+                warnings.warn(
+                    "Some times are greater than the model's defined bounds and no time "
+                    "extrapolation is set. If this is not the intended, you can enable time "
+                    "extrapolation using the 'time_extrapolation' parameter."
+                )
+            else:
+                # Add the boundary point at the end for extrapolation and compute
+                # the list of times to extrapolate.
+                valid_mask = query_times <= max_valid_time
+                after_time_queries = query_times[~valid_mask]
+                query_times = np.concatenate((query_times[valid_mask], [max_valid_time]))
+
+        # Get the band flux at all times (except those we will extrapolate).
+        computed_flux = self.compute_bandflux(query_times, filter, state, rng_info=rng_info)
+
+        # Then do extrapolation for times that fell outside the model's bounds.
+        if before_time_queries is not None:
+            # Compute the flux values before the model's first valid time.
+            extrapolated_values = self._time_extrap_before.extrapolate_time(
+                min_valid_time,
+                np.array([computed_flux[0]]),
+                before_time_queries,
+            )
+
+            # Insert the extrapolated values at the beginning of the computed flux array and
+            # remove the first value (which was added for extrapolation).
+            computed_flux = np.concatenate((extrapolated_values[:, 0], computed_flux[1:]))
+
+        if after_time_queries is not None:
+            # Compute the flux values after the model's last valid time.
+            extrapolated_values = self._time_extrap_after.extrapolate_time(
+                max_valid_time,
+                np.array([computed_flux[-1]]),
+                after_time_queries,
+            )
+
+            # Insert the extrapolated values at the end of the computed flux array and
+            # remove the last value (which was added for extrapolation).
+            computed_flux = np.concatenate((computed_flux[:-1], extrapolated_values[:, 0]))
+
+        return computed_flux
 
     def _evaluate_bandfluxes_single(self, passband_group, times, filters, state, rng_info=None) -> np.ndarray:
         """Get the band fluxes for a given PassbandGroup and a single, given graph state.
@@ -872,7 +1009,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         bandfluxes = np.zeros(len(times))
         for filter_name in np.unique(filters):
             filter_mask = filters == filter_name
-            bandfluxes[filter_mask] = self.compute_bandflux(
+            bandfluxes[filter_mask] = self.compute_bandflux_with_extrapolation(
                 times[filter_mask],
                 filter_name,
                 state,
