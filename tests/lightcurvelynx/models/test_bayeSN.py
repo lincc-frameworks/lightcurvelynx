@@ -104,6 +104,9 @@ def test_bayesn_matchness(test_data_dir):
         hsiao_model_path=test_data_dir / "hsiao.h5",
         Amplitude=np.power(10.0, -0.4 * (distmod + m_abs)),
     )
+    assert model.minphase() == pytest.approx(-20.0)
+    assert model.maxphase() == pytest.approx(85.0)
+
     flux_density = model.evaluate_sed(times, wavelengths)
     assert np.allclose(bayesian_flux, flux_density, rtol=0.1)
 

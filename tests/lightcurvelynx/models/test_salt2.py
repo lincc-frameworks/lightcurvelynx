@@ -43,6 +43,19 @@ def test_salt2_model_no_t0(test_data_dir):
     _ = td_model.evaluate_sed(np.arange(-1.0, 15.0, 0.01), np.arange(3800.0, 4200.0, 0.5))
 
 
+def test_salt2_model_mask_by_time(test_data_dir) -> None:
+    """Test that we can correctly mask by time for the SALT2 model."""
+    dir_name = test_data_dir / "truncated-salt2-h17"
+    model = SALT2JaxModel(x0=0.4, x1=0.3, c=1.1, redshift=0.0, t0=55000.0, model_dir=dir_name)
+    state = model.sample_parameters(num_samples=1)
+
+    # The SALT2 model uses phases (-20.0, 50.0) which is offset by t0=55000.0.
+    sample_times = np.arange(-50.0, 100.0, 1.0) + 55000.0
+    expected_mask = (sample_times > 54980.0) & (sample_times < 55050.0)
+    mask = model.mask_by_time(sample_times, state)
+    assert np.all(mask == expected_mask)
+
+
 def test_salt2_no_model(test_data_dir):
     """Test that we fail if using the wrong model directory."""
     dir_name = test_data_dir / "no_such_salt2_model_dir"

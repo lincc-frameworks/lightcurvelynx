@@ -46,7 +46,7 @@ def test_sncomso_models_hsiao() -> None:
 
     # Check that we can mask times.  The 'hsiao' model uses phases (-20.0, 85.0).
     sample_times = np.arange(-50.0, 100.0, 1.0)
-    mask = model.mask_by_time(sample_times, graph_state=state)
+    mask = model.mask_by_time(sample_times, state)
 
     expected_mask = (sample_times > -20.0) & (sample_times < 85.0)
     assert np.array_equal(mask, expected_mask)
@@ -79,7 +79,7 @@ def test_sncomso_models_hsiao_t0() -> None:
     # Check that we can mask times.  The 'hsiao' model uses phases (-20.0, 85.0),
     # which is offset by t0=55000.0.
     sample_times = np.arange(-50.0, 100.0, 1.0) + 55000.0
-    mask = model.mask_by_time(sample_times, graph_state=state)
+    mask = model.mask_by_time(sample_times, state)
 
     expected_mask = (sample_times > 54980.0) & (sample_times < 55085.0)
     assert np.array_equal(mask, expected_mask)
