@@ -183,7 +183,7 @@ class MultiObjectModel(SEDModel):
         flux_density : numpy.ndarray
             A length T x N matrix of SED values (in nJy).
         """
-        raise NotImplementedError
+        raise NotImplementedError()  # pragma: no cover
 
     def _evaluate_bandfluxes_single(self, passband_group, times, filters, state, rng_info=None) -> np.ndarray:
         """Get the band fluxes for a given PassbandGroup and a single, given graph state.
@@ -207,7 +207,7 @@ class MultiObjectModel(SEDModel):
         bandfluxes : numpy.ndarray
             A length T array of band fluxes for this sample.
         """
-        raise NotImplementedError
+        raise NotImplementedError()  # pragma: no cover
 
 
 class AdditiveMultiObjectModel(MultiObjectModel):

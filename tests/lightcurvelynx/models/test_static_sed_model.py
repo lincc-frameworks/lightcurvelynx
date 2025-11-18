@@ -37,6 +37,11 @@ def test_static_sed_fail() -> None:
     with pytest.raises(ValueError):
         _ = StaticSEDModel([1.0], node_label="test")
 
+    # Not enough points.
+    sed = np.array([[100.0], [10.0], [0.0]])
+    with pytest.raises(ValueError):
+        _ = StaticSEDModel([sed], node_label="test")
+
     # Incorrectly shaped data.
     sed = np.array(
         [
@@ -180,6 +185,7 @@ def test_single_static_bandflux() -> None:
     bandflux = {"r": 10.0, "g": 20.0, "b": 30.0}
     model = StaticBandfluxModel(bandflux, node_label="test")
     assert len(model) == 1
+    assert len(model.list_effects()) == 0
 
     times = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     filters = ["r", "r", "g", "b", "r", "g", "b", "g", "b", "r"]
@@ -235,6 +241,12 @@ def test_static_bandflux_set_extrapolation():
     # We provide a warning if the user tries to set wave_extrapolation.
     with pytest.warns(UserWarning):
         _ = StaticBandfluxModel(bandflux, wave_extrapolation=LinearDecay(decay_width=5.0))
+
+    # We fail with invalid time_extrapolation settings.
+    with pytest.raises(ValueError):
+        _ = StaticBandfluxModel(bandflux, time_extrapolation=(before_extrap, before_extrap, before_extrap))
+    with pytest.raises(TypeError):
+        _ = StaticBandfluxModel(bandflux, time_extrapolation="not a model")
 
 
 class DummySynphotModel:

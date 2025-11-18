@@ -86,7 +86,7 @@ class PeriodicVariableStar(PeriodicModel, ABC):
             A length T x N matrix of luminosity density per unit solid angle values.
             Units are CGS, erg/s/Hz/steradian.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
 
 class EclipsingBinaryStar(PeriodicVariableStar):
