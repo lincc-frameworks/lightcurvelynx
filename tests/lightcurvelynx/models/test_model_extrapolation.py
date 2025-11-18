@@ -22,16 +22,27 @@ class _LinearLinearTestModel(SEDModel):
         The minimum wavelength of the model (in angstroms).
     max_wave : float
         The maximum wavelength of the model (in angstroms).
+    fail_on_out_of_bounds : bool
+        Whether to raise an error if times or wavelengths are out of bounds.
     **kwargs : dict
         Additional keyword arguments.
     """
 
-    def __init__(self, min_phase=0.0, max_phase=100.0, min_wave=1000.0, max_wave=12000.0, **kwargs):
+    def __init__(
+        self,
+        min_phase=0.0,
+        max_phase=100.0,
+        min_wave=1000.0,
+        max_wave=12000.0,
+        fail_on_out_of_bounds=True,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.min_phase = min_phase
         self.max_phase = max_phase
         self.min_wave = min_wave
         self.max_wave = max_wave
+        self.fail_on_out_of_bounds = fail_on_out_of_bounds
 
     def minwave(self, **kwargs):
         """Get the minimum wavelength of the model."""
@@ -73,9 +84,11 @@ class _LinearLinearTestModel(SEDModel):
             raise ValueError("t0 parameter is required for this model.")
 
         phase = times - t0
-        if np.any(phase < self.min_phase) or np.any(phase > self.max_phase):
+        if self.fail_on_out_of_bounds and (np.any(phase < self.min_phase) or np.any(phase > self.max_phase)):
             raise ValueError("Times are out of bounds for this model.")
-        if np.any(wavelengths < self.min_wave) or np.any(wavelengths > self.max_wave):
+        if self.fail_on_out_of_bounds and (
+            np.any(wavelengths < self.min_wave) or np.any(wavelengths > self.max_wave)
+        ):
             raise ValueError("Wavelengths are out of bounds for this model.")
 
         time_component = 2.0 * phase[:, np.newaxis]
@@ -239,6 +252,17 @@ def test_linear_linear_model_ooo_time() -> None:
     expected = np.array([[990.0], [1100.0], [935.0], [1200.0], [975.0], [1300.0], [1250.0], [1040.0]])
     assert np.allclose(values, expected)
 
+    # With no extrapolation (and no failing), we should just query the model.
+    model2 = _LinearLinearTestModel(
+        time_extrapolation=(None, None),
+        t0=0.0,
+        fail_on_out_of_bounds=False,
+    )
+    with pytest.warns(UserWarning):
+        values2 = model2.evaluate_sed(query_times, query_waves)
+    expected2 = np.array([[1080.0], [1100.0], [1070.0], [1200.0], [1350.0], [1300.0], [1250.0], [1340.0]])
+    assert np.allclose(values2, expected2)
+
 
 def test_linear_linear_model_ooo_wavelength() -> None:
     """Test the _LinearLinearTestModel with extrapolators on out-of-order wavelengths."""
@@ -255,3 +279,25 @@ def test_linear_linear_model_ooo_wavelength() -> None:
     values = model.evaluate_sed(query_times, query_waves)
     expected = np.array([560.0, 700.0, 1200.0, 420.0, 3720.0, 2700.0, 4960.0])
     assert np.allclose(values, expected)
+
+    # With no extrapolation (and no failing), we should just query the model.
+    model2 = _LinearLinearTestModel(
+        wave_extrapolation=(None, wave_linear),
+        t0=0.0,
+        fail_on_out_of_bounds=False,
+    )
+    with pytest.warns(UserWarning):
+        values2 = model2.evaluate_sed(query_times, query_waves)
+    expected2 = np.array([650.0, 700.0, 1200.0, 600.0, 3720.0, 2700.0, 4960.0])
+    assert np.allclose(values2, expected2)
+
+    # With no extrapolation (and no failing), we should just query the model.
+    model3 = _LinearLinearTestModel(
+        wave_extrapolation=(wave_linear, None),
+        t0=0.0,
+        fail_on_out_of_bounds=False,
+    )
+    with pytest.warns(UserWarning):
+        values3 = model3.evaluate_sed(query_times, query_waves)
+    expected3 = np.array([560.0, 700.0, 1200.0, 420.0, 6300.0, 2700.0, 6250.0])
+    assert np.allclose(values3, expected3)
