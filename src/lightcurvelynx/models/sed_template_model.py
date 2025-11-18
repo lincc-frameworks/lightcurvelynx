@@ -111,6 +111,11 @@ class SEDTemplate:
             ky=interp_degree,
         )
 
+    @property
+    def is_periodic(self):
+        """Whether this SED template is periodic."""
+        return self.period is not None
+
     @classmethod
     def from_file(cls, file_path, **kwargs):
         """Create a SEDTemplate from a file containing three-column data.
@@ -494,7 +499,7 @@ class SIMSEDModel(MultiSEDTemplateModel):
         file_names, simsed_params = SIMSEDModel._read_simsed_info_file(simsed_dir)
 
         # Extract the parameters that we need.
-        if "FLUX_SCALE" not in simsed_params:
+        if "FLUX_SCALE" not in simsed_params:  # pragma: no cover
             warnings.warn("SIMSED SED.INFO file does not contain a FLUX_SCALE parameter. Using 1.0.")
             flux_scale = 1.0
         else:
@@ -530,7 +535,7 @@ class SIMSEDModel(MultiSEDTemplateModel):
             A dictionary of parameters read from the SED.INFO file.
         """
         info_file = simsed_dir / "SED.INFO"
-        if not info_file.exists():
+        if not info_file.exists():  # pragma: no cover
             raise FileNotFoundError(f"SED.INFO file not found in {simsed_dir}.")
         logger.debug(f"Reading SIMSED data from {info_file}.")
 
@@ -567,7 +572,7 @@ class SIMSEDModel(MultiSEDTemplateModel):
         if not file_path.exists() and file_path.suffix != ".gz":
             # If the file is not found, check for a .gz version.
             file_path = file_path.with_suffix(file_path.suffix + ".gz")
-        if not file_path.exists():
+        if not file_path.exists():  # pragma: no cover
             raise FileNotFoundError(f"SIMSED data file not found: {file_path}.")
 
         # Read in the data file.

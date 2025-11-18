@@ -23,6 +23,8 @@ def test_linear_sed_template_data() -> None:
         ]
     )
     data_obj = SEDTemplate(data, interpolation_type="linear", periodic=False)
+    assert not data_obj.is_periodic
+    assert data_obj.period is None
 
     eval_times = np.array([-1.5, 1.5, 2.5, 3.5])
     eval_waves = np.array([1000.0, 2000.0])
@@ -105,6 +107,8 @@ def test_linear_sed_template_data_periodic() -> None:
         ]
     )
     data_obj = SEDTemplate(data, interpolation_type="linear", periodic=True)
+    assert data_obj.is_periodic
+    assert data_obj.period == 2.0
 
     eval_times = np.array([0.5, 1.5, 2.25, 3.25])
     eval_waves = np.array([1000.0, 2000.0])
@@ -240,6 +244,26 @@ def test_create_sed_template_model() -> None:
         ]
     )
     assert np.allclose(sed_values2, expected_values2)
+
+
+def test_create_sed_template_model_from_template() -> None:
+    """Test that we can create an SEDTemplateModel from an SEDTemplate."""
+    data = np.array(
+        [
+            [1.0, 1000.0, 10.0],
+            [1.0, 2000.0, 20.0],
+            [2.0, 1000.0, 15.0],
+            [2.0, 2000.0, 25.0],
+            [3.0, 1000.0, 10.0],
+            [3.0, 2000.0, 20.0],
+        ]
+    )
+    data_obj = SEDTemplate(data, interpolation_type="linear", periodic=True)
+    model = SEDTemplateModel(data_obj, t0=0.0)
+    assert len(model.times) == 3
+    assert len(model.wavelengths) == 2
+    assert model.template.is_periodic
+    assert model.template.period == 2.0
 
 
 def test_sed_model_data_from_file(test_data_dir):
