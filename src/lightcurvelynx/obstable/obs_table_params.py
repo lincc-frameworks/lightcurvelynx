@@ -217,7 +217,7 @@ class ParamDeriver(ABC):
     @abstractmethod
     def _init_formulas(self):
         """Initialize the formulas for deriving parameters. To be implemented by subclasses."""
-        raise NotImplementedError("Subclasses must implement _init_formulas().")
+        raise NotImplementedError("Subclasses must implement _init_formulas().")  # pragma: no cover
 
 
 class NoopParamDeriver(ParamDeriver):

@@ -188,7 +188,7 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         effect : EffectModel
             The effect to add.
         """
-        raise NotImplementedError
+        raise NotImplementedError()  # pragma: no cover
 
     def mask_by_time(self, times, graph_state=None):
         """Compute a mask for whether a given time is of interest for a given object.
@@ -414,7 +414,7 @@ class SEDModel(BasePhysicalModel):
         flux_density : numpy.ndarray
             A length T x N matrix of rest frame SED values (in nJy).
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def compute_sed_with_extrapolation(self, times, wavelengths, graph_state, **kwargs):
         """Draw effect-free observations for this object, extrapolating
@@ -839,7 +839,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         apply_redshift : bool
             The new value for apply_redshift.
         """
-        raise NotImplementedError("BandfluxModel does not support apply_redshift.")
+        raise NotImplementedError("BandfluxModel does not support apply_redshift.")  # pragma: no cover
 
     def add_effect(self, effect, skip_params=False):
         """Add an effect to the model.
@@ -892,7 +892,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         bandflux : numpy.ndarray
             A length T array of band fluxes for this model in this filter.
         """
-        raise NotImplementedError
+        raise NotImplementedError()  # pragma: no cover
 
     def compute_bandflux_with_extrapolation(self, times, filter, state, rng_info=None):
         """Evaluate the model at the passband level for a single, given graph state and filter,

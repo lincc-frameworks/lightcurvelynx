@@ -91,7 +91,7 @@ class EffectModel:
         flux_density : numpy.ndarray
             A length T x N matrix of flux densities after the effect is applied (in nJy).
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def apply_bandflux(self, bandfluxes, *, times=None, filters=None, rng_info=None, **kwargs):
         """Apply the effect to band fluxes.
@@ -117,4 +117,4 @@ class EffectModel:
         bandfluxes : numpy.ndarray
             A length T array of band fluxes after the effect is applied (in nJy).
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover

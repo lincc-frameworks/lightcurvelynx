@@ -165,6 +165,22 @@ def test_linear_linear_model_extrapolators() -> None:
     )
     assert np.allclose(values, expected)
 
+    # We fail creation if given invalid numbers or types of extrapolators.
+    with pytest.raises(ValueError):
+        _ = _LinearLinearTestModel(
+            wave_extrapolation=(wave_extrapolator, wave_extrapolator, wave_extrapolator),
+            t0=0.0,
+        )
+    with pytest.raises(ValueError):
+        _ = _LinearLinearTestModel(
+            time_extrapolation=(time_extrapolator, time_extrapolator, time_extrapolator),
+            t0=0.0,
+        )
+    with pytest.raises(TypeError):
+        _ = _LinearLinearTestModel(wave_extrapolation="not an extrapolator", t0=0.0)
+    with pytest.raises(TypeError):
+        _ = _LinearLinearTestModel(time_extrapolation="not an extrapolator", t0=0.0)
+
 
 def test_linear_linear_model_diff_extrapolators() -> None:
     """Test the _LinearLinearTestModel with different extrapolators each

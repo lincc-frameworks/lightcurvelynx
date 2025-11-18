@@ -42,7 +42,7 @@ class FluxExtrapolationModel(abc.ABC):
             A N x M matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
-        raise NotImplementedError("Subclasses must implement this method.")
+        raise NotImplementedError("Subclasses must implement this method.")  # pragma: no cover
 
     def extrapolate_time(self, last_time, last_flux, query_times):
         """Extrapolate along the time axis.

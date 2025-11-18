@@ -802,7 +802,7 @@ class ObsTable:
         flux_err : array_like of float
             Simulated bandflux noise in nJy.
         """
-        raise NotImplementedError
+        raise NotImplementedError()  # pragma: no cover
 
     def compute_saturation(self, flux, flux_error, index):
         """Apply the saturation limits to a given flux and flux error.

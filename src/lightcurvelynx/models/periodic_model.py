@@ -48,7 +48,7 @@ class PeriodicModel(SEDModel, ABC):
         flux_density : numpy.ndarray
             A length T x N matrix of SED values.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def compute_sed(self, times, wavelengths, graph_state, **kwargs):
         """Draw effect-free observations for this object.
