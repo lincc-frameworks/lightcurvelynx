@@ -74,6 +74,14 @@ def test_linear_sed_template_data() -> None:
     )
     assert np.allclose(sed_values, expected_values)
 
+    # We fail is we have the wrong number of columns.
+    with pytest.raises(ValueError):
+        SEDTemplate(
+            np.array([[1.0, 1000.0], [2.0, 2000.0]]),
+            interpolation_type="linear",
+            periodic=False,
+        )
+
     # We fail if we use a incorrectly shaped baseline.
     with pytest.raises(ValueError):
         SEDTemplate(
@@ -111,6 +119,21 @@ def test_linear_sed_template_data_periodic() -> None:
     )
     assert np.allclose(sed_values, expected_values)
 
+    # We fail if we have a periodic model with only one time point or
+    # if the first and last time points are not the same.
+    with pytest.raises(ValueError):
+        SEDTemplate(
+            np.array([[1.0, 1000.0, 10.0], [1.0, 2000.0, 10.0]]),
+            interpolation_type="linear",
+            periodic=True,
+        )
+    with pytest.raises(ValueError):
+        SEDTemplate(
+            np.array([[1.0, 1000.0, 10.0], [2.0, 1000.0, 15.0]]),
+            interpolation_type="linear",
+            periodic=True,
+        )
+
 
 def test_sed_template_data_from_components() -> None:
     """Test that we can create a SEDTemplate object from separate time, wavelength, and flux arrays."""
@@ -141,6 +164,16 @@ def test_sed_template_data_from_components() -> None:
         ]
     )
     assert np.allclose(sed_values, expected_values)
+
+    # We fail if the shapes of the input arrays are inconsistent.
+    with pytest.raises(ValueError):
+        SEDTemplate.from_components(
+            np.array([1.0, 2.0]),
+            wavelengths,
+            fluxes,
+            interpolation_type="linear",
+            periodic=False,
+        )
 
 
 def test_sed_template_data_from_file(test_data_dir):
@@ -209,6 +242,18 @@ def test_create_sed_template_model() -> None:
     assert np.allclose(sed_values2, expected_values2)
 
 
+def test_sed_model_data_from_file(test_data_dir):
+    """Test that we can create a SEDTemplateModel from a file."""
+    filename = test_data_dir / "truncated-salt2-h17" / "salt2_template_0.dat"
+    model = SEDTemplateModel.from_file(filename, t0=0.0)
+    assert len(model.template.times) == 26
+    assert len(model.template.wavelengths) == 401
+
+    # We fail if we don't have t0.
+    with pytest.raises(ValueError):
+        _ = SEDTemplateModel.from_file(filename)
+
+
 def test_create_multi_sed_template_model() -> None:
     """Test that we can create a MultiSEDTemplateModel object."""
     data1 = np.array(
@@ -262,6 +307,10 @@ def test_simsed_model_compute_sed(test_data_dir) -> None:
     citations = find_in_citations("SIMSED Data")
     assert len(citations) == 1
     assert str(test_data_dir / "fake_simsed") in citations[0]
+
+    # We fail if we try to load a SIMSEDModel without a valid distance.
+    with pytest.raises(ValueError):
+        SIMSEDModel.from_dir(test_data_dir / "fake_simsed", t0=0.0, distance=None, node_label="model")
 
 
 def test_slsn_simsed_model(test_data_dir) -> None:
