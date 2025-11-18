@@ -76,7 +76,7 @@ def test_linear_sed_template_data() -> None:
     )
     assert np.allclose(sed_values, expected_values)
 
-    # We fail is we have the wrong number of columns.
+    # We fail if we have the wrong number of columns.
     with pytest.raises(ValueError):
         SEDTemplate(
             np.array([[1.0, 1000.0], [2.0, 2000.0]]),
