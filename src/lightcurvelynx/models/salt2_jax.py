@@ -115,7 +115,7 @@ class SALT2JaxModel(SEDModel, CiteClass):
         self._colorlaw = SALT2ColorLaw.from_file(model_path / cl_filename)
 
     def minphase(self, **kwargs):
-        """Get the minimum supported phase of the model in days.
+        """Get the minimum supported rest-frame phase of the model in days.
 
         Parameters
         ----------
@@ -131,7 +131,7 @@ class SALT2JaxModel(SEDModel, CiteClass):
         return -20.0
 
     def maxphase(self, **kwargs):
-        """Get the minimum supported phase of the model in days.
+        """Get the minimum supported rest-frame phase of the model in days.
 
         Parameters
         ----------

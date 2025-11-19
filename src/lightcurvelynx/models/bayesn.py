@@ -127,7 +127,7 @@ class BayesnModel(SEDModel, CiteClass):
             self._hsiao_flux = data["flux"][()].astype("float64")
 
     def minphase(self, **kwargs):
-        """Get the minimum supported phase of the model in days.
+        """Get the minimum supported rest-frame phase of the model in days.
 
         Parameters
         ----------
@@ -143,7 +143,7 @@ class BayesnModel(SEDModel, CiteClass):
         return -20.0
 
     def maxphase(self, **kwargs):
-        """Get the minimum supported phase of the model in days.
+        """Get the minimum supported rest-frame phase of the model in days.
 
         Parameters
         ----------
