@@ -72,7 +72,7 @@ def test_constant_sed_microlensing() -> None:
     model.add_effect(microlensing)
 
     state = model.sample_parameters()
-    wavelengths = np.array([100.0, 200.0, 300.0])
+    wavelengths = np.array([1000.0, 2000.0, 3000.0])
     values = model.evaluate_sed(times, wavelengths, state)
     assert values.shape == (num_times, 3)
 
@@ -83,3 +83,32 @@ def test_constant_sed_microlensing() -> None:
     for wave_idx in range(3):
         assert np.all(np.diff(values[0:5, wave_idx]) >= 0)
         assert np.all(np.diff(values[5:num_times, wave_idx]) <= 0)
+
+
+def test_microlensing_constant_sed_probability() -> None:
+    """Test that we can apply a basic microlensing effect with a probability."""
+    num_times = 50
+    microlensing_t0 = 5.0
+    times = np.arange(num_times, dtype=float)
+
+    model = ConstantSEDModel(brightness=10.0, node_label="model")
+    microlensing = Microlensing(
+        microlensing_t0=microlensing_t0,
+        u_0=0.1,
+        t_E=10.0,
+        probability=0.5,
+    )
+    model.add_effect(microlensing)
+
+    rgn_info = np.random.default_rng(101)
+    state = model.sample_parameters(num_samples=100, rng_info=rgn_info)
+    wavelengths = np.array([3000.0])
+    values = model.evaluate_sed(times, wavelengths, state)
+    assert values.shape == (100, num_times, 1)
+
+    # Check that the effect is applied to about 50% of the samples.
+    applied = state["model"]["apply_microlensing"]
+    assert np.sum(applied) > 30
+    assert np.sum(applied) < 70
+    assert np.all(values[applied, 5, 0] >= 10.0)
+    assert np.all(values[~applied, 5, 0] == 10.0)

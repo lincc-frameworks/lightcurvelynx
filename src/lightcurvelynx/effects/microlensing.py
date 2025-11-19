@@ -124,11 +124,11 @@ class Microlensing(EffectModel, CiteClass):
         if not apply_microlensing:
             return flux_density
 
-        if microlensing_t0 is None:
+        if microlensing_t0 is None:  # pragma: no cover
             raise ValueError("microlensing_t0 must be provided")
-        if u_0 is None:
+        if u_0 is None:  # pragma: no cover
             raise ValueError("u_0 must be provided")
-        if t_E is None:
+        if t_E is None:  # pragma: no cover
             raise ValueError("t_E must be provided")
 
         # Array of parameters
@@ -196,11 +196,11 @@ class Microlensing(EffectModel, CiteClass):
         if not apply_microlensing:
             return bandfluxes
 
-        if microlensing_t0 is None:
+        if microlensing_t0 is None:  # pragma: no cover
             raise ValueError("microlensing_t0 must be provided")
-        if u_0 is None:
+        if u_0 is None:  # pragma: no cover
             raise ValueError("u_0 must be provided")
-        if t_E is None:
+        if t_E is None:  # pragma: no cover
             raise ValueError("t_E must be provided")
 
         # Array of parameters

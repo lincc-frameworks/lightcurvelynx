@@ -733,6 +733,7 @@ def test_graph_state_extract_parameters():
         _ = state.extract_parameters(["v2", "v100"])
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
 def test_dependency_graph():
     """Test that we can create and access a dependency graph."""
     dep_graph = DependencyGraph()

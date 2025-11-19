@@ -246,4 +246,4 @@ def test_detector_footprint_plot():
     fp = DetectorFootprint.from_pixel_rect(width=width, height=height, pixel_scale=36.0)  # 0.01 deg/pix
 
     # Test that we can plot the footprint.
-    fp.plot()
+    fp.plot(point_ra=[0.0], point_dec=[0.0], center_ra=0.0, center_dec=0.0)
