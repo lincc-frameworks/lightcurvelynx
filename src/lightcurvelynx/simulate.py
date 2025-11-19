@@ -32,9 +32,6 @@ class SimulationInfo:
         The ObsTable(s) from which to extract information for the samples.
     passbands : PassbandGroup or List of PassbandGroup
         The passbands to use for generating the bandfluxes.
-    apply_obs_mask: boolean
-        If True, apply obs_mask to filter interesting indices/times by calling the model's
-        obs_mask_func function if it exists.
     time_window_offset : tuple(float, float), optional
         A tuple specifying the time window offset (start, end) relative to t0 in days.
         This is used to filter the observations to only those within the specified
@@ -72,7 +69,6 @@ class SimulationInfo:
         *,
         obstable_save_cols=None,
         param_cols=None,
-        apply_obs_mask=False,
         time_window_offset=None,
         sample_offset=0,
         rng=None,
@@ -83,7 +79,6 @@ class SimulationInfo:
         self.num_samples = num_samples
         self.obstable = obstable
         self.passbands = passbands
-        self.apply_obs_mask = apply_obs_mask
         self.time_window_offset = time_window_offset
         self.obstable_save_cols = obstable_save_cols
         self.param_cols = param_cols
@@ -166,7 +161,6 @@ class SimulationInfo:
                 passbands=self.passbands,
                 obstable_save_cols=self.obstable_save_cols,
                 param_cols=self.param_cols,
-                apply_obs_mask=self.apply_obs_mask,
                 time_window_offset=self.time_window_offset,
                 sample_offset=self.sample_offset + start_idx,
                 rng=batch_rng,
@@ -336,12 +330,6 @@ def _simulate_lightcurves_batch(simulation_info):
             else:
                 obs_times = all_times[survey_idx][obs_index]
 
-                # Filter to only the "interesting" indices / times for this object.
-                if simulation_info.apply_obs_mask:
-                    obs_mask = model.obs_mask_func(obs_times, state)
-                    if obs_mask is not None:
-                        obs_index = obs_index[obs_mask]
-                        obs_times = obs_times[obs_mask]
                 # Extract the filters for this observation.
                 obs_filters = all_filters[survey_idx][obs_index]
 
@@ -435,7 +423,6 @@ def simulate_lightcurves(
     *,
     obstable_save_cols=None,
     param_cols=None,
-    apply_obs_mask=False,
     time_window_offset=None,
     output_file_path=None,
     rng=None,
@@ -458,9 +445,6 @@ def simulate_lightcurves(
         The ObsTable(s) from which to extract information for the samples.
     passbands : PassbandGroup or List of PassbandGroup
         The passbands to use for generating the bandfluxes.
-    apply_obs_mask: boolean
-        If True, apply obs_mask to filter interesting indices/times by calling the model's
-        obs_mask_func function if it exists.
     time_window_offset : tuple(float, float), optional
         A tuple specifying the time window offset (start, end) relative to t0 in days.
         This is used to filter the observations to only those within the specified
@@ -511,7 +495,6 @@ def simulate_lightcurves(
         obstable=obstable,
         passbands=passbands,
         rng=rng,
-        apply_obs_mask=apply_obs_mask,
         time_window_offset=time_window_offset,
         obstable_save_cols=obstable_save_cols,
         param_cols=param_cols,

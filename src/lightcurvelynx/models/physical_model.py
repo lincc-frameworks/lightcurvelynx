@@ -190,30 +190,6 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         """
         raise NotImplementedError()  # pragma: no cover
 
-    def obs_mask_func(self, times, graph_state):
-        """Compute a mask for whether a given time is of interest for a given object.
-        For example, a user can use this function to generate a mask to include
-        only the observations of interest for a window around the supernova.
-
-        By default returns None to indicate no masking. Users can override this
-        by setting: ``model.obs_mask_func = custom_mask_function()`` for any function
-        that takes the same parameters and returns a mask.
-
-        Parameters
-        ----------
-        times : numpy.ndarray
-            A length T array of observer frame timestamps in MJD.
-        graph_state : GraphState
-            An object mapping graph parameters to their values.
-
-        Returns
-        -------
-        time_mask : numpy.ndarray or None
-            A length T array of Booleans indicating whether the time is of interest,
-            or None if no masking is applied.
-        """
-        return None
-
     def evaluate_bandfluxes(self, passband_or_group, times, filters, state, rng_info=None) -> np.ndarray:
         """Get the band fluxes for a given Passband or PassbandGroup.
 
