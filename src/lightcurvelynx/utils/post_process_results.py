@@ -1,12 +1,15 @@
 """Utility functions for post processing the results data by adding statistics
 columns and filtering on those columns."""
 
+import warnings
+
 import numpy as np
 import numpy.ma as ma
 import pandas as pd
 from nested_pandas import NestedFrame
 
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
+from lightcurvelynx.obstable.obs_table import ObsTable
 
 
 def concat_results(results_list):
@@ -45,6 +48,70 @@ def results_drop_empty(results):
         The DataFrame with empty lightcurves removed.
     """
     return results.dropna(subset=["lightcurve"])
+
+
+def results_append_param_as_col(results, param_name):
+    """Append a simulation parameter as a new column to the results DataFrame.
+
+    Parameters
+    ----------
+    results : nested_pandas.NestedFrame
+        The DataFrame containing lightcurve data. This is modified in place.
+    param_name : str
+        The name of the parameter to append in the form <node_label>.<param_name>.
+
+    Returns
+    -------
+    nested_pandas.NestedFrame
+        The DataFrame with the new parameter column added.
+    """
+    # Remove the dot from the parameter name to create a valid column name.
+    new_colname = param_name.replace(".", "_")
+    if new_colname in results.columns:
+        warnings.warn(f"Parameter {new_colname} already exists in results. Overwriting.")
+
+    # Because the parameters are stored as a list of dictionaries, we need to loop through
+    # each row and extract the parameter value.
+    values = [results["params"].iloc[i][param_name] for i in range(len(results))]
+    results[new_colname] = values
+
+    return results
+
+
+def results_append_obstable_data(results, column_name, obstables):
+    """Append the ObsTable entries for each observation as a new column in the
+    lightcurves nested DataFrame.
+
+    Parameters
+    ----------
+    results : nested_pandas.NestedFrame
+        The DataFrame containing lightcurve data. This is modified in place.
+    column_name : str
+        The name of the column to append from the ObsTable entries.
+    obstables : ObsTable or list of ObsTable
+        The ObsTable(s) containing the data to append. These should be in the
+        same order as where used in the simulation.
+
+    Returns
+    -------
+    nested_pandas.NestedFrame
+        The DataFrame with the new parameter column added.
+    """
+    if isinstance(obstables, ObsTable):
+        obstables = [obstables]
+
+    obs_idx = results["lightcurve.obs_idx"]
+    survey_idx = results["lightcurve.survey_idx"]
+    unique_survey_idx = np.unique(survey_idx)
+
+    new_col = np.full(len(obs_idx), np.nan)
+    for s_idx in unique_survey_idx:
+        survey_mask = survey_idx == s_idx
+        if column_name in obstables[s_idx].columns:
+            new_col[survey_mask] = obstables[s_idx][column_name].iloc[obs_idx[survey_mask]]
+    results[f"lightcurve.{column_name}"] = new_col
+
+    return results
 
 
 def lightcurve_compute_snr(flux, fluxerr):

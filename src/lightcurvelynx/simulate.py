@@ -298,7 +298,8 @@ def _simulate_lightcurves_batch(simulation_info):
         "flux": [],
         "fluxerr": [],
         "flux_perfect": [],
-        "survey_idx": [],
+        "survey_idx": [],  # The index of the survey
+        "obs_idx": [],  # The index of the observation in the survey
         "is_saturated": [],
     }
     if obstable_save_cols is None:
@@ -365,6 +366,7 @@ def _simulate_lightcurves_batch(simulation_info):
             nested_dict["fluxerr"].extend(list(bandfluxes_error))
             nested_dict["survey_idx"].extend([survey_idx] * nobs)
             nested_dict["is_saturated"].extend(list(saturation_flags))
+            nested_dict["obs_idx"].extend(list(obs_index))
             for col in obstable_save_cols:
                 col_data = (
                     list(obstable[survey_idx][col].values[obs_index])

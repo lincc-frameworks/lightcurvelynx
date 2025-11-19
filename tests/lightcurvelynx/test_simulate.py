@@ -186,6 +186,13 @@ def test_simulate_lightcurves(test_data_dir):
         assert np.all(results.loc[idx]["lightcurve"]["observationId"] >= 0)
         assert len(results.loc[idx]["lightcurve"]["zp_nJy"]) == num_obs
 
+        # Check that we have the survey and obs indices. All observations come from the first
+        # survey, and the obs indices are unique.
+        assert len(results.loc[idx]["lightcurve"]["survey_idx"]) == num_obs
+        assert np.all(results.loc[idx]["lightcurve"]["survey_idx"] == 0)
+        assert len(results.loc[idx]["lightcurve"]["obs_idx"]) == num_obs
+        assert len(np.unique(results.loc[idx]["lightcurve"]["obs_idx"])) == num_obs
+
         # Check that we extract one of the parameters.
         assert results["source_brightness"][idx] == given_brightness[idx]
 
@@ -298,12 +305,17 @@ def test_simulate_bandfluxes(test_data_dir):
         filters=["g", "r", "i", "z"],
     )
 
-    # Create a static bandflux model and simulate 2 runs.
+    # Create a static bandflux model and simulate 2 runs. Check that we correctly extract per-observation
+    # information, such as times, filters, and data indices.
     model = StaticBandfluxModel({"g": 1.0, "i": 2.0, "r": 3.0, "y": 4.0, "z": 5.0}, ra=0.0, dec=10.0)
     results = simulate_lightcurves(model, 2, obstable, passband_group)
     assert len(results) == 2
-    assert np.allclose(results["lightcurve"][0]["flux_perfect"], [1.0, 3.0, 3.0, 5.0])
-    assert np.allclose(results["lightcurve"][1]["flux_perfect"], [1.0, 3.0, 3.0, 5.0])
+    for idx in range(2):
+        assert np.allclose(results["lightcurve"][idx]["mjd"], [0.0, 1.0, 3.0, 5.0])
+        assert np.allclose(results["lightcurve"][idx]["flux_perfect"], [1.0, 3.0, 3.0, 5.0])
+        assert np.array_equal(results["lightcurve"][idx]["filter"], ["g", "r", "r", "z"])
+        assert np.array_equal(results["lightcurve"][idx]["obs_idx"], [0, 1, 3, 5])
+        assert np.array_equal(results["lightcurve"][idx]["survey_idx"], [0, 0, 0, 0])
 
 
 def test_simulate_parallel_threads(test_data_dir):
