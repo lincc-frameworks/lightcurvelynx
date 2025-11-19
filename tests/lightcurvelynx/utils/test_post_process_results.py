@@ -2,11 +2,13 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
+from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.utils.post_process_results import (
     augment_single_lightcurve,
     concat_results,
     lightcurve_compute_mag,
     lightcurve_compute_snr,
+    results_append_obstable_data,
     results_append_param_as_col,
     results_augment_lightcurves,
     results_drop_empty,
@@ -110,6 +112,75 @@ def test_results_append_param_as_col():
     # We warn if we are overwriting an existing column.
     with pytest.warns(UserWarning):
         res1 = results_append_param_as_col(res1, "salt2.c")
+
+
+def test_results_append_obstable_data():
+    """Test the results_append_param_as_col function."""
+    # Create two NestedFrames to concatenate.
+    outer_dict = {
+        "id": [0, 1, 2],
+        "ra": [10.0, 20.0, 30.0],
+        "dec": [-10.0, 0.0, 10.0],
+        "nobs": [3, 2, 1],
+        "z": [0.1, 0.2, 0.3],
+        "params": [
+            {"salt2.c": 0.1, "salt2.x1": 0.5},
+            {"salt2.c": 0.2, "salt2.x1": 0.6},
+            {"salt2.c": 0.3, "salt2.x1": 0.7},
+        ],
+    }
+    inner_dict = {
+        "mjd": [59000, 59001, 59002, 59000, 59001.5, 59003],
+        "flux": [10.0, 12.0, 11.0, 15.0, 14.0, 13.0],
+        "fluxerr": [1.0, 1.0, 1.0, 1.5, 1.5, 1.0],
+        "filter": ["g", "r", "i", "g", "r", "i"],
+        "survey_idx": [0, 0, 0, 1, 0, 1],
+        "obs_idx": [0, 1, 3, 0, 2, 3],
+    }
+    nested_inds = [0, 0, 0, 1, 1, 2]
+    res1 = NestedFrame(data=outer_dict, index=[0, 1, 2])
+    nested = pd.DataFrame(data=inner_dict, index=nested_inds)
+    res1 = res1.add_nested(nested, "lightcurve")
+    assert "test_col" not in res1.columns
+    assert "test_col" not in res1["lightcurve"].nest.fields
+
+    # Create two FakeObsTable instances with a test column to add.
+    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    ops_data_1 = {
+        "time": np.array([59000.0, 59001.0, 59001.5, 59002.0, 59003.0]),
+        "ra": np.array([10.0, 10.0, 20.0, 10.0, 10.0]),
+        "dec": np.array([-10.0, -10.0, 0.0, -10.0, -10.0]),
+        "filter": np.array(["g", "r", "g", "i", "g"]),
+        "test_col": np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+    }
+    ops_table_1 = FakeObsTable(
+        pd.DataFrame(ops_data_1),
+        noise_strategy="exhaustive",
+        zp_per_band=zp_per_band,
+        fwhm_px=2.0,
+        sky_bg_electrons=100.0,
+    )
+
+    ops_data_2 = {
+        "time": np.array([59000.0, 59001.0, 59002.0, 59003.0]),
+        "ra": np.array([20.0, 20.0, 30.0, 30.0]),
+        "dec": np.array([0.0, 0.0, 0.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i"]),
+        "test_col": np.array([11.0, 12.0, 13.0, 14.0]),
+    }
+    ops_table_2 = FakeObsTable(
+        pd.DataFrame(ops_data_2),
+        noise_strategy="exhaustive",
+        zp_per_band=zp_per_band,
+        fwhm_px=2.0,
+        sky_bg_electrons=100.0,
+    )
+
+    res1 = results_append_obstable_data(res1, "test_col", [ops_table_1, ops_table_2])
+    assert "test_col" in res1["lightcurve"].nest.fields
+    assert np.array_equal(res1["lightcurve.test_col"][0], [1.0, 2.0, 4.0])
+    assert np.array_equal(res1["lightcurve.test_col"][1], [11.0, 3.0])
+    assert np.array_equal([res1["lightcurve.test_col"][2]], [14.0])
 
 
 def _allclose(a, b, rtol=1e-05, atol=1e-08):
