@@ -1,6 +1,8 @@
 """Utility functions for post processing the results data by adding statistics
 columns and filtering on those columns."""
 
+import warnings
+
 import numpy as np
 import numpy.ma as ma
 import pandas as pd
@@ -45,6 +47,34 @@ def results_drop_empty(results):
         The DataFrame with empty lightcurves removed.
     """
     return results.dropna(subset=["lightcurve"])
+
+
+def results_append_param_as_col(results, param_name):
+    """Append a simulation parameter as a new column to the results DataFrame.
+
+    Parameters
+    ----------
+    results : nested_pandas.NestedFrame
+        The DataFrame containing lightcurve data. This is modified in place.
+    param_name : str
+        The name of the parameter to append in the form <node_label>.<param_name>.
+
+    Returns
+    -------
+    nested_pandas.NestedFrame
+        The DataFrame with the new parameter column added.
+    """
+    # Remove the dot from the parameter name to create a valid column name.
+    new_colname = param_name.replace(".", "_")
+    if new_colname in results.columns:
+        warnings.warn(f"Parameter {new_colname} already exists in results. Overwriting.")
+
+    # Because the parameters are stored as a list of dictionaries, we need to loop through
+    # each row and extract the parameter value.
+    values = [results["params"].iloc[i][param_name] for i in range(len(results))]
+    results[new_colname] = values
+
+    return results
 
 
 def lightcurve_compute_snr(flux, fluxerr):

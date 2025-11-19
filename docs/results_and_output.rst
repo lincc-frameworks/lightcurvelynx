@@ -26,17 +26,47 @@ Pandas DataFrame with one row for each observation.
     print(lightcurve)
 
 
-Each row also contains a copy of the parameters used to simulate that object (in the ``params`` column), allowing the
-user to easily lookup the object's information. The parameters are stored as a dictionary using a structure
-based on the ``GraphState`` object. Each key consists of a combination of the node name and the parameter name
-(separated by a dot). For example, the parameter ``c`` from the node ``salt2`` would be stored under the key
-``salt2.c``.
+The nested light curve DataFrame also contains book keeping information that can be useful in ad hoc post analysis.
+If multiple survey's are used for the simulation, the ``survey_idx`` column indicates from which survey the observation
+is drawn. The ``obs_idx`` indicates the observation's corresponding index in that survey's ``ObsTable``, allowing
+the user extract other columns from that table.
+
+Saved Simulation State
+-------------------------------------------------------------------------------
+
+Each row of the results table also contains a raw copy of the parameters used to simulate that object
+(in the ``params`` column), allowing the user to lookup the object's information. The parameters are stored as
+a dictionary using a structure based on the ``GraphState`` object. Each key consists of a combination of the
+node name and the parameter name (separated by a dot). For example, the parameter ``c`` from the node ``salt2``
+would be stored under the key ``salt2.c``.
 
 .. code-block:: python
 
     salt2_c_value = results["params"].iloc[0]["salt2.c"]
 
 The parameter values will either be scalars or arrays depending on the number of samples generated.
+
+Admittedly, since the parameters are stored in a raw format, they can be difficult to work with.
+We provide utility functions to convert these parse through the list and work with them.
+
+Users can rebuild the original ``GraphState`` object from the parameters using the
+``GraphState.from_list()`` function:
+
+.. code-block:: python
+
+    state = GraphState.from_list(results["params"].values)
+
+Alternatively users can extract a specific parameter and append it as its own column in the results
+table using the ``results_append_param()`` function in utils/post_process_results. If we want to extract
+the ``c`` parameter from the node ``salt2``, we can do the following:
+
+.. code-block:: python
+
+    from lightcurvelynx.utils.post_process_results import results_append_param
+    results = results_append_param_as_col(results, "salt2.c")
+
+The new column will be named ``salt2_c`` with an underscore instead of a dot (so the name is not interpreted
+as a nested key).
 
 
 Plotting Results

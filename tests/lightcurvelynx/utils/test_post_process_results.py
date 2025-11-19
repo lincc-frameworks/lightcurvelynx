@@ -7,6 +7,7 @@ from lightcurvelynx.utils.post_process_results import (
     concat_results,
     lightcurve_compute_mag,
     lightcurve_compute_snr,
+    results_append_param_as_col,
     results_augment_lightcurves,
     results_drop_empty,
 )
@@ -70,6 +71,41 @@ def test_concat_results():
     assert np.allclose(results["lightcurve"][2]["flux"], [13.0])
     assert np.allclose(results["lightcurve"][3]["flux"], [20.0])
     assert np.allclose(results["lightcurve"][4]["flux"], [22.0, 21.0])
+
+
+def test_results_append_param_as_col():
+    """Test the results_append_param_as_col function."""
+    # Create two NestedFrames to concatenate.
+    outer_dict = {
+        "id": [0, 1, 2],
+        "ra": [10.0, 20.0, 30.0],
+        "dec": [-10.0, 0.0, 10.0],
+        "nobs": [3, 2, 1],
+        "z": [0.1, 0.2, 0.3],
+        "params": [
+            {"salt2.c": 0.1, "salt2.x1": 0.5},
+            {"salt2.c": 0.2, "salt2.x1": 0.6},
+            {"salt2.c": 0.3, "salt2.x1": 0.7},
+        ],
+    }
+    inner_dict = {
+        "mjd": [59000, 59001, 59002, 59000, 59001, 59000],
+        "flux": [10.0, 12.0, 11.0, 15.0, 14.0, 13.0],
+        "fluxerr": [1.0, 1.0, 1.0, 1.5, 1.5, 1.0],
+        "filter": ["g", "r", "i", "g", "r", "i"],
+    }
+    nested_inds = [0, 0, 0, 1, 1, 2]
+    res1 = NestedFrame(data=outer_dict, index=[0, 1, 2])
+    nested = pd.DataFrame(data=inner_dict, index=nested_inds)
+    res1 = res1.add_nested(nested, "lightcurve")
+
+    assert "salt2_c" not in res1.columns
+    assert "salt2_x1" not in res1.columns
+
+    res1 = results_append_param_as_col(res1, "salt2.c")
+    assert "salt2_c" in res1.columns
+    assert np.array_equal(res1["salt2_c"], [0.1, 0.2, 0.3])
+    assert "salt2_x1" not in res1.columns
 
 
 def _allclose(a, b, rtol=1e-05, atol=1e-08):
