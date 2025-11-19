@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.distribution_sampler import DistributionSampler
 
@@ -34,3 +35,17 @@ def test_distribution_sampler():
     assert np.sum(np.abs(samples - 0.0) <= 0.5) < 0.2 * num_samples
     assert np.sum(np.abs(samples - 9.0) <= 0.5) < 0.05 * num_samples
     assert np.sum(np.abs(samples - 4.0) <= 0.5) < 0.05 * num_samples
+
+    # If we reset the seed, we should get the same samples.
+    sampler_node.set_seed(100)
+    _ = sampler_node.compute(state)
+    samples2 = state["sampler"]["sample"]
+    assert np.all(samples == samples2)
+
+    # Creation fails if x and y have different lengths.
+    with pytest.raises(ValueError):
+        _ = DistributionSampler(x_value, pdf_values[:-1])
+
+    # Creation fails if y has negative values.
+    with pytest.raises(ValueError):
+        _ = DistributionSampler(x_value, pdf_values - 0.1)

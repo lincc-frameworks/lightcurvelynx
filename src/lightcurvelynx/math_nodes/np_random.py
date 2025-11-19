@@ -64,8 +64,11 @@ class NumpyRandomFunc(FunctionNode):
             # Convert a scalar into a tuple and validate.
             if np.isscalar(size):
                 size = (size,)
-            if np.any(np.array(size) <= 0):
-                raise ValueError("Size of output must be >= 0 in each dimension. Received {size}.")
+            if len(size) == 0 or np.any(np.array(size) <= 0):
+                raise ValueError(
+                    f"Invalid size. Size of output must have at least one dimension and "
+                    f"be >= 0 in each dimension. Received {size}."
+                )
             self.sample_size = size
 
         # Get a default random number generator for this object, using the
