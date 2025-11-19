@@ -57,12 +57,12 @@ Users can rebuild the original ``GraphState`` object from the parameters using t
     state = GraphState.from_list(results["params"].values)
 
 Alternatively users can extract a specific parameter and append it as its own column in the results
-table using the ``results_append_param()`` function in utils/post_process_results. If we want to extract
+table using the ``results_append_param_as_col()`` function in utils/post_process_results. If we want to extract
 the ``c`` parameter from the node ``salt2``, we can do the following:
 
 .. code-block:: python
 
-    from lightcurvelynx.utils.post_process_results import results_append_param
+    from lightcurvelynx.utils.post_process_results import results_append_param_as_col
     results = results_append_param_as_col(results, "salt2.c")
 
 The new column will be named ``salt2_c`` with an underscore instead of a dot (so the name is not interpreted
