@@ -35,10 +35,10 @@ class SimulationInfo:
     apply_obs_mask: boolean
         If True, apply obs_mask to filter interesting indices/times.
     time_window_offset : tuple(float, float), optional
-        A tuple specifying the time window offset (start, end) relative to t0 in days.
-        This is used to filter the observations to only those within the specified
-        time window (t0 + start, t0 + end). If None or the model does not have a
-        t0 specified, no time window is applied.
+        A tuple specifying the rest-frame time window offset (start, end) relative
+        to t0 in days. This is used to filter the observations to only those within
+        the specified time window (t0 + start, t0 + end). If None or the model does
+        not have a t0 specified, no time window is applied.
     obstable_save_cols : list of str, optional
         A list of ObsTable columns to be saved as part of the results. This is used
         to save context information about how the light curves were generated. If the column
@@ -184,8 +184,8 @@ def get_time_windows(t0, time_window_offset, redshift=None):
     t0 : float or np.ndarray, optional
         The reference time (t0) for the time windows.
     time_window_offset : tuple(float, float), optional
-        A tuple specifying the time window offset (start, end) relative to t0 in days.
-        If None, no time window is applied.
+        A tuple specifying the rest-frame time window offset (start, end) relative
+        to t0 in days. If None, no time window is applied.
     redshift : float or np.ndarray, optional
         The redshift of the object. If given, the time window offsets are adjusted
         for time dilation.
@@ -193,13 +193,13 @@ def get_time_windows(t0, time_window_offset, redshift=None):
     Returns
     -------
     start_times : np.ndarray or None
-        The start times for each sample t0 + time_window_offset[0]. If a before time is given,
-        this is always returned as an array (even if t0 is a scalar). None returned if there is
-        no start time.
+        The observer-frame start times for each sample t0 + time_window_offset[0]. If a
+        before time is given, this is always returned as an array (even if t0 is a scalar).
+        None returned if there is no start time.
     end_times : np.ndarray or None
-        The end times for each sample t0 + time_window_offset[1]. If an after time is given,
-        this is always returned as an array (even if t0 is a scalar). None returned if there is
-        no end time.
+        The observer-frame end times for each sample t0 + time_window_offset[1]. If an
+        after time is given, this is always returned as an array (even if t0 is a scalar).
+        None returned if there is no end time.
     """
     # If the model did not have a t0 or we do not have a time_window_offset,
     # we cannot apply a time window.
@@ -214,7 +214,8 @@ def get_time_windows(t0, time_window_offset, redshift=None):
     if np.isscalar(t0):
         t0 = np.array([t0])
 
-    # If we have a redshift, adjust the time window for time dilation.
+    # If we have a redshift, adjust the rest-frame time window for time dilation
+    # to produce an observer-frame time window.
     if redshift is None:
         scale = 1.0
     else:
@@ -471,10 +472,10 @@ def simulate_lightcurves(
     apply_obs_mask: boolean
         If True, apply obs_mask to filter interesting indices/times.
     time_window_offset : tuple(float, float), optional
-        A tuple specifying the time window offset (start, end) relative to t0 in days.
-        This is used to filter the observations to only those within the specified
-        time window (t0 + start, t0 + end). If None or the model does not have a
-        t0 specified, no time window is applied.
+        A tuple specifying the rest-frame time window offset (start, end) relative
+        to t0 in days. This is used to filter the observations to only those within
+        the specified time window (t0 + start, t0 + end). If None or the model does
+        not have a t0 specified, no time window is applied.
     obstable_save_cols : list of str, optional
         A list of ObsTable columns to be saved as part of the results. This is used
         to save context information about how the light curves were generated. If the column
