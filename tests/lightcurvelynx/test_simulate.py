@@ -51,6 +51,13 @@ def test_get_time_windows():
         get_time_windows(0.0, (1.0, 2.0, 3.0))
 
 
+def test_get_time_windows_redshift():
+    """Test the get_time_windows function when given redshift."""
+    result = get_time_windows(np.array([0.0, 1.0, 2.0]), (-1.0, 2.0), redshift=np.array([0.0, 0.1, 0.2]))
+    assert np.allclose(result[0], np.array([-1.0, -0.1, 0.8]))
+    assert np.allclose(result[1], np.array([2.0, 3.2, 4.4]))
+
+
 def test_simulation_info():
     """Test that we can create and split SimulationInfo objects."""
     model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0, node_label="source")

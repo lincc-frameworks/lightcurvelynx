@@ -176,7 +176,7 @@ class SimulationInfo:
         return batches
 
 
-def get_time_windows(t0, time_window_offset):
+def get_time_windows(t0, time_window_offset, redshift=None):
     """Get the time windows for each sample state based on the time window offset.
 
     Parameters
@@ -186,6 +186,9 @@ def get_time_windows(t0, time_window_offset):
     time_window_offset : tuple(float, float), optional
         A tuple specifying the time window offset (start, end) relative to t0 in days.
         If None, no time window is applied.
+    redshift : float or np.ndarray, optional
+        The redshift of the object. If given, the time window offsets are adjusted
+        for time dilation.
 
     Returns
     -------
@@ -202,6 +205,7 @@ def get_time_windows(t0, time_window_offset):
     # we cannot apply a time window.
     if t0 is None or time_window_offset is None:
         return None, None
+
     if len(time_window_offset) != 2:
         raise ValueError("time_window_offset must be a tuple of (before, after) in days.")
     before, after = time_window_offset
@@ -209,8 +213,15 @@ def get_time_windows(t0, time_window_offset):
     # If t0 is a scalar apply the offset directly.
     if np.isscalar(t0):
         t0 = np.array([t0])
-    start_times = t0 + before if before is not None else None
-    end_times = t0 + after if after is not None else None
+
+    # If we have a redshift, adjust the time window for time dilation.
+    if redshift is None:
+        scale = 1.0
+    else:
+        scale = 1.0 + redshift
+
+    start_times = t0 + before * scale if before is not None else None
+    end_times = t0 + after * scale if after is not None else None
 
     return start_times, end_times
 
@@ -311,6 +322,7 @@ def _simulate_lightcurves_batch(simulation_info):
     start_times, end_times = get_time_windows(
         model.get_param(sample_states, "t0"),
         simulation_info.time_window_offset,
+        redshift=model.get_param(sample_states, "redshift"),
     )
     all_obs_matches = [
         obstable[i].range_search(ra, dec, t_min=start_times, t_max=end_times) for i in range(num_surveys)
