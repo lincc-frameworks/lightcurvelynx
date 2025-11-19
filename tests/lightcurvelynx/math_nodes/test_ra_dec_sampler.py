@@ -276,7 +276,7 @@ def test_opsim_uniform_ra_dec_sampler_footprint():
 
     # We fail if we try to use negative number of iterations.
     with pytest.raises(ValueError):
-        _ = ObsTableUniformRADECSampler(ops_data, radius=30.0, num_iterations=-1)
+        _ = ObsTableUniformRADECSampler(ops_data, radius=30.0, max_iterations=-1)
 
     # Test we can generate multiple observations
     num_samples = 200
@@ -330,7 +330,7 @@ def test_approximate_moc_sampler():
 
     # We fail with an invalid depth.
     with pytest.raises(ValueError):
-        ApproximateMOCSampler(moc, max_depth=2000)
+        ApproximateMOCSampler(moc, depth=2000)
 
 
 def test_approximate_moc_sampler_from_file():
