@@ -107,6 +107,10 @@ def test_results_append_param_as_col():
     assert np.array_equal(res1["salt2_c"], [0.1, 0.2, 0.3])
     assert "salt2_x1" not in res1.columns
 
+    # We warn if we are overwriting an existing column.
+    with pytest.warns(UserWarning):
+        res1 = results_append_param_as_col(res1, "salt2.c")
+
 
 def _allclose(a, b, rtol=1e-05, atol=1e-08):
     """Helper function to compare two arrays, treating NaNs and Nones as equal.
