@@ -276,7 +276,7 @@ class ObsTableUniformRADECSampler(NumpyRandomFunc):
             raise ValueError(f"Invalid radius: {radius}")
         self.radius = radius
 
-        if len(data) == 0:
+        if len(data) == 0:  # pragma: no cover
             raise ValueError("ObsTable data cannot be empty.")
         self.data = data
 

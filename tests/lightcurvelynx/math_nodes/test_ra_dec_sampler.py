@@ -274,6 +274,10 @@ def test_opsim_uniform_ra_dec_sampler_footprint():
     fp = DetectorFootprint.from_sky_rect(width=20, height=30, pixel_scale=0.1)
     ops_data = OpSim(values, detector_footprint=fp)
 
+    # We fail if we try to use negative number of iterations.
+    with pytest.raises(ValueError):
+        _ = ObsTableUniformRADECSampler(ops_data, radius=30.0, max_iterations=-1)
+
     # Test we can generate multiple observations
     num_samples = 200
     sampler_node = ObsTableUniformRADECSampler(ops_data, radius=50.0, seed=100, node_label="sampler")
@@ -323,6 +327,10 @@ def test_approximate_moc_sampler():
     assert np.all(dec[northern_mask] < 22.0)
     assert np.all(dec[~northern_mask] > -22.0)
     assert np.all(dec[~northern_mask] < -18.0)
+
+    # We fail with an invalid depth.
+    with pytest.raises(ValueError):
+        ApproximateMOCSampler(moc, depth=2000)
 
 
 def test_approximate_moc_sampler_from_file():

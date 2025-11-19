@@ -25,7 +25,7 @@ class BinarySampler(NumpyRandomFunc):
 
     def __init__(self, probability, seed=None, **kwargs):
         if probability < 0 or probability > 1:
-            raise ValueError("Probability must be between 0 and 1.")
+            raise ValueError(f"Probability must be between 0 and 1. Got {probability}.")
         self.probability = probability
 
         super().__init__("uniform", seed=seed, **kwargs)
@@ -157,7 +157,10 @@ class GivenValueSampler(NumpyRandomFunc):
         if weights is not None:
             self._weights = np.asarray(weights)
             if len(self._weights) != self._num_values:
-                raise ValueError("Weights must match the number of values provided.")
+                raise ValueError(
+                    f"Number of weights ({len(self._weights)}) must match the number "
+                    f"of values provided ({self._num_values})."
+                )
             self._weights /= np.sum(self._weights)
         else:
             self._weights = None

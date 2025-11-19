@@ -12,6 +12,8 @@ def test_basic_math_node():
     node_a = SingleVariableNode("a", 10.0)
     node_b = SingleVariableNode("b", -5.0)
     node = BasicMathNode("a + b", a=node_a.a, b=node_b.b, node_label="test", backend="math")
+    assert node.eval(a=10.0, b=-5.0) == pytest.approx(5.0)
+
     state = node.sample_parameters()
     assert state["test"]["function_node_result"] == 5.0
 
@@ -33,6 +35,10 @@ def test_basic_math_node():
     node = BasicMathNode("a ** b", a=node_d.d, b=2.5, node_label="test", backend="math")
     state = node.sample_parameters()
     assert state["test"]["function_node_result"] == pytest.approx(math.pow(5.0, 2.5))
+
+    # We fail with an invalid backend.
+    with pytest.raises(ValueError):
+        _ = BasicMathNode("a + b", a=10.0, b=-5.0, node_label="test", backend="invalid")
 
 
 def test_basic_math_node_list_functions():

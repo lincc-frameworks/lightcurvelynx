@@ -133,7 +133,9 @@ class BasicMathNode(FunctionNode):
             self.backend_lib = math
             self.to_array = lambda x: x  # No conversion
         else:
-            raise ValueError(f"Unsupported math backend {backend}")
+            raise ValueError(
+                f"Unsupported math backend '{backend}'. Must be one of: math, numpy, np, jax, or jnp."
+            )
 
         # Check the expression is pure math and translate it into the correct backend.
         self.expression = expression
@@ -147,7 +149,7 @@ class BasicMathNode(FunctionNode):
 
             try:
                 return eval(self.expression, globals(), params)
-            except Exception as problem:
+            except Exception as problem:  # pragma: no cover
                 # Provide more detailed logging, including the expression and parameters
                 # used, when we encounter a math error like divide by zero.
                 new_message = (

@@ -36,6 +36,12 @@ def test_numpy_random_uniform():
     assert np.all(values >= 10.0)
     assert np.abs(np.mean(values) - 15.0) < 0.5
 
+    # We fail with invalid sizes.
+    with pytest.raises(ValueError):
+        NumpyRandomFunc("uniform", size=(10, -1))
+    with pytest.raises(ValueError):
+        NumpyRandomFunc("uniform", size=())
+
 
 def test_numpy_random_uniform_multi_samples():
     """Test that we can generate many numbers at once from a uniform distribution."""
@@ -108,3 +114,9 @@ def test_numpy_choice_fails():
     """Test that we cannot use NumpyRandomFunc with a choice distribution."""
     with pytest.raises(ValueError):
         NumpyRandomFunc("choice", a=5)
+
+
+def test_numpy_random_invalid_func():
+    """Test that we cannot use an invalid function."""
+    with pytest.raises(ValueError):
+        NumpyRandomFunc("invalid_func")

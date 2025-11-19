@@ -37,6 +37,10 @@ def test_binary_sampler():
     assert len(many_states["test"]["function_node_result"]) == 10_000
     assert 7000 < np.count_nonzero(many_states["test"]["function_node_result"]) < 8000
 
+    # We fail if we use an invalid probability.
+    with pytest.raises(ValueError):
+        _ = BinarySampler(1.5)
+
 
 def test_given_value_list():
     """Test that we can retrieve numbers from a GivenValueList."""
@@ -72,6 +76,10 @@ def test_given_value_list():
         given_node.get_param(state5, "function_node_result"),
         [1.0, 1.5, 2.0, 2.5, 3.0, -1.0],
     )
+
+    # We fail if we try to create a GivenValueList with an empty list.
+    with pytest.raises(ValueError):
+        _ = GivenValueList([])
 
 
 def test_test_given_value_list_compound():
@@ -125,6 +133,14 @@ def test_given_value_sampler():
     assert len(results[results == 5]) > 1000
     assert len(results[results == 7]) > 1000
 
+    # We fail if we try to create a GivenValueSampler with an empty list.
+    with pytest.raises(ValueError):
+        _ = GivenValueSampler([])
+
+    # We fail if the number of weights doesn't match the number of values.
+    with pytest.raises(ValueError):
+        _ = GivenValueSampler([1, 3, 5], weights=[0.5, 0.5])
+
 
 def test_given_value_sampler_int():
     """Test that we can retrieve numbers from a GivenValueSampler representing a range."""
@@ -151,6 +167,15 @@ def test_given_value_selector():
         state["given_node"]["function_node_result"],
         [10, 20, 30, 40, 30, 40, 20, 30],
     )
+
+    # We fail if there are no values to select.
+    with pytest.raises(ValueError):
+        _ = GivenValueSelector([], index_node)
+
+    # We fail if the index is out of bounds.
+    with pytest.raises(IndexError):
+        given_node2 = GivenValueSelector([10, 20, 30], GivenValueList([3]))
+        _ = given_node2.sample_parameters(num_samples=1)
 
 
 def test_given_value_sampler_weighted():
@@ -221,6 +246,17 @@ def test_table_sampler(test_data_type):
     assert np.allclose(state["node"]["A"], [1, 2])
     assert np.allclose(state["node"]["B"], [1, 1])
     assert np.allclose(state["node"]["C"], [3, 4])
+
+
+def test_table_sampler_fail():
+    """Test failure cases when creating a TableSampler."""
+    # Non-table data
+    with pytest.raises(TypeError):
+        _ = TableSampler("not a valid data type")
+
+    # Empty data
+    with pytest.raises(ValueError):
+        _ = TableSampler({"a": [], "b": []})
 
 
 def test_table_sampler_ranndomized():
