@@ -70,15 +70,6 @@ def test_sed_model_multi_samples():
     assert np.all(model1.get_param(state, "t0") == 1.0)
 
 
-def test_sed_model_mask_by_time():
-    """Test that we can use the default mask_by_time() function."""
-    model = SEDModel(ra=1.0, dec=2.0, redshift=0.0)
-    times = np.arange(-10.0, 10.0, 0.5)
-
-    # By default use all times.
-    assert np.all(model.mask_by_time(times))
-
-
 def test_sed_model_evaluate_sed():
     """Test that we can evaluate a SEDModel."""
     times = np.array([0.0, 1.0, 2.0, 3.0, 4.0])

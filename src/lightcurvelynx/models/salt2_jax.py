@@ -114,37 +114,37 @@ class SALT2JaxModel(SEDModel, CiteClass):
         # Use the default color correction values.
         self._colorlaw = SALT2ColorLaw.from_file(model_path / cl_filename)
 
-    def mask_by_time(self, times, graph_state=None):
-        """Compute a mask for whether a given time is of interest for a given object.
-        For example, a user can use this function to generate a mask to include
-        only the observations of interest for a window around the supernova.
+    def minphase(self, **kwargs):
+        """Get the minimum supported rest-frame phase of the model in days.
 
         Parameters
         ----------
-        times : numpy.ndarray
-            A length T array of observer frame timestamps in MJD.
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values.
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
         Returns
         -------
-        time_mask : numpy.ndarray
-            A length T array of Booleans indicating whether the time is of interest.
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
         """
-        if graph_state is None:
-            raise ValueError("graph_state needed to compute mask_by_time")
+        return -20.0
 
-        z = self.get_param(graph_state, "redshift", 0.0)
-        if z is None:
-            z = 0.0
+    def maxphase(self, **kwargs):
+        """Get the minimum supported rest-frame phase of the model in days.
 
-        t0 = self.get_param(graph_state, "t0", 0.0)
-        if t0 is None:
-            t0 = 0.0
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
 
-        # Compute the mask.
-        good_times = (times > t0 + -20.0 * (1.0 + z)) & (times < t0 + 50.0 * (1.0 + z))
-        return good_times
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        return 50.0
 
     def compute_sed(self, times, wavelengths, graph_state, **kwargs):
         """Draw effect-free observations for this object.

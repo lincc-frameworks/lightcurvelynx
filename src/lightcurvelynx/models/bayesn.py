@@ -126,6 +126,38 @@ class BayesnModel(SEDModel, CiteClass):
             self._hsiao_wave = data["wave"][()].astype("float64")
             self._hsiao_flux = data["flux"][()].astype("float64")
 
+    def minphase(self, **kwargs):
+        """Get the minimum supported rest-frame phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        return -20.0
+
+    def maxphase(self, **kwargs):
+        """Get the minimum supported rest-frame phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        return 85.0
+
     # HELPER FUNCTIONs:
     def compute_invkd(self, x):
         """
@@ -408,38 +440,6 @@ class BayesnModel(SEDModel, CiteClass):
 
         # Evaluate spling using the precomputed derivatives
         return self.evaluate_natural_spline_2d_vectorized(x, y, z, Mx, My, xq, yq)
-
-    def mask_by_time(self, times, graph_state=None):
-        """Compute a mask for whether a given time is of interest for a given object.
-        For example, a user can use this function to generate a mask to include
-        only the observations of interest for a window around the supernova.
-
-        Parameters
-        ----------
-        times : numpy.ndarray
-            A length T array of observer frame timestamps in MJD.
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values.
-
-        Returns
-        -------
-        time_mask : numpy.ndarray
-            A length T array of Booleans indicating whether the time is of interest.
-        """
-        if graph_state is None:
-            raise ValueError("graph_state needed to compute mask_by_time")
-
-        z = self.get_param(graph_state, "redshift", 0.0)
-        if z is None:
-            z = 0.0
-
-        t0 = self.get_param(graph_state, "t0", 0.0)
-        if t0 is None:
-            t0 = 0.0
-
-        # Compute the mask.
-        good_times = (times > t0 + -20.0 * (1.0 + z)) & (times < t0 + 50.0 * (1.0 + z))
-        return good_times
 
     # MAIN FUNCTION:
     def compute_sed(self, times, wavelengths, graph_state, **kwargs):
