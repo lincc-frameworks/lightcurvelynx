@@ -70,25 +70,6 @@ def test_sed_model_multi_samples():
     assert np.all(model1.get_param(state, "t0") == 1.0)
 
 
-def test_sed_model_mask_by_time():
-    """Test that we can use the default mask_by_time() function."""
-    model = SEDModel(ra=1.0, dec=2.0, redshift=0.0)
-    times = np.arange(-10.0, 10.0, 0.5)
-
-    # We fail if we don't provide a graph state.
-    with pytest.raises(ValueError):
-        _ = model.mask_by_time(times, None)
-
-    # By default use all times.
-    state = model.sample_parameters()
-    assert np.all(model.mask_by_time(times, state))
-
-    # We fail is we try to pass multiple graph states.
-    state = model.sample_parameters(num_samples=10)
-    with pytest.raises(ValueError):
-        _ = model.mask_by_time(times, state)
-
-
 def test_sed_model_evaluate_sed():
     """Test that we can evaluate a SEDModel."""
     times = np.array([0.0, 1.0, 2.0, 3.0, 4.0])

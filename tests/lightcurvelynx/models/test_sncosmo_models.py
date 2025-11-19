@@ -44,13 +44,6 @@ def test_sncomso_models_hsiao() -> None:
     )
     assert np.allclose(fluxes_flam, [133.98143039, 152.74613574, 134.40916824])
 
-    # Check that we can mask times.  The 'hsiao' model uses phases (-20.0, 85.0).
-    sample_times = np.arange(-50.0, 100.0, 1.0)
-    mask = model.mask_by_time(sample_times, state)
-
-    expected_mask = (sample_times > -20.0) & (sample_times < 85.0)
-    assert np.array_equal(mask, expected_mask)
-
 
 def test_sncomso_models_hsiao_t0() -> None:
     """Test that we can create and evalue a 'hsiao' model with a t0."""
@@ -75,14 +68,6 @@ def test_sncomso_models_hsiao_t0() -> None:
         fnu_unit=u.nJy,
     )
     assert np.allclose(fluxes_flam, [67.83696271, 67.98471119, 47.20395186])
-
-    # Check that we can mask times.  The 'hsiao' model uses phases (-20.0, 85.0),
-    # which is offset by t0=55000.0.
-    sample_times = np.arange(-50.0, 100.0, 1.0) + 55000.0
-    mask = model.mask_by_time(sample_times, state)
-
-    expected_mask = (sample_times > 54980.0) & (sample_times < 55085.0)
-    assert np.array_equal(mask, expected_mask)
 
     # We raise a warning if the time is outside the bounds.
     with np.testing.assert_warns(UserWarning):

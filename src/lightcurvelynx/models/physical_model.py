@@ -190,13 +190,14 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         """
         raise NotImplementedError()  # pragma: no cover
 
-    def mask_by_time(self, times, graph_state):
+    def obs_mask_func(self, times, graph_state):
         """Compute a mask for whether a given time is of interest for a given object.
         For example, a user can use this function to generate a mask to include
         only the observations of interest for a window around the supernova.
 
-        By default the function uses the minphase and maxphase to determine the
-        time bounds (accounting for t0 and redshift).
+        By default returns None to indicate no masking. Users can override this
+        by setting: ``model.obs_mask_func = custom_mask_function()`` for any function
+        that takes the same parameters and returns a mask.
 
         Parameters
         ----------
@@ -207,32 +208,11 @@ class BasePhysicalModel(ParameterizedNode, ABC):
 
         Returns
         -------
-        time_mask : numpy.ndarray
-            A length T array of Booleans indicating whether the time is of interest.
+        time_mask : numpy.ndarray or None
+            A length T array of Booleans indicating whether the time is of interest,
+            or None if no masking is applied.
         """
-        # Get the time bounds for this model, using all times if the bounds are not defined.
-        min_phase = self.minphase(graph_state=graph_state)
-        if min_phase is None:
-            min_phase = -np.inf
-
-        max_phase = self.maxphase(graph_state=graph_state)
-        if max_phase is None:
-            max_phase = np.inf
-
-        if graph_state is None or graph_state.num_samples != 1:
-            raise ValueError("A GraphState with one sample is required to compute the time mask.")
-
-        z = self.get_param(graph_state, "redshift", 0.0)
-        if z is None:
-            z = 0.0
-
-        t0 = self.get_param(graph_state, "t0", 0.0)
-        if t0 is None:
-            t0 = 0.0
-
-        # Compute the mask.
-        good_times = (times > t0 + min_phase * (1.0 + z)) & (times < t0 + max_phase * (1.0 + z))
-        return good_times
+        return None
 
     def evaluate_bandfluxes(self, passband_or_group, times, filters, state, rng_info=None) -> np.ndarray:
         """Get the band fluxes for a given Passband or PassbandGroup.
