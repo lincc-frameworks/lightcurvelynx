@@ -198,6 +198,10 @@ This object can be a built-in parallelization method, such as `ThreadPoolExecuto
 `ray <https://docs.ray.io/en/latest/>`_. Note that each process will load a full version of all the data,
 so they may be memory intensive.
 
+**NOTE**: Not all subpackages work with distributed computation yet. If you get an error about
+not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
+We are aware the PZFlowNodes are currently failing.
+
 The :doc:`parallelization notebook <notebooks/parallelization>` provides an example of how to use
 LightCurveLynx to run simulations in parallel including using dask and ray.
 
