@@ -410,6 +410,9 @@ def test_simulate_parallel_processes(test_data_dir):
     assert np.all(results["dec"].values >= dec0 - 0.5)
     assert np.all(results["dec"].values <= dec0 + 0.5)
 
+    # Make sure that we get different brightness samples across the processes.
+    assert np.unique(results["source_brightness"].values).size > 95
+
     for idx in range(100):
         num_obs = results["nobs"][idx]
         assert num_obs >= 1
