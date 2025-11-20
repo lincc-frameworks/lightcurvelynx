@@ -1,3 +1,7 @@
+import pickle
+import tempfile
+from pathlib import Path
+
 import numpy as np
 import pytest
 from lightcurvelynx.astro_utils.dustmap import ConstantHemisphereDustMap, DustmapWrapper
@@ -48,6 +52,44 @@ def test_set_frame():
 
     with pytest.raises(ValueError):
         ExtinctionEffect("G23", ebv=0.1, frame="InvalidFrame")
+
+
+def test_pickle_extinction_model():
+    """Test that we can pickle and unpickle an ExtinctionEffect object."""
+    # Create two models: one defined by model name and the other with a given object.
+    F99_model = ExtinctionEffect("F99", Rv=3.1, frame="rest", ebv=0.1)
+
+    ext_model = ExtinctionEffect.load_extinction_model("F99")
+    F99_model_B = ExtinctionEffect(ext_model, Rv=3.1, frame="rest", ebv=0.1)
+
+    # Compute the some sample fluxes before and after extinction.
+    org_fluxes = np.full((10, 3), 1.0)
+    wavelengths = np.array([7000.0, 5200.0, 4800.0])
+    ext_fluxes_1 = F99_model.apply(org_fluxes, wavelengths=wavelengths, ebv=0.1)
+    assert ext_fluxes_1.shape == (10, 3)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        file_path = Path(tmpdir) / "test_f99_model.pkl"
+        assert not file_path.exists()
+
+        with open(file_path, "wb") as f:
+            pickle.dump(F99_model, f)
+        assert file_path.exists()
+
+        with open(file_path, "rb") as f:
+            loaded_F99_model = pickle.load(f)
+        assert loaded_F99_model is not None
+
+        ext_fluxes_2 = loaded_F99_model.apply(org_fluxes, wavelengths=wavelengths, ebv=0.1)
+        assert ext_fluxes_2.shape == (10, 3)
+        assert np.allclose(ext_fluxes_1, ext_fluxes_2)
+
+        # We fail trying to pickle the model given the actual extinction object (instead of
+        # the name), because we won't have enough information to unpickle.
+        file_path2 = Path(tmpdir) / "test_f99_model2.pkl"
+        with open(file_path2, "wb") as f2:
+            with pytest.raises(ValueError):
+                pickle.dump(F99_model_B, f2)
 
 
 def test_constant_dust_extinction():
