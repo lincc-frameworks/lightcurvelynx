@@ -140,7 +140,7 @@ class SimulationInfo:
             if batch_num_samples <= 0:
                 break
 
-            # If make sure we create a unique RNG for each batch. Even if we do not have a global
+            # Make sure we create a unique RNG for each batch. Even if we do not have a global
             # RNG, we do not want to use the ones created with the nodes because they will be
             # correlated across batches.
             seed = global_rng.integers(0, 2**32 - 1)
