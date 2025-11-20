@@ -127,6 +127,9 @@ class SimulationInfo:
                 raise ValueError("batch_size must be a positive integer.")
             num_batches = np.ceil(self.num_samples / batch_size).astype(int)
 
+        # Get overall RNG for this simulation. If we do not have one, use the default.
+        global_rng = self.rng if self.rng is not None else np.random.default_rng()
+
         batches = []
         end_idx = 0
         for batch_idx in range(num_batches):
@@ -137,11 +140,11 @@ class SimulationInfo:
             if batch_num_samples <= 0:
                 break
 
-            # If given a RNG, match sure we create a unique RNG for each batch.
-            batch_rng = None
-            if self.rng is not None:
-                seed = self.rng.integers(0, 2**32 - 1)
-                batch_rng = np.random.default_rng(seed)
+            # If make sure we create a unique RNG for each batch. Even if we do not have a global
+            # RNG, we do not want to use the ones created with the nodes because they will be
+            # correlated across batches.
+            seed = global_rng.integers(0, 2**32 - 1)
+            batch_rng = np.random.default_rng(seed)
 
             # If we are saving to a file, modify the output file path for this batch.
             if self.output_file_path is not None:
