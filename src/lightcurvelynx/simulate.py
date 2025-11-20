@@ -339,7 +339,11 @@ def _simulate_lightcurves_batch(simulation_info):
 
             # Compute the bandfluxes and errors over just the given filters.
             bandfluxes_perfect = model.evaluate_bandfluxes(
-                passbands[survey_idx], obs_times, obs_filters, state
+                passbands[survey_idx],
+                obs_times,
+                obs_filters,
+                state,
+                rng_info=rng,
             )
             bandfluxes_error = obstable[survey_idx].bandflux_error_point_source(bandfluxes_perfect, obs_index)
             bandfluxes = apply_noise(bandfluxes_perfect, bandfluxes_error, rng=rng)
