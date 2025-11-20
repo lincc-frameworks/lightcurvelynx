@@ -51,8 +51,33 @@ class ExtinctionEffect(EffectModel, CiteClass):
             raise ValueError("frame must be 'observer' or 'rest'.")
 
         if isinstance(extinction_model, str):
+            self._model_name = extinction_model
             extinction_model = ExtinctionEffect.load_extinction_model(extinction_model, **kwargs)
+        else:
+            self._model_name = None
         self.extinction_model = extinction_model
+
+    def __getstate__(self):
+        """We override the default pickling behavior to handle the extinction model, since
+        it may not be picklable.
+        """
+        if self._model_name is None:
+            raise ValueError(
+                "Extinction model must be specified as a string (of the model name) in order to "
+                "to be pickled and used with distributed computation."
+            )
+
+        # Return the state without the extinction model, since it may not be picklable.
+        state = self.__dict__.copy()
+        del state["extinction_model"]
+        return state
+
+    def __setstate__(self, state):
+        """We override the default unpickling behavior to handle the extinction model, since
+        it may not be picklable.
+        """
+        self.__dict__.update(state)
+        self.extinction_model = ExtinctionEffect.load_extinction_model(self._model_name)
 
     @staticmethod
     def list_extinction_models():
