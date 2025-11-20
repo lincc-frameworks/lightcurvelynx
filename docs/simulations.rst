@@ -37,16 +37,32 @@ section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary <glossary>`
 key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*,
 *BandfluxModel*, and *SEDModel*.
 
-Defining a parameterized model
+Getting Started with a New Simulation
+-------------------------------------------------------------------------------
+
+When starting a new simulation there are a few key questions to ask (in this order):
+
+1. What do you want to simulate (supernova, kilanova, AGN, etc.)? The answer to this question determines the class you use to create the model object. For example, if you want to simulate a kilanova using the ``redback`` package, you would start by creating ``RedbackWrapperModel`` object.
+
+2. What parameters does your model have? And how do you want to set them? The answers to these questions determine how you set the parameters of the model object. All parameters within a model are set using arguments in the object’s constructors.
+
+3. What effects do you want to apply to the light coming from this object? The answer to this question will determine which effect objects you create and add to the object.
+
+4. Under what conditions do you want to observe this object? What is your viewing cadence and instrument noise characteristics? In short, which survey are you using?
+
+Defining a parameterized model 
 -------------------------------------------------------------------------------
 
 The core idea behind LightCurveLynx is that we want to generate light curves from parameterized models
-of astronomical objects/phenomena. The ``BasePhysicalModel`` class defines the structure for modeling
-physical objects and is subclassed into ``SEDModel`` (for models that simulate the full spectral energy
-distributions) and ``BandfluxModel`` (for models that simulate band fluxes). By providing a distribution of
-parameter values into the model, users can simulate an entire population of these objects. For example, they
-could use the `SALT2JaxModel` with parameterized values of `c`, `x0`, and `x1` to simulate a population of
-Type Ia supernovae. 
+of astronomical objects/phenomena. Users do this by creating model objects that are subclasses of the 
+`BasePhysicalModel`` class. This object provides the recipe for computing the noise-free light curves
+given values for its parameters. By providing a distribution of parameter values into the model,
+users can simulate an entire population of these objects. For example, they could use the `SALT2JaxModel` 
+with parameterized values of `c`, `x0`, and `x1` to simulate a population of Type Ia supernovae.
+
+.. code-block:: python
+
+    my_model = SALT2JaxModel(c=..., x0=..., x1=...)
 
 In addition to the built-in models, the software provides wrappers to common modeling packages such as:
 
@@ -58,32 +74,21 @@ In addition to the built-in models, the software provides wrappers to common mod
 LightCurveLynx also allows users to load and sample pre-generated light curves, such as the
 ``LCLIB`` (:doc:`example <notebooks/pre_executed/lclib_example>`) and
 ``SIMSED`` (:doc:`example <notebooks/pre_executed/snana_example>`) formats used by SNANA.
-Users can also create their own models by subclassing either ``SEDModel`` or ``BandfluxModel``.
+This allows users to simulate from populations of light curves that either come from real
+observations or from other modeling packages (such as SNANA).
 
-For new SED-type models, the class needs to implement a ``compute_sed()`` function that generates the
-noise-free flux densities in the object's rest frame given information about the times, wavelengths, and
-model parameters (called graph_state). Both the times and wavelengths are converted to account for redshift
-before being passed to the ``compute_sed()`` function, so the function takes rest frame times and wavelengths.
-
-.. code-block:: python
-
-    def compute_sed(self, times, wavelengths, graph_state, **kwargs):
-
-For new Bandflux-type models, the class needs to implement a ``compute_bandflux()`` function that generates the
-band fluxes in the observer frame given the times, bands, and model parameters (called graph_state). These
-models do not account for redshift, since simulation is done in the observer frame.
-
-A user of a particular physical model only needs to understand what parameters the model has
-and how they are set. A user creating a new physical model additionally needs to know how the noise-free,
-rest frame flux density values are generated from those parameters.
+Finally users can create their own models. See the :doc:`custom models page <custom_models>` or the
+:doc:`adding new model types notebook <notebooks/adding_models>` for more details.
 
 Parameterization
 -------------------------------------------------------------------------------
 
-The model's parameters are defined by a hierarchical model that can be visualized by a Directed Acyclic Graph (DAG).
-This means that the parameters to our physical model, such as a type Ia supernova, can themselves be sampled
-based on distributions of hyperparameters. For example, a simplified SNIa model with a host component
-can have the following DAG:
+Users set the model's parameters using the arguments of the model's constructor. Parameters can be set to be
+static (a constant) or computed from a given distribution or function (which itself can have parameters).
+This flexibility allows the model's parameters to be defined by a hierarchical model that can be visualized
+by a Directed Acyclic Graph (DAG). This means that the parameters to our physical model, such as a
+type Ia supernova, can themselves be sampled based on distributions of hyperparameters. For example, a
+simplified SNIa model with a host component can have the following DAG:
 
 .. figure:: _static/dag-model.png
    :class: no-scaled-link
@@ -94,11 +99,36 @@ can have the following DAG:
    An example DAG for a SNIa model
 
 In this example, the parameter ``c`` is drawn from a predefined distribution, while the parameter ``x1``
-is drawn from a distribution that is itself parameterized by the ``host_mass`` parameter. LightCurveLynx handles
-the sequential processing of the graph so that all parameters are consistently sampled for each object.
+is drawn from a distribution that is itself parameterized by the ``host_mass`` parameter. 
 
-See the :doc:`Introduction notebook<notebooks/introduction>` for details on how to
-define the parameter DAG.
+Each sample during simulation corresponds to a new simulated object -- all parameters are resampled
+and used to compute the flux density for that object. LightCurveLynx handles the sequential processing
+of the graph so that all parameters are consistently sampled for each object.
+
+At the heart of the sampling system is the concept of a ``ParameterizedNode`` which is a node that
+takes settable parameters and produces values for other parameters. Many objects in ``LightCurveLynx``
+are such nodes, including the `BasePhysicalModel``. While this framework provides a powerful and
+extensible system for generating the DAGs, most users will not need to know the details. Instead LightCurveLynx
+provides a large set of predefined nodes that perform common operations. A few examples include:
+
+* Sampling from a statistical distribution (e.g., ``NumpyRandomFunc`` and ``ScipyRandomDist``)
+* Sampling (RA, dec) from the footprint of a survey (e.g., ``ObsTableUniformRADECSampler`` and ``ApproximateMOCSampler``)
+* Performing basic math operations (e.g., ``BasicMathNode``)
+* Sampling from a given set of values (e.g., ``GivenValueList`` and ``TableSampler``)
+
+The directory ``/math_nodes`` contains many additional functions.
+
+All most users will need to know is that the arguments passed to a model’s constructor can
+take values as:
+
+* constants
+* the output of a node that computes some value (e.g., ``NumpyRandomFunc``)
+* or the attribute of a another node.
+
+See the :doc:`Introduction notebook<notebooks/introduction>` and 
+:doc:`sampling notebook<notebooks/sampling>` for details on how to define the parameter DAG.
+The nodebook :doc:`sampling positions <notebooks/sampling_positions>` provides a deeper
+dive into nodes that sample positions from a survey footprint.
 
 
 Generating light curves
@@ -111,8 +141,7 @@ the graph state (and is stored in a ``GraphState`` object), because it represent
 Next, the ``ObsTable`` is used to determine at what times and in which bands the object will be evaluated.
 These times and wavelengths are based into the object's ``evaluate_sed()`` function along with the graph state.
 The ``evaluate_sed()`` function handles the mechanics of the simulation, such as applying redshifts to both the
-times and wavelengths before calling the ``compute_sed()`` and handling any requested extrapolations outside
-the model's valid range.
+times and wavelengths and handling any requested extrapolations outside the model's valid range.
 
 .. figure:: _static/compute_sed.png
    :class: no-scaled-link

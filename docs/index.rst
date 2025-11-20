@@ -164,6 +164,7 @@ This project is supported by Schmidt Sciences.
 
    Home page <self>
    Simulations <simulations>
+   Custom Models and Effects <custom_models>
    Results and Output <results_and_output>
    Notebooks <notebooks>
    API Reference <autoapi/index>
