@@ -1,6 +1,7 @@
 import numpy as np
 
 from lightcurvelynx.effects.effect_model import EffectModel
+from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 
 
 class WhiteNoise(EffectModel):
@@ -16,13 +17,19 @@ class WhiteNoise(EffectModel):
         super().__init__(**kwargs)
         self.add_effect_parameter("white_noise_sigma", white_noise_sigma)
 
+        # Instead of generating all the white noise values and storing them in the
+        # graph state (which would be huge), we create a per model seed so we can
+        # deterministically recreate the same noise values when needed.
+        seed_generator = NumpyRandomFunc("integers", low=0, high=2**32 - 1)
+        self.add_effect_parameter("white_noise_seed", seed_generator)
+
     def apply(
         self,
         flux_density,
         times=None,
         wavelengths=None,
         white_noise_sigma=None,
-        rng_info=None,
+        white_noise_seed=None,
         **kwargs,
     ):
         """Apply the effect to observations (flux_density values).
@@ -37,9 +44,8 @@ class WhiteNoise(EffectModel):
             A length N array of wavelengths (in angstroms). Not used for this effect.
         white_noise_sigma : float, optional
             The scale of the noise. Raises an error if None is provided.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
+        white_noise_seed : int, optional
+            The seed for the random number generator. If None, a random seed is used.
         **kwargs : `dict`, optional
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.
@@ -52,8 +58,7 @@ class WhiteNoise(EffectModel):
         if white_noise_sigma is None:
             raise ValueError("white_noise_sigma must be provided")
 
-        if rng_info is None:
-            rng_info = np.random.default_rng()
+        rng_info = np.random.default_rng(white_noise_seed)
         return rng_info.normal(loc=flux_density, scale=white_noise_sigma)
 
     def apply_bandflux(
@@ -63,7 +68,7 @@ class WhiteNoise(EffectModel):
         times=None,
         filters=None,
         white_noise_sigma=None,
-        rng_info=None,
+        white_noise_seed=None,
         **kwargs,
     ):
         """Apply the effect to band fluxes.
@@ -79,9 +84,8 @@ class WhiteNoise(EffectModel):
             band fluxes.
         white_noise_sigma : float, optional
             The scale of the noise. Raises an error if None is provided.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
+        white_noise_seed : int, optional
+            The seed for the random number generator. If None, a random seed is used.
         **kwargs : `dict`, optional
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.
@@ -94,6 +98,5 @@ class WhiteNoise(EffectModel):
         if white_noise_sigma is None:
             raise ValueError("white_noise_sigma must be provided")
 
-        if rng_info is None:
-            rng_info = np.random.default_rng()
+        rng_info = np.random.default_rng(white_noise_seed)
         return rng_info.normal(loc=bandfluxes, scale=white_noise_sigma)

@@ -86,7 +86,6 @@ class Microlensing(EffectModel, CiteClass):
         microlensing_t0=None,
         u_0=None,
         t_E=None,
-        rng_info=None,
         **kwargs,
     ):
         """Apply the effect to observations (flux_density values).
@@ -108,9 +107,6 @@ class Microlensing(EffectModel, CiteClass):
             of peak in Einstein radii.
         t_E : float
             Einstein timescale, in days.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : `dict`, optional
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.
@@ -157,7 +153,6 @@ class Microlensing(EffectModel, CiteClass):
         t_E=None,
         times=None,
         filters=None,
-        rng_info=None,
         **kwargs,
     ):
         """Apply the effect to band fluxes.
@@ -180,9 +175,6 @@ class Microlensing(EffectModel, CiteClass):
             of peak in Einstein radii.
         t_E : float
             Einstein timescale, in days.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : `dict`, optional
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.

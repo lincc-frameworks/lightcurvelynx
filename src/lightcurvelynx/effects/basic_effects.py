@@ -22,7 +22,6 @@ class ScaleFluxEffect(EffectModel):
         times=None,
         wavelengths=None,
         flux_scale=None,
-        rng_info=None,
         **kwargs,
     ):
         """Apply the effect to observations (flux_density values).
@@ -37,9 +36,6 @@ class ScaleFluxEffect(EffectModel):
             A length N array of wavelengths (in angstroms). Not used for this effect.
         flux_scale : float, optional
             The multiplicative factor by which to scale the flux. Raises an error if None is provided.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : `dict`, optional
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.
@@ -60,7 +56,6 @@ class ScaleFluxEffect(EffectModel):
         times=None,
         filters=None,
         flux_scale=None,
-        rng_info=None,
         **kwargs,
     ):
         """Apply the effect to band fluxes.
@@ -76,9 +71,6 @@ class ScaleFluxEffect(EffectModel):
             band fluxes.
         flux_scale : float, optional
             The multiplicative factor by which to scale the flux. Raises an error if None is provided.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : `dict`, optional
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.

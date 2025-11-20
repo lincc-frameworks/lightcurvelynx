@@ -8,7 +8,7 @@ def test_white_noise() -> None:
     """Test that we can sample and create a WhiteNoise object."""
     white_noise = WhiteNoise(white_noise_sigma=0.1)
     assert str(white_noise) == "WhiteNoise"
-    assert repr(white_noise) == "WhiteNoise(white_noise_sigma)"
+    assert repr(white_noise) == "WhiteNoise(white_noise_sigma,white_noise_seed)"
 
     # We can apply the noise.
     values = np.full((5, 3), 100.0)
