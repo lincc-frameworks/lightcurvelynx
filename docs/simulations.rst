@@ -44,7 +44,7 @@ When starting a new simulation there are a few key questions to ask (in this ord
 
 1. What do you want to simulate (supernova, kilanova, AGN, etc.)? The answer to this question determines the class you use to create the model object. For example, if you want to simulate a kilanova using the ``redback`` package, you would start by creating ``RedbackWrapperModel`` object.
 
-2. What parameters does your model have? And how do you want to set them? The answers to these questions determine how set the parameters of the model object. All parameters within a model are set using arguments in the object’s constructors.
+2. What parameters does your model have? And how do you want to set them? The answers to these questions determine how you set the parameters of the model object. All parameters within a model are set using arguments in the object’s constructors.
 
 3. What effects do you want to apply to the light coming from this object? The answer to this question will determine which effect objects you create and add to the object.
 
@@ -74,7 +74,7 @@ In addition to the built-in models, the software provides wrappers to common mod
 LightCurveLynx also allows users to load and sample pre-generated light curves, such as the
 ``LCLIB`` (:doc:`example <notebooks/pre_executed/lclib_example>`) and
 ``SIMSED`` (:doc:`example <notebooks/pre_executed/snana_example>`) formats used by SNANA.
-This allows users to simulated from populations of light curves that either come from real
+This allows users to simulate from populations of light curves that either come from real
 observations or from other modeling packages (such as SNANA).
 
 Finally users can create their own models. See the :doc:`custom models page <custom_models>` or the
@@ -127,7 +127,7 @@ take values as:
 
 See the :doc:`Introduction notebook<notebooks/introduction>` and 
 :doc:`sampling notebook<notebooks/sampling>` for details on how to define the parameter DAG.
-The nodebooks :doc:`sampling positions <notebooks/sampling_positions>` provides a deeper
+The nodebook :doc:`sampling positions <notebooks/sampling_positions>` provides a deeper
 dive into nodes that sample positions from a survey footprint.
 
 
