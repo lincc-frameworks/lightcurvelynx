@@ -68,7 +68,7 @@ class EffectModel:
         """
         self.parameters[name] = setter
 
-    def apply(self, flux_density, times=None, wavelengths=None, rng_info=None, **kwargs):
+    def apply(self, flux_density, times=None, wavelengths=None, **kwargs):
         """Apply the effect to observations (flux_density values).
 
         Parameters
@@ -79,9 +79,6 @@ class EffectModel:
             A length T array of times (in MJD).
         wavelengths : numpy.ndarray, optional
             A length N array of wavelengths (in angstroms).
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : `dict`, optional
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.
@@ -93,7 +90,7 @@ class EffectModel:
         """
         raise NotImplementedError()  # pragma: no cover
 
-    def apply_bandflux(self, bandfluxes, *, times=None, filters=None, rng_info=None, **kwargs):
+    def apply_bandflux(self, bandfluxes, *, times=None, filters=None, **kwargs):
         """Apply the effect to band fluxes.
 
         Parameters
@@ -105,9 +102,6 @@ class EffectModel:
         filters : numpy.ndarray, optional
             A length N array of filters. If not provided, the effect is applied to all
             band fluxes.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : `dict`, optional
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.

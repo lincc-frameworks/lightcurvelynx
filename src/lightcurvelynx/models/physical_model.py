@@ -646,7 +646,6 @@ class SEDModel(BasePhysicalModel):
                 flux_density,
                 times=rest_times,
                 wavelengths=rest_wavelengths,
-                rng_info=rng_info,
                 **params,  # Provide all the node's parameters to the effect.
             )
 
@@ -661,7 +660,6 @@ class SEDModel(BasePhysicalModel):
                 flux_density,
                 times=times,
                 wavelengths=wavelengths,
-                rng_info=rng_info,
                 **params,  # Provide all the node's parameters to the effect.
             )
         return flux_density
@@ -1041,7 +1039,6 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 bandfluxes,
                 times=times,
                 filters=filters,
-                rng_info=rng_info,
                 **params,  # Provide all the node's parameters to the effect.
             )
         return bandfluxes
