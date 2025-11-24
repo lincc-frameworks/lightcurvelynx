@@ -29,11 +29,6 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
     * Chen et al., “Adjusting Gaussian Process Priors for BAGLE's Gravitational Microlensing Model Fits”,
       in prep.
 
-    Attributes
-    ----------
-    model_info : string or class
-        The name of the bagle model class to use or the class itself.
-
     Parameters
     ----------
     model_info : str or class
@@ -68,14 +63,19 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
         if isinstance(model_info, str):
             try:
                 from bagle import model
-            except ImportError as err:
+            except ImportError as err:  # pragma: no cover
                 raise ImportError(
                     "The bagle package is required to use the BagleWrapperModel. Please install it. "
                     "See https://bagle.readthedocs.io/en/latest/installation.html for instructions."
                 ) from err
-            self.model_info = getattr(model, model_info)
+            self._model_class = getattr(model, model_info)
         else:
-            self.model_info = model_info
+            self._model_class = model_info
+
+    @property
+    def parameter_names(self):
+        """The names of the parameters for this model."""
+        return self._parameter_names
 
     def compute_bandflux(self, times, filter, state):
         """Evaluate the model at the passband level for a single, given graph state and filter.
@@ -101,7 +101,7 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
         # Create the bagle model object and set the parameters from the current state. We do this
         # here because the parameters saved in `state` will be different in each run.
         current_params = {param_name: local_params[param_name] for param_name in self.parameter_names}
-        model_obj = self.model_class(**current_params)
+        model_obj = self._model_class(**current_params)
 
         # Use the newly created model object with the current parameters to compute the photometry.
         mags = model_obj.get_photometry(times, self._filter_idx[filter])
