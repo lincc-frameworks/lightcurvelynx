@@ -96,6 +96,16 @@ def test_numpy_random_normal():
     assert dep_graph.outgoing["normal1.scale"] == set(["normal1.function_node_result"])
 
 
+def test_numpy_random_integers():
+    """Test that we can generate numbers from an integer distribution."""
+    np_node = NumpyRandomFunc("integers", low=500, high=100_000, seed=100)
+
+    values = np.array([np_node.generate() for _ in range(1_000)])
+    assert len(np.unique(values)) > 950  # Allow a few lucky duplicates.
+    assert np.all(values >= 500)
+    assert np.all(values < 100_000)
+
+
 def test_numpy_random_given_rng():
     """Test that we can generate numbers from a uniform distribution."""
     np_node1 = NumpyRandomFunc("uniform", seed=100, node_label="node1")
