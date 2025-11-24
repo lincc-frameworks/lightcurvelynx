@@ -158,7 +158,7 @@ class MultiObjectModel(SEDModel):
 
         return graph_state
 
-    def _evaluate_single(self, times, wavelengths, state, rng_info=None, **kwargs):
+    def _evaluate_single(self, times, wavelengths, state, **kwargs):
         """Evaluate the model and apply the effects for a single, given graph state.
         This function applies redshift, computes the flux density for the object,
         applies rest frames effects, performs the redshift correction (if needed),
@@ -172,9 +172,6 @@ class MultiObjectModel(SEDModel):
             A length N array of wavelengths (in angstroms).
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : dict, optional
             All the other keyword arguments.
 
@@ -185,7 +182,7 @@ class MultiObjectModel(SEDModel):
         """
         raise NotImplementedError()  # pragma: no cover
 
-    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state, rng_info=None) -> np.ndarray:
+    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state) -> np.ndarray:
         """Get the band fluxes for a given PassbandGroup and a single, given graph state.
 
         Parameters
@@ -198,9 +195,6 @@ class MultiObjectModel(SEDModel):
             A length T array of filter names.
         state : GraphState
             An object mapping graph parameters to their values.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
 
         Returns
         -------
@@ -301,7 +295,7 @@ class AdditiveMultiObjectModel(MultiObjectModel):
         """
         return [object.maxwave(graph_state=graph_state) for object in self.objects]
 
-    def _evaluate_single(self, times, wavelengths, state, rng_info=None, **kwargs):
+    def _evaluate_single(self, times, wavelengths, state, **kwargs):
         """Evaluate the model and apply the effects for a single, given graph state.
         This function applies redshift, computes the flux density for the object,
         applies rest frames effects, performs the redshift correction (if needed),
@@ -315,9 +309,6 @@ class AdditiveMultiObjectModel(MultiObjectModel):
             A length N array of wavelengths (in angstroms).
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : dict, optional
             All the other keyword arguments.
 
@@ -343,7 +334,6 @@ class AdditiveMultiObjectModel(MultiObjectModel):
                 times,
                 wavelengths,
                 state,
-                rng_info=rng_info,
                 **kwargs,
             )
 
@@ -354,13 +344,12 @@ class AdditiveMultiObjectModel(MultiObjectModel):
                 flux_density,
                 times=times,
                 wavelengths=wavelengths,
-                rng_info=rng_info,
                 **params,
             )
 
         return flux_density
 
-    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state, rng_info=None) -> np.ndarray:
+    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state) -> np.ndarray:
         """Get the band fluxes for a given PassbandGroup and a single, given graph state.
 
         Parameters
@@ -373,9 +362,6 @@ class AdditiveMultiObjectModel(MultiObjectModel):
             A length T array of filter names.
         state : GraphState
             An object mapping graph parameters to their values.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
 
         Returns
         -------
@@ -392,7 +378,6 @@ class AdditiveMultiObjectModel(MultiObjectModel):
                 times,
                 filters,
                 state,
-                rng_info=rng_info,
             )
             bandfluxes += self.weights[idx] * object_fluxes
 
@@ -404,7 +389,6 @@ class AdditiveMultiObjectModel(MultiObjectModel):
                 bandfluxes,
                 times=times,
                 filters=filters,
-                rng_info=rng_info,
                 **params,
             )
 
@@ -489,7 +473,7 @@ class RandomMultiObjectModel(MultiObjectModel):
         idx = self.get_param(graph_state, "selected_object")
         return self.objects[idx].maxwave(graph_state=graph_state)
 
-    def _evaluate_single(self, times, wavelengths, state, rng_info=None, **kwargs):
+    def _evaluate_single(self, times, wavelengths, state, **kwargs):
         """Evaluate the model and apply the effects for a single, given graph state.
         This function applies redshift, computes the flux density for the object,
         applies rest frames effects, performs the redshift correction (if needed),
@@ -503,9 +487,6 @@ class RandomMultiObjectModel(MultiObjectModel):
             A length N array of wavelengths (in angstroms).
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : dict, optional
             All the other keyword arguments.
 
@@ -527,7 +508,6 @@ class RandomMultiObjectModel(MultiObjectModel):
             times,
             wavelengths,
             state,
-            rng_info=rng_info,
             **kwargs,
         )
 
@@ -538,13 +518,12 @@ class RandomMultiObjectModel(MultiObjectModel):
                 flux_density,
                 times=times,
                 wavelengths=wavelengths,
-                rng_info=rng_info,
                 **params,
             )
 
         return flux_density
 
-    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state, rng_info=None) -> np.ndarray:
+    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state) -> np.ndarray:
         """Get the band fluxes for a given PassbandGroup and a single, given graph state.
 
         Parameters
@@ -557,9 +536,6 @@ class RandomMultiObjectModel(MultiObjectModel):
             A length T array of filter names.
         state : GraphState
             An object mapping graph parameters to their values.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
 
         Returns
         -------
@@ -573,7 +549,6 @@ class RandomMultiObjectModel(MultiObjectModel):
             times,
             filters,
             state,
-            rng_info=rng_info,
         )
 
         # Apply the observer frame effects on the selected object.
@@ -583,7 +558,6 @@ class RandomMultiObjectModel(MultiObjectModel):
                 bandfluxes,
                 times=times,
                 filters=filters,
-                rng_info=rng_info,
                 **params,
             )
         return bandfluxes

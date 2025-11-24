@@ -180,3 +180,62 @@ def test_create_agn():
     fluxes = agn_node.compute_sed(times, wavelengths, single_state)
     assert fluxes.shape == (5, 4)
     assert np.all(fluxes > 0.0)
+
+
+def test_create_agn_seed():
+    """Test that we can set the seed for an AGN object and get the same results."""
+    # Select the black hole mass uniformly between 1e9 and 2e9 solar masses.
+    agn_node1 = AGN(
+        t0=0.0,
+        blackhole_mass=1e9,
+        redshift=1.0,
+        edd_ratio=0.9,
+        inclination_rad=np.pi / 4,
+        cosmology="Planck18",
+        node_label="AGN_1",
+        seed=100,
+    )
+    state1 = agn_node1.sample_parameters(num_samples=1)
+    assert state1["AGN_1"]["agn_seed"] == 100
+
+    # Check that we can sample from the AGN.
+    times = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
+    wavelengths = np.array([1000.0, 2000.0, 3000.0, 4000.0])
+
+    fluxes1 = agn_node1.evaluate_sed(times, wavelengths, state1)
+    assert fluxes1.shape == (5, 4)
+    assert np.all(fluxes1 > 0.0)
+
+    # Create another AGN with the same seed and check that we get the same results.
+    agn_node2 = AGN(
+        t0=0.0,
+        blackhole_mass=1e9,
+        redshift=1.0,
+        edd_ratio=0.9,
+        inclination_rad=np.pi / 4,
+        cosmology="Planck18",
+        node_label="AGN_2",
+        seed=100,
+    )
+    state2 = agn_node2.sample_parameters(num_samples=1)
+    assert state2["AGN_2"]["agn_seed"] == 100
+    fluxes2 = agn_node2.evaluate_sed(times, wavelengths, state2)
+
+    assert np.allclose(fluxes1, fluxes2)
+
+    # Create another AGN without a set seed and check that we get different results.
+    agn_node3 = AGN(
+        t0=0.0,
+        blackhole_mass=1e9,
+        redshift=1.0,
+        edd_ratio=0.9,
+        inclination_rad=np.pi / 4,
+        cosmology="Planck18",
+        node_label="AGN_3",
+    )
+    state3 = agn_node3.sample_parameters(num_samples=1)
+    assert state3["AGN_3"]["agn_seed"] != 100
+
+    fluxes3 = agn_node3.evaluate_sed(times, wavelengths, state3)
+    assert not np.allclose(fluxes1, fluxes3)
+    assert not np.allclose(fluxes2, fluxes3)

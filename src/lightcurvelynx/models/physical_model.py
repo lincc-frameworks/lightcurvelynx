@@ -237,7 +237,7 @@ class BasePhysicalModel(ParameterizedNode, ABC):
 
         # If we only have a single sample, we can return the band fluxes directly.
         if state.num_samples == 1:
-            return self._evaluate_bandfluxes_single(passband_group, times, filters, state, rng_info=rng_info)
+            return self._evaluate_bandfluxes_single(passband_group, times, filters, state)
 
         # Fill in the band fluxes one at a time and return them all.
         bandfluxes = np.empty((state.num_samples, len(times)))
@@ -247,7 +247,6 @@ class BasePhysicalModel(ParameterizedNode, ABC):
                 times,
                 filters,
                 current_state,
-                rng_info=rng_info,
             )
             bandfluxes[sample_num, :] = current_fluxes[np.newaxis, :]
         return bandfluxes
@@ -601,7 +600,7 @@ class SEDModel(BasePhysicalModel):
 
         return computed_flux
 
-    def _evaluate_single(self, times, wavelengths, state, rng_info=None, **kwargs):
+    def _evaluate_single(self, times, wavelengths, state, **kwargs):
         """Evaluate the model and apply the effects for a single, given graph state.
         This function applies redshift, computes the flux density for the object,
         applies rest frames effects, performs the redshift correction (if needed),
@@ -615,9 +614,6 @@ class SEDModel(BasePhysicalModel):
             A length N array of wavelengths (in angstroms).
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
         **kwargs : dict, optional
             All the other keyword arguments.
         """
@@ -707,7 +703,6 @@ class SEDModel(BasePhysicalModel):
                 times,
                 wavelengths,
                 graph_state,
-                rng_info=rng_info,
                 **kwargs,
             )
 
@@ -720,12 +715,11 @@ class SEDModel(BasePhysicalModel):
                 times,
                 wavelengths,
                 state,
-                rng_info=rng_info,
                 **kwargs,
             )
         return results
 
-    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state, rng_info=None) -> np.ndarray:
+    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state) -> np.ndarray:
         """Get the band fluxes for a given PassbandGroup and a single, given graph state.
 
         Parameters
@@ -738,9 +732,6 @@ class SEDModel(BasePhysicalModel):
             A length T array of filter names.
         state : GraphState
             An object mapping graph parameters to their values.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
 
         Returns
         -------
@@ -756,7 +747,7 @@ class SEDModel(BasePhysicalModel):
             # Compute the spectral fluxes at the same wavelengths used to define the passband.
             # The evaluate function applies all effects (rest and observation frame) for the source
             # as well as handling all the redshift conversions.
-            spectral_fluxes = self.evaluate_sed(times[filter_mask], passband.waves, state, rng_info=rng_info)
+            spectral_fluxes = self.evaluate_sed(times[filter_mask], passband.waves, state)
             bandfluxes[filter_mask] = passband.fluxes_to_bandflux(spectral_fluxes)
         return bandfluxes
 
@@ -851,7 +842,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         """Return a list of all effects in the order in which they are applied."""
         return self.band_pass_effects
 
-    def compute_bandflux(self, times, filter, state, rng_info=None):
+    def compute_bandflux(self, times, filter, state):
         """Evaluate the model at the passband level for a single, given graph state and filter.
 
         Parameters
@@ -862,9 +853,6 @@ class BandfluxModel(BasePhysicalModel, ABC):
             The name of the filter.
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
 
         Returns
         -------
@@ -873,7 +861,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         """
         raise NotImplementedError()  # pragma: no cover
 
-    def compute_bandflux_with_extrapolation(self, times, filter, state, rng_info=None):
+    def compute_bandflux_with_extrapolation(self, times, filter, state):
         """Evaluate the model at the passband level for a single, given graph state and filter,
         extrapolating to times where the model is not defined.
 
@@ -885,9 +873,6 @@ class BandfluxModel(BasePhysicalModel, ABC):
             The name of the filter.
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
 
         Returns
         -------
@@ -950,7 +935,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 query_times = np.concatenate((query_times[valid_mask], [max_valid_time]))
 
         # Get the band flux at all times (except those we will extrapolate).
-        computed_flux = self.compute_bandflux(query_times, filter, state, rng_info=rng_info)
+        computed_flux = self.compute_bandflux(query_times, filter, state)
 
         # Then do extrapolation for times that fell outside the model's bounds. These might
         # not be in order, so we use masks to keep track of where they go.
@@ -992,7 +977,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
 
         return computed_flux
 
-    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state, rng_info=None) -> np.ndarray:
+    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state) -> np.ndarray:
         """Get the band fluxes for a given PassbandGroup and a single, given graph state.
 
         Note
@@ -1010,9 +995,6 @@ class BandfluxModel(BasePhysicalModel, ABC):
             A length T array of filter names.
         state : GraphState
             An object mapping graph parameters to their values.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
 
         Returns
         -------
@@ -1029,7 +1011,6 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 times[filter_mask],
                 filter_name,
                 state,
-                rng_info=rng_info,
             )
 
         # Apply all effects. Note that BandfluxModel does not apply redshift, so all effects
