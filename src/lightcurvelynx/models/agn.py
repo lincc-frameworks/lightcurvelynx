@@ -92,6 +92,10 @@ class AGN(SEDModel):
         The black hole mass in solar masses.
     edd_ratio: float
         Eddington ratio
+    inclination_rad : float or None
+        The inclination of the accretion disk in radians. If None then the value is
+        sampled uniformly between 0 and pi/2.
+        Default = None
     node_label : str, optional
         The label for the node in the model graph.
         Default: None
@@ -102,7 +106,17 @@ class AGN(SEDModel):
         Additional keyword arguments.
     """
 
-    def __init__(self, t0, blackhole_mass, edd_ratio, node_label=None, seed=None, **kwargs):
+    def __init__(
+        self,
+        t0,
+        blackhole_mass,
+        edd_ratio,
+        *,
+        inclination_rad=None,
+        node_label=None,
+        seed=None,
+        **kwargs,
+    ):
         # We manually specify "node_label" as a parameter so it does not get
         # passed to the functions nodes below as part of kwargs.
         super().__init__(t0=t0, node_label=node_label, **kwargs)
@@ -129,12 +143,12 @@ class AGN(SEDModel):
             description="The Eddington ratio.",
             **kwargs,
         )
+        if inclination_rad is None:
+            inclination_rad = NumpyRandomFunc("uniform", low=0, high=np.pi / 2.0)
         self.add_parameter(
             "inclination_rad",
-            NumpyRandomFunc("uniform", low=0, high=np.pi / 2.0),
-            description=(
-                "The inclination of the accretion disk in radians (sampled uniformly between 0 and pi/2)."
-            ),
+            inclination_rad,
+            description="The inclination of the accretion disk in radians.",
             **kwargs,
         )
 
@@ -209,10 +223,20 @@ class AGN(SEDModel):
             ),
         )
 
-        # Set the random number generator for this object.
-        if seed is None:
-            seed = int.from_bytes(urandom(4), "big")
-        self._rng = np.random.default_rng(seed=seed)
+        # Instead of generating all the white noise values and storing them in the
+        # graph state (which would be huge), we create a per model seed so we can
+        # deterministically recreate the same noise values when needed.
+        if seed is not None:
+            self.add_parameter(
+                "agn_seed",
+                seed,
+                description="The seed for the AGN random number generator.",
+            )
+        else:
+            seed_generator = NumpyRandomFunc("integers", low=0, high=2**32 - 1)
+            self.add_parameter(
+                "agn_seed", seed_generator, description="The seed for the AGN random number generator."
+            )
 
     # ------------------------------------------------------------------------
     # --- Static helper methods for computing the derived parameters. --------
@@ -535,6 +559,12 @@ class AGN(SEDModel):
         nu = constants.c.cgs.value / waves_cm
         bh_mass_g = params["blackhole_mass_gram"]
 
+        # Get the seed for the random number generator. If not set, generate a random seed.
+        seed = params["agn_seed"]
+        if seed is None:
+            seed = int.from_bytes(urandom(4), "big")
+        rng = np.random.default_rng(seed)
+
         # Compute the parameters for these wavelengths.
         tau_v = self.compute_tau(params["tau_4000aa"], waves_cm)
         sf_inf = self.compute_structure_function_at_inf(params["sf_inf_4000aa"], waves_cm)
@@ -556,7 +586,7 @@ class AGN(SEDModel):
             tau_v,
             sf_inf,
             params["t0"],
-            rng=self._rng,
+            rng=rng,
         )
 
         flux_density = 10 ** (-0.4 * delta_m) * fnu_average

@@ -59,3 +59,38 @@ new effect by subclassing the ``BaseEffect`` class and implementing the ``apply(
 the  flux densities, applies the transformation to them, and outputs the transformed flux densities.
 
 For examples see the :doc:`Adding New Effect Types <notebooks/adding_effects>` notebook.
+
+Handling Randomness
+-------------------------------------------------------------------------------
+
+A key property in LightCurveLynx is that a simulation should be deterministically replay-able
+given a ``GraphState``. What does this mean when a model uses randomness, such as a AGN computed
+with a damped random walk?  LightCurveLynx supports a combination of random models and reproducibility
+by allowing users to store random seeds within the ``GraphState``.
+
+For example the basic AGN model includes a parameter ``agn_seed``.  When generating fluxes for observations,
+the simulation starts by creating a random number generator with the given seed and using it to sample.
+The seed saved into the ``agn_seed`` can thus be used to reproduce the samples for the AGN. If no seed is
+specified, this value will itself be random:
+
+.. code-block:: python
+
+    if seed is not None:
+        self.add_parameter(
+            "agn_seed",
+            seed,
+            description="The seed for the AGN random number generator.",
+        )
+    else:
+        seed_generator = NumpyRandomFunc("integers", low=0, high=2**32 - 1)
+        self.add_parameter(
+            "agn_seed",
+            seed_generator,
+            description="The seed for the AGN random number generator.",
+        )
+
+This ensures that different (non-fixed) the simulations are indeed different.
+
+A similar approach can be used for effects that depend on randomness, such as the ``WhiteNoise`` effect.
+This effect uses the ``white_noise_seed`` parameter when to create a random number generator that is
+deterministic given the seed. Unless a seed is manually specified, that parameter is random chosen.
