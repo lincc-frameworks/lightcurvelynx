@@ -35,7 +35,7 @@ def test_concat_results():
     nested_inds_1 = [0, 0, 0, 1, 1, 2]
     res1 = NestedFrame(data=outer_dict_1, index=[0, 1, 2])
     nested_1 = pd.DataFrame(data=inner_dict_1, index=nested_inds_1)
-    res1 = res1.add_nested(nested_1, "lightcurve")
+    res1 = res1.join_nested(nested_1, "lightcurve")
 
     outer_dict_2 = {
         "id": [3, 4],
@@ -53,7 +53,7 @@ def test_concat_results():
     nested_inds_2 = [0, 1, 1]
     res2 = NestedFrame(data=outer_dict_2, index=[0, 1])
     nested_2 = pd.DataFrame(data=inner_dict_2, index=nested_inds_2)
-    res2 = res2.add_nested(nested_2, "lightcurve")
+    res2 = res2.join_nested(nested_2, "lightcurve")
 
     # Concatenate the results.
     results = concat_results([res1, res2])
@@ -67,7 +67,7 @@ def test_concat_results():
     assert np.array_equal(results["z"], [0.1, 0.2, 0.3, 0.4, 0.5])
 
     # Check one of the inner columns.
-    assert results["lightcurve"].nest.fields == ["mjd", "flux", "fluxerr", "filter"]
+    assert results["lightcurve"].nest.columns == ["mjd", "flux", "fluxerr", "filter"]
     assert np.allclose(results["lightcurve"][0]["flux"], [10.0, 12.0, 11.0])
     assert np.allclose(results["lightcurve"][1]["flux"], [15.0, 14.0])
     assert np.allclose(results["lightcurve"][2]["flux"], [13.0])
@@ -99,7 +99,7 @@ def test_results_append_param_as_col():
     nested_inds = [0, 0, 0, 1, 1, 2]
     res1 = NestedFrame(data=outer_dict, index=[0, 1, 2])
     nested = pd.DataFrame(data=inner_dict, index=nested_inds)
-    res1 = res1.add_nested(nested, "lightcurve")
+    res1 = res1.join_nested(nested, "lightcurve")
 
     assert "salt2_c" not in res1.columns
     assert "salt2_x1" not in res1.columns
@@ -140,9 +140,9 @@ def test_results_append_obstable_data():
     nested_inds = [0, 0, 0, 1, 1, 2]
     res1 = NestedFrame(data=outer_dict, index=[0, 1, 2])
     nested = pd.DataFrame(data=inner_dict, index=nested_inds)
-    res1 = res1.add_nested(nested, "lightcurve")
+    res1 = res1.join_nested(nested, "lightcurve")
     assert "test_col" not in res1.columns
-    assert "test_col" not in res1["lightcurve"].nest.fields
+    assert "test_col" not in res1["lightcurve"].nest.columns
 
     # Create two FakeObsTable instances with a test column to add.
     zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
@@ -177,7 +177,7 @@ def test_results_append_obstable_data():
     )
 
     res1 = results_append_obstable_data(res1, "test_col", [ops_table_1, ops_table_2])
-    assert "test_col" in res1["lightcurve"].nest.fields
+    assert "test_col" in res1["lightcurve"].nest.columns
     assert np.array_equal(res1["lightcurve.test_col"][0], [1.0, 2.0, 4.0])
     assert np.array_equal(res1["lightcurve.test_col"][1], [11.0, 3.0])
     assert np.array_equal([res1["lightcurve.test_col"][2]], [14.0])
@@ -233,7 +233,7 @@ def test_results_drop_empty():
     nested_frame = pd.DataFrame(data=nested_data, index=[0, 0, 0, 2, 3, 3])
 
     # Add the nested DataFrame to the results.
-    results = results.add_nested(nested_frame, "lightcurve")
+    results = results.join_nested(nested_frame, "lightcurve")
     assert len(results) == 5
     assert results["object_id"].tolist() == [0, 1, 2, 3, 4]
 
@@ -294,12 +294,12 @@ def test_results_augment_lightcurves():
     nested_frame = pd.DataFrame(data=nested_data, index=[0, 0, 1, 1, 2, 2])
 
     # Add the nested DataFrame to the results.
-    results = results.add_nested(nested_frame, "lightcurve")
+    results = results.join_nested(nested_frame, "lightcurve")
     assert len(results) == 3
-    assert "snr" not in results["lightcurve"].nest.fields
-    assert "detection" not in results["lightcurve"].nest.fields
-    assert "mag" not in results["lightcurve"].nest.fields
-    assert "magerr" not in results["lightcurve"].nest.fields
+    assert "snr" not in results["lightcurve"].nest.columns
+    assert "detection" not in results["lightcurve"].nest.columns
+    assert "mag" not in results["lightcurve"].nest.columns
+    assert "magerr" not in results["lightcurve"].nest.columns
     assert results["object_id"].tolist() == [0, 1, 2]
 
     # Augmenting the lightcurves should add the new columns.
@@ -307,23 +307,23 @@ def test_results_augment_lightcurves():
     assert len(results) == 3
 
     # Check the SNR and detection markings.
-    assert "snr" in results["lightcurve"].nest.fields
+    assert "snr" in results["lightcurve"].nest.columns
     assert _allclose(results["lightcurve.snr"][0].values, [10.0, 12.0])
     assert _allclose(results["lightcurve.snr"][1].values, [0.1, 0.01])
     assert _allclose(results["lightcurve.snr"][2].values, [2.5, 6.0])
 
-    assert "detection" in results["lightcurve"].nest.fields
+    assert "detection" in results["lightcurve"].nest.columns
     assert results["lightcurve.detection"][0].tolist() == [True, True]
     assert results["lightcurve.detection"][1].tolist() == [False, False]
     assert results["lightcurve.detection"][2].tolist() == [False, True]
 
     # Check the AB magnitudes and magnitude errors.
-    assert "mag" in results["lightcurve"].nest.fields
+    assert "mag" in results["lightcurve"].nest.columns
     assert _allclose(results["lightcurve.mag"][0].values, [flux2mag(10.0), flux2mag(12.0)])
     assert _allclose(results["lightcurve.mag"][1].values, [flux2mag(0.1), flux2mag(0.2)])
     assert _allclose(results["lightcurve.mag"][2].values, [flux2mag(5.0), flux2mag(6.0)])
 
-    assert "magerr" in results["lightcurve"].nest.fields
+    assert "magerr" in results["lightcurve"].nest.columns
     for i in range(3):
         assert _allclose(
             results["lightcurve.magerr"][i].values,
@@ -331,17 +331,17 @@ def test_results_augment_lightcurves():
         )
 
     # Without providing a t0, we do not compute relative time.
-    assert "time_rel" not in results["lightcurve"].nest.fields
+    assert "time_rel" not in results["lightcurve"].nest.columns
 
     # If we provide an array with None, we do not compute relative time.
     results["t0"] = np.array([None, None, None])
     results_augment_lightcurves(results, min_snr=5)
-    assert "time_rel" not in results["lightcurve"].nest.fields
+    assert "time_rel" not in results["lightcurve"].nest.columns
 
     # Try with a valid array of t0.
     results["t0"] = np.array([59000, 59001, 59002])
     results_augment_lightcurves(results, min_snr=5)
-    assert "time_rel" in results["lightcurve"].nest.fields
+    assert "time_rel" in results["lightcurve"].nest.columns
     assert _allclose(results["lightcurve.time_rel"][0].values, [0, 1])
     assert _allclose(results["lightcurve.time_rel"][1].values, [1, 2])
     assert _allclose(results["lightcurve.time_rel"][2].values, [2, 3])

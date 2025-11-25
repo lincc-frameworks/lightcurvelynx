@@ -382,7 +382,7 @@ def _simulate_lightcurves_batch(simulation_info):
     logger.info("Compiling results.")
     results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
-    results = results.add_nested(nested_frame, "lightcurve")
+    results = results.join_nested(nested_frame, "lightcurve")
     if simulation_info.output_file_path is not None:
         results.to_parquet(simulation_info.output_file_path)
         return simulation_info.output_file_path
@@ -683,5 +683,5 @@ def compute_noise_free_lightcurves(
     # Create the nested results frame.
     results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
-    results = results.add_nested(nested_frame, "lightcurve")
+    results = results.join_nested(nested_frame, "lightcurve")
     return results

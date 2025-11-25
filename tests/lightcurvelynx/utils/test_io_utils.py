@@ -53,7 +53,7 @@ def test_read_write_lsdb(tmp_path):
     nested_inds = [0, 0, 0, 1, 1, 2]
     results = NestedFrame(data=outer_dict, index=[0, 1, 2])
     nested_1 = pd.DataFrame(data=inner_dict, index=nested_inds)
-    results = results.add_nested(nested_1, "lightcurve")
+    results = results.join_nested(nested_1, "lightcurve")
 
     # Write out the results to a temporary directory.
     out_dir = tmp_path / "lsdb_output"
