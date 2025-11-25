@@ -226,7 +226,10 @@ def results_augment_lightcurves(results, *, min_snr=0.0):
     """
     if not isinstance(results, NestedFrame) or "lightcurve" not in results.columns:
         raise ValueError("results must be a NestedFrame with a 'lightcurve' column.")
-    if "flux" not in results["lightcurve"].nest.fields or "fluxerr" not in results["lightcurve"].nest.fields:
+    if (
+        "flux" not in results["lightcurve"].nest.columns
+        or "fluxerr" not in results["lightcurve"].nest.columns
+    ):
         raise ValueError("lightcurve.flux and lightcurve.fluxerr must be present in the DataFrame.")
     flux = results["lightcurve.flux"]
     fluxerr = results["lightcurve.fluxerr"]
@@ -243,7 +246,7 @@ def results_augment_lightcurves(results, *, min_snr=0.0):
 
     # If t0 is provided as a column in results, compute relative time.
     if "t0" in results.columns and np.all(results["t0"]) and results["t0"].notna().all():
-        if "mjd" not in results["lightcurve"].nest.fields:
+        if "mjd" not in results["lightcurve"].nest.columns:
             raise ValueError("lightcurve.mjd must be present in the DataFrame.")
 
         # Get the index for the t0 entry for each lightcurve MJD and use that
