@@ -388,7 +388,7 @@ def test_simulate_parallel_processes(test_data_dir):
     dec0 = opsim_db["dec"].values[0]
     source = ConstantSEDModel(
         brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
-        t0=0.0,
+        t0=GivenValueList([i for i in range(5_000)]),
         ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
         dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
         redshift=0.0,
@@ -417,6 +417,12 @@ def test_simulate_parallel_processes(test_data_dir):
     assert np.unique(results["ra"].values).size > 95
     assert np.unique(results["dec"].values).size > 95
     assert np.unique(results["source_brightness"].values).size > 95
+
+    # Check that we did not duplicate any t0 values even though they came
+    # from a GivenValueList. We should get each value [0, 99] exactly once.
+    assert np.unique(results["t0"].values).size == 100
+    assert np.all(results["t0"].values >= 0)
+    assert np.all(results["t0"].values < 100)
 
     for idx in range(100):
         num_obs = results["nobs"][idx]

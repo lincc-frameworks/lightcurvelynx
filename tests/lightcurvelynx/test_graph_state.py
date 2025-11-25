@@ -14,7 +14,7 @@ def test_create_single_sample_graph_state():
     assert len(state) == 0
     assert state.num_samples == 1
     assert state.get_all_params_names() == []
-    assert state.offset == 0
+    assert state.sample_offset == 0
 
     state.set("a", "v1", 1.0)
     state.set("a", "v2", 2.0)
@@ -106,10 +106,10 @@ def test_create_single_sample_graph_state():
 
 def test_create_graph_state_offset():
     """Test that we can create a sample GraphState with an offset."""
-    state = GraphState(offset=5)
+    state = GraphState(sample_offset=5)
     assert len(state) == 0
     assert state.num_samples == 1
-    assert state.offset == 5
+    assert state.sample_offset == 5
 
 
 def test_create_single_graph_state_from_flattened_dict():

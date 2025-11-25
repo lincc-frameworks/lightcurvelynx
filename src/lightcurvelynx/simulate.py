@@ -249,7 +249,7 @@ def _simulate_lightcurves_batch(simulation_info):
     sample_states = model.sample_parameters(
         num_samples=num_samples,
         rng_info=rng,
-        offset=sample_offset,
+        sample_offset=sample_offset,
     )
 
     # If we are given information for a single survey, make it into a list.

@@ -3,7 +3,6 @@ can be used in testing to produce known results or to use data previously
 sampled from another method (such as pzflow).
 """
 
-
 import numpy as np
 import pandas as pd
 from astropy.table import Table
@@ -107,8 +106,8 @@ class GivenValueList(FunctionNode):
             functions can easily access the results.
         """
         next_ind = self.next_ind
-        if graph_state.offset is not None and graph_state.offset != 0:
-            next_ind += graph_state.offset
+        if graph_state.sample_offset is not None and graph_state.sample_offset != 0:
+            next_ind += graph_state.sample_offset
 
         if graph_state.num_samples == 1:
             if next_ind >= len(self.values):
@@ -307,8 +306,8 @@ class TableSampler(NumpyRandomFunc):
         # Compute the indices to sample.
         if self.in_order:
             next_ind = self.next_ind
-            if graph_state.offset is not None and graph_state.offset != 0:
-                next_ind += graph_state.offset
+            if graph_state.sample_offset is not None and graph_state.sample_offset != 0:
+                next_ind += graph_state.sample_offset
 
             # Check that we have enough points left to sample.
             end_index = next_ind + graph_state.num_samples

@@ -48,12 +48,12 @@ class GraphState:
     fixed_vars : dict
         A dictionary mapping the node name to a set of the variable names that
         are fixed (not changed by resampling) in this GraphState instance.
-    offset : int
+    sample_offset : int
         An optional offset to add to the graph state for any stateful nodes.
         Default: 0
     """
 
-    def __init__(self, num_samples=1, *, offset=0):
+    def __init__(self, num_samples=1, *, sample_offset=0):
         if num_samples < 1:
             raise ValueError(
                 f"Invalid number of samples for GraphState ({num_samples}). Must be a positive integer."
@@ -62,7 +62,7 @@ class GraphState:
         self.num_parameters = 0
         self.states = {}
         self.fixed_vars = {}
-        self.offset = offset
+        self.sample_offset = sample_offset
 
     def __len__(self):
         return self.num_parameters
