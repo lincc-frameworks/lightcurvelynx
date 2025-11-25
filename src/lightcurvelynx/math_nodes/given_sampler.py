@@ -3,6 +3,8 @@ can be used in testing to produce known results or to use data previously
 sampled from another method (such as pzflow).
 """
 
+import warnings
+
 import numpy as np
 import pandas as pd
 from astropy.table import Table
@@ -85,6 +87,16 @@ class GivenValueList(FunctionNode):
         self.next_ind = 0
 
         super().__init__(self._non_func, **kwargs)
+
+    def __getstate__(self):
+        """We override the default pickling behavior to add a warning because we do
+        not correctly support parallel sampling of in-order values.
+        """
+        warnings.warn(
+            "GivenValueList does not support distributed computation. Each shard will "
+            "return the same sequence of values. We recommend using the GivenValueSampler."
+        )
+        return self.__dict__.copy()
 
     def reset(self):
         """Reset the next index to use."""
@@ -278,6 +290,18 @@ class TableSampler(NumpyRandomFunc):
 
         # Add each of the flow's data columns as an output parameter.
         super().__init__("uniform", outputs=self.data.colnames, **kwargs)
+
+    def __getstate__(self):
+        """We override the default pickling behavior to add a warning when in_order is true
+        because we do not correctly support parallel sampling of in-order values.
+        """
+        if self.in_order:
+            warnings.warn(
+                "TableSampler with in_order=True does not support distributed computation. "
+                "Each shard will return the same sequence of values. We recommend setting "
+                "in_order=False for distributed sampling."
+            )
+        return self.__dict__.copy()
 
     def reset(self):
         """Reset the next index to use. Only used for in-order sampling."""

@@ -190,7 +190,7 @@ def test_obstable_ra_dec_sampler_from_hats(test_data_dir):
     nested_inds = [0, 0, 0, 1, 1, 2]
     results = NestedFrame(data=outer_dict, index=[0, 1, 2])
     nested_1 = pd.DataFrame(data=inner_dict, index=nested_inds)
-    results = results.add_nested(nested_1, "lightcurve")
+    results = results.join_nested(nested_1, "lightcurve")
 
     with tempfile.TemporaryDirectory() as dir_name:
         dir_path = Path(dir_name, "test_hats")

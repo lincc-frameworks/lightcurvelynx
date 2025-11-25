@@ -81,6 +81,18 @@ The following notebooks provide example simulations using the LightCurveLynx pac
     Redback Models <notebooks/pre_executed/redback_example>
 
 
+Examples of Wrapping External Models
+-----------------------------------------------------------------------------------------
+
+The following notebooks provide examples of how to wrap external models for use in
+LightCurveLynx.
+
+.. toctree::
+    :maxdepth: 1
+
+    Wrapping Redback Models <notebooks/pre_executed/wrapping_redback>
+
+
 Running LightCurveLynx in a Jupyter Notebook
 -----------------------------------------------------------------------------------------
 
