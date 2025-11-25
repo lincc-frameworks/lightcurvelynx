@@ -676,7 +676,7 @@ class ParameterizedNode:
         if any_compute:
             self.compute(graph_state, rng_info)
 
-    def sample_parameters(self, given_args=None, num_samples=1, rng_info=None):
+    def sample_parameters(self, given_args=None, num_samples=1, rng_info=None, offset=0):
         """Sample the model's underlying parameters if they are provided by a function
         or ParameterizedNode.
 
@@ -691,6 +691,10 @@ class ParameterizedNode:
         rng_info : numpy.random._generator.Generator, optional
             A given numpy random number generator to use for this computation. If not
             provided, the function uses the node's random number generator.
+        offset : int
+            An optional offset to add to the graph state for any stateful nodes.
+            This allows the system to parallelize sampling.
+            Default: 0 (no offset)
 
         Returns
         -------
@@ -710,7 +714,7 @@ class ParameterizedNode:
             self.set_graph_positions(seen_nodes=nodes)
 
         # Create space for the results and set all the given_args as fixed parameters.
-        results = GraphState(num_samples)
+        results = GraphState(num_samples, offset=offset)
         if given_args is not None:
             results.update(given_args, all_fixed=True)
 
