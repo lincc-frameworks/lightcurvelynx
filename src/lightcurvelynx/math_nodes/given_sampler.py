@@ -3,6 +3,8 @@ can be used in testing to produce known results or to use data previously
 sampled from another method (such as pzflow).
 """
 
+import warnings
+
 import numpy as np
 import pandas as pd
 from astropy.table import Table
@@ -65,6 +67,15 @@ class GivenValueList(FunctionNode):
     """A FunctionNode that returns given results for a single parameter
     in the order in which they are provided.
 
+    Note
+    ----
+    This is a stateful node that keeps track of the next index to return
+    that can be used in sequential or parallel sampling. However, the state
+    is **not** preserved after a parallel run. If multiple parallelized
+    runs are performed in sequence, the user must adjust the sampling index
+    using the GraphState object's `sample_offset` attribute to avoid repeated
+    samples.
+
     Attributes
     ----------
     values : float, list, or numpy.ndarray
@@ -80,6 +91,18 @@ class GivenValueList(FunctionNode):
         self.next_ind = 0
 
         super().__init__(self._non_func, **kwargs)
+
+    def __getstate__(self):
+        """We override the default pickling behavior to add a warning because
+        we automatically reset the state after each parallel run.
+        """
+        warnings.warn(
+            "GivenValueList does not preserve internal state after a parallelized run. "
+            "If you are running multiple parallel runs (in sequence), use the "
+            "GraphState object's sample_offset attribute to adjust the sampling "
+            "index accordingly. Otherwise you will get repeated samples."
+        )
+        return self.__dict__.copy()
 
     def reset(self):
         """Reset the next index to use."""
@@ -237,6 +260,15 @@ class TableSampler(NumpyRandomFunc):
     including a Pandas DataFrame or AstroPy Table. The results returned
     can be in-order (for testing) or randomly selected with replacement.
 
+    Note
+    ----
+    This is a stateful node that keeps track of the next index to return
+    that can be used in sequential or parallel sampling. However, the state
+    is **not** preserved after a parallel run. If multiple parallelized
+    runs are performed in sequence, the user must adjust the sampling index
+    using the GraphState object's `sample_offset` attribute to avoid repeated
+    samples.
+
     Parameters
     ----------
     data : pandas.DataFrame, astropy.table.Table, or dict
@@ -282,6 +314,18 @@ class TableSampler(NumpyRandomFunc):
     def reset(self):
         """Reset the next index to use. Only used for in-order sampling."""
         self.next_ind = 0
+
+    def __getstate__(self):
+        """We override the default pickling behavior to add a warning because
+        we automatically reset the state after each parallel run.
+        """
+        warnings.warn(
+            "TableSampler does not preserve internal state after a parallelized run. "
+            "If you are running multiple parallel runs (in sequence), use the "
+            "GraphState object's sample_offset attribute to adjust the sampling "
+            "index accordingly. Otherwise you will get repeated samples."
+        )
+        return self.__dict__.copy()
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.

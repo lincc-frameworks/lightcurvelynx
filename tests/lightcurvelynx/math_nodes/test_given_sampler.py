@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -80,6 +82,11 @@ def test_given_value_list():
     # We fail if we try to create a GivenValueList with an empty list.
     with pytest.raises(ValueError):
         _ = GivenValueList([])
+
+    # GivenValueList will give a warning about maintaining state after
+    # parallel runs when we pickle it.
+    with pytest.warns(UserWarning):
+        _ = pickle.dumps(given_node)
 
 
 def test_given_value_list_offset():
@@ -267,6 +274,11 @@ def test_table_sampler(test_data_type):
     assert np.allclose(state["node"]["A"], [1, 2])
     assert np.allclose(state["node"]["B"], [1, 1])
     assert np.allclose(state["node"]["C"], [3, 4])
+
+    # TableSampler will give a warning about maintaining state after
+    # parallel runs when we pickle it.
+    with pytest.warns(UserWarning):
+        _ = pickle.dumps(table_node)
 
 
 def test_table_sampler_fail():

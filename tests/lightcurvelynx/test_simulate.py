@@ -396,16 +396,17 @@ def test_simulate_parallel_processes(test_data_dir):
     )
 
     with ProcessPoolExecutor(max_workers=2) as executor:
-        results = simulate_lightcurves(
-            source,
-            100,
-            opsim_db,
-            passband_group,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            executor=executor,
-            batch_size=10,
-        )
+        with pytest.warns(UserWarning):  # Warns about GivenValueList state
+            results = simulate_lightcurves(
+                source,
+                100,
+                opsim_db,
+                passband_group,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                executor=executor,
+                batch_size=10,
+            )
     assert len(results) == 100
     assert np.all(results["nobs"].values >= 1)
     assert np.all(results["ra"].values >= ra0 - 0.5)
@@ -430,16 +431,17 @@ def test_simulate_parallel_processes(test_data_dir):
         assert len(results["lightcurve"][idx]["flux"]) == num_obs
 
     # We can use the default (ProcessPoolExecutor) by giving a number of jobs.
-    results2 = simulate_lightcurves(
-        source,
-        100,
-        opsim_db,
-        passband_group,
-        obstable_save_cols=["observationId", "zp_nJy"],
-        param_cols=["source.brightness"],
-        batch_size=10,
-        num_jobs=2,
-    )
+    with pytest.warns(UserWarning):  # Warns about GivenValueList state
+        results2 = simulate_lightcurves(
+            source,
+            100,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            batch_size=10,
+            num_jobs=2,
+        )
     assert len(results2) == 100
 
     # We can write the results to files.
@@ -451,17 +453,18 @@ def test_simulate_parallel_processes(test_data_dir):
             assert not curr_path.exists()
             ind_paths.append(curr_path)
 
-        results3 = simulate_lightcurves(
-            source,
-            200,
-            opsim_db,
-            passband_group,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            output_file_path=base_path,
-            batch_size=50,
-            num_jobs=4,
-        )
+        with pytest.warns(UserWarning):  # Warns about GivenValueList state
+            results3 = simulate_lightcurves(
+                source,
+                200,
+                opsim_db,
+                passband_group,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                output_file_path=base_path,
+                batch_size=50,
+                num_jobs=4,
+            )
         assert len(results3) == 4
         for i in range(4):
             assert str(results3[i]) == str(ind_paths[i])
