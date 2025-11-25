@@ -87,8 +87,8 @@ def test_given_value_list():
     with pytest.raises(ValueError):
         _ = GivenValueList([])
 
-    # We cannot pickle a GivenValueList that is in order.
-    with pytest.raises(ValueError):
+    # We should not pickle a GivenValueList that is in order.
+    with pytest.warns(UserWarning):
         _ = pickle.dumps(given_node)
 
 
@@ -261,8 +261,8 @@ def test_table_sampler(test_data_type):
     assert np.allclose(state["node"]["B"], [1, 1])
     assert np.allclose(state["node"]["C"], [3, 4])
 
-    # We cannot pickle a TableSampler that is in order.
-    with pytest.raises(ValueError):
+    # We should pickle a TableSampler that is in order.
+    with pytest.warns(UserWarning):
         _ = pickle.dumps(table_node)
 
 

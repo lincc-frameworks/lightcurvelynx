@@ -3,6 +3,8 @@ can be used in testing to produce known results or to use data previously
 sampled from another method (such as pzflow).
 """
 
+import warnings
+
 import numpy as np
 import pandas as pd
 from astropy.table import Table
@@ -87,10 +89,14 @@ class GivenValueList(FunctionNode):
         super().__init__(self._non_func, **kwargs)
 
     def __getstate__(self):
-        """We override the default pickling behavior to fail because we do not support
-        parallel sampling of in-order values.
+        """We override the default pickling behavior to add a warning because we do
+        not correctly support parallel sampling of in-order values.
         """
-        raise ValueError("GivenValueList cannot be used with distributed computation.")
+        warnings.warn(
+            "GivenValueList does not support distributed computation. "
+            "Each shard will return the same sequence of values."
+        )
+        return self.__dict__.copy()
 
     def reset(self):
         """Reset the next index to use."""
@@ -286,12 +292,15 @@ class TableSampler(NumpyRandomFunc):
         super().__init__("uniform", outputs=self.data.colnames, **kwargs)
 
     def __getstate__(self):
-        """We override the default pickling behavior to fail if in_order is True,
-        because we do not currently have a way to move the pointer.
+        """We override the default pickling behavior to add a warning when in_order is true
+        because we do not correctly support parallel sampling of in-order values.
         """
         if self.in_order:
-            raise ValueError("TableSampler with in_order=True cannot be pickled for distributed computation.")
-        return super().__getstate__()
+            warnings.warn(
+                "TableSampler with in_order=True does not support distributed computation. "
+                "Each shard will return the same sequence of values."
+            )
+        return self.__dict__.copy()
 
     def reset(self):
         """Reset the next index to use. Only used for in-order sampling."""
