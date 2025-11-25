@@ -86,6 +86,12 @@ class GivenValueList(FunctionNode):
 
         super().__init__(self._non_func, **kwargs)
 
+    def __getstate__(self):
+        """We override the default pickling behavior to fail because we do not support
+        parallel sampling of in-order values.
+        """
+        raise ValueError("GivenValueList cannot be used with distributed computation.")
+
     def reset(self):
         """Reset the next index to use."""
         self.next_ind = 0
@@ -278,6 +284,14 @@ class TableSampler(NumpyRandomFunc):
 
         # Add each of the flow's data columns as an output parameter.
         super().__init__("uniform", outputs=self.data.colnames, **kwargs)
+
+    def __getstate__(self):
+        """We override the default pickling behavior to fail if in_order is True,
+        because we do not currently have a way to move the pointer.
+        """
+        if self.in_order:
+            raise ValueError("TableSampler with in_order=True cannot be pickled for distributed computation.")
+        return super().__getstate__()
 
     def reset(self):
         """Reset the next index to use. Only used for in-order sampling."""
