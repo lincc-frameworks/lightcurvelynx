@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -41,6 +43,10 @@ def test_binary_sampler():
     with pytest.raises(ValueError):
         _ = BinarySampler(1.5)
 
+    # We can pickle the BinarySampler.
+    node_str = pickle.dumps(binary_node)
+    assert node_str is not None
+
 
 def test_given_value_list():
     """Test that we can retrieve numbers from a GivenValueList."""
@@ -80,6 +86,10 @@ def test_given_value_list():
     # We fail if we try to create a GivenValueList with an empty list.
     with pytest.raises(ValueError):
         _ = GivenValueList([])
+
+    # We should not pickle a GivenValueList that is in order.
+    with pytest.warns(UserWarning):
+        _ = pickle.dumps(given_node)
 
 
 def test_test_given_value_list_compound():
@@ -140,6 +150,10 @@ def test_given_value_sampler():
     # We fail if the number of weights doesn't match the number of values.
     with pytest.raises(ValueError):
         _ = GivenValueSampler([1, 3, 5], weights=[0.5, 0.5])
+
+    # We can pickle the GivenValueSampler.
+    node_str = pickle.dumps(given_node)
+    assert node_str is not None
 
 
 def test_given_value_sampler_int():
@@ -247,6 +261,10 @@ def test_table_sampler(test_data_type):
     assert np.allclose(state["node"]["B"], [1, 1])
     assert np.allclose(state["node"]["C"], [3, 4])
 
+    # We should pickle a TableSampler that is in order.
+    with pytest.warns(UserWarning):
+        _ = pickle.dumps(table_node)
+
 
 def test_table_sampler_fail():
     """Test failure cases when creating a TableSampler."""
@@ -259,7 +277,7 @@ def test_table_sampler_fail():
         _ = TableSampler({"a": [], "b": []})
 
 
-def test_table_sampler_ranndomized():
+def test_table_sampler_randomized():
     """Test that we can retrieve numbers from a TableSampler."""
     raw_data_dict = {
         "A": [1, 3, 5],
@@ -289,3 +307,7 @@ def test_table_sampler_ranndomized():
 
     # We always sample consistent ROWS of a and b.
     assert np.all(b_vals - a_vals == 1)
+
+    # We can pickle a randomized TableSampler.
+    node_str = pickle.dumps(table_node)
+    assert node_str is not None
