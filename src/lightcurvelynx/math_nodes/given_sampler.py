@@ -93,8 +93,8 @@ class GivenValueList(FunctionNode):
         not correctly support parallel sampling of in-order values.
         """
         warnings.warn(
-            "GivenValueList does not support distributed computation. "
-            "Each shard will return the same sequence of values."
+            "GivenValueList does not support distributed computation. Each shard will "
+            "return the same sequence of values. We recommend using the GivenValueSampler."
         )
         return self.__dict__.copy()
 
@@ -298,7 +298,8 @@ class TableSampler(NumpyRandomFunc):
         if self.in_order:
             warnings.warn(
                 "TableSampler with in_order=True does not support distributed computation. "
-                "Each shard will return the same sequence of values."
+                "Each shard will return the same sequence of values. We recommend setting "
+                "in_order=False for distributed sampling."
             )
         return self.__dict__.copy()
 
