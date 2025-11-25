@@ -51,6 +51,18 @@ track citations in your LightCurveLynx simulations.
     Citations <notebooks/citations>
 
 
+Examples of Wrapping External Models
+-----------------------------------------------------------------------------------------
+
+The following notebooks provide examples of how to wrap external models for use in
+LightCurveLynx.
+
+.. toctree::
+    :maxdepth: 1
+
+    Wrapping Bagle Models <notebooks/pre_executed/wrapping_bagle>
+
+
 Example Simulations
 -----------------------------------------------------------------------------------------
 
