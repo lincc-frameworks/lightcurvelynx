@@ -36,14 +36,17 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
     parameter_dict : dict
         A dictionary of parameter names and values to use for the model. The keys should
         match the parameter names expected by the bagle model.
+    filter_idx : dict, optional
+        A mapping from filter names to indices expected by the bagle model. If not provided,
+        a default mapping for ugrizy filters will be used.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
 
     # Convenience mapping from filter name to index in the parameter list.
-    _filter_idx = {"u": 0, "g": 1, "r": 2, "i": 3, "z": 4, "y": 5}
+    _default_filter_idx = {"u": 0, "g": 1, "r": 2, "i": 3, "z": 4, "y": 5}
 
-    def __init__(self, model_info, parameter_dict, **kwargs):
+    def __init__(self, model_info, parameter_dict, filter_idx=None, **kwargs):
         # We start by extracting the parameter information needed for a general physical model.
         ra = parameter_dict.get("raL", None)
         dec = parameter_dict.get("decL", None)
@@ -55,7 +58,7 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
         self._parameter_names = []
         for param_name, param_value in parameter_dict.items():
             self._parameter_names.append(param_name)
-            if param_name not in self.setters:
+            if param_name not in self.list_params():
                 self.add_parameter(param_name, param_value)
 
         # Save the model class, but DO NOT create the model object yet. We allow the
@@ -71,6 +74,12 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
             self._model_class = getattr(model, model_info)
         else:
             self._model_class = model_info
+
+        # Save the filter index mapping, using the default if none is provided.
+        if filter_idx is None:
+            self._filter_idx = self._default_filter_idx
+        else:
+            self._filter_idx = filter_idx
 
     @property
     def parameter_names(self):
