@@ -24,6 +24,8 @@ We could have one mean for an object's brightness and another for its positional
 of a host galaxy.
 """
 
+import copy
+
 import numpy as np
 from astropy.io import ascii
 from astropy.table import Table
@@ -195,8 +197,11 @@ class GraphState:
                     new_state.states[node_name][var_name] = var_value
                 else:
                     new_state.states[node_name][var_name] = var_value.copy()
-        for node_name, var_list in self.fixed_vars.items():
-            new_state.fixed_vars[node_name] = var_list.copy()
+
+        # Copy over the sets of fixed variables. This is a single set of strings
+        # per node, so we just need to copy the sets.
+        for node_name, var_set in self.fixed_vars.items():
+            new_state.fixed_vars[node_name] = copy.deepcopy(var_set)
         return new_state
 
     @staticmethod
@@ -512,9 +517,10 @@ class GraphState:
                 else:
                     new_state.states[node_name][var_name] = value[sample_num]
 
-        # Copy over the fixed vars information.
-        for node_name, var_list in self.fixed_vars.items():
-            new_state.fixed_vars[node_name] = var_list.copy()
+        # Copy over the sets of fixed variables. This is a single set of strings
+        # per node, so we just need to copy the sets.
+        for node_name, var_set in self.fixed_vars.items():
+            new_state.fixed_vars[node_name] = copy.deepcopy(var_set)
 
         return new_state
 
