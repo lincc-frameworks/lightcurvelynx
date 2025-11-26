@@ -93,8 +93,11 @@ def test_simulation_info():
     batches = sim_info.split(num_batches=3)
     assert len(batches) == 3
     assert batches[0].num_samples == 34
+    assert batches[0].sample_offset == 0
     assert batches[1].num_samples == 34
+    assert batches[1].sample_offset == 34
     assert batches[2].num_samples == 32
+    assert batches[2].sample_offset == 68
 
     # We propagate all the keyword parameters.
     assert batches[0].time_window_offset == (-5.0, 10.0)
