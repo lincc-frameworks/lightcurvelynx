@@ -78,9 +78,15 @@ def test_create_single_sample_graph_state():
     new_state = state.extract_single_sample(0)
     assert len(new_state) == 3
     assert new_state.num_samples == 1
+    assert new_state.sample_offset == 0
     assert state["a"]["v1"] == 1.0
     assert state["a"]["v2"] == 2.0
     assert state["b"]["v1"] == 3.0
+
+    # Both nodes are in the fixed vars (empty sets).
+    assert len(new_state.fixed_vars) == 2
+    assert "a" in new_state.fixed_vars
+    assert "b" in new_state.fixed_vars
 
     # We can overwrite settings.
     state.set("a", "v1", 10.0)
@@ -284,6 +290,15 @@ def test_graph_state_copy():
     state.set("b", "v1", 3.0)
 
     state2 = state.copy()
+
+    # Test that we copied over the meta-data
+    assert state2.num_parameters == 3
+    assert state2.sample_offset == 0
+    assert len(state2.fixed_vars) == 2  # empty set for each node
+    assert "a" in state2.fixed_vars
+    assert "b" in state2.fixed_vars
+
+    # Test with single values.
     state2.set("a", "v1", 10.0)
     state2.set("a", "v2", 20.0)
     state2.set("b", "v1", 30.0)
@@ -299,12 +314,17 @@ def test_graph_state_copy():
     assert state2["b"]["v1"] == 30.0
 
     # Test with arrays.
-    state = GraphState(3)
+    state = GraphState(3, sample_offset=2)
     state.set("a", "v1", np.array([1.0, 2.0, 3.0]))
     state.set("a", "v2", np.array([2.0, 3.0, 4.0]))
     state.set("b", "v1", np.array([3.0, 4.0, 5.0]))
 
+    # Test that we copied over the meta-data
     state2 = state.copy()
+    assert state2.num_parameters == 3
+    assert state2.sample_offset == 2
+    assert len(state2.fixed_vars) == 2  # empty set for each node
+
     state2["a.v1"][1] = 10.0
     state2["a.v2"][0] = 20.0
     state2["b.v1"][2] = 30.0
