@@ -78,6 +78,7 @@ LightCurveLynx.
 .. toctree::
     :maxdepth: 1
 
+    Wrapping Bagle Models <notebooks/pre_executed/wrapping_bagle>
     Wrapping Redback Models <notebooks/pre_executed/wrapping_redback>
 
 
