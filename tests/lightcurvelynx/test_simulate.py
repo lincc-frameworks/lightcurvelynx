@@ -388,7 +388,7 @@ def test_simulate_parallel_processes(test_data_dir):
     dec0 = opsim_db["dec"].values[0]
     source = ConstantSEDModel(
         brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
-        t0=0.0,
+        t0=GivenValueList([i for i in range(5_000)]),
         ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
         dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
         redshift=0.0,
@@ -396,16 +396,17 @@ def test_simulate_parallel_processes(test_data_dir):
     )
 
     with ProcessPoolExecutor(max_workers=2) as executor:
-        results = simulate_lightcurves(
-            source,
-            100,
-            opsim_db,
-            passband_group,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            executor=executor,
-            batch_size=10,
-        )
+        with pytest.warns(UserWarning):  # Warns about GivenValueList state
+            results = simulate_lightcurves(
+                source,
+                100,
+                opsim_db,
+                passband_group,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                executor=executor,
+                batch_size=10,
+            )
     assert len(results) == 100
     assert np.all(results["nobs"].values >= 1)
     assert np.all(results["ra"].values >= ra0 - 0.5)
@@ -418,22 +419,29 @@ def test_simulate_parallel_processes(test_data_dir):
     assert np.unique(results["dec"].values).size > 95
     assert np.unique(results["source_brightness"].values).size > 95
 
+    # Check that we did not duplicate any t0 values even though they came
+    # from a GivenValueList. We should get each value [0, 99] exactly once.
+    assert np.unique(results["t0"].values).size == 100
+    assert np.all(results["t0"].values >= 0)
+    assert np.all(results["t0"].values < 100)
+
     for idx in range(100):
         num_obs = results["nobs"][idx]
         assert num_obs >= 1
         assert len(results["lightcurve"][idx]["flux"]) == num_obs
 
     # We can use the default (ProcessPoolExecutor) by giving a number of jobs.
-    results2 = simulate_lightcurves(
-        source,
-        100,
-        opsim_db,
-        passband_group,
-        obstable_save_cols=["observationId", "zp_nJy"],
-        param_cols=["source.brightness"],
-        batch_size=10,
-        num_jobs=2,
-    )
+    with pytest.warns(UserWarning):  # Warns about GivenValueList state
+        results2 = simulate_lightcurves(
+            source,
+            100,
+            opsim_db,
+            passband_group,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            batch_size=10,
+            num_jobs=2,
+        )
     assert len(results2) == 100
 
     # We can write the results to files.
@@ -445,17 +453,18 @@ def test_simulate_parallel_processes(test_data_dir):
             assert not curr_path.exists()
             ind_paths.append(curr_path)
 
-        results3 = simulate_lightcurves(
-            source,
-            200,
-            opsim_db,
-            passband_group,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            output_file_path=base_path,
-            batch_size=50,
-            num_jobs=4,
-        )
+        with pytest.warns(UserWarning):  # Warns about GivenValueList state
+            results3 = simulate_lightcurves(
+                source,
+                200,
+                opsim_db,
+                passband_group,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                output_file_path=base_path,
+                batch_size=50,
+                num_jobs=4,
+            )
         assert len(results3) == 4
         for i in range(4):
             assert str(results3[i]) == str(ind_paths[i])
