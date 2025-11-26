@@ -287,12 +287,22 @@ def test_table_sampler_randomized():
     # Create the table sampler from the data.
     table_node = TableSampler(raw_data_dict, node_label="node")
     state = table_node.sample_parameters(num_samples=2000)
-    assert len(state) == 2
 
-    # We have sampled the a_vals roughly uniformly from the three options.
+    # Check that we can sample a single point.
+    single_state = table_node.sample_parameters(num_samples=1)
+    idx = single_state["node"]["selected_table_index"]
+    assert single_state["node"]["A"] == raw_data_dict["A"][idx]
+    assert single_state["node"]["B"] == raw_data_dict["B"][idx]
+
+    # We have sampled the a_vals roughly uniformly from the three options,
+    # and that the row inds match what was sampled.
     a_vals = state["node"]["A"]
+    row_inds = state["node"]["selected_table_index"]
     assert len(a_vals) == 2000
     assert np.all((a_vals == 1) | (a_vals == 3) | (a_vals == 5))
+    assert np.array_equal((row_inds == 0), (a_vals == 1))
+    assert np.array_equal((row_inds == 1), (a_vals == 3))
+    assert np.array_equal((row_inds == 2), (a_vals == 5))
     assert len(a_vals[a_vals == 1]) > 500
     assert len(a_vals[a_vals == 3]) > 500
     assert len(a_vals[a_vals == 5]) > 500
