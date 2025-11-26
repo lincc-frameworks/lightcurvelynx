@@ -187,6 +187,7 @@ class GraphState:
         """
         new_state = GraphState(num_samples=self.num_samples)
         new_state.num_parameters = self.num_parameters
+        new_state.sample_offset = self.sample_offset
         for node_name, node_vars in self.states.items():
             new_state.states[node_name] = {}
             for var_name, var_value in node_vars.items():
@@ -194,8 +195,8 @@ class GraphState:
                     new_state.states[node_name][var_name] = var_value
                 else:
                     new_state.states[node_name][var_name] = var_value.copy()
-        for node_name, fixed_vars in self.fixed_vars.items():
-            new_state.fixed_vars[node_name] = fixed_vars.copy()
+        for node_name, var_list in self.fixed_vars.items():
+            new_state.fixed_vars[node_name] = var_list.copy()
         return new_state
 
     @staticmethod
@@ -502,6 +503,7 @@ class GraphState:
         # Make a copy of the GraphState with exactly one sample.
         new_state = GraphState(1)
         new_state.num_parameters = self.num_parameters
+        new_state.sample_offset = self.sample_offset
         for node_name in self.states:
             new_state.states[node_name] = {}
             for var_name, value in self.states[node_name].items():
@@ -509,6 +511,11 @@ class GraphState:
                     new_state.states[node_name][var_name] = value
                 else:
                     new_state.states[node_name][var_name] = value[sample_num]
+
+        # Copy over the fixed vars information.
+        for node_name, var_list in self.fixed_vars.items():
+            new_state.fixed_vars[node_name] = var_list.copy()
+
         return new_state
 
     def extract_parameters(self, params):
