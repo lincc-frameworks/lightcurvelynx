@@ -3,6 +3,7 @@
 https://github.com/MovingUniverseLab/BAGLE_Microlensing
 """
 
+import numpy as np
 from citation_compass import CiteClass
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
@@ -48,9 +49,43 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
 
     def __init__(self, model_info, parameter_dict, filter_idx=None, **kwargs):
         # We start by extracting the parameter information needed for a general physical model.
+        # We check the parameter dictionary first, falling back to kwargs if needed.
         ra = parameter_dict.get("raL", None)
+        if "ra" in kwargs:
+            if ra is None:
+                ra = kwargs.pop("ra")
+            else:
+                raise ValueError(
+                    "The 'ra' parameter is specified in both parameter_dict (as 'raL') "
+                    " and kwargs (as 'ra'). Please only use the parameter_dict."
+                )
+
         dec = parameter_dict.get("decL", None)
+        if "dec" in kwargs:
+            if dec is None:
+                dec = kwargs.pop("dec")
+            else:
+                raise ValueError(
+                    "The 'dec' parameter is specified in both parameter_dict (as 'decL') "
+                    " and kwargs (as 'dec'). Please only use the parameter_dict."
+                )
+
+        # The t0 parameter can be specified different ways from the bagle model,
+        # including being computed from other parameters. We need a base value to use
+        # for the time bounds, so we use t0 if it is in the parameter_dict or otherwise
+        # anchor on any parameter that starts with "t0" (under the assumption that it will
+        # indicate the same general range of times).
         t0 = parameter_dict.get("t0", None)
+        if t0 is None:
+            for key, value in parameter_dict.items():
+                if key.startswith("t0"):
+                    t0 = value
+                    break
+        if "t0" in kwargs:
+            raise ValueError(
+                "The 't0' parameter must be specified in only the 'parameter_dict' for the BagleWrapperModel."
+            )
+
         super().__init__(ra=ra, dec=dec, t0=t0, **kwargs)
 
         # Add all of the parameters in the dictionary as settable parameters (if they are not
@@ -58,7 +93,9 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
         self._parameter_names = []
         for param_name, param_value in parameter_dict.items():
             self._parameter_names.append(param_name)
-            if param_name not in self.list_params():
+            if param_name in self.list_params():
+                self.set_parameter(param_name, param_value)
+            else:
                 self.add_parameter(param_name, param_value)
 
         # Save the model class, but DO NOT create the model object yet. We allow the
@@ -111,6 +148,14 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
         # here because the parameters saved in `state` will be different in each run.
         current_params = {param_name: local_params[param_name] for param_name in self.parameter_names}
         model_obj = self._model_class(**current_params)
+
+        # If the model computes a t0 that is different from the one in the graph state, save the new one.
+        if hasattr(model_obj, "t0") and "t0" in local_params:
+            base_t0 = local_params["t0"]
+            computed_t0 = model_obj.t0
+            if np.abs(computed_t0 - base_t0) > 1e-8:
+                node_name = str(self)
+                state.set(node_name, "t0", computed_t0)
 
         # Use the newly created model object with the current parameters to compute the photometry.
         mags = model_obj.get_photometry(times, self._filter_idx[filter])
