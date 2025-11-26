@@ -229,9 +229,8 @@ def _simulate_lightcurves_batch(simulation_info):
         for each object. Otherwise the NestedFrame is saved to a file and the function
         returns that file's path.
     """
-    logger.info(
-        f"Starting batch at {simulation_info.sample_offset} with {simulation_info.num_samples} samples."
-    )
+    sample_offset = simulation_info.sample_offset
+    logger.info(f"Starting batch at {sample_offset} with {simulation_info.num_samples} samples.")
 
     # Extract the parameters from the SimulationInfo that are used repeated
     # (so we have shorter names).
@@ -247,7 +246,11 @@ def _simulate_lightcurves_batch(simulation_info):
     if num_samples <= 0:
         raise ValueError("Invalid number of samples.")
     logger.info(f"Sampling {num_samples} parameter sets from the model.")
-    sample_states = model.sample_parameters(num_samples=num_samples, rng_info=rng)
+    sample_states = model.sample_parameters(
+        num_samples=num_samples,
+        rng_info=rng,
+        sample_offset=sample_offset,
+    )
 
     # If we are given information for a single survey, make it into a list.
     if not isinstance(obstable, list):

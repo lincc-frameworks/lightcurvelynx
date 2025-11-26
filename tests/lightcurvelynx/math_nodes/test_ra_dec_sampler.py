@@ -86,29 +86,26 @@ def test_obstable_ra_dec_sampler():
     ops_data = OpSim(values)
     assert len(ops_data) == 5
 
-    sampler_node = ObsTableRADECSampler(ops_data, radius=0.0, in_order=True)
+    sampler_node = ObsTableRADECSampler(ops_data, radius=0.0, node_label="sampler")
     assert sampler_node.radius == 0.0
 
-    # Test we can generate a single value.
-    (ra, dec, time) = sampler_node.generate(num_samples=1)
-    assert ra == 15.0
-    assert dec == -10.0
-    assert time == 0.0
-
-    # Test we can generate multiple observations
-    (ra, dec, time) = sampler_node.generate(num_samples=2)
-    assert np.allclose(ra, [30.0, 15.0])
-    assert np.allclose(dec, [-5.0, 0.0])
-    assert np.allclose(time, [1.0, 2.0])
+    # Test we can generate a single random value and the entries
+    # are consistent across the row.
+    state = sampler_node.sample_parameters(num_samples=1)
+    idx = state["sampler"]["selected_table_index"]
+    assert state["sampler"]["ra"] == values["fieldRA"][idx]
+    assert state["sampler"]["dec"] == values["fieldDec"][idx]
+    assert state["sampler"]["time"] == values["observationStartMJD"][idx]
 
     # Do randomized sampling (with no offset).
-    sampler_node2 = ObsTableRADECSampler(ops_data, in_order=False, radius=0.0, seed=100, node_label="sampler")
+    sampler_node2 = ObsTableRADECSampler(ops_data, radius=0.0, seed=100, node_label="sampler")
     state = sampler_node2.sample_parameters(num_samples=5000)
 
     # Check that the samples are uniform and consistent.
     int_times = state["sampler"]["time"].astype(int)
     assert np.allclose(state["sampler"]["ra"], values["fieldRA"][int_times])
     assert np.allclose(state["sampler"]["dec"], values["fieldDec"][int_times])
+    assert np.array_equal(state["sampler"]["selected_table_index"], int_times)
     assert len(int_times[int_times == 0]) > 750
     assert len(int_times[int_times == 1]) > 750
     assert len(int_times[int_times == 2]) > 750
@@ -116,7 +113,7 @@ def test_obstable_ra_dec_sampler():
     assert len(int_times[int_times == 4]) > 750
 
     # Do randomized sampling with offsets (using the default OpSim radius).
-    sampler_node3 = ObsTableRADECSampler(ops_data, in_order=False, seed=100, node_label="sampler")
+    sampler_node3 = ObsTableRADECSampler(ops_data, seed=100, node_label="sampler")
     state = sampler_node3.sample_parameters(num_samples=5000)
 
     # Check that the samples are not all the centers (unique values > 500) but are within
@@ -155,21 +152,22 @@ def test_obstable_ra_dec_sampler_extra():
         "extra": np.array([10, 20, 30, 40, 50]),
     }
     ops_df = pd.DataFrame(values)
-    sampler_node = ObsTableRADECSampler(ops_df, radius=0.0, extra_cols=["extra"], in_order=True)
+    sampler_node = ObsTableRADECSampler(ops_df, radius=0.0, extra_cols=["extra"], node_label="sampler")
     assert sampler_node.radius == 0.0
 
     # Test we can generate a single value.
-    sample = sampler_node.generate(num_samples=1)
-    assert len(sample) == 4
-    assert sample[0] == 15.0  # ra
-    assert sample[1] == -10.0  # dec
-    assert sample[2] == 0.0  # time
-    assert sample[3] == 10  # extra
+    sample = sampler_node.sample_parameters(num_samples=1)
+    idx = sample["sampler"]["selected_table_index"]
+    assert sample["sampler"]["ra"] == values["ra"][idx]
+    assert sample["sampler"]["dec"] == values["dec"][idx]
+    assert sample["sampler"]["time"] == values["time"][idx]
+    assert sample["sampler"]["extra"] == values["extra"][idx]
 
     # We can chain on any of the column names.
     single_node = SingleVariableNode("extra", sampler_node.extra, node_label="single")
     state = single_node.sample_parameters(num_samples=2)
-    assert np.allclose(state["single.extra"], [20.0, 30.0])
+    assert state["single.extra"][0] in values["extra"]
+    assert state["single.extra"][1] in values["extra"]
 
 
 def test_obstable_ra_dec_sampler_from_hats(test_data_dir):
@@ -199,16 +197,17 @@ def test_obstable_ra_dec_sampler_from_hats(test_data_dir):
         sampler_node = ObsTableRADECSampler.from_hats(
             dir_path,
             radius=0.0,
-            in_order=True,
             node_label="sampler",
             extra_cols=["z"],
         )
         assert sampler_node.radius == 0.0
 
         states = sampler_node.sample_parameters(num_samples=3)
-        assert np.allclose(states["sampler"]["ra"], [10.0, 10.1, 10.2])
-        assert np.allclose(states["sampler"]["dec"], [-10.0, -9.9, -10.1])
-        assert np.allclose(states["sampler"]["z"], [0.1, 0.2, 0.3])
+        for i in range(3):
+            idx = states["sampler"]["selected_table_index"][i]
+            assert states["sampler"]["ra"][i] == outer_dict["ra"][idx]
+            assert states["sampler"]["dec"][i] == outer_dict["dec"][idx]
+            assert states["sampler"]["z"][i] == outer_dict["z"][idx]
 
 
 def test_opsim_uniform_ra_dec_sampler():
