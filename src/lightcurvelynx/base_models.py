@@ -693,7 +693,7 @@ class ParameterizedNode:
             provided, the function uses the node's random number generator.
         sample_offset : int
             An optional offset to add to the graph state for any stateful nodes.
-            This allows the system to parallelize sampling.
+            This allows the system to better support testing and parallelized sampling.
             Default: 0 (no offset)
 
         Returns

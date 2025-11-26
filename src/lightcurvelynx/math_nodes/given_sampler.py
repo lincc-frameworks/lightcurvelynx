@@ -255,7 +255,7 @@ class GivenValueSelector(FunctionNode):
         return self.values[index]
 
 
-class TableSampler(NumpyRandomFunc):
+class TableSampler(FunctionNode):
     """A FunctionNode that returns values from a table-like data,
     including a Pandas DataFrame or AstroPy Table. The results returned
     can be in-order (for testing) or randomly selected with replacement.
@@ -308,8 +308,16 @@ class TableSampler(NumpyRandomFunc):
         if self._num_values == 0:
             raise ValueError("No data provided to TableSampler.")
 
-        # Add each of the flow's data columns as an output parameter.
-        super().__init__("uniform", outputs=self.data.colnames, **kwargs)
+        # Initialize the FunctionNode with each column as an output.
+        super().__init__(self._non_func, outputs=self.data.colnames, **kwargs)
+
+        # If we are using random sampling, add a random index generator.
+        if not self.in_order:
+            self.add_parameter(
+                "selected_table_index",
+                NumpyRandomFunc("integers", low=0, high=self._num_values),
+                "The index of the selected row in the table.",
+            )
 
     def reset(self):
         """Reset the next index to use. Only used for in-order sampling."""
@@ -364,17 +372,13 @@ class TableSampler(NumpyRandomFunc):
             sample_inds = np.arange(next_ind, end_index)
             self.next_ind += graph_state.num_samples
         else:
-            rng = rng_info if rng_info is not None else self._rng
-            sample_inds = rng.integers(0, self._num_values, size=graph_state.num_samples)
+            sample_inds = self.get_param(graph_state, "selected_table_index")
 
         # Parse out each column into a separate parameter with the column name as its name.
         results = []
         for attr_name in self.outputs:
             attr_values = np.asarray(self.data[attr_name][sample_inds])
-            if graph_state.num_samples == 1:
-                results.append(attr_values[0])
-            else:
-                results.append(attr_values)
+            results.append(attr_values)
 
         # Save and return the results.
         self._save_results(results, graph_state)
