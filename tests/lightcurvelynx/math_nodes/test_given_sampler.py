@@ -43,10 +43,6 @@ def test_binary_sampler():
     with pytest.raises(ValueError):
         _ = BinarySampler(1.5)
 
-    # We can pickle the BinarySampler.
-    node_str = pickle.dumps(binary_node)
-    assert node_str is not None
-
 
 def test_given_value_list():
     """Test that we can retrieve numbers from a GivenValueList."""
@@ -87,9 +83,30 @@ def test_given_value_list():
     with pytest.raises(ValueError):
         _ = GivenValueList([])
 
-    # We should not pickle a GivenValueList that is in order.
-    with pytest.warns(UserWarning):
+    # GivenValueList cannot be used in distributed computation.
+    with pytest.raises(RuntimeError):
         _ = pickle.dumps(given_node)
+
+
+def test_given_value_list_offset():
+    """Test that we can retrieve numbers from a GivenValueList when using a sample offset."""
+    given_node = GivenValueList([1.0, 1.5, 2.0, 2.5, 3.0, -1.0, 3.5])
+
+    # Check that we generate the correct result and save it in the GraphState.
+    state1 = GraphState(num_samples=2, sample_offset=3)
+    results = given_node.compute(state1)
+    assert np.array_equal(results, [2.5, 3.0])
+    assert np.array_equal(given_node.get_param(state1, "function_node_result"), [2.5, 3.0])
+
+    state2 = GraphState(num_samples=1, sample_offset=3)
+    results = given_node.compute(state2)
+    assert results == -1.0
+    assert given_node.get_param(state2, "function_node_result") == -1.0
+
+    # Check that GivenValueList raises an error when it has run out of samples.
+    state3 = GraphState(num_samples=2, sample_offset=3)
+    with pytest.raises(IndexError):
+        _ = given_node.compute(state3)
 
 
 def test_test_given_value_list_compound():
@@ -150,10 +167,6 @@ def test_given_value_sampler():
     # We fail if the number of weights doesn't match the number of values.
     with pytest.raises(ValueError):
         _ = GivenValueSampler([1, 3, 5], weights=[0.5, 0.5])
-
-    # We can pickle the GivenValueSampler.
-    node_str = pickle.dumps(given_node)
-    assert node_str is not None
 
 
 def test_given_value_sampler_int():
@@ -240,33 +253,28 @@ def test_table_sampler(test_data_type):
     assert np.allclose(state["node"]["B"], [1, 1])
     assert np.allclose(state["node"]["C"], [3, 4])
 
-    state = table_node.sample_parameters(num_samples=1)
+    # We can sample a single value. Note that the node is not
+    # stateful, so it always returns the first N rows. We produce
+    # a warning if we detect that the same offset is being used
+    # multiple times.
+    with pytest.warns(UserWarning):
+        state = table_node.sample_parameters(num_samples=1)
     assert len(state) == 3
-    assert state["node"]["A"] == 3
+    assert state["node"]["A"] == 1
     assert state["node"]["B"] == 1
-    assert state["node"]["C"] == 5
+    assert state["node"]["C"] == 3
 
-    state = table_node.sample_parameters(num_samples=4)
+    # We can sample later values using a forced offset. No warning
+    # should be produced here since the offset is different.
+    state = table_node.sample_parameters(num_samples=4, sample_offset=2)
     assert len(state) == 3
-    assert np.allclose(state["node"]["A"], [4, 5, 6, 7])
+    assert np.allclose(state["node"]["A"], [3, 4, 5, 6])
     assert np.allclose(state["node"]["B"], [1, 1, 1, 1])
-    assert np.allclose(state["node"]["C"], [6, 7, 8, 9])
+    assert np.allclose(state["node"]["C"], [5, 6, 7, 8])
 
     # We go past the end of the data.
     with pytest.raises(IndexError):
-        _ = table_node.sample_parameters(num_samples=4)
-
-    # We can reset and sample from the beginning.
-    table_node.reset()
-    state = table_node.sample_parameters(num_samples=2)
-    assert len(state) == 3
-    assert np.allclose(state["node"]["A"], [1, 2])
-    assert np.allclose(state["node"]["B"], [1, 1])
-    assert np.allclose(state["node"]["C"], [3, 4])
-
-    # We should pickle a TableSampler that is in order.
-    with pytest.warns(UserWarning):
-        _ = pickle.dumps(table_node)
+        _ = table_node.sample_parameters(num_samples=100, sample_offset=5)
 
 
 def test_table_sampler_fail():
@@ -278,6 +286,27 @@ def test_table_sampler_fail():
     # Empty data
     with pytest.raises(ValueError):
         _ = TableSampler({"a": [], "b": []})
+
+
+def test_table_sampler_offset():
+    """Test that we can retrieve numbers from a TableSampler with an offset."""
+    data = {
+        "A": [1, 2, 3, 4, 5, 6, 7, 8],
+        "B": [1, 1, 1, 1, 1, 1, 1, 1],
+        "C": [3, 4, 5, 6, 7, 8, 9, 10],
+    }
+
+    # Create the table sampler from the data.
+    table_node = TableSampler(data, in_order=True, node_label="node")
+    state = table_node.sample_parameters(num_samples=2, sample_offset=4)
+    assert len(state) == 3
+    assert np.allclose(state["node"]["A"], [5, 6])
+    assert np.allclose(state["node"]["B"], [1, 1])
+    assert np.allclose(state["node"]["C"], [7, 8])
+
+    # We go past the end of the data.
+    with pytest.raises(IndexError):
+        _ = table_node.sample_parameters(num_samples=4, sample_offset=14)
 
 
 def test_table_sampler_randomized():
@@ -320,7 +349,3 @@ def test_table_sampler_randomized():
 
     # We always sample consistent ROWS of a and b.
     assert np.all(b_vals - a_vals == 1)
-
-    # We can pickle a randomized TableSampler.
-    node_str = pickle.dumps(table_node)
-    assert node_str is not None

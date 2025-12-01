@@ -69,8 +69,8 @@ class GivenValueList(FunctionNode):
 
     Note
     ----
-    This node does not support parallel sampling. It will return the same
-    sequence of values for for each shard.
+    This is a stateful node that keeps track of the next index to return
+    that cannot be used in parallel sampling.
 
     Attributes
     ----------
@@ -89,14 +89,7 @@ class GivenValueList(FunctionNode):
         super().__init__(self._non_func, **kwargs)
 
     def __getstate__(self):
-        """We override the default pickling behavior to add a warning because we do
-        not correctly support parallel sampling of in-order values.
-        """
-        warnings.warn(
-            "GivenValueList does not support distributed computation. Each shard will "
-            "return the same sequence of values. We recommend using the GivenValueSampler."
-        )
-        return self.__dict__.copy()
+        raise RuntimeError("GivenValueList cannot be pickled. This node does not support parallel sampling.")
 
     def reset(self):
         """Reset the next index to use."""
@@ -122,19 +115,29 @@ class GivenValueList(FunctionNode):
             The result of the computation. This return value is provided so that testing
             functions can easily access the results.
         """
-        if graph_state.num_samples == 1:
-            if self.next_ind >= len(self.values):
-                raise IndexError()
+        sample_ind = self.next_ind
+        if graph_state.sample_offset is not None:
+            sample_ind += graph_state.sample_offset
 
-            results = self.values[self.next_ind]
+        if graph_state.num_samples == 1:
+            if sample_ind >= len(self.values):
+                raise IndexError(
+                    f"GivenValueList ran out of entries to sample. Index {sample_ind} out "
+                    f"of bounds for a list with {len(self.values)} entries."
+                )
+
+            results = self.values[sample_ind]
             self.next_ind += 1
         else:
-            end_ind = self.next_ind + graph_state.num_samples
+            end_ind = sample_ind + graph_state.num_samples
             if end_ind > len(self.values):
-                raise IndexError()
+                raise IndexError(
+                    f"GivenValueList ran out of entries to sample. Index {sample_ind} out "
+                    f"of bounds for a list with {len(self.values)} entries."
+                )
 
-            results = self.values[self.next_ind : end_ind]
-            self.next_ind = end_ind
+            results = self.values[sample_ind:end_ind]
+            self.next_ind += graph_state.num_samples
 
         # Save and return the results.
         self._save_results(results, graph_state)
@@ -246,8 +249,9 @@ class TableSampler(FunctionNode):
 
     Note
     ----
-    This node does not support "in order" parallel sampling. It will
-    return the same sequence of values for each shard.
+    This is NOT a stateful node. When in_order=True the node will always
+    return the first N rows of the table, where N is the number of samples
+    requested.
 
     Parameters
     ----------
@@ -266,15 +270,13 @@ class TableSampler(FunctionNode):
     in_order : bool
         Return the given data in order of the rows (True). If False, performs
         random sampling with replacement. Default: False
-    next_ind : int
-        The next index to sample for in order sampling.
     num_values : int
         The total number of items from which to draw the data.
     """
 
     def __init__(self, data, in_order=False, **kwargs):
-        self.next_ind = 0
         self.in_order = in_order
+        self._last_start_index = -1
 
         if isinstance(data, dict):
             self.data = Table(data)
@@ -303,18 +305,6 @@ class TableSampler(FunctionNode):
                 NumpyRandomFunc("integers", low=0, high=self._num_values),
                 "The index of the selected row in the table.",
             )
-
-    def __getstate__(self):
-        """We override the default pickling behavior to add a warning when in_order is true
-        because we do not correctly support parallel sampling of in-order values.
-        """
-        if self.in_order:
-            warnings.warn(
-                "TableSampler with in_order=True does not support distributed computation. "
-                "Each shard will return the same sequence of values. We recommend setting "
-                "in_order=False for distributed sampling."
-            )
-        return self.__dict__.copy()
 
     def __len__(self):
         """Return the number of items in the table."""
@@ -346,13 +336,28 @@ class TableSampler(FunctionNode):
         """
         # Compute the indices to sample.
         if self.in_order:
-            # Check that we have enough points left to sample.
-            end_index = self.next_ind + graph_state.num_samples
-            if end_index > len(self.data):
-                raise IndexError()
+            start_ind = 0
+            if graph_state.sample_offset is not None:
+                start_ind += graph_state.sample_offset
 
-            sample_inds = np.arange(self.next_ind, end_index)
-            self.next_ind = end_index
+            if start_ind == self._last_start_index:
+                warnings.warn(
+                    "TableSampler in_order sampling called multiple times with the same sample_offset. "
+                    "This may indicate unintended behavior, because the same parameter values are used "
+                    "multiple times instead of iterating over the table. Consider to set different "
+                    "sample_offset values for different objects or chunks."
+                )
+            self._last_start_index = start_ind
+
+            # Check that we have enough points left to sample.
+            end_index = start_ind + graph_state.num_samples
+            if end_index > len(self.data):
+                raise IndexError(
+                    f"TableSampler ran out of entries to sample. Index {end_index} out "
+                    f"of bounds for a table with {len(self.data)} entries."
+                )
+
+            sample_inds = np.arange(start_ind, end_index)
         else:
             sample_inds = self.get_param(graph_state, "selected_table_index")
 

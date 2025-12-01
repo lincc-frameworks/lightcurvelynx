@@ -55,7 +55,7 @@ class GraphState:
         Default: 0
     """
 
-    def __init__(self, num_samples=1, sample_offset=0):
+    def __init__(self, num_samples=1, *, sample_offset=0):
         if num_samples < 1:
             raise ValueError(
                 f"Invalid number of samples for GraphState ({num_samples}). Must be a positive integer."

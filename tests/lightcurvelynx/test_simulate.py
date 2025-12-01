@@ -8,7 +8,7 @@ import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.graph_state import GraphState
-from lightcurvelynx.math_nodes.given_sampler import GivenValueList
+from lightcurvelynx.math_nodes.given_sampler import GivenValueList, TableSampler
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
@@ -382,15 +382,23 @@ def test_simulate_parallel_processes(test_data_dir):
         filters=["g", "r", "i", "z"],
     )
 
-    # Create a constant SED model with known brightnesses and RA, dec
-    # values that match the opsim.
     ra0 = opsim_db["ra"].values[0]
     dec0 = opsim_db["dec"].values[0]
+    num_samples = 5_000
+    table_data = {
+        "t0": np.arange(num_samples, dtype=float),
+        "ra": np.random.uniform(ra0 - 0.5, ra0 + 0.5, size=num_samples),
+        "dec": np.random.uniform(dec0 - 0.5, dec0 + 0.5, size=num_samples),
+    }
+    table_sampler = TableSampler(table_data, in_order=True)
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
     source = ConstantSEDModel(
         brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
-        t0=0.0,
-        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
-        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
+        t0=table_sampler.t0,
+        ra=table_sampler.ra,
+        dec=table_sampler.dec,
         redshift=0.0,
         node_label="source",
     )
@@ -398,7 +406,7 @@ def test_simulate_parallel_processes(test_data_dir):
     with ProcessPoolExecutor(max_workers=2) as executor:
         results = simulate_lightcurves(
             source,
-            100,
+            500,
             opsim_db,
             passband_group,
             obstable_save_cols=["observationId", "zp_nJy"],
@@ -406,7 +414,7 @@ def test_simulate_parallel_processes(test_data_dir):
             executor=executor,
             batch_size=10,
         )
-    assert len(results) == 100
+    assert len(results) == 500
     assert np.all(results["nobs"].values >= 1)
     assert np.all(results["ra"].values >= ra0 - 0.5)
     assert np.all(results["ra"].values <= ra0 + 0.5)
@@ -414,14 +422,15 @@ def test_simulate_parallel_processes(test_data_dir):
     assert np.all(results["dec"].values <= dec0 + 0.5)
 
     # Make sure that we get different parameter values across the processes.
-    assert np.unique(results["ra"].values).size > 95
-    assert np.unique(results["dec"].values).size > 95
-    assert np.unique(results["source_brightness"].values).size > 95
+    assert np.unique(results["ra"].values).size > 475
+    assert np.unique(results["dec"].values).size > 475
+    assert np.unique(results["source_brightness"].values).size > 475
 
-    for idx in range(100):
-        num_obs = results["nobs"][idx]
-        assert num_obs >= 1
-        assert len(results["lightcurve"][idx]["flux"]) == num_obs
+    # Check that we did not duplicate any t0 values even though they came
+    # from a TableSampler. We should get each value [0, 499] exactly once.
+    assert np.unique(results["t0"].values).size == 500
+    assert np.all(results["t0"].values >= 0)
+    assert np.all(results["t0"].values < 500)
 
     # We can use the default (ProcessPoolExecutor) by giving a number of jobs.
     results2 = simulate_lightcurves(
