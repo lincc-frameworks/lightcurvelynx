@@ -45,6 +45,12 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
       * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
     Additional parameterized values are used for specific bagle models.
 
+    Note
+    ----
+    The t0 parameter saved in the results may be approximate depending on the bagle model
+    used. Some models compute t0 from other parameters (e.g., time of closest approach).
+    This updated t0 is not saved in the results.
+
     References
     ----------
     * Lu et al., “The BAGLE Python Package for Bayesian Analysis of Gravitational Lensing Events”,
