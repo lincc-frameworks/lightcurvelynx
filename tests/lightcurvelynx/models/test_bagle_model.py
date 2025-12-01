@@ -229,7 +229,7 @@ def test_bagle_wrapper_model_t0() -> None:
     graph_state2 = model2.sample_parameters(num_samples=1)
     assert graph_state2["model"]["t0"] == 12.0  # base value
     fluxes2 = model2.evaluate_bandfluxes(None, query_times, query_filters, graph_state2)
-    assert graph_state2["model"]["t0"] == 10.0  # updated value
+    assert graph_state2["model"]["t0"] == 12.0  # base value
     assert np.argmax(fluxes2) == max_idx
 
 

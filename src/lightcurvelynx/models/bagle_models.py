@@ -3,7 +3,6 @@
 https://github.com/MovingUniverseLab/BAGLE_Microlensing
 """
 
-import numpy as np
 from citation_compass import CiteClass
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
@@ -64,7 +63,7 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
         match the parameter names expected by the bagle model.
     filter_idx : dict, optional
         A mapping from filter names to indices expected by the bagle model. If not provided,
-        a default mapping for ugrizy filters will be used.
+        a default mapping for ugrizy filters to [0, 1, 2, 3, 4, 5] will be used.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
@@ -167,14 +166,6 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
         current_params = {param_name: local_params[param_name] for param_name in self.parameter_names}
         model_obj = self._model_class(**current_params)
 
-        # If the model computes a t0 that is different from the one in the graph state, save the new one.
-        if hasattr(model_obj, "t0") and "t0" in local_params:
-            base_t0 = local_params["t0"]
-            computed_t0 = model_obj.t0
-            if np.abs(computed_t0 - base_t0) > 1e-8:
-                node_name = str(self)
-                state.set(node_name, "t0", computed_t0)
-
         # Use the newly created model object with the current parameters to compute the photometry.
         mags = model_obj.get_photometry(times, self._filter_idx[filter])
         bandflux = mag2flux(mags)
@@ -206,7 +197,8 @@ class BagleMultiWrapperModel(BandfluxModel, CiteClass):
     num_models : int
         The number of models being wrapped.
     parameter_dicts : dict
-        A list of parameter dictionaries, one per model, each containing.
+        A list of parameter dictionaries, one per model, each containing the parameter names
+        and values for use in the corresponding model.
 
     Parameters
     ----------
@@ -216,7 +208,7 @@ class BagleMultiWrapperModel(BandfluxModel, CiteClass):
         A list of parameter dictionaries, one per model, each containing.
     filter_idx : dict, optional
         A mapping from filter names to indices expected by the bagle model. If not provided,
-        a default mapping for ugrizy filters will be used.
+        a default mapping for ugrizy filters to [0, 1, 2, 3, 4, 5] will be used.
     in_order : bool
         Return the given data in order of the rows (True). If False, performs
         random sampling with replacement. Default: False
@@ -334,14 +326,7 @@ class BagleMultiWrapperModel(BandfluxModel, CiteClass):
         # Get the class of the model to use.
         model_info = local_params["_model_info"]
         if isinstance(model_info, str):
-            try:
-                from bagle import model
-            except ImportError as err:  # pragma: no cover
-                raise ImportError(
-                    "The bagle package is required to use the BagleWrapperModel. Please install it. "
-                    "See https://bagle.readthedocs.io/en/latest/installation.html for instructions."
-                ) from err
-            model_class = getattr(model, model_info)
+            model_class = _load_bagle_model_class(model_info)
         else:
             model_class = model_info
 
@@ -357,15 +342,6 @@ class BagleMultiWrapperModel(BandfluxModel, CiteClass):
             if value is not None:
                 current_params[param_name] = value
         model_obj = model_class(**current_params)
-
-        # If the model computes a t0 that is different from the one in the graph state, save the new one.
-        if hasattr(model_obj, "t0"):
-            base_t0 = local_params.get("t0", None)
-            if base_t0 is not None:
-                computed_t0 = model_obj.t0
-                if np.abs(computed_t0 - base_t0) > 1e-8:
-                    node_name = str(self)
-                    state.set(node_name, "t0", computed_t0)
 
         # Use the newly created model object with the current parameters to compute the photometry.
         mags = model_obj.get_photometry(times, self._filter_idx[filter])
