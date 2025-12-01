@@ -2,6 +2,7 @@
 can be used in testing to produce known results or to use data previously
 sampled from another method (such as pzflow).
 """
+
 import warnings
 
 import numpy as np
@@ -114,28 +115,28 @@ class GivenValueList(FunctionNode):
             The result of the computation. This return value is provided so that testing
             functions can easily access the results.
         """
-        next_ind = self.next_ind
-        if graph_state.sample_offset is not None and graph_state.sample_offset != 0:
-            next_ind += graph_state.sample_offset
+        sample_ind = self.next_ind
+        if graph_state.sample_offset is not None:
+            sample_ind += graph_state.sample_offset
 
         if graph_state.num_samples == 1:
-            if next_ind >= len(self.values):
+            if sample_ind >= len(self.values):
                 raise IndexError(
-                    f"GivenValueList ran out of entries to sample. Index {next_ind} out "
+                    f"GivenValueList ran out of entries to sample. Index {sample_ind} out "
                     f"of bounds for a list with {len(self.values)} entries."
                 )
 
-            results = self.values[next_ind]
+            results = self.values[sample_ind]
             self.next_ind += 1
         else:
-            end_ind = next_ind + graph_state.num_samples
+            end_ind = sample_ind + graph_state.num_samples
             if end_ind > len(self.values):
                 raise IndexError(
-                    f"GivenValueList ran out of entries to sample. Index {next_ind} out "
+                    f"GivenValueList ran out of entries to sample. Index {sample_ind} out "
                     f"of bounds for a list with {len(self.values)} entries."
                 )
 
-            results = self.values[next_ind:end_ind]
+            results = self.values[sample_ind:end_ind]
             self.next_ind += graph_state.num_samples
 
         # Save and return the results.
@@ -335,26 +336,28 @@ class TableSampler(FunctionNode):
         """
         # Compute the indices to sample.
         if self.in_order:
-            next_ind = 0
-            if graph_state.sample_offset is not None and graph_state.sample_offset != 0:
-                next_ind += graph_state.sample_offset
+            start_ind = 0
+            if graph_state.sample_offset is not None:
+                start_ind += graph_state.sample_offset
 
-            if next_ind == self._last_start_index:
+            if start_ind == self._last_start_index:
                 warnings.warn(
-                    "TableSampler in_order sampling called multiple times with the same "
-                    "sample_offset. This may indicate unintended behavior."
+                    "TableSampler in_order sampling called multiple times with the same sample_offset. "
+                    "This may indicate unintended behavior, because the same parameter values are used "
+                    "multiple times instead of iterating over the table. Consider to set different "
+                    "sample_offset values for different objects or chunks."
                 )
-            self._last_start_index = next_ind
+            self._last_start_index = start_ind
 
             # Check that we have enough points left to sample.
-            end_index = next_ind + graph_state.num_samples
+            end_index = start_ind + graph_state.num_samples
             if end_index > len(self.data):
                 raise IndexError(
                     f"TableSampler ran out of entries to sample. Index {end_index} out "
                     f"of bounds for a table with {len(self.data)} entries."
                 )
 
-            sample_inds = np.arange(next_ind, end_index)
+            sample_inds = np.arange(start_ind, end_index)
         else:
             sample_inds = self.get_param(graph_state, "selected_table_index")
 
