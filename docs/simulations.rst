@@ -206,6 +206,22 @@ with realistic cadence and noise.
 See our selection of :doc:`tutorial notebooks <notebooks>` for further examples.
 
 
+Controlling Randomness
+-------------------------------------------------------------------------------
+
+LightCurveLynx allows the user to control randomness by passing in a predefined
+random number generator via the `rng` parameter.If the user provides a random number
+generator with a fixed seed, then the parameters sampled throughout the simulation are
+effectively predefined and identical between simulations.
+
+.. code-block:: python
+
+    my_rng = np.random.default_rng(42)
+
+If the provided random number generator does not use a fixed seed (or no `rng`
+argument is provided), the parameters will vary from run to run.
+
+
 Simulating from Multiple Surveys
 -------------------------------------------------------------------------------
 

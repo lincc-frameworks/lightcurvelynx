@@ -171,3 +171,4 @@ This project is supported by Schmidt Sciences.
    Glossary <glossary>
    Contribution Guide <contributing>
    Citations <citations>
+   Frequently Asked Questions <faq>
