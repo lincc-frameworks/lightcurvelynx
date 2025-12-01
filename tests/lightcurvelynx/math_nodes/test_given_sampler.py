@@ -231,6 +231,9 @@ def test_table_sampler(test_data_type):
 
     # Create the table sampler from the data.
     table_node = TableSampler(data, in_order=True, node_label="node")
+    assert set(table_node.columns) == {"A", "B", "C"}
+    assert len(table_node) == 8
+
     state = table_node.sample_parameters(num_samples=2)
     assert len(state) == 3
     assert np.allclose(state["node"]["A"], [1, 2])

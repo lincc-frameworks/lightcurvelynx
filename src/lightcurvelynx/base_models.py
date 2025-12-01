@@ -586,6 +586,25 @@ class ParameterizedNode:
         # (as opposed to the setter for x).
         setattr(self, name, _AttributeIndicatorNode(name, self))
 
+    def get_parameter_indicator(self, param_name):
+        """Return the _AttributeIndicatorNode for a given parameter. This replicates
+        the behavior of accessing the parameter as an attribute of the object
+        (e.g., obj.param_name), but in functional form.
+
+        Parameters
+        ----------
+        param_name : str
+            The name of the parameter indicator to get.
+
+        Returns
+        -------
+        getter : _AttributeIndicatorNode
+            The indicator node for the given parameter.
+        """
+        if param_name not in self.setters:
+            raise KeyError(f"Parameter name '{param_name}' not found in node {self.node_string}.")
+        return getattr(self, param_name)
+
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Placeholder for a general compute function, which is called at the end
         of the sampling process and can produce derived parameters. This function
