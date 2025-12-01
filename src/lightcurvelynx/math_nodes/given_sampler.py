@@ -3,7 +3,6 @@ can be used in testing to produce known results or to use data previously
 sampled from another method (such as pzflow).
 """
 
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -70,11 +69,7 @@ class GivenValueList(FunctionNode):
     Note
     ----
     This is a stateful node that keeps track of the next index to return
-    that can be used in sequential or parallel sampling. However, the state
-    is **not** preserved after a parallel run. If multiple parallelized
-    runs are performed in sequence, the user must adjust the sampling index
-    using the GraphState object's `sample_offset` attribute to avoid repeated
-    samples.
+    that cannot be used in parallel sampling.
 
     Attributes
     ----------
@@ -93,16 +88,7 @@ class GivenValueList(FunctionNode):
         super().__init__(self._non_func, **kwargs)
 
     def __getstate__(self):
-        """We override the default pickling behavior to add a warning because
-        we automatically reset the state after each parallel run.
-        """
-        warnings.warn(
-            "GivenValueList does not preserve internal state after a parallelized run. "
-            "If you are running multiple parallel runs (in sequence), use the "
-            "GraphState object's sample_offset attribute to adjust the sampling "
-            "index accordingly. Otherwise you will get repeated samples."
-        )
-        return self.__dict__.copy()
+        raise RuntimeError("GivenValueList cannot be pickled. This node does not support parallel sampling.")
 
     def reset(self):
         """Reset the next index to use."""
@@ -262,12 +248,9 @@ class TableSampler(FunctionNode):
 
     Note
     ----
-    This is a stateful node that keeps track of the next index to return
-    that can be used in sequential or parallel sampling. However, the state
-    is **not** preserved after a parallel run. If multiple parallelized
-    runs are performed in sequence, the user must adjust the sampling index
-    using the GraphState object's `sample_offset` attribute to avoid repeated
-    samples.
+    This is NOT a stateful node. When in_order is true it will always
+    return the first N rows of the table, where N is the number of samples
+    requested.
 
     Parameters
     ----------
@@ -284,14 +267,11 @@ class TableSampler(FunctionNode):
     in_order : bool
         Return the given data in order of the rows (True). If False, performs
         random sampling with replacement. Default: False
-    next_ind : int
-        The next index to sample for in order sampling.
     num_values : int
         The total number of items from which to draw the data.
     """
 
     def __init__(self, data, in_order=False, **kwargs):
-        self.next_ind = 0
         self.in_order = in_order
 
         if isinstance(data, dict):
@@ -319,22 +299,6 @@ class TableSampler(FunctionNode):
                 "The index of the selected row in the table.",
             )
 
-    def reset(self):
-        """Reset the next index to use. Only used for in-order sampling."""
-        self.next_ind = 0
-
-    def __getstate__(self):
-        """We override the default pickling behavior to add a warning because
-        we automatically reset the state after each parallel run.
-        """
-        warnings.warn(
-            "TableSampler does not preserve internal state after a parallelized run. "
-            "If you are running multiple parallel runs (in sequence), use the "
-            "GraphState object's sample_offset attribute to adjust the sampling "
-            "index accordingly. Otherwise you will get repeated samples."
-        )
-        return self.__dict__.copy()
-
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
 
@@ -357,7 +321,7 @@ class TableSampler(FunctionNode):
         """
         # Compute the indices to sample.
         if self.in_order:
-            next_ind = self.next_ind
+            next_ind = 0
             if graph_state.sample_offset is not None and graph_state.sample_offset != 0:
                 next_ind += graph_state.sample_offset
 
@@ -370,7 +334,6 @@ class TableSampler(FunctionNode):
                 )
 
             sample_inds = np.arange(next_ind, end_index)
-            self.next_ind += graph_state.num_samples
         else:
             sample_inds = self.get_param(graph_state, "selected_table_index")
 

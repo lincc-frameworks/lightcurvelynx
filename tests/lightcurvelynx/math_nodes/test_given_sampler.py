@@ -83,9 +83,8 @@ def test_given_value_list():
     with pytest.raises(ValueError):
         _ = GivenValueList([])
 
-    # GivenValueList will give a warning about maintaining state after
-    # parallel runs when we pickle it.
-    with pytest.warns(UserWarning):
+    # GivenValueList cannot be used in distributed computation.
+    with pytest.raises(RuntimeError):
         _ = pickle.dumps(given_node)
 
 
@@ -251,34 +250,25 @@ def test_table_sampler(test_data_type):
     assert np.allclose(state["node"]["B"], [1, 1])
     assert np.allclose(state["node"]["C"], [3, 4])
 
+    # We can sample a single value. Note that the node is not
+    # stateful, so it always returns the first N rows.
     state = table_node.sample_parameters(num_samples=1)
     assert len(state) == 3
-    assert state["node"]["A"] == 3
+    assert state["node"]["A"] == 1
     assert state["node"]["B"] == 1
-    assert state["node"]["C"] == 5
+    assert state["node"]["C"] == 3
 
+    # We can sample another array. Note that the node is not
+    # stateful, so it always returns the first N rows.
     state = table_node.sample_parameters(num_samples=4)
     assert len(state) == 3
-    assert np.allclose(state["node"]["A"], [4, 5, 6, 7])
+    assert np.allclose(state["node"]["A"], [1, 2, 3, 4])
     assert np.allclose(state["node"]["B"], [1, 1, 1, 1])
-    assert np.allclose(state["node"]["C"], [6, 7, 8, 9])
+    assert np.allclose(state["node"]["C"], [3, 4, 5, 6])
 
     # We go past the end of the data.
     with pytest.raises(IndexError):
-        _ = table_node.sample_parameters(num_samples=4)
-
-    # We can reset and sample from the beginning.
-    table_node.reset()
-    state = table_node.sample_parameters(num_samples=2)
-    assert len(state) == 3
-    assert np.allclose(state["node"]["A"], [1, 2])
-    assert np.allclose(state["node"]["B"], [1, 1])
-    assert np.allclose(state["node"]["C"], [3, 4])
-
-    # TableSampler will give a warning about maintaining state after
-    # parallel runs when we pickle it.
-    with pytest.warns(UserWarning):
-        _ = pickle.dumps(table_node)
+        _ = table_node.sample_parameters(num_samples=100)
 
 
 def test_table_sampler_fail():
@@ -310,7 +300,7 @@ def test_table_sampler_offset():
 
     # We go past the end of the data.
     with pytest.raises(IndexError):
-        _ = table_node.sample_parameters(num_samples=4, sample_offset=4)
+        _ = table_node.sample_parameters(num_samples=4, sample_offset=14)
 
 
 def test_table_sampler_randomized():
