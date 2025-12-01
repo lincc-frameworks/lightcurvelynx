@@ -251,24 +251,27 @@ def test_table_sampler(test_data_type):
     assert np.allclose(state["node"]["C"], [3, 4])
 
     # We can sample a single value. Note that the node is not
-    # stateful, so it always returns the first N rows.
-    state = table_node.sample_parameters(num_samples=1)
+    # stateful, so it always returns the first N rows. We produce
+    # a warning if we detect that the same offset is being used
+    # multiple times.
+    with pytest.warns(UserWarning):
+        state = table_node.sample_parameters(num_samples=1)
     assert len(state) == 3
     assert state["node"]["A"] == 1
     assert state["node"]["B"] == 1
     assert state["node"]["C"] == 3
 
-    # We can sample another array. Note that the node is not
-    # stateful, so it always returns the first N rows.
-    state = table_node.sample_parameters(num_samples=4)
+    # We can sample later values using a forced offset. No warning
+    # should be produced here since the offset is different.
+    state = table_node.sample_parameters(num_samples=4, sample_offset=2)
     assert len(state) == 3
-    assert np.allclose(state["node"]["A"], [1, 2, 3, 4])
+    assert np.allclose(state["node"]["A"], [3, 4, 5, 6])
     assert np.allclose(state["node"]["B"], [1, 1, 1, 1])
-    assert np.allclose(state["node"]["C"], [3, 4, 5, 6])
+    assert np.allclose(state["node"]["C"], [5, 6, 7, 8])
 
     # We go past the end of the data.
     with pytest.raises(IndexError):
-        _ = table_node.sample_parameters(num_samples=100)
+        _ = table_node.sample_parameters(num_samples=100, sample_offset=5)
 
 
 def test_table_sampler_fail():

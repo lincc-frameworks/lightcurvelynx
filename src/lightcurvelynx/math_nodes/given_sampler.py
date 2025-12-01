@@ -2,7 +2,7 @@
 can be used in testing to produce known results or to use data previously
 sampled from another method (such as pzflow).
 """
-
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -248,7 +248,7 @@ class TableSampler(FunctionNode):
 
     Note
     ----
-    This is NOT a stateful node. When in_order is true it will always
+    This is NOT a stateful node. When in_order=True the node will always
     return the first N rows of the table, where N is the number of samples
     requested.
 
@@ -273,6 +273,7 @@ class TableSampler(FunctionNode):
 
     def __init__(self, data, in_order=False, **kwargs):
         self.in_order = in_order
+        self._last_start_index = -1
 
         if isinstance(data, dict):
             self.data = Table(data)
@@ -324,6 +325,13 @@ class TableSampler(FunctionNode):
             next_ind = 0
             if graph_state.sample_offset is not None and graph_state.sample_offset != 0:
                 next_ind += graph_state.sample_offset
+
+            if next_ind == self._last_start_index:
+                warnings.warn(
+                    "TableSampler in_order sampling called multiple times with the same "
+                    "sample_offset. This may indicate unintended behavior."
+                )
+            self._last_start_index = next_ind
 
             # Check that we have enough points left to sample.
             end_index = next_ind + graph_state.num_samples
