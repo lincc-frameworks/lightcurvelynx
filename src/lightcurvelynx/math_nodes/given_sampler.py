@@ -259,6 +259,8 @@ class TableSampler(FunctionNode):
 
     Attributes
     ----------
+    columns : list of str
+        The names of the columns in the table.
     data : astropy.table.Table
         The object containing the data to sample.
     in_order : bool
@@ -288,6 +290,9 @@ class TableSampler(FunctionNode):
         if self._num_values == 0:
             raise ValueError("No data provided to TableSampler.")
 
+        # Save a list of the column names.
+        self.columns = [col for col in self.data.colnames]
+
         # Initialize the FunctionNode with each column as an output.
         super().__init__(self._non_func, outputs=self.data.colnames, **kwargs)
 
@@ -310,6 +315,10 @@ class TableSampler(FunctionNode):
                 "in_order=False for distributed sampling."
             )
         return self.__dict__.copy()
+
+    def __len__(self):
+        """Return the number of items in the table."""
+        return self._num_values
 
     def reset(self):
         """Reset the next index to use. Only used for in-order sampling."""

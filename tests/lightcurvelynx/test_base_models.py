@@ -110,6 +110,16 @@ def test_parameterized_node(capsys):
     model1 = PairModel(value1=0.5, value2=0.5)
     assert str(model1) == "PairModel"
 
+    # Check that we can access the parameter indicators.
+    assert model1.value1 is not None
+    assert model1.value2 is not None
+    assert model1.value_sum is not None
+    assert model1.get_parameter_indicator("value1") is not None
+    assert model1.get_parameter_indicator("value2") is not None
+    assert model1.get_parameter_indicator("value_sum") is not None
+    with pytest.raises(KeyError):
+        model1.get_parameter_indicator("value3")
+
     # Check that we can lookup parameters.
     assert model1.has_valid_param("value1")
     assert model1.has_valid_param("value2")
