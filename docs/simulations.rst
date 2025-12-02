@@ -210,7 +210,7 @@ Controlling Randomness
 -------------------------------------------------------------------------------
 
 LightCurveLynx allows the user to control randomness by passing in a predefined
-random number generator via the `rng` parameter.If the user provides a random number
+random number generator via the `rng` parameter. If the user provides a random number
 generator with a fixed seed, then the parameters sampled throughout the simulation are
 effectively predefined and identical between simulations.
 
