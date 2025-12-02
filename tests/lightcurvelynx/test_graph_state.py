@@ -15,6 +15,7 @@ def test_create_single_sample_graph_state():
     assert state.num_samples == 1
     assert state.get_all_params_names() == []
     assert state.sample_offset == 0
+    assert state.sample_idx is None
 
     state.set("a", "v1", 1.0)
     state.set("a", "v2", 2.0)
@@ -79,6 +80,7 @@ def test_create_single_sample_graph_state():
     assert len(new_state) == 3
     assert new_state.num_samples == 1
     assert new_state.sample_offset == 0
+    assert new_state.sample_idx == 0
     assert state["a"]["v1"] == 1.0
     assert state["a"]["v2"] == 2.0
     assert state["b"]["v1"] == 3.0
@@ -227,6 +229,8 @@ def test_create_multi_sample_graph_state():
     new_state = state.extract_single_sample(3)
     assert len(new_state) == 3
     assert new_state.num_samples == 1
+    assert new_state.sample_offset == 0
+    assert new_state.sample_idx == 3
     assert new_state["a"]["v1"] == 1.0
     assert new_state["a"]["v2"] == 3.5
     assert new_state["b"]["v1"] == -3.5
@@ -294,6 +298,7 @@ def test_graph_state_copy():
     # Test that we copied over the meta-data
     assert state2.num_parameters == 3
     assert state2.sample_offset == 0
+    assert state2.sample_idx is None
     assert len(state2.fixed_vars) == 2  # empty set for each node
     assert "a" in state2.fixed_vars
     assert "b" in state2.fixed_vars

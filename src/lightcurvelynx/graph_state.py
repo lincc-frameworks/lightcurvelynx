@@ -53,6 +53,10 @@ class GraphState:
     sample_offset : int
         An optional offset to add to the graph state for any stateful nodes.
         Default: 0
+    sample_idx : int or None
+        An optional index of the current sample within a larger set of samples. Only
+        used when num_samples == 1.
+        Default: None
     """
 
     def __init__(self, num_samples=1, *, sample_offset=0):
@@ -65,6 +69,7 @@ class GraphState:
         self.states = {}
         self.fixed_vars = {}
         self.sample_offset = sample_offset
+        self.sample_idx = None
 
     def __len__(self):
         return self.num_parameters
@@ -190,6 +195,7 @@ class GraphState:
         new_state = GraphState(num_samples=self.num_samples)
         new_state.num_parameters = self.num_parameters
         new_state.sample_offset = self.sample_offset
+        new_state.sample_idx = self.sample_idx
         for node_name, node_vars in self.states.items():
             new_state.states[node_name] = {}
             for var_name, var_value in node_vars.items():
@@ -509,6 +515,7 @@ class GraphState:
         new_state = GraphState(1)
         new_state.num_parameters = self.num_parameters
         new_state.sample_offset = self.sample_offset
+        new_state.sample_idx = sample_num
         for node_name in self.states:
             new_state.states[node_name] = {}
             for var_name, value in self.states[node_name].items():
