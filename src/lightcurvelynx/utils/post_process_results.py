@@ -26,12 +26,17 @@ def concat_results(results_list):
     nested_pandas.NestedFrame
         The concatenated DataFrame.
     """
-    result = pd.concat(results_list, ignore_index=True)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", category=FutureWarning, message=".*DataFrame concatenation with empty.*"
+        )
 
-    # We need to update the ID column to be unique across all results.
-    if "id" in result.columns:
-        result["id"] = np.arange(len(result))
-    return result
+        result = pd.concat(results_list, ignore_index=True)
+
+        # We need to update the ID column to be unique across all results.
+        if "id" in result.columns:
+            result["id"] = np.arange(len(result))
+        return result
 
 
 def results_drop_empty(results):
