@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
-from lightcurvelynx.models.bagle_models import BagleWrapperModel
+from lightcurvelynx.models.bagle_models import BagleMultiWrapperModel, BagleWrapperModel
 
 
 class _FlatBagleModel:
@@ -15,7 +15,7 @@ class _FlatBagleModel:
         A list of magnitudes for each filter.
     """
 
-    def __init__(self, scale, filter_mags):
+    def __init__(self, scale, filter_mags, t0=None):
         self.scale = scale
         self.filter_mags = filter_mags
 
@@ -41,18 +41,22 @@ class _GaussianBagleModel:
         A scaling factor for the fluxes.
     filter_mags : list
         A list of magnitudes for each filter.
+    shift : float
+        A constant magnitude shift to apply.
     """
 
-    def __init__(self, scale, filter_mags, **kwargs):
+    def __init__(self, scale, filter_mags, t0=None, shift=None, **kwargs):
         self.scale = scale
         self.filter_mags = filter_mags
+        self.shift = shift
 
         # Simulate handling a t0 that is computed based on arguments.
-        self.t0 = 0.0
-        if "t0" in kwargs:
-            self.t0 = kwargs["t0"]
+        if t0 is not None:
+            self.t0 = t0
         elif "t0_com" in kwargs:
             self.t0 = kwargs["t0_com"] - 2.0
+        else:
+            self.t0 = 0.0
 
     def get_photometry(self, times, filter_idx):
         """Compute dummy fluxes based on parameters and times. Simulates
@@ -65,9 +69,17 @@ class _GaussianBagleModel:
         filter_idx : int
             The index of the filter.
         """
+        print(f"Computing photometry with t0 = {self.t0}")
+
         # Since we are computing magnitudes we subtract out the Gaussian shape.
         base = -np.exp(-0.5 * ((times - self.t0) / 50.0) ** 2)
-        return base * self.scale + self.filter_mags[filter_idx]
+        print(f"Base values: {base}")
+        values = base * self.scale + self.filter_mags[filter_idx]
+        print(f"Values before shift: {values}")
+        if self.shift is not None:
+            values += self.shift
+        print(f"Values after shift: {values}")
+        return values
 
 
 def test_bagle_wrapper_model() -> None:
@@ -217,7 +229,7 @@ def test_bagle_wrapper_model_t0() -> None:
     graph_state2 = model2.sample_parameters(num_samples=1)
     assert graph_state2["model"]["t0"] == 12.0  # base value
     fluxes2 = model2.evaluate_bandfluxes(None, query_times, query_filters, graph_state2)
-    assert graph_state2["model"]["t0"] == 10.0  # updated value
+    assert graph_state2["model"]["t0"] == 12.0  # base value
     assert np.argmax(fluxes2) == max_idx
 
 
@@ -239,3 +251,83 @@ def test_bagle_wrapper_model_filter_idx() -> None:
     expected_mags = 2.0 * np.array([25.0, 23.0, 25.0, 23.0, 25.0, 23.0, 25.0, 23.0])
     expected_fluxes = mag2flux(expected_mags)
     assert np.allclose(fluxes, expected_fluxes)
+
+
+def test_bagle_multi_wrapper_model() -> None:
+    """Test that we can create and query a BagleMultiWrapperModel object."""
+    # Create three different bagle models with different parameters (including
+    # a different number of parameters per model).
+    parameter_dicts = [
+        {
+            "scale": 2.0,
+            "filter_mags": [20.0, 21.0, 22.0, 23.0, 24.0, 25.0],  # ugrizy
+            "t0": 0.0,
+        },
+        {
+            "scale": 3.0,
+            "filter_mags": [20.0, 20.0, 20.0, 20.0, 20.0, 20.0],  # ugrizy
+            "t0": 3.0,
+            "raL": 150.0,
+            "decL": 2.0,
+        },
+        {
+            "scale": 4.0,
+            "filter_mags": [20.0, 20.0, 20.0, 20.0, 20.0, 20.0],  # ugrizy
+            "shift": 1.0,
+            "t0": 4.0,
+        },
+    ]
+    model_list = [_FlatBagleModel, _GaussianBagleModel, _GaussianBagleModel]
+
+    model = BagleMultiWrapperModel(
+        model_list,
+        parameter_dicts,
+        in_order=True,
+        node_label="model",
+    )
+
+    # Check that we have the given parameters.
+    all_params = model.list_params()
+    assert "scale" in all_params
+    assert "filter_mags" in all_params
+    assert "shift" in all_params
+
+    # Check that we have the standard physical model parameters.
+    assert "ra" in all_params
+    assert "dec" in all_params
+    assert "t0" in all_params
+    assert "redshift" in all_params
+    assert "distance" in all_params
+
+    # Test that we can query the model for fluxes.
+    graph_state = model.sample_parameters(num_samples=3)
+    assert np.allclose(graph_state["model"]["scale"], [2.0, 3.0, 4.0])
+    assert np.allclose(graph_state["model"]["t0"], [0.0, 3.0, 4.0])
+    assert np.array_equal(
+        graph_state["model"]["filter_mags"][0],
+        [20.0, 21.0, 22.0, 23.0, 24.0, 25.0],
+    )
+    assert np.allclose(graph_state["model"]["filter_mags"][1], 20.0)
+    assert np.allclose(graph_state["model"]["filter_mags"][2], 20.0)
+    assert np.array_equal(graph_state["model"]["ra"], [None, 150.0, None])
+    assert np.array_equal(graph_state["model"]["dec"], [None, 2.0, None])
+
+    query_times = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 20.0, 21.0])
+    query_filters = np.array(["u", "r", "u", "r", "u", "r", "u", "r"])
+
+    fluxes = model.evaluate_bandfluxes(None, query_times, query_filters, graph_state)
+    print(fluxes)
+    assert fluxes.shape == (3, len(query_times))
+
+    # Check the flat model.
+    mag_0 = 2.0 * np.array([20.0, 22.0, 20.0, 22.0, 20.0, 22.0, 20.0, 22.0])
+    assert np.allclose(fluxes[0], mag2flux(mag_0))
+
+    # Check the Gaussian models have the correct peak.
+    assert np.argmax(fluxes[1]) == 4  # max at t0 = 3.0
+    mag_1 = -np.exp(-0.5 * ((query_times - 3.0) / 50.0) ** 2) * 3.0 + 20.0
+    assert np.allclose(fluxes[1], mag2flux(mag_1))
+
+    assert np.argmax(fluxes[2]) == 5  # max at t0 = 4.0
+    mag_2 = -np.exp(-0.5 * ((query_times - 4.0) / 50.0) ** 2) * 4.0 + 21.0
+    assert np.allclose(fluxes[2], mag2flux(mag_2))
