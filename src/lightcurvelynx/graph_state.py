@@ -55,7 +55,7 @@ class GraphState:
         Default: 0
     sample_idx : int or None
         An optional index of the current sample within a larger set of samples. Only
-        used when num_samples == 1.
+        used when we have extracted a single sample from a multi-sample GraphState.
         Default: None
     """
 
