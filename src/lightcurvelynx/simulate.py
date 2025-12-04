@@ -271,6 +271,8 @@ def _simulate_lightcurves_batch(simulation_info):
 
     # Create a dictionary for the object level information, including any saved parameters.
     # Some of these are placeholders (e.g. nobs) until they can be filled in during the simulation.
+    # These values are always pulled from the outer-most object (model), which most often
+    # corresponds to the source (as opposed to a host).
     ra = np.atleast_1d(model.get_param(sample_states, "ra"))
     dec = np.atleast_1d(model.get_param(sample_states, "dec"))
     results_dict = {
@@ -446,11 +448,17 @@ def simulate_lightcurves(
     from one or more surveys. The result data can either be returned directly
     (as a single nested data frame) or saved to file(s).
 
+    The columns in the return NestedFrame can include a mix of default information
+    from the source object (e.g., ra, dec, t0, redshift), a nested lightcurve table,
+    a saved parameters data block (with all the model's parameters), and any additional
+    user-specified values.
+
     Parameters
     ----------
     model : BasePhysicalModel
-        The model to draw from. This may have its own parameters which
-        will be randomly sampled with each draw.
+        The model to draw from. This may have its own parameters which will be randomly
+        sampled with each draw. This object's parameters (e.g., ra, dec) will be saved
+        to the result columns.
     num_samples : int
         The number of samples.
     obstable : ObsTable or List of ObsTable
