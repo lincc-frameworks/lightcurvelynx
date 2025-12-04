@@ -6,7 +6,10 @@ Results
 
 Results of the simulation are returned in a `nested-pandas <https://github.com/lincc-frameworks/nested-pandas>`_ 
 NestedDataFrame. Each row corresponds to a single simulated object with columns for attributes such as 
-``ra``, ``dec``, and ``t0`` (if provided). You can access these columns as you would with a normal Pandas DataFrame.
+``ra``, ``dec``, and ``t0`` (if provided). It is important to note that these columns correspond to the
+values for the object being simulated (the source). If there are multiple components with different locations
+(e.g., host galaxy, lens, etc.), their locations will not be included by default. You can access these columns
+as you would with a normal Pandas DataFrame.
 
 .. code-block:: python
 
