@@ -36,7 +36,10 @@ _lsstcam_view_radius = 1.75
 """The angular radius of the observation field (in degrees)."""
 
 _lsstcam_ccd_radius = 0.1574
-"""The approximate angular radius of a single LSST CCD (in degrees)."""
+"""The approximate angular radius of a single LSST CCD (in degrees). Each CCD is 800*800 arcsec^2.
+We approximate the radius as 800 arcsec/ sqrt(2). We overestimate slightly, because this value is
+used in range searches. More exact filtering is done with the detector footprint.
+"""
 
 _lsst_zp_err_mag = 1.0e-4
 """The zero point error in magnitude.
@@ -233,32 +236,42 @@ class OpSim(ObsTable):
         """
         table = table.copy()
 
-        # Bulk rename the columns to match the expected names.
+        # Bulk rename the columns to match the expected names. We also use this
+        # dictionary to check that all of the expected columns as given by:
+        # https://sdm-schemas.lsst.io/dp1.html#CcdVisit.zeroPoint
+        # are presents. We also annotate the expected units for each column.
         colmap = {
-            "ccdVisitId": "id",
-            "expMidptMJD": "time",
             "band": "filter",
-            "skyRotation": "rotation",
-            "magLim": "fiveSigmaDepth",
-            "expTime": "exptime",
-            "skyBg": "skybrightness",
-            "pixelScale": "pixel_scale",
-            "zeroPoint": "zp",
+            "ccdVisitId": "ccdVisitId",  # Integer ID
+            "dec": "dec",  # Degrees
+            "expMidptMJD": "time",  # MJD (days)
+            "expTime": "exptime",  # Seconds
+            "magLim": "fiveSigmaDepth",  # Magnitudes
+            "pixelScale": "pixel_scale",  # arcsec/pixel
+            "ra": "ra",  # Degrees
+            "seeing": "seeing",  # arcseconds
+            "skyRotation": "rotation",  # Degrees
+            "skyBg": "skybrightness",  # adu
+            "skyNoise": "skynoise",  # adu
+            "zeroPoint": "zp_mag",  # Magnitude (converted to flux below)
         }
+        for c in colmap:
+            if c not in table.columns:
+                raise ValueError(f"Missing column '{c}' in the CCDVisit table.")
         table.rename(columns=colmap, inplace=True)
         cols = table.columns.to_list()
 
         # The CCDVisit table uses mag for zero point, we convert it to nJy.
-        if "zp" in cols:
-            table["zp"] = mag2flux(table["zp"])
+        if "zp_mag" in cols:
+            table["zp"] = mag2flux(table["zp_mag"])
 
         # Create a detector footprint if requested.  We use the same (average) footprint for all CCDs.
         if make_detector_footprint:
             if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
                 # Use the average values to generate the detector footprint.
-                pixel_scale = np.mean(table["pixel_scale"])
-                width_px = np.mean(table["xSize"]).astype(int) + 10  # Add some margin
-                height_px = np.mean(table["ySize"]).astype(int) + 10  # Add some margin
+                pixel_scale = np.mean(table["pixel_scale"])  # arcsec/pixel
+                width_px = np.mean(table["xSize"]).astype(int)  # in pixels
+                height_px = np.mean(table["ySize"]).astype(int)  # in pixels
 
                 detect_fp = DetectorFootprint.from_pixel_rect(
                     width_px,
@@ -277,7 +290,6 @@ class OpSim(ObsTable):
         if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
             radius_px = np.sqrt((table["xSize"] / 2) ** 2 + (table["ySize"] / 2) ** 2)
             table["radius"] = (radius_px * table["pixel_scale"]) / 3600.0  # arcsec to degrees
-            table.drop(columns=["xSize", "ySize"], inplace=True, errors="ignore")
         elif "radius" not in kwargs:
             # Use a single approximate average ccd radius.
             kwargs["radius"] = _lsstcam_ccd_radius

@@ -524,15 +524,18 @@ def _make_fake_data(times):
 
     # Add the other columns with random values.
     num_samples = len(data["expMidptMJD"])
-    data["skyRotation"] = np.zeros(num_samples)
-    data["magLim"] = np.random.normal(24.0, 0.5, num_samples)
-    data["seeing"] = np.random.normal(1.0, 0.2, num_samples)
-    data["skyBg"] = np.random.normal(1750, 10.0, num_samples)
-    data["skyNoise"] = np.random.normal(43.0, 1.0, num_samples)
+    data["ccdVisitId"] = np.arange(num_samples)
+    data["expTime"] = np.full(num_samples, 30.0)  # seconds
+    data["magLim"] = np.random.normal(24.0, 0.5, num_samples)  # mag
+    data["seeing"] = np.random.normal(1.0, 0.2, num_samples)  # arcseconds
+    data["skyBg"] = np.random.normal(1750, 10.0, num_samples)  # adu
+    data["skyNoise"] = np.random.normal(43.0, 1.0, num_samples)  # adu
+    data["skyRotation"] = np.zeros(num_samples)  # degrees
     data["pixelScale"] = np.full(num_samples, 0.2)  # arcsec/pixel
-    data["xSize"] = np.full(num_samples, 4000)
-    data["ySize"] = np.full(num_samples, 4000)
-    data["zeroPoint"] = np.random.normal(31.0, 0.2, num_samples)
+    data["xSize"] = np.full(num_samples, 4000)  # pixels
+    data["ySize"] = np.full(num_samples, 4000)  # pixels
+    data["zeroPoint"] = np.random.normal(31.0, 0.2, num_samples)  # mag
+
     return pd.DataFrame(data)
 
 
