@@ -248,6 +248,10 @@ class OpSim(ObsTable):
         table.rename(columns=colmap, inplace=True)
         cols = table.columns.to_list()
 
+        # The CCDVisit table uses mag for zero point, we convert it to nJy.
+        if "zp" in cols:
+            table["zp"] = mag2flux(table["zp"])
+
         # Create a detector footprint if requested.  We use the same (average) footprint for all CCDs.
         if make_detector_footprint:
             if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
