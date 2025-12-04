@@ -458,3 +458,29 @@ def test_results_augment_lightcurves_single_invalid():
     assert "detection" in results.columns
     assert "mag" in results.columns
     assert "magerr" in results.columns
+
+
+def test_augment_lightcurves_with_existing_detection_column():
+    """Check that we have fixed the error from Issue 638. This failed before the fix."""
+    # Create a results data frame with some invalid flux/fluxerr entries.
+    data = {
+        "id": [0, 1],
+        "t0": [59000.0, 59001.0],
+    }
+    results = NestedFrame(data=data, index=[0, 1])
+
+    nested_data = {
+        "mjd": [59000.0, 59001.0, 59002.0, 59003.0, 59004.0, 59005.0],
+        "flux": [100.0, 200.0, -50.0, 150.0, 0.0, 180.0],
+        "fluxerr": [10.0, 15.0, 5.0, 0.0, 10.0, 12.0],
+    }
+    nested_index = [0, 0, 0, 1, 1, 1]
+    nested_df = pd.DataFrame(data=nested_data, index=nested_index)
+    results = results.join_nested(nested_df, "lightcurve")
+
+    # Pre-populate the detection column with None/null values to set up PyArrow null type
+    # This simulates a scenario where the column exists but has no data
+    results["lightcurve.detection"] = None
+
+    # Run the augmentation function, which previously failed
+    results_augment_lightcurves(results, min_snr=5.0)
