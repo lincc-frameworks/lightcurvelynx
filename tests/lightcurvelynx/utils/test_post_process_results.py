@@ -347,6 +347,37 @@ def test_results_augment_lightcurves():
     assert _allclose(results["lightcurve.time_rel"][2].values, [2, 3])
 
 
+def test_results_augment_lightcurves_empty():
+    """Test the results_augment_lightcurves function with a completely empty frame."""
+    # Create an empty NestedFrame.
+    source_data = {
+        "object_id": [],
+        "ra": [],
+        "dec": [],
+        "nobs": [],
+        "z": [],
+    }
+    results = NestedFrame(data=source_data, index=[])
+
+    nested_data = {
+        "mjd": [],
+        "flux": [],
+        "fluxerr": [],
+        "filter": [],
+    }
+    nested_frame = pd.DataFrame(data=nested_data, index=[])
+    results = results.join_nested(nested_frame, "lightcurve")
+    assert len(results) == 0
+
+    # Augmenting the lightcurves should add the new columns.
+    results_augment_lightcurves(results, min_snr=5)
+    assert len(results) == 0
+    assert "snr" in results["lightcurve"].nest.columns
+    assert "detection" in results["lightcurve"].nest.columns
+    assert "mag" in results["lightcurve"].nest.columns
+    assert "magerr" in results["lightcurve"].nest.columns
+
+
 def test_results_augment_lightcurves_single():
     """Test the results_augment_lightcurves function with a non-nested frame."""
     # Create a DataFrame with a lightcurve.
@@ -391,3 +422,39 @@ def test_results_augment_lightcurves_single():
     augment_single_lightcurve(results, min_snr=5, t0=59000)
     assert "time_rel" in results.columns
     assert _allclose(results["time_rel"].values, [0, 1, 2, 3, 4, 5, 6])
+
+
+def test_results_augment_lightcurves_single_empty():
+    """Test the results_augment_lightcurves function with an empty non-nested frame."""
+    # Create a DataFrame with a lightcurve.
+    source_data = {
+        "mjd": [],
+        "flux": [],
+        "fluxerr": [],
+    }
+    results = pd.DataFrame(data=source_data)
+
+    # Augmenting the lightcurves should add the new columns.
+    augment_single_lightcurve(results, min_snr=5)
+    assert "snr" in results.columns
+    assert "detection" in results.columns
+    assert "mag" in results.columns
+    assert "magerr" in results.columns
+
+
+def test_results_augment_lightcurves_single_invalid():
+    """Test the results_augment_lightcurves function with only invalid entries."""
+    # Create a DataFrame with a lightcurve.
+    source_data = {
+        "mjd": [1.0, 2.0, 3.0],
+        "flux": [-1.0, -1.0, 1.0],
+        "fluxerr": [-1.0, 1.0, -1.0],
+    }
+    results = pd.DataFrame(data=source_data)
+
+    # Augmenting the lightcurves should add the new columns.
+    augment_single_lightcurve(results, min_snr=5)
+    assert "snr" in results.columns
+    assert "detection" in results.columns
+    assert "mag" in results.columns
+    assert "magerr" in results.columns
