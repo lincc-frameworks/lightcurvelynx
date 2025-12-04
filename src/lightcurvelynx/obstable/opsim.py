@@ -264,7 +264,7 @@ class OpSim(ObsTable):
         else:
             detect_fp = None
 
-        # Try to derive the radius if we have the information to do so.
+        # Try to derive the viewing radius if we have the information to do so.
         if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
             radius_px = np.sqrt((table["xSize"] / 2) ** 2 + (table["ySize"] / 2) ** 2)
             table["radius"] = (radius_px * table["pixel_scale"]) / 3600.0  # arcsec to degrees
