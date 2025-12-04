@@ -492,6 +492,86 @@ def test_opsim_flux_err_point_source(opsim_shorten):
     np.testing.assert_allclose(flux_err, expected_flux_err, rtol=0.2)
 
 
+def _make_fake_data(times):
+    """Create 9 fake ccd pointings at each timestep using
+    a 3x3 grid centered (like dp1) with grid steps of 0.22 deg.
+
+    Parameters
+    ----------
+    times : `numpy.ndarray`
+        The times of the observations (in MJD).
+    """
+
+    # Create a tile of pointings around a random center at each time
+    # where the center is chosen from a 1 degree by 1 degree box.
+    data = {
+        "expMidptMJD": [],
+        "ra": [],
+        "dec": [],
+        "band": [],
+    }
+    for t in times:
+        pointing_ra = np.random.uniform(150.0, 151.0)
+        pointing_dec = np.random.uniform(-21.0, -20.0)
+        band = np.random.choice(["g", "r", "i"])
+
+        for dra in [-0.22, 0.0, 0.22]:
+            for ddec in [-0.22, 0.0, 0.22]:
+                data["expMidptMJD"].append(t)
+                data["ra"].append(pointing_ra + dra)
+                data["dec"].append(pointing_dec + ddec)
+                data["band"].append(band)
+
+    # Add the other columns with random values.
+    num_samples = len(data["expMidptMJD"])
+    data["skyRotation"] = np.zeros(num_samples)
+    data["magLim"] = np.random.normal(24.0, 0.5, num_samples)
+    data["seeing"] = np.random.normal(1.0, 0.2, num_samples)
+    data["skyBg"] = np.random.normal(1750, 10.0, num_samples)
+    data["skyNoise"] = np.random.normal(43.0, 1.0, num_samples)
+    data["pixelScale"] = np.full(num_samples, 0.2)  # arcsec/pixel
+    data["xSize"] = np.full(num_samples, 4000)
+    data["ySize"] = np.full(num_samples, 4000)
+    data["zeroPoint"] = np.random.normal(31.0, 0.2, num_samples)
+    return pd.DataFrame(data)
+
+
+def test_opsim_from_ccdvisit():
+    """Test that we can create an OpSim from a CCD visit database."""
+    times = 60623.25 + np.arange(20) * 0.1  # 20 time steps (15 minutes apart)
+    ccd_visit_table = _make_fake_data(times)
+    opsim = OpSim.from_ccdvisit_table(ccd_visit_table)
+    assert len(opsim) == 180  # Number of rows in the test ccdvisit table
+
+    # Check that we have the expected columns.
+    assert "time" in opsim
+    assert "ra" in opsim
+    assert "dec" in opsim
+    assert "filter" in opsim
+    assert "zp" in opsim
+    assert "fiveSigmaDepth" in opsim
+    assert "seeing" in opsim
+    assert "skybrightness" in opsim
+    assert "rotation" in opsim
+    assert "radius" in opsim
+
+    # Check that we have the expected survey radius values.
+    assert np.all(opsim["radius"] >= 0.15)
+    assert np.all(opsim["radius"] <= 0.16)
+    assert np.all(opsim["pixel_scale"] >= 0.19)
+    assert np.all(opsim["pixel_scale"] <= 0.21)
+
+    # No footprint is created by default.
+    assert opsim._detector_footprint is None
+
+    # If we create a footprint, it is set correctly.
+    opsim_with_footprint = OpSim.from_ccdvisit_table(
+        ccd_visit_table,
+        make_detector_footprint=True,
+    )
+    assert opsim_with_footprint._detector_footprint is not None
+
+
 def test_create_random_opsim():
     """Test that we can create a complete random OpSim."""
     opsim = create_random_opsim(1000)

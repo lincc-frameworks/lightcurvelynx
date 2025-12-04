@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
+from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
 from lightcurvelynx.astro_utils.zeropoint import flux_electron_zeropoint
@@ -33,6 +34,9 @@ The value is from https://smtn-002.lsst.io/v/OPSIM-1171/index.html
 
 _lsstcam_view_radius = 1.75
 """The angular radius of the observation field (in degrees)."""
+
+_lsstcam_ccd_radius = 0.1574
+"""The approximate angular radius of a single LSST CCD (in degrees)."""
 
 _lsst_zp_err_mag = 1.0e-4
 """The zero point error in magnitude.
@@ -202,6 +206,74 @@ class OpSim(ObsTable):
         if not download_data_file_if_needed(data_path, opsim_url, force_download=force_download):
             raise RuntimeError(f"Failed to download opsim data from {opsim_url}.")
         return cls.from_db(data_path)
+
+    @classmethod
+    def from_ccdvisit_table(cls, table, make_detector_footprint=False, **kwargs):
+        """Construct an OpSim object from a CCDVisit table.
+
+        Parameters
+        ----------
+        table : pandas.core.frame.DataFrame
+            The CCDVisit table containing the OpSim data.
+        make_detector_footprint : bool, optional
+            If True, the detector footprint will be created based on the xSize and ySize columns
+            in the table.
+        **kwargs : dict
+            Additional keyword arguments to pass to the OpSim constructor.
+
+        Returns
+        -------
+        opsim : OpSim
+            An OpSim object containing the data from the CCDVisit table.
+        """
+        table = table.copy()
+
+        # Bulk rename the columns to match the expected names.
+        colmap = {
+            "ccdVisitId": "id",
+            "expMidptMJD": "time",
+            "band": "filter",
+            "skyRotation": "rotation",
+            "magLim": "fiveSigmaDepth",
+            "expTime": "exptime",
+            "skyBg": "skybrightness",
+            "pixelScale": "pixel_scale",
+            "zeroPoint": "zp",
+        }
+        table.rename(columns=colmap, inplace=True)
+        cols = table.columns.to_list()
+
+        # Create a detector footprint if requested.  We use the same (average) footprint for all CCDs.
+        if make_detector_footprint:
+            if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
+                # Use the average values to generate the detector footprint.
+                pixel_scale = np.mean(table["pixel_scale"])
+                width_px = np.mean(table["xSize"]).astype(int) + 10  # Add some margin
+                height_px = np.mean(table["ySize"]).astype(int) + 10  # Add some margin
+
+                detect_fp = DetectorFootprint.from_pixel_rect(
+                    width_px,
+                    height_px,
+                    pixel_scale=pixel_scale,
+                )
+            else:
+                raise ValueError(
+                    "Cannot create detector footprint: missing one of the required columns: "
+                    "xSize, ySize, pixel_scale."
+                )
+        else:
+            detect_fp = None
+
+        # Try to derive the radius if we have the information to do so.
+        if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
+            radius_px = np.sqrt((table["xSize"] / 2) ** 2 + (table["ySize"] / 2) ** 2)
+            table["radius"] = (radius_px * table["pixel_scale"]) / 3600.0  # arcsec to degrees
+            table.drop(columns=["xSize", "ySize"], inplace=True, errors="ignore")
+        elif "radius" not in kwargs:
+            # Use a single approximate average ccd radius.
+            kwargs["radius"] = _lsstcam_ccd_radius
+
+        return cls(table, detector_footprint=detect_fp, **kwargs)
 
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
