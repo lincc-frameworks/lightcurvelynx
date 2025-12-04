@@ -5,6 +5,8 @@ extended to other survey data as well.
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -238,7 +240,7 @@ class OpSim(ObsTable):
 
         # Bulk rename the columns to match the expected names. We also use this
         # dictionary to check that all of the expected columns as given by:
-        # https://sdm-schemas.lsst.io/dp1.html#CcdVisit.zeroPoint
+        # https://sdm-schemas.lsst.io/dp1.html#CcdVisit
         # are presents. We also annotate the expected units for each column.
         colmap = {
             "band": "filter",
@@ -268,10 +270,21 @@ class OpSim(ObsTable):
         # Create a detector footprint if requested.  We use the same (average) footprint for all CCDs.
         if make_detector_footprint:
             if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
-                # Use the average values to generate the detector footprint.
+                # The pixel_scale varies a bit from detector to detector, so we take the average.
                 pixel_scale = np.mean(table["pixel_scale"])  # arcsec/pixel
-                width_px = np.mean(table["xSize"]).astype(int)  # in pixels
-                height_px = np.mean(table["ySize"]).astype(int)  # in pixels
+                width_px = np.max(table["xSize"]).astype(int)  # in pixels
+                if np.any(table["xSize"] != width_px):
+                    warnings.warn(
+                        "xSize varies between detectors, using the maximum value "
+                        f"of {width_px} pixels for all detectors."
+                    )
+
+                height_px = np.max(table["ySize"]).astype(int)  # in pixels
+                if np.any(table["ySize"] != height_px):
+                    warnings.warn(
+                        "ySize varies between detectors, using the maximum value "
+                        f"of {height_px} pixels for all detectors."
+                    )
 
                 detect_fp = DetectorFootprint.from_pixel_rect(
                     width_px,
