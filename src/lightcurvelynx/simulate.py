@@ -448,7 +448,7 @@ def simulate_lightcurves(
     from one or more surveys. The result data can either be returned directly
     (as a single nested data frame) or saved to file(s).
 
-    The columns in the return NestedFrame can include a max of default information
+    The columns in the return NestedFrame can include a mix of default information
     from the source object (e.g., ra, dec, t0, redshift), a nested lightcurve table,
     a saved parameters data block (with all the model's parameters), and any additional
     user-specified values.
