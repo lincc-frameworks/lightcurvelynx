@@ -95,7 +95,7 @@ class Microlensing(EffectModel, CiteClass):
         flux_density : numpy.ndarray
             A length T X N matrix of flux density values (in nJy).
         times : numpy.ndarray, optional
-            A length T array of times (in MJD). Not used for this effect.
+            A length T array of times (in MJD).
         wavelengths : numpy.ndarray, optional
             A length N array of wavelengths (in angstroms). Not used for this effect.
         apply_microlensing : bool
