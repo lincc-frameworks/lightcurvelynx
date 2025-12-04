@@ -211,6 +211,11 @@ class OpSim(ObsTable):
     def from_ccdvisit_table(cls, table, make_detector_footprint=False, **kwargs):
         """Construct an OpSim object from a CCDVisit table.
 
+        As an example we could access the DP1 CCDVisit table from RSP as:
+            from lsst.rsp import get_tap_service
+            service = get_tap_service("tap")
+            table = service.search("SELECT * FROM dp1.CcdVisit").to_table().to_pandas()
+
         Parameters
         ----------
         table : pandas.core.frame.DataFrame
