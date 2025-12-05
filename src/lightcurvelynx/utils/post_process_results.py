@@ -197,7 +197,7 @@ def augment_single_lightcurve(results, *, min_snr=0.0, t0=None):
 
     snr = lightcurve_compute_snr(flux, fluxerr)
     results["snr"] = snr
-    results["detection"] = [(x is not ma.masked and x >= min_snr) for x in snr]
+    results["detection"] = np.where(snr.mask, False, snr >= min_snr)
 
     mag, magerr = lightcurve_compute_mag(flux, fluxerr)
     results["mag"] = mag
@@ -242,7 +242,7 @@ def results_augment_lightcurves(results, *, min_snr=0.0):
     # Compute SNR and detection flag.
     snr = lightcurve_compute_snr(flux, fluxerr)
     results["lightcurve.snr"] = snr
-    results["lightcurve.detection"] = [(x is not None and x >= min_snr) for x in snr]
+    results["lightcurve.detection"] = np.where(snr.mask, False, snr >= min_snr)
 
     # Compute magnitude and magnitude error.
     mag, magerr = lightcurve_compute_mag(flux, fluxerr)
