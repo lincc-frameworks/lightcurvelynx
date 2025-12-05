@@ -1,6 +1,20 @@
 Frequently Asked Questions
 ========================================================================================
 
+How Can I See More Detailed Output During Simulation?
+-------------------------------------------------------------------------------
+
+You can enable more detailed logging output by configuring the logging level for LightCurveLynx.
+For example, to see info-level messages, you can add the following code snippet before running
+your simulation:
+
+.. code-block:: python
+
+    import logging
+    logging.basicConfig(level=logging.INFO)
+
+You can also use `logging.DEBUG` to see even more detailed debug-level messages.
+
 
 Can I Use a Random Seed to Get Reproducible Results?
 -------------------------------------------------------------------------------

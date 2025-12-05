@@ -273,6 +273,7 @@ def _simulate_lightcurves_batch(simulation_info):
     # Some of these are placeholders (e.g. nobs) until they can be filled in during the simulation.
     # These values are always pulled from the outer-most object (model), which most often
     # corresponds to the source (as opposed to a host).
+    logger.info("Setting up result data structures.")
     ra = np.atleast_1d(model.get_param(sample_states, "ra"))
     dec = np.atleast_1d(model.get_param(sample_states, "dec"))
     results_dict = {
