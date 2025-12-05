@@ -71,8 +71,6 @@ class ObsTable:
     _detector_footprint : DetectorFootprint, optional
         The footprint object for the instrument's detector. If None, no footprint
         filtering is done. Default is None.
-    _wacs : astropy.wcs.WCS, optional
-        The WCS for the footprint.
     _saturation_mags : dict, optional
         The saturation thresholds in magnitudes for each filter. If unspecified, an
         instrument-specific default will be used, if available.
@@ -158,29 +156,10 @@ class ObsTable:
         self._build_kd_tree()
 
         # Create the footprint if one is provided.
-        self._wcs = wcs
-        if isinstance(detector_footprint, Region):
-            pixel_scale = self.survey_values.get("pixel_scale", None)
-            detector_footprint = DetectorFootprint(detector_footprint, wcs=wcs, pixel_scale=pixel_scale)
-        self._detector_footprint = detector_footprint
-
-        # Check that the radius is valid for the given footprint (if it exists).
-        if self._detector_footprint is not None:
-            fp_radius = self._detector_footprint.compute_radius()
-            curr_radius = self.survey_values.get("radius", None)
-            if curr_radius is None:
-                self.survey_values["radius"] = fp_radius
-            elif curr_radius < fp_radius:
-                logger.info(
-                    f"Provided radius {curr_radius} is smaller than footprint radius {fp_radius}. "
-                    "Using the footprint radius instead."
-                )
-                self.survey_values["radius"] = fp_radius
-            else:
-                logger.debug(
-                    f"Provided radius {curr_radius} is larger than footprint radius {fp_radius}. "
-                    "Using the provided radius."
-                )
+        if detector_footprint is not None:
+            self.set_detector_footprint(detector_footprint, wcs=wcs)
+        else:
+            self._detector_footprint = None
 
     def __len__(self):
         return len(self._table)
@@ -210,6 +189,42 @@ class ObsTable:
     def clear_detector_footprint(self):
         """Clear the detector footprint, so no footprint filtering is done."""
         self._detector_footprint = None
+
+    def set_detector_footprint(self, detector_footprint, wcs=None):
+        """Set the detector footprint, so footprint filtering is done.
+
+        Parameters
+        ----------
+        detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion, or
+            DetectorFootprint
+            The footprint object for the instrument's detector.
+        wcs : astropy.wcs.WCS, optional
+            The WCS for the footprint. Either this or pixel_scale must be provided if
+            a footprint is provided as a Astropy region.
+        """
+        # Create the footprint if one is provided.
+        if isinstance(detector_footprint, Region):
+            pixel_scale = self.survey_values.get("pixel_scale", None)
+            detector_footprint = DetectorFootprint(detector_footprint, wcs=wcs, pixel_scale=pixel_scale)
+        self._detector_footprint = detector_footprint
+
+        # Check that the radius is valid for the given footprint (if it exists).
+        if self._detector_footprint is not None:
+            fp_radius = self._detector_footprint.compute_radius()
+            curr_radius = self.survey_values.get("radius", None)
+            if curr_radius is None:
+                self.survey_values["radius"] = fp_radius
+            elif curr_radius < fp_radius:
+                logger.info(
+                    f"Provided radius {curr_radius} is smaller than footprint radius {fp_radius}. "
+                    "Using the footprint radius instead."
+                )
+                self.survey_values["radius"] = fp_radius
+            else:
+                logger.debug(
+                    f"Provided radius {curr_radius} is larger than footprint radius {fp_radius}. "
+                    "Using the provided radius."
+                )
 
     def get_value_per_row(self, key, *, indices=None, default=None):
         """Get the values for each row from the table or survey values (defaults).
