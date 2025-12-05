@@ -296,6 +296,8 @@ class OpSim(ObsTable):
                     "Cannot create detector footprint: missing one of the required columns: "
                     "xSize, ySize, pixel_scale."
                 )
+        elif "detector_footprint" in kwargs:
+            detect_fp = kwargs.pop("detector_footprint")
         else:
             detect_fp = None
 
