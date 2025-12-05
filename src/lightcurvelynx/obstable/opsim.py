@@ -5,8 +5,6 @@ extended to other survey data as well.
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
-import warnings
-
 import numpy as np
 import pandas as pd
 
@@ -128,6 +126,8 @@ class OpSim(ObsTable):
 
     # Default survey values.
     _default_survey_values = {
+        "ccd_pixel_width": 4000,
+        "ccd_pixel_height": 4000,
         "dark_current": _lsstcam_dark_current,
         "ext_coeff": _lsstcam_extinction_coeff,
         "pixel_scale": LSSTCAM_PIXEL_SCALE,
@@ -249,7 +249,6 @@ class OpSim(ObsTable):
             "expMidptMJD": "time",  # MJD (days)
             "expTime": "exptime",  # Seconds
             "magLim": "fiveSigmaDepth",  # Magnitudes
-            "pixelScale": "pixel_scale",  # arcsec/pixel
             "ra": "ra",  # Degrees
             "seeing": "seeing",  # arcseconds
             "skyRotation": "rotation",  # Degrees
@@ -267,40 +266,6 @@ class OpSim(ObsTable):
         if "zp_mag" in cols:
             table["zp"] = mag2flux(table["zp_mag"])
 
-        # Create a detector footprint if requested.  We use the same (average) footprint for all CCDs.
-        if make_detector_footprint:
-            if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
-                # The pixel_scale varies a bit from detector to detector, so we take the average.
-                pixel_scale = np.mean(table["pixel_scale"])  # arcsec/pixel
-                width_px = np.max(table["xSize"]).astype(int)  # in pixels
-                if np.any(table["xSize"] != width_px):
-                    warnings.warn(
-                        "xSize varies between detectors, using the maximum value "
-                        f"of {width_px} pixels for all detectors."
-                    )
-
-                height_px = np.max(table["ySize"]).astype(int)  # in pixels
-                if np.any(table["ySize"] != height_px):
-                    warnings.warn(
-                        "ySize varies between detectors, using the maximum value "
-                        f"of {height_px} pixels for all detectors."
-                    )
-
-                detect_fp = DetectorFootprint.from_pixel_rect(
-                    width_px,
-                    height_px,
-                    pixel_scale=pixel_scale,
-                )
-            else:
-                raise ValueError(
-                    "Cannot create detector footprint: missing one of the required columns: "
-                    "xSize, ySize, pixel_scale."
-                )
-        elif "detector_footprint" in kwargs:
-            detect_fp = kwargs.pop("detector_footprint")
-        else:
-            detect_fp = None
-
         # Try to derive the viewing radius if we have the information to do so.
         if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
             radius_px = np.sqrt((table["xSize"] / 2) ** 2 + (table["ySize"] / 2) ** 2)
@@ -309,7 +274,19 @@ class OpSim(ObsTable):
             # Use a single approximate average ccd radius.
             kwargs["radius"] = _lsstcam_ccd_radius
 
-        return cls(table, detector_footprint=detect_fp, **kwargs)
+        # Create the OpSim object.
+        opsim = cls(table, **kwargs)
+
+        # Create a detector footprint if requested. We use the same (average) footprint for
+        #  all CCDs based on the survey parameters for pixel scale and CCD size.
+        if make_detector_footprint:
+            pixel_scale = opsim.survey_values.get("pixel_scale")
+            width_px = opsim.survey_values.get("ccd_pixel_width")
+            height_px = opsim.survey_values.get("ccd_pixel_height")
+            detect_fp = DetectorFootprint.from_pixel_rect(width_px, height_px, pixel_scale=pixel_scale)
+            opsim.set_detector_footprint(detect_fp)
+
+        return opsim
 
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source

@@ -523,6 +523,12 @@ def test_obs_table_range_search_detector_footprint():
     ops_data.clear_detector_footprint()
     assert set(ops_data.range_search(15.0, 10.0, radius=100.0)) == set([0, 1, 2, 3, 4, 5, 6, 7])
 
+    # We can re-add the detector footprint to save time and use the approximate radius.
+    ops_data.set_detector_footprint(detector_footprint)
+    assert set(ops_data.range_search(15.0, 10.0, radius=2.0)) == set([1, 2, 3])
+    assert set(ops_data.range_search(25.0, 10.0, radius=2.0)) == set([4, 5])
+    assert set(ops_data.range_search(15.0, 10.0, radius=100.0)) == set([1, 2, 3])
+
     # If we create a new ObsTable with no radius, it is filled in by the detector footprint.
     ops_data = ObsTable(values, detector_footprint=detector_footprint, pixel_scale=360.0)  # 0.1 deg/pix
     assert ops_data.radius > 0.5
