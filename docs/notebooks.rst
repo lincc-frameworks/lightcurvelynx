@@ -80,6 +80,7 @@ LightCurveLynx.
 
     Wrapping Bagle Models <notebooks/pre_executed/wrapping_bagle>
     Wrapping Redback Models <notebooks/pre_executed/wrapping_redback>
+    Wrapping VBMicrolensing <notebooks/pre_executed/wrapping_vbmicrolensing>
 
 
 Running LightCurveLynx in a Jupyter Notebook
