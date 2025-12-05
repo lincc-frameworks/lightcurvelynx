@@ -24,6 +24,8 @@ def test_create_obs_table():
     ops_data = ObsTable(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
+    assert not ops_data.uses_footprint()
+    assert not ops_data.uses_saturation()
 
     # We have all the attributes set at their default values (which are None for the base class).
     assert ops_data.survey_values["dark_current"] is None
@@ -208,6 +210,26 @@ def test_obs_table_add_columns():
 
     ops_data.add_column("new_column2", 12, overwrite=True)
     assert np.allclose(ops_data["new_column2"], [12, 12, 12, 12, 12])
+
+
+def test_create_obs_table_saturation():
+    """Test that we can set saturation magnitudes."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+    }
+    pdf = pd.DataFrame(values)
+
+    saturation_mags = {"r": 16.0, "g": 17.0, "i": 18.0}
+
+    ops_data = ObsTable(pdf, saturation_mags=saturation_mags)
+    assert ops_data.uses_saturation()
+
+    # If we set apply_saturation to False, we do not store the saturation mags.
+    ops_data = ObsTable(pdf, saturation_mags=saturation_mags, apply_saturation=False)
+    assert ops_data.uses_saturation() is False
 
 
 def test_obs_table_filter_rows():
@@ -489,6 +511,7 @@ def test_obs_table_range_search_detector_footprint():
     # Add a circular footprint with radius 0.5 deg.
     detector_footprint = CircleSkyRegion(center=SkyCoord(ra=0.0, dec=0.0, unit="deg"), radius=0.5 * u.deg)
     ops_data = ObsTable(values, detector_footprint=detector_footprint, pixel_scale=360.0)  # 0.1 deg/pix
+    assert ops_data.uses_footprint()
 
     # Check that the ObsTable radius was increased to account for the bounding box of the
     # detector footprint.

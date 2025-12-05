@@ -44,6 +44,9 @@ class ObsTable:
     wcs : astropy.wcs.WCS, optional
         The WCS for the footprint. Either this or pixel_scale must be provided if
         a footprint is provided as a Astropy region.
+    apply_saturation : bool, optional
+        Whether to apply saturation effects when computing fluxes. Also requires a valid
+        saturation_mags dictionary. Default is True.
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes.
         The filters provided must match those in the table. If not provided,
@@ -98,6 +101,7 @@ class ObsTable:
         colmap=None,
         detector_footprint=None,
         wcs=None,
+        apply_saturation=True,
         saturation_mags=None,
         **kwargs,
     ):
@@ -151,7 +155,7 @@ class ObsTable:
             self._assign_zero_points()
 
         # Save the saturation thresholds if provided.
-        self._saturation_mags = saturation_mags
+        self._saturation_mags = saturation_mags if apply_saturation else None
 
         # Build the kd-tree.
         self._kd_tree = None
@@ -206,6 +210,14 @@ class ObsTable:
         if key in self.survey_values and self.survey_values[key] is not None:
             return True
         return False
+
+    def uses_footprint(self):
+        """Return whether the ObsTable uses a detector footprint for filtering."""
+        return self._detector_footprint is not None
+
+    def uses_saturation(self):
+        """Return whether the ObsTable uses saturation effects."""
+        return self._saturation_mags is not None
 
     def clear_detector_footprint(self):
         """Clear the detector footprint, so no footprint filtering is done."""
