@@ -128,6 +128,25 @@ def test_create_opsim_override_fail():
         _ = OpSim(values, ext_coeff=None)
 
 
+def test_create_opsim_saturation():
+    """Test that we can control whether saturation mags are stored."""
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp_nJy": np.ones(5),
+    }
+    pdf = pd.DataFrame(values)
+
+    # Without any arguments the default saturation mags are used.
+    ops_data = OpSim(pdf)
+    assert ops_data.uses_saturation()
+
+    # If we set apply_saturation to False, we do not store the saturation mags.
+    ops_data = OpSim(pdf, apply_saturation=False)
+    assert ops_data.uses_saturation() is False
+
+
 def test_create_opsim_no_zp():
     """Create an opsim without a zeropoint column."""
     values = {
