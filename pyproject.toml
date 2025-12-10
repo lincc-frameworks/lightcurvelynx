@@ -23,6 +23,7 @@ dependencies = [
     "matplotlib",
     "mocpy",
     "nested-pandas",
+    "networkx",  # Used for graph visualization
     "numpy>=2.0",
     "pandas",
     "pooch",
