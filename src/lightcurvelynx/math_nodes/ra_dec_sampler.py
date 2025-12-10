@@ -341,6 +341,10 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
     """A FunctionNode that samples RA and dec (approximately) from the coverage of
     a MOCPy Multi-Order Coverage Map object.
 
+    The depth parameter controls the approximation level. Higher depths provide
+    better accuracy but require more memory and computation time. We recommend at
+    least depth=12 for reasonable accuracy.
+
     References
     ----------
     * MOCPY: https://github.com/cds-astro/mocpy/
@@ -408,6 +412,10 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
         **kwargs,
     ):
         """Create an ApproximateMOCSampler from an ObsTable object.
+
+        The depth parameter controls the approximation level. Higher depths provide
+        better accuracy but require more memory and computation time. We recommend at
+        least depth=12 for reasonable accuracy.
 
         Parameters
         ----------
