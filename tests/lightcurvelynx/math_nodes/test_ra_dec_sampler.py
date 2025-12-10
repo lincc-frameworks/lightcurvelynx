@@ -356,3 +356,22 @@ def test_approximate_moc_sampler_from_file():
             moc_sampler = ApproximateMOCSampler.from_file(file_path, format=fmt)
 
             assert moc_sampler.healpix_list is not None
+
+
+def test_approximate_moc_sampler_from_obstable():
+    """Test that we can create an ApproximateMOCSampler from an ObsTable."""
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp_nJy": np.ones(5),
+    }
+    ops_data = OpSim(values)
+    assert len(ops_data) == 5
+
+    # Create the MOC sampler and test that we can generate samples that are "near"
+    # the given centers. We add a bit of extra radius to account for the approximate nature
+    # of the MOC at depth=12.
+    moc_sampler = ApproximateMOCSampler.from_obstable(ops_data, depth=12, radius=1.75, seed=43)
+    ra, dec = moc_sampler.generate(num_samples=100)
+    assert np.all(ops_data.is_observed(ra, dec, radius=1.8))

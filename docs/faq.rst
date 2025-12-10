@@ -16,6 +16,24 @@ your simulation:
 You can also use `logging.DEBUG` to see even more detailed debug-level messages.
 
 
+I Am Seeing Empty Light Curves for Some Entrys. Why Is This Happening?
+-------------------------------------------------------------------------------
+
+The most common reason that LightCurveLynx produces rows with empty light curves is
+that the object's sampled position (RA, dec) lies outside the area covered by the survey.
+This can happen even if you use one of the predefined samplers, such as the `ApproximateMOCSampler`,
+because all of the samplers are approximate.
+
+You can find the empty rows in your results using:
+
+.. code-block:: python
+
+    idx = results.lightcurve.isna()
+
+and check whether the row was observed using the `ObsTable.get_observations()` function
+with the corresponding RA and dec.
+
+
 Can I Use a Random Seed to Get Reproducible Results?
 -------------------------------------------------------------------------------
 
