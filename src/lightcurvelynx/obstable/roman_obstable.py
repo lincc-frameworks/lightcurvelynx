@@ -42,6 +42,12 @@ _zp_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical
 _thermal_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/refs/heads/main/data/WideFieldInstrument/Imaging/Backgrounds/internal_thermal_backgrounds.ecsv"
 _zodiacal_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/refs/heads/main/data/WideFieldInstrument/Imaging/ZodiacalLight/zodiacal_light.ecsv"
 
+hltds_pass_map = {
+    "PC": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    "EC1": [17, 18, 19, 20, 21, 22],
+    "EC2": [31, 32, 33, 34, 35, 36, 37, 38, 39, 40],
+}
+
 
 def _get_roman_char():
     psf_table = Table.read(_psf_url, format="csv", comment="#").to_pandas()
@@ -66,6 +72,17 @@ def _get_ma_table(ma_table_path=None):
     ma_table = pd.read_csv(ma_table_file)
 
     return ma_table
+
+
+def _assign_survey_component(row, pass_map):
+    """
+    Assign survey component name based on pass_map.
+    """
+    pass_number = row["PASS"]
+    survey_component = "CC"
+    for key in pass_map:
+        survey_component = key if pass_number in pass_map[key] else survey_component
+    return survey_component
 
 
 class RomanObsTable(ObsTable):
@@ -95,7 +112,14 @@ class RomanObsTable(ObsTable):
     """
 
     # Default column names for the ZTF survey data.
-    _default_colnames = {"dec": "DEC", "filter": "BANDPASS", "ra": "RA", "zp": "zp_nJy", "time": "time"}
+    _default_colnames = {
+        "dec": "DEC",
+        "filter": "BANDPASS",
+        "ra": "RA",
+        "zp": "zp_nJy",
+        "time": "time",
+        "exptime": "EXPOSURE_TIME",
+    }
 
     # Default survey values.
     _default_survey_values = {
@@ -104,6 +128,20 @@ class RomanObsTable(ObsTable):
         "survey_name": "Roman",
         "radius": np.sqrt(_roman_fov / np.pi),
         "zodi_level": _roman_zodi_level_factor,
+        "survey_start_time": 61406.0,  # Jan 1 2027
+        "cadence": {
+            "PC": 20.0,
+            "EC1": 120.0,
+            "EC2": 120.0,
+            "CC": 5.0,
+        },
+        "field_time_offset": [0.0, 0.5],
+        "after_component_delay_time": {
+            "PC": 100.0,
+            "EC1": 100.0,
+            "CC": 100.0,
+        },
+        "component_start_time": {},
     }
 
     def __init__(self, table, colmap=None, ma_table_path=None, saturation_mags=None, **kwargs):
@@ -116,9 +154,91 @@ class RomanObsTable(ObsTable):
         self.psf_table = roman_char["psf_table"]
         self.thermal_table = roman_char["thermal_table"]
         self.zodiacal_table = roman_char["zodiacal_min_table"]
+        self.pass_map = hltds_pass_map
         self._append_apt_table()
 
         super().__init__(self.apt_table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
+        # assign time based on https://roman.gsfc.nasa.gov/science/High_Latitude_Time_Domain_Survey.html
+
+        if not self.survey_values["component_start_time"]:
+            self.infer_component_start_time(
+                field_time_offset=self.safe_get_survey_value("field_time_offset"),
+                after_component_delay_time=self.safe_get_survey_value("after_component_delay_time"),
+            )
+        self._assign_time()
+
+    def update_time(self):
+        """
+        Update the time column assignment.
+        """
+        self._assign_time()
+
+    def infer_component_start_time(self, field_time_offset=None, after_component_delay_time=None):
+        """
+        Infer the start time of each survey commponent for Roman HLTDS.
+
+        Parameters
+        ----------
+        field_time_offset: tuple or ndarray
+            The time offset for the north and south field.
+        after_component_delay_time: dict
+            The delay time after each survey component.
+        """
+
+        if field_time_offset is None:
+            field_time_offset = self.safe_get_survey_value("field_time_offset")
+        if after_component_delay_time is None:
+            after_component_delay_time = self.safe_get_survey_value("after_component_delay_time")
+
+        ##separate north and south
+        north_field = self._table.dec > 0
+        south_field = self._table.dec < 0
+
+        nepoch = {}
+        survey_start_time = self.safe_get_survey_value("survey_start_time")
+        cadence = self.safe_get_survey_value("cadence")
+        field_time_offset = self.safe_get_survey_value("field_time_offset")
+        component_start_time = self.safe_get_survey_value("component_start_time")
+        for field_name, field, time_offset in zip(
+            ["North", "South"], [north_field, south_field], field_time_offset, strict=True
+        ):
+            table = self._table.loc[field]
+            nepoch[field_name] = {}
+            for component in ["PC", "EC1", "CC", "EC2"]:
+                nepoch[field_name][component] = len(
+                    table.loc[component == table.SURVEY_COMPONENT].PASS.unique()
+                )
+            component_start_time[field_name] = {}
+            t = survey_start_time + time_offset
+            component_start_time[field_name]["PC"] = t
+            t += nepoch[field_name]["PC"] * cadence["PC"] + after_component_delay_time["PC"]
+            component_start_time[field_name]["EC1"] = t
+            t += nepoch[field_name]["EC1"] * cadence["EC1"] + after_component_delay_time["EC1"]
+            component_start_time[field_name]["CC"] = t
+            t += nepoch[field_name]["CC"] * cadence["CC"] + after_component_delay_time["CC"]
+            component_start_time[field_name]["EC2"] = t
+        self.survey_values["component_start_time"] = component_start_time
+        self.survey_values["after_component_delay_time"] = after_component_delay_time
+        self.survey_values["field_time_offset"] = field_time_offset
+
+    def _assign_time(self):
+        self._table["time"] = 0.0
+
+        north_field = self._table.dec > 0
+        south_field = self._table.dec < 0
+
+        component_start_time = self.safe_get_survey_value("component_start_time")
+        cadence = self.safe_get_survey_value("cadence")
+
+        for field_name, field in zip(["North", "South"], [north_field, south_field], strict=True):
+            table = self._table.loc[field]
+            for component in ["PC", "EC1", "CC", "EC2"]:
+                for i, pass_number in enumerate(
+                    np.sort(table.loc[component == table.SURVEY_COMPONENT].PASS.unique())
+                ):
+                    time = component_start_time[field_name][component] + cadence[component] * i
+                    idx = pass_number == table.PASS
+                    self._table.loc[field & idx, "time"] = time
 
     def _append_apt_table(self):
         self.apt_table["zp_abmag"] = 0.0
@@ -126,7 +246,6 @@ class RomanObsTable(ObsTable):
         self.apt_table["zodi_countrate_min"] = 0.0
         self.apt_table["thermal_countrate"] = 0.0
         self.apt_table["time"] = 0.0
-        self.apt_table["exptime"] = 0.0
 
         for f in np.unique(self.apt_table.BANDPASS):
             zp_abmag = self.zp_table.loc[self.zp_table.element == f, "ABMag"].values[0]
@@ -138,16 +257,17 @@ class RomanObsTable(ObsTable):
             sigma_thermal = self.thermal_table.loc[self.thermal_table["filter"] == f, "rate"].values[0]
             self.apt_table.loc[f == self.apt_table.BANDPASS, "thermal_countrate"] = sigma_thermal
 
-        for mat_number in np.unique(self.apt_table.MA_TABLE_NUMBER):
-            exptime = self.ma_table.loc[self.ma_table["MATableNumber"] == mat_number, "Exptime"].values[0]
-            self.apt_table.loc[mat_number == self.apt_table.MA_TABLE_NUMBER, "exptime"] = exptime
+        ## We don't need to map exposure time since new APT files includes exposure time column.
+        ## Keeping these for now for the record.
+        # self.apt_table["exptime"] = 0.0
+        # for mat_number in np.unique(self.apt_table.MA_TABLE_NUMBER):
+        #     exptime = self.ma_table.loc[self.ma_table["MATableNumber"] == mat_number, "Exptime"].values[0]
+        #     self.apt_table.loc[mat_number == self.apt_table.MA_TABLE_NUMBER, "exptime"] = exptime
 
-        npass = len(np.unique(self.apt_table.PASS))
-        self.start_time = 61304.0
-        self.cadence = 5.0
-        times = self.start_time + self.cadence * np.arange(npass)
-        for i, pass_num in enumerate(np.unique(self.apt_table.PASS)):
-            self.apt_table.loc[pass_num == self.apt_table.PASS, "time"] = times[i]
+        # map survey name for HLTDS
+        self.apt_table["SURVEY_COMPONENT"] = self.apt_table.apply(
+            lambda row: _assign_survey_component(row, self.pass_map), axis=1
+        )
 
         self.apt_table["zp_nJy"] = mag2flux(self.apt_table["zp_abmag"])
 
