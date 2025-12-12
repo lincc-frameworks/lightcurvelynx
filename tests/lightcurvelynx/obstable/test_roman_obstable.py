@@ -19,7 +19,7 @@ def make_random_apt_table():
         "OBSERVATION": 1,
         "VISIT": 1,
         "EXPOSURE": 1,
-        "EXPOSURE_TIME": 60.
+        "EXPOSURE_TIME": 60.0,
     }
     return pd.DataFrame(table, index=[0])
 
@@ -29,9 +29,7 @@ def test_roman_obstable_init():
     apt_table = make_random_apt_table()
     roman_obstable = RomanObsTable(apt_table)
 
-    assert {"zp", "N_Eff_Pix", "zodi_countrate_min", "thermal_countrate"}.issubset(
-        roman_obstable.columns
-    )
+    assert {"zp", "N_Eff_Pix", "zodi_countrate_min", "thermal_countrate"}.issubset(roman_obstable.columns)
 
 
 def test_calculate_skynoise():
