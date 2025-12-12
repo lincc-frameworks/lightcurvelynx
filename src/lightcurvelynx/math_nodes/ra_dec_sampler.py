@@ -341,6 +341,10 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
     """A FunctionNode that samples RA and dec (approximately) from the coverage of
     a MOCPy Multi-Order Coverage Map object.
 
+    The depth parameter controls the approximation level. Higher depths provide
+    better accuracy but require more memory and computation time. We recommend at
+    least depth=12 for reasonable accuracy.
+
     References
     ----------
     * MOCPY: https://github.com/cds-astro/mocpy/
@@ -396,6 +400,52 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
 
         moc = MOC.load(filename, format=format)
         return cls(moc, **kwargs)
+
+    @classmethod
+    def from_obstable(
+        cls,
+        obstable,
+        *,
+        depth=12,
+        use_footprint=False,
+        radius=None,
+        **kwargs,
+    ):
+        """Create an ApproximateMOCSampler from an ObsTable object.
+
+        The depth parameter controls the approximation level. Higher depths provide
+        better accuracy but require more memory and computation time. We recommend at
+        least depth=12 for reasonable accuracy.
+
+        Parameters
+        ----------
+        obstable : ObsTable
+            The ObsTable object to use for creating the MOC.
+        depth : int, optional
+            The healpix depth to use as an approximation. Must be [2, 29].
+            Default: 12
+        radius : float, optional
+            The radius to use for each image (in degrees). Only used if use_footprint
+            is False. If None, the radius from the survey values will be used.
+        use_footprint : bool, optional
+            Whether to use the detector footprint to build the MOC. If True, the
+            footprint will be used to compute the MOC regions for each pointing.
+            If False, a simple cone with the given radius will be used.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the constructor.
+
+        Returns
+        -------
+        ApproximateMOCSampler
+            The created ApproximateMOCSampler object.
+        """
+        moc = obstable.build_moc(
+            radius=radius,
+            use_footprint=use_footprint,
+            duplicate_threshold=10.0 / 3600.0,  # 10 arcsec
+            max_depth=depth,
+        )
+        return cls(moc, depth=depth, **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
