@@ -347,7 +347,7 @@ class RomanObsTable(ObsTable):
         flux_err : array_like of float
             Simulated bandflux noise in nJy.
         """
-        observations = self._table.iloc[index]
+        observations = self._table.iloc[index].copy()
         observations["sky"] = self.calculate_skynoise(
             observations["exptime"],
             self.safe_get_survey_value("zodi_level"),
