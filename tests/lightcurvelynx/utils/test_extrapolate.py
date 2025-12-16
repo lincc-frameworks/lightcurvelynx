@@ -1,10 +1,13 @@
 import numpy as np
 import pytest
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.utils.extrapolate import (
     ConstantPadding,
     ExponentialDecay,
     LastValue,
     LinearDecay,
+    LinearFit,
+    LinearFitOnMag,
     ZeroPadding,
 )
 
@@ -151,3 +154,33 @@ def test_exponential_decay_extrapolate():
     # Test that we fail if the decay rate is not positive
     with pytest.raises(ValueError):
         _ = ExponentialDecay(rate=-0.1)
+
+
+def test_linear_fit_extrapolate():
+    """Test that the linear fit extrapolation works."""
+
+    extrapolator = LinearFit()
+
+    last_times = np.array([30.0, 40.0, 50.0, 55.0])
+    last_fluxes = np.array(
+        [[300.0, 250.0, 200.0, 175.0], [300.0, 250.0, 200.0, 175.0], [300.0, 250.0, 200.0, 175.0]]
+    )
+    query_times = np.array([60.0, 70.0, 80.0])
+    expected_flux = np.array([[150.0, 100.0, 50.0], [150.0, 100.0, 50.0], [150.0, 100.0, 50.0]])
+    result = extrapolator.extrapolate_time(last_times, last_fluxes, query_times)
+    np.testing.assert_allclose(result, expected_flux)
+
+
+def test_linear_fit_on_mag_extrapolate():
+    """Test that the linear fit extrapolation works."""
+
+    extrapolator = LinearFitOnMag()
+
+    last_times = np.array([30.0, 40.0, 50.0, 55.0])
+    last_fluxes = mag2flux(
+        np.array([[21.0, 21.2, 21.4, 21.5], [21.0, 21.2, 21.4, 21.5], [21.0, 21.2, 21.4, 21.5]])
+    )
+    query_times = np.array([60.0, 70.0, 80.0])
+    expected_flux = mag2flux(np.array([[21.6, 21.8, 22.0], [21.6, 21.8, 22.0], [21.6, 21.8, 22.0]]))
+    result = extrapolator.extrapolate_time(last_times, last_fluxes, query_times)
+    np.testing.assert_allclose(result, expected_flux)
