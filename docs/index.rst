@@ -27,7 +27,7 @@ The main simulation components in LightCurveLynx include:
 
 * A statistical simulation step where the hyperparameters of the model are drawn
   from one or more prior distributions. This can include existing packages such as
-  `pzflow <https://pzflow.readthedocs.io/en/latest/>`_ or custom distributions.
+  `pzflow <https://jfcrenshaw.github.io/pzflow/>`_ or custom distributions.
 * A model that defines the properties of the time-domain light source, which can
   also include a host-galaxy model, and is used to generate the noise-free light curves.
 * ``ObsTable`` contains the survey information such as survey strategy and observing
