@@ -152,7 +152,6 @@ def test_linear_linear_model_extrapolators() -> None:
     # Three query times: one before (90% factor), three inside, and one after (80% factor).
     query_times = np.array([-10.0, 0.0, 50.0, 100.0, 120.0])
     values = model.evaluate_sed(query_times, query_waves)
-    print(values)
 
     expected = np.array(
         [
@@ -220,7 +219,6 @@ def test_linear_linear_model_diff_extrapolators() -> None:
         t0=0.0,
     )
     values = model.evaluate_sed(query_times, query_waves)
-    print(values)
     expected = np.array(
         [
             [432.0, 990.0, 2340.0, 0.0],
