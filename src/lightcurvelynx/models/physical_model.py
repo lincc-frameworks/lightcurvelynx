@@ -534,7 +534,13 @@ class SEDModel(BasePhysicalModel):
                 )
 
         # Get the flux density at all times and wavelengths (except those we will extrapolate).
-        computed_flux = self.compute_sed(query_times, query_waves, graph_state)
+        # Reorder query_times and query_waves to make it strictly increase.
+        t_idx = np.argsort(query_times)
+        w_idx = np.argsort(query_waves)
+        computed_flux = self.compute_sed(query_times[t_idx], query_waves[w_idx], graph_state)
+        t_inv_idx = np.argsort(t_idx)
+        w_inv_idx = np.argsort(w_idx)
+        computed_flux = computed_flux[t_inv_idx, :][:, w_inv_idx]
 
         # We do the extrapolation in two steps: first for wavelengths and then for times.
         # The result is that we combine the extrapolation for both dimensions at the corners.
