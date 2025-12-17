@@ -413,12 +413,12 @@ class LinearFit(FluxExtrapolationModel):
 
     Attributes
     ----------
-    nfit_max : float
-        The max number of points to perform the linear fit on.
+    nfit : float
+        The number of points to perform the linear fit on.
     """
 
-    def __init__(self, nfit_max=5):
-        self.nfit_max = nfit_max
+    def __init__(self, nfit=5):
+        self.nfit = nfit
         super().__init__()
 
     def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="time"):
@@ -449,17 +449,17 @@ class LinearFit(FluxExtrapolationModel):
             raise ValueError("Invalid extrap_axis value: only 'time' or 'wavelength' is valid")
         if not np.isscalar(last_values):
             if np.any(last_values > np.max(query_values)):
-                last_values = last_values[0 : self.nfit_max]
+                last_values = last_values[0 : self.nfit]
                 if extrap_axis == "time":
-                    last_fluxes = last_fluxes[0 : self.nfit_max, :]
+                    last_fluxes = last_fluxes[0 : self.nfit, :]
                 else:
-                    last_fluxes = last_fluxes[:, 0 : self.nfit_max]
+                    last_fluxes = last_fluxes[:, 0 : self.nfit]
             else:
-                last_values = last_values[-self.nfit_max :]
+                last_values = last_values[-self.nfit :]
                 if extrap_axis == "time":
-                    last_fluxes = last_fluxes[-self.nfit_max :, :]
+                    last_fluxes = last_fluxes[-self.nfit :, :]
                 else:
-                    last_fluxes = last_fluxes[:, -self.nfit_max :]
+                    last_fluxes = last_fluxes[:, -self.nfit :]
         if len(last_values) <= 1:
             raise ValueError("Need at least two points to extrapolate using this method.")
 
@@ -477,12 +477,12 @@ class LinearFitOnMag(FluxExtrapolationModel):
 
     Attributes
     ----------
-    nfit_max : float
-        The max number of points to perform the linear fit on.
+    nfit : float
+        The number of points to perform the linear fit on.
     """
 
-    def __init__(self, nfit_max=5):
-        self.nfit_max = nfit_max
+    def __init__(self, nfit=5):
+        self.nfit = nfit
         super().__init__()
 
     def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="time"):
@@ -513,17 +513,17 @@ class LinearFitOnMag(FluxExtrapolationModel):
             raise ValueError("Invalid extrap_axis value: only 'time' or 'wavelength' is valid")
         if not np.isscalar(last_values):
             if np.any(last_values > np.max(query_values)):
-                last_values = last_values[0 : self.nfit_max]
+                last_values = last_values[0 : self.nfit]
                 if extrap_axis == "time":
-                    last_fluxes = last_fluxes[0 : self.nfit_max, :]
+                    last_fluxes = last_fluxes[0 : self.nfit, :]
                 else:
-                    last_fluxes = last_fluxes[:, 0 : self.nfit_max]
+                    last_fluxes = last_fluxes[:, 0 : self.nfit]
             else:
-                last_values = last_values[-self.nfit_max :]
+                last_values = last_values[-self.nfit :]
                 if extrap_axis == "time":
-                    last_fluxes = last_fluxes[-self.nfit_max :, :]
+                    last_fluxes = last_fluxes[-self.nfit :, :]
                 else:
-                    last_fluxes = last_fluxes[:, -self.nfit_max :]
+                    last_fluxes = last_fluxes[:, -self.nfit :]
         if len(last_values) <= 1:
             raise ValueError("Need at least two points to extrapolate using this method.")
 

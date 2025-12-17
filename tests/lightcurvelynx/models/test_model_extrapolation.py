@@ -323,7 +323,7 @@ def test_linear_fit_extrapolation():
     query_waves = np.array([2000.0, 3000.0])
     query_times = np.array([-20.0, -10.0, 0.0, 50.0, 125.0, 75.0, 120.0, 150.0])
 
-    time_linear = LinearFit(nfit_max=2)
+    time_linear = LinearFit(nfit=2)
     model = _LinearLinearTestModel(
         time_extrapolation=(time_linear, time_linear),
         t0=0.0,
