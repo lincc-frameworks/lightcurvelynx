@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from lightcurvelynx.models.physical_model import SEDModel
-from lightcurvelynx.utils.extrapolate import LinearDecay, ZeroPadding
+from lightcurvelynx.utils.extrapolate import LinearDecay, ZeroPadding, LinearFit
 
 
 class _LinearLinearTestModel(SEDModel):
@@ -315,3 +315,22 @@ def test_linear_linear_model_ooo_wavelength() -> None:
         values3 = model3.evaluate_sed(query_times, query_waves)
     expected3 = np.array([560.0, 700.0, 1200.0, 420.0, 6300.0, 2700.0, 6250.0])
     assert np.allclose(values3, expected3)
+
+def test_linear_fit_extrapolation():
+    """Test the linear fit extrapolator with the _LinearLinearTestModel"""
+
+    query_waves = np.array([2000.0, 3000.])
+    query_times = np.array([-10.0, 0.0, 50.0, 125.0, 100.0, 75.0, 120.0])
+
+    time_linear = LinearFit(nfit_max=2)
+    model = _LinearLinearTestModel(
+        time_extrapolation=(time_linear,time_linear),
+        t0=0.0,
+    )
+    time_component = 2.0 * query_times[:, np.newaxis]
+    wavelength_component = 0.5 * query_waves[np.newaxis, :]
+    expected = 100.0 + time_component + wavelength_component
+    values = model.evaluate_sed(query_times,query_waves)
+
+    assert np.allclose(values, expected)
+
