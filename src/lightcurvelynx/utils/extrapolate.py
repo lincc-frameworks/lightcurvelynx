@@ -460,14 +460,16 @@ class LinearFit(FluxExtrapolationModel):
                     last_fluxes = last_fluxes[-self.nfit_max :, :]
                 else:
                     last_fluxes = last_fluxes[:, -self.nfit_max :]
+        if len(last_values) <= 1:
+            raise ValueError("Need at least two points to extrapolate using this method.")
 
         A = np.vstack([last_values, np.ones_like(last_values)]).T
-        coeffs = np.linalg.lstsq(A, last_fluxes.T, rcond=None)[0]
+        coeffs = np.linalg.lstsq(A, last_fluxes, rcond=None)[0]
 
         slope, intercept = coeffs
         flux = slope[:, None] * query_values + intercept[:, None]
         flux = np.clip(flux, 0.0, None)
-        return flux.T
+        return flux
 
 
 class LinearFitOnMag(FluxExtrapolationModel):
@@ -522,12 +524,14 @@ class LinearFitOnMag(FluxExtrapolationModel):
                     last_fluxes = last_fluxes[-self.nfit_max :, :]
                 else:
                     last_fluxes = last_fluxes[:, -self.nfit_max :]
+        if len(last_values) <= 1:
+            raise ValueError("Need at least two points to extrapolate using this method.")
 
         last_fluxes = np.clip(last_fluxes, 1.0e-40, None)
         last_fluxes = flux2mag(last_fluxes)
         A = np.vstack([last_values, np.ones_like(last_values)]).T
-        coeffs = np.linalg.lstsq(A, last_fluxes.T, rcond=None)[0]
+        coeffs = np.linalg.lstsq(A, last_fluxes, rcond=None)[0]
 
         slope, intercept = coeffs
         flux = slope[:, None] * query_values + intercept[:, None]
-        return mag2flux(flux.T)
+        return mag2flux(flux)

@@ -162,11 +162,9 @@ def test_linear_fit_extrapolate():
     extrapolator = LinearFit()
 
     last_times = np.array([30.0, 40.0, 50.0, 55.0])
-    last_fluxes = np.array(
-        [[300.0, 250.0, 200.0, 175.0], [300.0, 250.0, 200.0, 175.0], [300.0, 250.0, 200.0, 175.0]]
-    )
+    last_fluxes = np.repeat([[300.0], [250.0], [200.0], [175]], 5, axis=1)
     query_times = np.array([60.0, 70.0, 80.0])
-    expected_flux = np.array([[150.0, 100.0, 50.0], [150.0, 100.0, 50.0], [150.0, 100.0, 50.0]])
+    expected_flux = np.repeat([[150.0], [100.0], [50.0]], 5, axis=1)
     result = extrapolator.extrapolate_time(last_times, last_fluxes, query_times)
     np.testing.assert_allclose(result, expected_flux)
 
@@ -177,10 +175,8 @@ def test_linear_fit_on_mag_extrapolate():
     extrapolator = LinearFitOnMag()
 
     last_times = np.array([30.0, 40.0, 50.0, 55.0])
-    last_fluxes = mag2flux(
-        np.array([[21.0, 21.2, 21.4, 21.5], [21.0, 21.2, 21.4, 21.5], [21.0, 21.2, 21.4, 21.5]])
-    )
+    last_fluxes = mag2flux(np.repeat([[21.0], [21.2], [21.4], [21.5]], 5, axis=1))
     query_times = np.array([60.0, 70.0, 80.0])
-    expected_flux = mag2flux(np.array([[21.6, 21.8, 22.0], [21.6, 21.8, 22.0], [21.6, 21.8, 22.0]]))
+    expected_flux = mag2flux(np.repeat([[21.6], [21.8], [22.0]], 5, axis=1))
     result = extrapolator.extrapolate_time(last_times, last_fluxes, query_times)
     np.testing.assert_allclose(result, expected_flux)
