@@ -18,7 +18,7 @@ from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel, LinearWavelengthModel, StepModel
 from lightcurvelynx.models.lightcurve_template_model import LightcurveTemplateModel
 from lightcurvelynx.models.multi_object_model import AdditiveMultiObjectModel
-from lightcurvelynx.models.sncomso_models import SncosmoWrapperModel
+from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.models.static_sed_model import StaticSEDModel
 
 # ASV runs from copy of the project (benchmarks/env/....). So we load the
