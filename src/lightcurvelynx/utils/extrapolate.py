@@ -25,7 +25,7 @@ class FluxExtrapolationModel(abc.ABC):
         self.nfit = 1
 
     @abc.abstractmethod
-    def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="wavelength"):
+    def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
         query points.
 
@@ -46,8 +46,6 @@ class FluxExtrapolationModel(abc.ABC):
         query_values : numpy.ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
-        extrap_axis : str
-            Extrapolation axis. 'time' or 'wavelength'. Default is 'wavelength'.
 
         Returns
         -------
@@ -76,7 +74,7 @@ class FluxExtrapolationModel(abc.ABC):
             A T2 x W matrix of extrapolated values.
         """
         last_fluxes = last_fluxes.T
-        return self._extrapolate(last_times, last_fluxes, query_times, extrap_axis="time").T
+        return self._extrapolate(last_times, last_fluxes, query_times).T
 
     def extrapolate_wavelength(self, last_waves, last_fluxes, query_waves):
         """Extrapolate along the wavelength axis.
@@ -97,7 +95,7 @@ class FluxExtrapolationModel(abc.ABC):
             A T x W2 matrix of extrapolated values.
         """
         # We transpose the result to turn the W2 x T matrix into a T x W matrix.
-        return self._extrapolate(last_waves, last_fluxes, query_waves, extrap_axis="wavelength")
+        return self._extrapolate(last_waves, last_fluxes, query_waves)
 
 
 class ZeroPadding(FluxExtrapolationModel):
@@ -106,7 +104,7 @@ class ZeroPadding(FluxExtrapolationModel):
     def __init__(self):
         super().__init__()
 
-    def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="time"):
+    def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
         query points.
 
@@ -126,8 +124,8 @@ class ZeroPadding(FluxExtrapolationModel):
         query_values : numpy.ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
-        extrap_axis : str
-            Extrapolation axis. 'time' or 'wavelength'.
+
+
 
         Returns
         -------
@@ -135,9 +133,6 @@ class ZeroPadding(FluxExtrapolationModel):
             A N x M matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
-
-        if extrap_axis not in ["time", "wavelength"]:
-            raise ValueError("Invalid extrap_axis value: only 'time' or 'wavelength' is valid")
 
         N_len = len(last_fluxes)
         M_len = len(query_values)
@@ -160,7 +155,7 @@ class ConstantPadding(FluxExtrapolationModel):
             raise ValueError("Extrapolation value must be positive.")
         self.value = value
 
-    def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="time"):
+    def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
         query points.
 
@@ -180,8 +175,8 @@ class ConstantPadding(FluxExtrapolationModel):
         query_values : numpy.ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
-        extrap_axis : str
-            Extrapolation axis. 'time' or 'wavelength'.
+
+
 
         Returns
         -------
@@ -189,9 +184,6 @@ class ConstantPadding(FluxExtrapolationModel):
             A N x M matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
-
-        if extrap_axis not in ["time", "wavelength"]:
-            raise ValueError("Invalid extrap_axis value: only 'time' or 'wavelength' is valid")
 
         N_len = len(last_fluxes)
         M_len = len(query_values)
@@ -204,7 +196,7 @@ class LastValue(FluxExtrapolationModel):
     def __init__(self):
         super().__init__()
 
-    def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="time"):
+    def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
         query points.
 
@@ -224,8 +216,8 @@ class LastValue(FluxExtrapolationModel):
         query_values : numpy.ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
-        extrap_axis : str
-            Extrapolation axis. 'time' or 'wavelength'.
+
+
 
         Returns
         -------
@@ -234,8 +226,6 @@ class LastValue(FluxExtrapolationModel):
             N is the number of flux values at the last valid point.
         """
 
-        if extrap_axis not in ["time", "wavelength"]:
-            raise ValueError("Invalid extrap_axis value: only 'time' or 'wavelength' is valid")
         last_fluxes = np.asarray(last_fluxes).reshape(-1)
 
         return np.tile(last_fluxes[:, np.newaxis], (1, len(query_values)))
@@ -258,7 +248,7 @@ class LinearDecay(FluxExtrapolationModel):
             raise ValueError("decay_width must be positive.")
         self.decay_width = decay_width
 
-    def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="time"):
+    def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
         query points.
 
@@ -278,8 +268,6 @@ class LinearDecay(FluxExtrapolationModel):
         query_values : numpy.ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
-        extrap_axis : str
-            Extrapolation axis. 'time' or 'wavelength'.
 
         Returns
         -------
@@ -287,9 +275,6 @@ class LinearDecay(FluxExtrapolationModel):
             A N x M matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
-
-        if extrap_axis not in ["time", "wavelength"]:
-            raise ValueError("Invalid extrap_axis value: only 'time' or 'wavelength' is valid")
 
         last_fluxes = np.asarray(last_fluxes).reshape(-1)
         query_values = np.asarray(query_values)
@@ -320,7 +305,7 @@ class ExponentialDecay(FluxExtrapolationModel):
             raise ValueError("Decay rate must be zero or positive.")
         self.rate = rate
 
-    def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="time"):
+    def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
         query points.
 
@@ -340,8 +325,6 @@ class ExponentialDecay(FluxExtrapolationModel):
         query_values : numpy.ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
-        extrap_axis : str
-            Extrapolation axis. 'time' or 'wavelength'.
 
         Returns
         -------
@@ -349,9 +332,6 @@ class ExponentialDecay(FluxExtrapolationModel):
             A N x M matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
-
-        if extrap_axis not in ["time", "wavelength"]:
-            raise ValueError("Invalid extrap_axis value: only 'time' or 'wavelength' is valid")
 
         last_fluxes = np.asarray(last_fluxes).reshape(-1)
         query_values = np.asarray(query_values)
@@ -369,7 +349,7 @@ class LinearFit(FluxExtrapolationModel):
         super().__init__()
         self.nfit = nfit
 
-    def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="time"):
+    def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
         query points.
 
@@ -383,8 +363,6 @@ class LinearFit(FluxExtrapolationModel):
         query_values : ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
-        extrap_axis : str
-            Extrapolation axis. 'time' or 'wavelength'.
 
         Returns
         -------
@@ -392,9 +370,6 @@ class LinearFit(FluxExtrapolationModel):
             A M x N matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
-
-        if extrap_axis not in ["time", "wavelength"]:
-            raise ValueError("Invalid extrap_axis value: only 'time' or 'wavelength' is valid")
 
         if len(last_values) <= 1:
             raise ValueError("Need at least two points to extrapolate using this method.")
@@ -415,7 +390,7 @@ class LinearFitOnMag(FluxExtrapolationModel):
         super().__init__()
         self.nfit = nfit
 
-    def _extrapolate(self, last_values, last_fluxes, query_values, extrap_axis="time"):
+    def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
         query points.
 
@@ -429,8 +404,8 @@ class LinearFitOnMag(FluxExtrapolationModel):
         query_values : ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
-        extrap_axis : str
-            Extrapolation axis. 'time' or 'wavelength'.
+
+
 
         Returns
         -------
@@ -438,9 +413,6 @@ class LinearFitOnMag(FluxExtrapolationModel):
             A M x N matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
-
-        if extrap_axis not in ["time", "wavelength"]:
-            raise ValueError("Invalid extrap_axis value: only 'time' or 'wavelength' is valid")
 
         if len(last_values) <= 1:
             raise ValueError("Need at least two points to extrapolate using this method.")
