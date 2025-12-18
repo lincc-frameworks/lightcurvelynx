@@ -439,10 +439,7 @@ class SEDModel(BasePhysicalModel):
                 # the list of wavelengths to extrapolate.
                 valid_mask = query_waves >= min_valid_wave
                 before_wave_queries = query_waves[~valid_mask]
-                if hasattr(self._wave_extrap_before, "nfit"):
-                    n_select_wave_before = self._wave_extrap_before.nfit
-                else:
-                    n_select_wave_before = 1
+                n_select_wave_before = self._wave_extrap_before.nfit
                 query_waves = np.concatenate(
                     (min_valid_wave + 10.0 * np.arange(n_select_wave_before), query_waves[valid_mask])
                 )
@@ -467,10 +464,7 @@ class SEDModel(BasePhysicalModel):
                 # the list of wavelengths to extrapolate.
                 valid_mask = query_waves <= max_valid_wave
                 after_wave_queries = query_waves[~valid_mask]
-                if hasattr(self._wave_extrap_after, "nfit"):
-                    n_select_wave_after = self._wave_extrap_after.nfit
-                else:
-                    n_select_wave_after = 1
+                n_select_wave_after = self._wave_extrap_after.nfit
                 query_waves = np.concatenate(
                     (
                         query_waves[valid_mask],
@@ -505,10 +499,7 @@ class SEDModel(BasePhysicalModel):
                 # the list of times to extrapolate.
                 valid_mask = query_times >= min_valid_time
                 before_time_queries = query_times[~valid_mask]
-                if hasattr(self._time_extrap_before, "nfit"):
-                    n_select_time_before = self._time_extrap_before.nfit
-                else:
-                    n_select_time_before = 1
+                n_select_time_before = self._time_extrap_before.nfit
                 query_times = np.concatenate(
                     (min_valid_time + np.arange(n_select_time_before), query_times[valid_mask])
                 )
@@ -535,10 +526,7 @@ class SEDModel(BasePhysicalModel):
                 # the list of times to extrapolate.
                 valid_mask = query_times <= max_valid_time
                 after_time_queries = query_times[~valid_mask]
-                if hasattr(self._time_extrap_after, "nfit"):
-                    n_select_time_after = self._time_extrap_after.nfit
-                else:
-                    n_select_time_after = 1
+                n_select_time_after = self._time_extrap_after.nfit
                 query_times = np.concatenate(
                     (query_times[valid_mask], max_valid_time - np.arange(n_select_time_after - 1, -1, -1))
                 )
