@@ -125,8 +125,6 @@ class ZeroPadding(FluxExtrapolationModel):
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
 
-
-
         Returns
         -------
         flux : numpy.ndarray
@@ -176,8 +174,6 @@ class ConstantPadding(FluxExtrapolationModel):
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
 
-
-
         Returns
         -------
         flux : numpy.ndarray
@@ -216,8 +212,6 @@ class LastValue(FluxExtrapolationModel):
         query_values : numpy.ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
-
-
 
         Returns
         -------
@@ -359,7 +353,7 @@ class LinearFit(FluxExtrapolationModel):
             A T elements array of the last values along the extrapolation axis at which the flux was predicted
             (e.g., wavelength in AA or time in days).
         last_fluxes : ndarray
-            A length T x N matrix of the flux values at the last valid time or wavelength (in nJy).
+            A length N x T matrix of the flux values at the last valid time or wavelength (in nJy).
         query_values : ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
@@ -367,7 +361,7 @@ class LinearFit(FluxExtrapolationModel):
         Returns
         -------
         flux : ndarray
-            A M x N matrix of extrapolated values. Where M is the number of query points and
+            A N x M matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
 
@@ -400,17 +394,15 @@ class LinearFitOnMag(FluxExtrapolationModel):
             A T elements array of the last values along the extrapolation axis at which the flux was predicted
             (e.g., wavelength in AA or time in days).
         last_fluxes : ndarray
-            A length T x N matrix of the flux values at the last valid time or wavelength (in nJy).
+            A length N x T matrix of the flux values at the last valid time or wavelength (in nJy).
         query_values : ndarray
             A length M array of values along the extrapolation axis (times in days or wavelengths
             in AA) at which to extrapolate.
 
-
-
         Returns
         -------
         flux : ndarray
-            A M x N matrix of extrapolated values. Where M is the number of query points and
+            A N x M matrix of extrapolated values. Where M is the number of query points and
             N is the number of flux values at the last valid point.
         """
 
