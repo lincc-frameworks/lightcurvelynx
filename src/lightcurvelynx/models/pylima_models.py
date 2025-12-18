@@ -126,10 +126,6 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
             event,
             parallax=[self.parallax_model, 60676.0 + MJD_OFFSET],
             blend_flux_parameter=self.blend_flux_parameter,
-            double_source=self.double_source,
-            orbital_motion=self.orbital_motion,
-            origin=self.origin,
-            fancy_parameters=self.fancy_parameters,
         )
 
         expected_params_map = model.pyLIMA_standards_dictionnary
@@ -143,7 +139,7 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
                         f"but this was not provided as an argument or added as a model parameter."
                     )
 
-    def make_pylima_emakevent(self, ra, dec, filter=None, times=None):
+    def make_pylima_event(self, ra, dec, filter=None, times=None):
         """Create a pyLIMA event object and attach a telescope if filter and times are given.
 
         Parameters
@@ -228,10 +224,6 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
             current_event,
             parallax=[self.parallax_model, t0_jd],
             blend_flux_parameter=self.blend_flux_parameter,
-            double_source=self.double_source,
-            orbital_motion=self.orbital_motion,
-            origin=self.origin,
-            fancy_parameters=self.fancy_parameters,
         )
 
         # Get the expected parameter mapping and create the ordered parameter list.
@@ -244,5 +236,5 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
 
         # Simulate the lightcurve without noise.
         simulator.simulate_lightcurve(model, pyLIMA_params, add_noise=False)
-        fluxes = current_event.telescopes[0].lightcurve
+        fluxes = current_event.telescopes[0].lightcurve["flux"]
         return fluxes
