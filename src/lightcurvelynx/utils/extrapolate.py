@@ -336,12 +336,30 @@ class ExponentialDecay(FluxExtrapolationModel):
         return flux
 
 
+def _bin_rows_median(last_fluxes, binnum, *, nan_safe=True):
+    last_fluxes = np.asarray(last_fluxes)
+    N, T = last_fluxes.shape
+
+    # Bin edges that evenly partition rows
+    edges = np.linspace(0, N, binnum + 1, dtype=int)
+
+    out = np.empty((binnum, T), dtype=float)
+    for b in range(binnum):
+        lo, hi = edges[b], edges[b + 1]
+        chunk = last_fluxes[lo:hi]
+
+        out[b] = np.nanmedian(chunk, axis=0) if nan_safe else np.median(chunk, axis=0)
+
+    return out  # (binnum, T)
+
+
 class LinearFit(FluxExtrapolationModel):
     """Linear extrapolation based on a linear fit to the last few points."""
 
-    def __init__(self, nfit=5):
+    def __init__(self, nfit=5, binnum=20):
         super().__init__()
         self.nfit = nfit
+        self.binnum = binnum
 
     def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
@@ -368,21 +386,37 @@ class LinearFit(FluxExtrapolationModel):
         if len(last_values) <= 1:
             raise ValueError("Need at least two points to extrapolate using this method.")
 
-        A = np.vstack([last_values, np.ones_like(last_values)]).T
-        coeffs = np.linalg.lstsq(A, last_fluxes.T, rcond=None)[0]
+        N = last_fluxes.shape[0]
 
+        # guard: can't have more bins than rows (otherwise some bins empty -> median NaN)
+        self.binnum = int(min(self.binnum, N))
+
+        binned_fluxes = _bin_rows_median(last_fluxes, binnum=self.binnum, nan_safe=True)
+
+        A = np.column_stack([last_values, np.ones_like(last_values)])
+        B = np.array(binned_fluxes, dtype=float, copy=True).T
+
+        coeffs = np.linalg.lstsq(A, B, rcond=None)[0]
         slope, intercept = coeffs
-        flux = slope[:, None] * query_values + intercept[:, None]
-        flux = np.clip(flux, 0.0, None)
+
+        # (binnum, M)
+        flux_binned = slope[:, None] * query_values[None, :] + intercept[:, None]
+        flux_binned = np.clip(flux_binned, 0.0, None)
+
+        # Expand back to (N, M): row i gets its bin's curve
+        row_to_bin = (np.arange(N) * self.binnum) // N
+        flux = flux_binned[row_to_bin]
+
         return flux
 
 
 class LinearFitOnMag(FluxExtrapolationModel):
     """Linear extrapolation based on a linear fit to the coverted magnitude of the last few points."""
 
-    def __init__(self, nfit=5):
+    def __init__(self, nfit=5, binnum=20):
         super().__init__()
         self.nfit = nfit
+        self.binnum = binnum
 
     def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
@@ -409,11 +443,27 @@ class LinearFitOnMag(FluxExtrapolationModel):
         if len(last_values) <= 1:
             raise ValueError("Need at least two points to extrapolate using this method.")
 
+        N = last_fluxes.shape[0]
+
+        # guard: can't have more bins than rows (otherwise some bins empty -> median NaN)
+        self.binnum = int(min(self.binnum, N))
+
         last_fluxes = np.clip(last_fluxes, 1.0e-40, None)
         last_fluxes = flux2mag(last_fluxes)
-        A = np.vstack([last_values, np.ones_like(last_values)]).T
-        coeffs = np.linalg.lstsq(A, last_fluxes.T, rcond=None)[0]
+        binned_fluxes = _bin_rows_median(last_fluxes, binnum=self.binnum, nan_safe=True)
 
+        A = np.column_stack([last_values, np.ones_like(last_values)])
+        B = np.array(binned_fluxes, dtype=float, copy=True).T
+
+        coeffs = np.linalg.lstsq(A, B, rcond=None)[0]
         slope, intercept = coeffs
-        flux = slope[:, None] * query_values + intercept[:, None]
+
+        # (binnum, M)
+        flux_binned = slope[:, None] * query_values[None, :] + intercept[:, None]
+        flux_binned = np.clip(flux_binned, 0.0, None)
+
+        # Expand back to (N, M): row i gets its bin's curve
+        row_to_bin = (np.arange(N) * self.binnum) // N
+        flux = flux_binned[row_to_bin]
+
         return mag2flux(flux)
