@@ -15,7 +15,7 @@ from lightcurvelynx.astro_utils.snia_utils import (
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu, fnu_to_flam
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.scipy_random import SamplePDF
-from lightcurvelynx.models.sncomso_models import SncosmoWrapperModel
+from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.models.snia_host import SNIaHost
 from scipy.interpolate import interp1d
 

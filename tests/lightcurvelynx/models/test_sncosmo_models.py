@@ -7,7 +7,7 @@ from astropy import units as u
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
-from lightcurvelynx.models.sncomso_models import SncosmoWrapperModel
+from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.utils.extrapolate import ExponentialDecay
 
 
@@ -18,7 +18,7 @@ def _fake_nugent_data_path(*args, **kwargs):
     )
 
 
-def test_sncomso_models_hsiao() -> None:
+def test_sncosmo_models_hsiao() -> None:
     """Test that we can create and evalue a 'hsiao' model."""
     model = SncosmoWrapperModel("hsiao", t0=0.0, amplitude=2.0e10)
     state = model.sample_parameters()
@@ -45,7 +45,7 @@ def test_sncomso_models_hsiao() -> None:
     assert np.allclose(fluxes_flam, [133.98143039, 152.74613574, 134.40916824])
 
 
-def test_sncomso_models_hsiao_t0() -> None:
+def test_sncosmo_models_hsiao_t0() -> None:
     """Test that we can create and evalue a 'hsiao' model with a t0."""
     model = SncosmoWrapperModel("hsiao", t0=55000.0, amplitude=2.0e10)
     state = model.sample_parameters()
@@ -74,7 +74,7 @@ def test_sncomso_models_hsiao_t0() -> None:
         model.evaluate_sed([0.0], [4000.0, 4100.0])
 
 
-def test_sncomso_models_hsiao_extrap_time() -> None:
+def test_sncosmo_models_hsiao_extrap_time() -> None:
     """Test that we can extrapolate to times outside the model bounds."""
     time_extrapolation = ExponentialDecay(rate=0.1)
     model = SncosmoWrapperModel(
@@ -96,7 +96,7 @@ def test_sncomso_models_hsiao_extrap_time() -> None:
     assert np.all(np.diff(fluxes[5:9]) <= 0.0)
 
 
-def test_sncomso_models_bounds() -> None:
+def test_sncosmo_models_bounds() -> None:
     """Test that we do not crash if we give wavelengths outside the model bounds."""
     # Use a massively subsampled version of the 'nugent-sn1a' model (only 3 time steps)
     # that is cached in the test data directory. This is okay because we are only using
@@ -121,7 +121,7 @@ def test_sncomso_models_bounds() -> None:
             _ = model.evaluate_sed([54990.0, 54990.5], wavelengths)
 
 
-def test_sncomso_models_linear_extrapolate() -> None:
+def test_sncosmo_models_linear_extrapolate() -> None:
     """Test that we do not crash if we give wavelengths outside the model bounds."""
     # Use a massively subsampled version of the 'nugent-sn1a' model (only 3 time steps)
     # that is cached in the test data directory. This is okay because we are only using
@@ -155,7 +155,7 @@ def test_sncomso_models_linear_extrapolate() -> None:
     assert np.all(fluxes_fnu[:, 6] < fluxes_fnu[:, 5])
 
 
-def test_sncomso_models_set() -> None:
+def test_sncosmo_models_set() -> None:
     """Test that we can create and evalue a 'hsiao' model and set parameter."""
     model = SncosmoWrapperModel("hsiao", t0=0.0, redshift=0.5)
 
@@ -171,7 +171,7 @@ def test_sncomso_models_set() -> None:
     assert np.array_equal(model.parameter_values, [100.0])
 
 
-def test_sncomso_models_chained() -> None:
+def test_sncosmo_models_chained() -> None:
     """Test that we can create and evalue a 'hsiao' model using randomized parameters."""
     # Generate the amplitude from a uniform distribution, but use a fixed seed so we have
     # reproducible tests.
