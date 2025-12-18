@@ -58,6 +58,8 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         The name of the pyLIMA model class to use in the simulation or the class itself.
     source_mags : dict
         A mapping from filter names to source magnitudes for the microlensed source.
+    blend_mags : dict, optional
+        A mapping from filter names to blending magnitudes for the microlensed source.
     pylima_model_params : dict, optional
         A dictionary of additional pyLIMA parameters for the model, such as
         'u0', 'tE', 'rho', etc. If a parameter is already added to the model,
@@ -84,6 +86,7 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         model_info,
         source_mags,
         *,
+        blend_mags=None,
         pylima_params=None,
         parallax_model="None",
         blend_flux_parameter="noblend",
@@ -103,6 +106,14 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
                 Mag2FluxNode(mag),
             )
 
+        # Do the same for the (optional) blending magnitudes.
+        if blend_mags is None:
+            blend_mags = {}
+        for filter_name in self.filters:
+            param_name = f"{blend_flux_parameter}_{filter_name}"
+            param_val = Mag2FluxNode(blend_mags[filter_name]) if filter_name in blend_mags else 0.0
+            self.add_parameter(param_name, param_val)
+
         # Add any of the pyLIMA parameters from the pylima_params dictionary.
         if pylima_params is not None:
             for name, value in pylima_params.items():
@@ -121,7 +132,12 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
 
         # Create a dummy pyLIMA model instance to get the parameter names and
         # check that they are all added.
-        event = self.make_pylima_event(ra=0.0, dec=0.0, filter="r", times=np.array([60676.0]))
+        event = self.make_pylima_event(
+            ra=0.0,
+            dec=0.0,
+            filter="r",
+            times=np.array([60676.0 + MJD_OFFSET]),
+        )
         model = self._model_class(
             event,
             parallax=[self.parallax_model, 60676.0 + MJD_OFFSET],
