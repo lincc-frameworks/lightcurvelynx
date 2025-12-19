@@ -439,7 +439,7 @@ class LinearFit(FluxExtrapolationModel):
         if self.nbin is None:
             flux = flux_binned
         else:
-            row_to_bin = (np.arange(N) * self.nbin) // N
+            row_to_bin = (np.arange(N) * nbin) // N
             flux = flux_binned[row_to_bin]
 
         return flux
@@ -513,7 +513,7 @@ class LinearFitOnMag(FluxExtrapolationModel):
             flux = flux_binned
         else:
             # Expand back to (N, M): row i gets its bin's curve
-            row_to_bin = (np.arange(N) * self.nbin) // N
+            row_to_bin = (np.arange(N) * nbin) // N
             flux = flux_binned[row_to_bin]
 
         return mag2flux(flux)
