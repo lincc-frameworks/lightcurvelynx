@@ -133,17 +133,18 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
 
         # Create a dummy pyLIMA model instance to get the parameter names and
         # check that they are all added.
-        event = self.make_pylima_event(
-            ra=0.0,
-            dec=0.0,
-            filter="r",
-            times=np.array([60676.0 + MJD_OFFSET]),
-        )
-        model = self._model_class(
-            event,
-            parallax=[self.parallax_model, 60676.0 + MJD_OFFSET],
-            blend_flux_parameter=self.blend_flux_parameter,
-        )
+        with SquashOutput():
+            event = self.make_pylima_event(
+                ra=0.0,
+                dec=0.0,
+                filter="r",
+                times=np.array([60676.0 + MJD_OFFSET]),
+            )
+            model = self._model_class(
+                event,
+                parallax=[self.parallax_model, 60676.0 + MJD_OFFSET],
+                blend_flux_parameter=self.blend_flux_parameter,
+            )
 
         expected_params_map = model.pyLIMA_standards_dictionnary
         for name in expected_params_map:
@@ -184,14 +185,13 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
 
         if filter is not None and times is not None:
             # Create a telescope object for the given filter.
-            with SquashOutput():
-                tel = simulator.simulate_a_telescope(
-                    name=filter,
-                    location="Earth",
-                    timestamps=times,
-                    astrometry=False,
-                )
-                pylima_event.telescopes.append(tel)
+            tel = simulator.simulate_a_telescope(
+                name=filter,
+                location="Earth",
+                timestamps=times,
+                astrometry=False,
+            )
+            pylima_event.telescopes.append(tel)
 
         return pylima_event
 
@@ -223,36 +223,40 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
                 "See https://pylima.readthedocs.io/en/latest/ for instructions."
             ) from err
 
-        # Create the PyLIMA event object with the attached telescope.
-        current_event = self.make_pylima_event(
-            params["ra"],
-            params["dec"],
-            filter=filter,
-            times=times,
-        )
-
         # Compute the T0 in JD (which PyLIMA uses) from the MJD value in our parameters.
-        if self.parallax_model == "None":
-            t0_jd = 0.0
-        else:
-            t0_jd = params["t0"] + MJD_OFFSET
+        t0_jd = params["t0"] + MJD_OFFSET
+        times_jd = times + MJD_OFFSET
 
-        # Create the model instance.
-        model = self._model_class(
-            current_event,
-            parallax=[self.parallax_model, t0_jd],
-            blend_flux_parameter=self.blend_flux_parameter,
-        )
+        # Squash pyLIMA's print output.
+        with SquashOutput():
+            # Create the PyLIMA event object with the attached telescope and a model instance.
+            current_event = self.make_pylima_event(
+                params["ra"],
+                params["dec"],
+                filter=filter,
+                times=times_jd,
+            )
 
-        # Get the expected parameter mapping and create the ordered parameter list.
-        expected_params_map = model.pyLIMA_standards_dictionnary
-        ordered_values = [0.0] * len(expected_params_map)
-        for name, index in expected_params_map.items():
-            if name in params:
-                ordered_values[index] = params[name]
-        pyLIMA_params = model.compute_pyLIMA_parameters(ordered_values)
+            # Create the model instance.
+            model = self._model_class(
+                current_event,
+                parallax=[self.parallax_model, t0_jd],
+                blend_flux_parameter=self.blend_flux_parameter,
+            )
 
-        # Simulate the lightcurve without noise.
-        simulator.simulate_lightcurve(model, pyLIMA_params, add_noise=False)
-        fluxes = current_event.telescopes[0].lightcurve["flux"]
+            # Get the expected parameter mapping and create the ordered parameter list.
+            expected_params_map = model.pyLIMA_standards_dictionnary
+            ordered_values = [0.0] * len(expected_params_map)
+            for name, index in expected_params_map.items():
+                if name == "t0":
+                    # We need to special case t0 because LightCurveLynx uses MJD and PyLIMA uses JD.
+                    ordered_values[index] = t0_jd
+                elif name in params:
+                    ordered_values[index] = params[name]
+            pyLIMA_params = model.compute_pyLIMA_parameters(ordered_values)
+
+            # Simulate the lightcurve without noise.
+            simulator.simulate_lightcurve(model, pyLIMA_params, add_noise=False)
+            fluxes = current_event.telescopes[0].lightcurve["flux"]
+
         return fluxes
