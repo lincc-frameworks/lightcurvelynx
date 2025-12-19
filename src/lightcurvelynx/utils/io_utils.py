@@ -1,9 +1,47 @@
 import gzip
 import logging
+import os
+import sys
 from pathlib import Path
 
 import numpy as np
 from astropy.table import Table
+
+
+class SquashOutput:
+    """Context manager to temporarily squash all output to stdout and stderr.
+
+    Example
+    -------
+    with SquashOutput():
+        # Code that produces unwanted output
+        ...
+    """
+
+    def __init__(self):
+        self._original_stdout = None
+        self._original_stderr = None
+        self._null_file = None
+
+    def __enter__(self):
+        if self._null_file is None:
+            self._null_file = open(os.devnull, "w")  # noqa: SIM115
+
+        # Save the original stdout and stderr streams.
+        self._original_stdout = sys.stdout
+        self._original_stderr = sys.stderr
+
+        # Redirect stdout and stderr to the null file.
+        sys.stdout = self._null_file
+        sys.stderr = self._null_file
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Restore the original stdout and stderr streams.
+        sys.stdout = self._original_stdout
+        sys.stderr = self._original_stderr
+
+        # Close the null file.
+        self._null_file.close()  # noqa: SIM115
 
 
 def write_results_as_hats(base_catalog_path, results, *, catalog_name=None, overwrite=False):
