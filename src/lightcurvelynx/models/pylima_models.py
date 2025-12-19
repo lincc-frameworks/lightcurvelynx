@@ -11,6 +11,7 @@ from citation_compass import CiteClass
 from lightcurvelynx.astro_utils.mag_flux import Mag2FluxNode
 from lightcurvelynx.consts import MJD_OFFSET
 from lightcurvelynx.models.physical_model import BandfluxModel
+from lightcurvelynx.utils.io_utils import SquashOutput
 
 
 def _load_pylima_model_class(model_name):
@@ -183,13 +184,14 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
 
         if filter is not None and times is not None:
             # Create a telescope object for the given filter.
-            tel = simulator.simulate_a_telescope(
-                name=filter,
-                location="Earth",
-                timestamps=times,
-                astrometry=False,
-            )
-            pylima_event.telescopes.append(tel)
+            with SquashOutput():
+                tel = simulator.simulate_a_telescope(
+                    name=filter,
+                    location="Earth",
+                    timestamps=times,
+                    astrometry=False,
+                )
+                pylima_event.telescopes.append(tel)
 
         return pylima_event
 

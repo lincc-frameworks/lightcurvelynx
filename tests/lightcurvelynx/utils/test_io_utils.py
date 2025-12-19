@@ -1,7 +1,10 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.utils.io_utils import (
+    SquashOutput,
     read_grid_data,
     read_lclib_data,
     read_numpy_data,
@@ -10,6 +13,37 @@ from lightcurvelynx.utils.io_utils import (
 )
 from lsdb import read_hats
 from nested_pandas import NestedFrame
+
+
+def test_squash_output(capfd):
+    """Test that we can squash output from a block of code."""
+    with SquashOutput():
+        print("This is a test.")
+        print("This should be squashed.")
+
+    captured = capfd.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+    # Output not squashed.
+    print("This is a test.")
+    captured = capfd.readouterr()
+    assert "This is a test." in captured.out
+
+
+def test_squash_output_warning(capfd):
+    """Test that we can squash warnings from a block of code."""
+    # No warning squashed.
+    with pytest.warns():
+        with SquashOutput(include_warnings=False):
+            warnings.warn("This is a test warning.")
+
+    # Warning squashed.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with SquashOutput(include_warnings=True):
+            warnings.warn("This is a test warning.")
+        warnings.resetwarnings()
 
 
 def test_read_write_numpy_data(tmp_path):
