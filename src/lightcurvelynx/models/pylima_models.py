@@ -120,7 +120,7 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
             for name, value in pylima_params.items():
                 if name not in self.setters:
                     self.add_parameter(name, value)
-                else:
+                else:  # pragma: no cover
                     warnings.warn(f"Parameter {name} already exists in the model. Overriding its value.")
                     self.set_parameter(name, value)
 
