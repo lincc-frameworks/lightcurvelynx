@@ -354,7 +354,7 @@ def _bin_rows_median(last_fluxes, nbin, *, nan_safe=True):
     Returns
     -------
     binned_fluxes : np.ndarray
-        A nbin x M array of the binned fluxes.
+        A nbin x T array of the binned fluxes.
     """
     last_fluxes = np.asarray(last_fluxes)
     N, T = last_fluxes.shape
