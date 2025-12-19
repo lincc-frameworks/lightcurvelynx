@@ -1,9 +1,63 @@
 import gzip
 import logging
+import os
+import sys
+import warnings
 from pathlib import Path
 
 import numpy as np
 from astropy.table import Table
+
+
+class SquashOutput:
+    """Context manager to temporarily squash all output to stdout and stderr
+    (and optionally warnings)
+
+    Attributes
+    ----------
+    include_warnings : bool
+        Whether to also squash warnings. Default: False
+
+    Example
+    -------
+    with SquashOutput():
+        # Code that produces unwanted output
+        ...
+    """
+
+    def __init__(self, include_warnings=False):
+        self.include_warnings = include_warnings
+        self._original_stdout = None
+        self._original_stderr = None
+        self._null_file = None
+
+    def __enter__(self):
+        if self._null_file is None:
+            self._null_file = open(os.devnull, "w")  # noqa: SIM115
+
+        # Save the original stdout and stderr streams.
+        self._original_stdout = sys.stdout
+        self._original_stderr = sys.stderr
+
+        # Redirect stdout and stderr to the null file.
+        sys.stdout = self._null_file
+        sys.stderr = self._null_file
+
+        # Optionally suppress warnings.
+        if self.include_warnings:
+            warnings.filterwarnings("ignore")
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Restore the original stdout and stderr streams.
+        sys.stdout = self._original_stdout
+        sys.stderr = self._original_stderr
+
+        # Close the null file.
+        self._null_file.close()  # noqa: SIM115
+
+        # Restore warning filters.
+        if self.include_warnings:
+            warnings.resetwarnings()
 
 
 def write_results_as_hats(base_catalog_path, results, *, catalog_name=None, overwrite=False):
