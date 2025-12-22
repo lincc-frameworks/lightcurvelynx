@@ -19,7 +19,9 @@ project_license: MIT
 project_name: lightcurvelynx
 project_organization: lincc-frameworks
 python_versions:
+- '3.10'
 - '3.11'
 - '3.12'
 - '3.13'
+- '3.14'
 test_lowest_version: none
