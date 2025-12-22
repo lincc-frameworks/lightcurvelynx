@@ -24,7 +24,7 @@ dependencies = [
     "mocpy",
     "nested-pandas",
     "networkx",  # Used for graph visualization
-    "numpy==2.3.5",
+    "numpy>=2.3.5",
     "pandas",
     "pooch",
     "PyYAML>=6.0",
@@ -48,6 +48,7 @@ dev = [
     "jax",
     "lsdb",
     "networkx",  # Used for graph visualization
+    "numpy==2.3.5",  # Pin numpy version for compatibility with asv
     "pre-commit", # Used to run checks before finalizing a git commit
     "pytest",
     "pytest-cov", # Used to report total code coverage
