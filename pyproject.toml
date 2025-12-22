@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python",
 ]
 dynamic = ["version"]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "astropy",
     "cdshealpix",
@@ -24,7 +24,7 @@ dependencies = [
     "mocpy",
     "nested-pandas",
     "networkx",  # Used for graph visualization
-    "numpy",
+    "numpy>=2.0",
     "pandas",
     "pooch",
     "PyYAML>=6.0",
