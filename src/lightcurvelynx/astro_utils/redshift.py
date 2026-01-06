@@ -3,6 +3,7 @@
 from functools import partial
 
 import astropy.cosmology.units as cu
+import numpy as np
 from astropy import units as u
 
 from lightcurvelynx.base_models import FunctionNode
@@ -30,6 +31,9 @@ def obs_to_rest_times_waves(observer_frame_times, observer_frame_wavelengths, re
         which will later be redshifted  back to observer frame flux densities at the observer frame
         times and wavelengths.
     """
+    if redshift < 0:
+        raise ValueError("Redshift must be non-negative.")
+
     observed_times_rel_to_t0 = observer_frame_times - t0
     rest_frame_times_rel_to_t0 = observed_times_rel_to_t0 / (1 + redshift)
     rest_frame_times = rest_frame_times_rel_to_t0 + t0
@@ -55,6 +59,9 @@ def rest_to_obs_flux(flux_density, redshift):
     flux_density : numpy.ndarray
         The observer frame flux (in nJy).
     """
+    if redshift < 0:
+        raise ValueError("Redshift must be non-negative.")
+
     # Note that the multiplication by (1+z) is due to the fact we are working in f_nu units,
     # instead of f_lambda units and may be unintuitive for users who are used to working in f_lambda
     # units. This factor can be derived by equaling the integrated flux in f_nu unit before and after
@@ -68,7 +75,7 @@ def redshift_to_distance(redshift, cosmology):
 
     Parameters
     ----------
-    redshift : float
+    redshift : float or numpy.ndarray
         The redshift value.
     cosmology : astropy.cosmology
         The cosmology specification.
@@ -78,6 +85,11 @@ def redshift_to_distance(redshift, cosmology):
     distance : float
         The luminosity distance (in pc)
     """
+    if np.any(np.atleast_1d(redshift) < 0):
+        raise ValueError("Redshift must be non-negative.")
+    if cosmology is None:
+        raise ValueError("Cosmology must be specified.")
+
     z = redshift * cu.redshift
     distance = z.to(u.pc, cu.redshift_distance(cosmology, kind="luminosity"))
     return distance.value

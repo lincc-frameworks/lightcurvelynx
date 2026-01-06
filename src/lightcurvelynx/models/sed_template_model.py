@@ -67,6 +67,7 @@ class SEDTemplate:
         baseline=None,
         **kwargs,
     ):
+        # Extract the grid data from the input such that the phases and wavelengths are in sorted order.
         grid_data = np.asarray(grid_data)
         if grid_data.ndim != 2 or grid_data.shape[1] != 3:
             raise ValueError(
@@ -225,9 +226,9 @@ class SEDTemplate:
         Returns
         -------
         unique_phases : np.ndarray
-            A length T array of unique phases.
+            A length T array of unique phases sorted by time.
         unique_wavelengths : np.ndarray
-            A length W array of unique wavelengths.
+            A length W array of unique wavelengths sorted by wavelength.
         sed_matrix : np.ndarray
             A 2D array of shape (T x W) with fluxes.
         """
@@ -235,9 +236,11 @@ class SEDTemplate:
         wavelengths = data[:, 1]
         fluxes = data[:, 2]
 
-        unique_wavelengths = np.unique(wavelengths)
-        unique_phases = np.unique(phases)
+        unique_wavelengths = np.sort(np.unique(wavelengths))
+        unique_phases = np.sort(np.unique(phases))
 
+        # We use a loop here to fill in the SED matrix since the input data may not be
+        # ordered in any particular way and might not contain all combinations.
         sed_matrix = np.zeros((len(unique_phases), len(unique_wavelengths)))
         for wave, phase, flux_val in zip(wavelengths, phases, fluxes, strict=False):
             wave_idx = np.where(unique_wavelengths == wave)[0][0]
