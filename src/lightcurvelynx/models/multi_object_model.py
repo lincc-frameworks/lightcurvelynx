@@ -452,8 +452,8 @@ class RandomMultiObjectModel(MultiObjectModel):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
-        idx = self.get_param(graph_state, "selected_object")
-        return self.objects[idx].minwave(graph_state=graph_state)
+        name = self.get_param(graph_state, "selected_object")
+        return self.object_map[name].minwave(graph_state=graph_state)
 
     def maxwave(self, graph_state=None):
         """Get the maximum wavelength of the model.
@@ -470,8 +470,8 @@ class RandomMultiObjectModel(MultiObjectModel):
             The maximum wavelength of the model (in angstroms) or None
             if the model does not have a defined maximum wavelength.
         """
-        idx = self.get_param(graph_state, "selected_object")
-        return self.objects[idx].maxwave(graph_state=graph_state)
+        name = self.get_param(graph_state, "selected_object")
+        return self.object_map[name].maxwave(graph_state=graph_state)
 
     def _evaluate_single(self, times, wavelengths, state, **kwargs):
         """Evaluate the model and apply the effects for a single, given graph state.
