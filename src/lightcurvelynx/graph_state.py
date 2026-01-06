@@ -869,7 +869,7 @@ class DependencyGraph:
         """
         try:
             import networkx as nx
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "NetworkX is required to convert the dependency graph to a NetworkX graph. "
                 "Please install it with 'pip install networkx'."
@@ -919,7 +919,7 @@ class DependencyGraph:
         try:
             import matplotlib.pyplot as plt
             import networkx as nx
-        except ImportError as err:
+        except ImportError as err:  # pragma: no cover
             raise ImportError(
                 "NetworkX and Matplotlib are required to draw the graph. "
                 "Please install them with 'pip install networkx matplotlib'."
