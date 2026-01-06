@@ -107,6 +107,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
                 ) from err
 
             self.source_name = source
+            if source not in redback.model_library.all_models_dict:  # pragma: no cover
+                raise ValueError(f"Redback model '{source}' not found in redback model library.")
             self.source = redback.model_library.all_models_dict[source]
         else:
             self.source_name = source.__name__
