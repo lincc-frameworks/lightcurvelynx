@@ -16,7 +16,7 @@ def phot_eff_function(snr):
         The photometric detection efficiency given snr.
     """
 
-    snr = np.array(snr)
+    snr = np.asarray(snr)
     eff = np.where(snr > 5, 1.0, 0.0)
 
     return eff
@@ -43,7 +43,7 @@ def spec_eff_function(peak_imag):
     s1 = 2.36
     s2 = 51.9
 
-    peak_imag = np.array(peak_imag)
+    peak_imag = np.asarray(peak_imag)
     eff = s0 * np.power((1.0 + np.exp(s1 * peak_imag - s2)), -1)
 
     return eff

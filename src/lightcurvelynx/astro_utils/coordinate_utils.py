@@ -66,7 +66,7 @@ def dedup_coords(ra, dec, threshold=1e-5):
     """
     # Create a KD-tree for efficient nearest neighbor search.
     x, y, z = ra_dec_to_cartesian(ra, dec)
-    cart_coords = np.array([x, y, z]).T
+    cart_coords = np.asarray([x, y, z]).T
     kd_tree = KDTree(cart_coords)
 
     # Do a range search with the same points to find all neighbors.
@@ -79,7 +79,7 @@ def dedup_coords(ra, dec, threshold=1e-5):
     for idx, matches in enumerate(close_points):
         if len(matches) == 1 or idx == np.min(matches):
             unique_indices.append(idx)
-    unique_indices = np.array(unique_indices)
+    unique_indices = np.asarray(unique_indices)
 
     unique_ra = ra[unique_indices]
     unique_dec = dec[unique_indices]
