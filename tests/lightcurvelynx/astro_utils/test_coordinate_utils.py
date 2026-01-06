@@ -1,21 +1,25 @@
 import numpy as np
+import pytest
 from lightcurvelynx.astro_utils.coordinate_utils import dedup_coords, ra_dec_to_cartesian
 
 
 def test_ra_dec_to_cartesian():
     """Test the conversion from RA/Dec to Cartesian coordinates."""
     # Test known values
-    ra = np.array([0, 90, 180, 270, 90, 0, 45.0])
-    dec = np.array([0, 0, 0, 0, 90, -90, 30.0])
+    ra = np.array([0, 90, 180, 270, 90, 0, 45.0, 405.0])
+    dec = np.array([0, 0, 0, 0, 90, -90, 30.0, 30.0])
     x, y, z = ra_dec_to_cartesian(ra, dec)
 
-    expected_x = np.array([1, 0, -1, 0, 0, 0, np.sqrt(6) / 4.0])
-    expected_y = np.array([0, 1, 0, -1, 0, 0, np.sqrt(6) / 4.0])
-    expected_z = np.array([0, 0, 0, 0, 1, -1, 1.0 / 2.0])
+    expected_x = np.array([1, 0, -1, 0, 0, 0, np.sqrt(6) / 4.0, np.sqrt(6) / 4.0])
+    expected_y = np.array([0, 1, 0, -1, 0, 0, np.sqrt(6) / 4.0, np.sqrt(6) / 4.0])
+    expected_z = np.array([0, 0, 0, 0, 1, -1, 1.0 / 2.0, 1.0 / 2.0])
 
     np.testing.assert_allclose(x, expected_x, atol=1e-5)
     np.testing.assert_allclose(y, expected_y, atol=1e-5)
     np.testing.assert_allclose(z, expected_z, atol=1e-5)
+
+    with pytest.raises(ValueError):
+        ra_dec_to_cartesian([0], [100])  # Invalid declination
 
 
 def test_dedup_coords():
