@@ -4,6 +4,7 @@ methods for loading and manipulating passband data.
 """
 
 import logging
+import warnings
 from pathlib import Path
 from typing import Literal, Union
 
@@ -778,8 +779,8 @@ class Passband:
         if np.any(diffs < 0.0):
             raise ValueError("Wavelengths in transmission table must be strictly increasing.")
         if np.any(diffs == 0.0):
-            logger.warning("Duplicate wavelengths found in transmission table; averaging values.")
-            dup_inds = np.where(diffs == 0.0)
+            warnings.warn("Duplicate wavelengths found in transmission table; averaging values.", UserWarning)
+            dup_inds = np.where(diffs == 0.0)[0]
             table_values[dup_inds, 1] = 0.5 * (table_values[dup_inds, 1] + table_values[dup_inds + 1, 1])
             table_values = np.delete(table_values, dup_inds + 1, axis=0)
         self.transmission_table = np.copy(table_values)
@@ -788,6 +789,9 @@ class Passband:
         if units == "nm":
             # Multiply the first column (wavelength) by 10.0 to convert to Angstroms
             self.transmission_table[:, 0] *= 10.0
+        elif units == "micron":
+            # Multiply the first column (wavelength) by 10,000 to convert to Angstroms
+            self.transmission_table[:, 0] *= 10_000.0
         elif units != "A":
             raise ValueError(f"Unknown Passband units {units}")
 
@@ -1076,8 +1080,8 @@ class Passband:
         if np.any(diffs < 0.0):
             raise ValueError("Wavelengths in transmission table must be increasing.")
         if np.any(diffs == 0.0):
-            logger.warning("Duplicate wavelengths found in transmission table; averaging values.")
-            dup_inds = np.where(diffs == 0.0)
+            warnings.warn("Duplicate wavelengths found in transmission table; averaging values.", UserWarning)
+            dup_inds = np.where(diffs == 0.0)[0]
             loaded_table[dup_inds, 1] = 0.5 * (loaded_table[dup_inds, 1] + loaded_table[dup_inds + 1, 1])
             loaded_table = np.delete(loaded_table, dup_inds + 1, axis=0)
 
@@ -1179,7 +1183,7 @@ class Passband:
 
         # Find indices where the cumulative area exceeds the trim quantiles
         lower_bound = max(np.searchsorted(cumulative_area, trim_quantile, side="right") - 1, 0)
-        upper_bound = np.searchsorted(cumulative_area, 1 - trim_quantile)
+        upper_bound = min(np.searchsorted(cumulative_area, 1 - trim_quantile), len(table) - 1)
 
         # Trim the table to the desired range
         trimmed_table = table[lower_bound : upper_bound + 1]

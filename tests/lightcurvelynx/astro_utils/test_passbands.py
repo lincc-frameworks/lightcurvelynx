@@ -111,9 +111,20 @@ def test_passband_manual_create(tmp_path):
     assert test_pb.delta_wave == pytest.approx(5.0)
     np.testing.assert_allclose(test_pb.transmission_table, transmission_table)
 
-    # We can create an load a table in nm as well. It will auto-convert to Angstroms.
+    # We can create an load a table in nm as well.
+    # It will auto-convert to Angstroms (by multiplying by 10).
     transmission2 = np.array([[100, 0.5], [100.5, 0.6], [101, 0.7]])
     test_pb2 = Passband(transmission2, survey="test", filter_name="g", units="nm")
+    assert test_pb2.survey == "test"
+    assert test_pb2.filter_name == "g"
+    assert test_pb2.full_name == "test_g"
+    assert test_pb2.delta_wave == pytest.approx(5.0)
+    np.testing.assert_allclose(test_pb2.transmission_table, transmission_table)
+
+    # We can create an load a table in microns as well.
+    # It will auto-convert to Angstroms (by multiplying by 10,000).
+    transmission2 = np.array([[0.1, 0.5], [0.1005, 0.6], [0.101, 0.7]])
+    test_pb2 = Passband(transmission2, survey="test", filter_name="g", units="micron")
     assert test_pb2.survey == "test"
     assert test_pb2.filter_name == "g"
     assert test_pb2.full_name == "test_g"
@@ -151,6 +162,35 @@ def test_passband_manual_create(tmp_path):
         )
 
 
+def test_passband_duplicate_wavelengths():
+    """Check that if we provide duplicate wavelengths, we warn and average
+    the transmission values."""
+    transmission_table = np.array(
+        [
+            [1000, 0.5],
+            [1010, 0.6],
+            [1010, 0.8],
+            [1020, 0.7],
+            [1030, 0.7],
+            [1040, 0.7],
+            [1040, 0.8],
+        ]
+    )
+    with pytest.warns(UserWarning):
+        a_band = Passband(transmission_table, survey="test", filter_name="a")
+
+    expected_table = np.array(
+        [
+            [1000, 0.5],
+            [1010, 0.7],
+            [1020, 0.7],
+            [1030, 0.7],
+            [1040, 0.75],
+        ]
+    )
+    assert np.allclose(a_band.transmission_table, expected_table)
+
+
 def test_passband_load_transmission_table(passbands_dir, tmp_path):
     """Test the _load_transmission_table method of the Passband class."""
     # Test that we can load a standard LSST transmission table from the local test data
@@ -160,10 +200,19 @@ def test_passband_load_transmission_table(passbands_dir, tmp_path):
     assert LSST_g.waves is not None
     assert len(LSST_g.waves.shape) == 1
 
-    # Test a toy transmission table was loaded correctly
+    # Test a toy transmission table is loaded correctly.
     transmission_table = "1000 0.5\n1005 0.6\n1010 0.7\n"
     a_band = create_toy_passband(tmp_path, transmission_table)
     np.testing.assert_allclose(a_band.transmission_table, np.array([[1000, 0.5], [1005, 0.6], [1010, 0.7]]))
+
+    # Test a toy transmission table (with duplicate wavelengths) is loaded correctly.
+    transmission_table = "1000 0.3\n1000 0.5\n1005 0.6\n1010 0.7\n"
+    with pytest.warns(UserWarning):
+        a_band = create_toy_passband(tmp_path, transmission_table)
+    np.testing.assert_allclose(
+        a_band.transmission_table,
+        np.array([[1000, 0.4], [1005, 0.6], [1010, 0.7]]),
+    )
 
     # Test that we raise an error if the transmission table is blank
     transmission_table = ""
