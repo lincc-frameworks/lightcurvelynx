@@ -705,6 +705,9 @@ class ObsTable:
         # Confirm the query RA and Dec have the same length.
         if len(query_ra) != len(query_dec):
             raise ValueError("Query RA and Dec must have the same length.")
+
+        # Check that there are no None values in the query. We use == to do
+        # an element-wise comparison.
         if np.any(query_ra == None) or np.any(query_dec == None):  # noqa: E711
             raise ValueError("Query RA and dec cannot contain None.")
 
