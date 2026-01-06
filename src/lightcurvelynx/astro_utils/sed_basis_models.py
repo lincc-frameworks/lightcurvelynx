@@ -103,7 +103,7 @@ class SEDBasisModel:
             filter_sed_basis[0, valid_waves] = 1.0
 
             total_flux = passbands.fluxes_to_bandflux(filter_sed_basis, filter)
-            if total_flux[0] <= 0:
+            if total_flux[0] <= 0:  # pragma: no cover
                 raise ValueError(f"Total flux for filter {filter} is {total_flux[0]}.")
             sed_basis_values[filter] = filter_sed_basis[0, :] / total_flux[0]
 
@@ -170,7 +170,7 @@ class SEDBasisModel:
             if filter not in self.sed_values:
                 raise ValueError(f"Filter {filter} not found in SED basis model.")
 
-            filter_mask = np.array(filters) == filter
+            filter_mask = filters == filter
             sed_values = self.compute_sed(filter, wavelengths)
             flux_density[filter_mask, :] = np.outer(bandfluxes[filter_mask], sed_values)
 

@@ -494,7 +494,7 @@ class ObsTable:
         """Construct the KD-tree from the ObsTable."""
         # Convert the pointings to Cartesian coordinates on a unit sphere.
         x, y, z = ra_dec_to_cartesian(self._table["ra"].to_numpy(), self._table["dec"].to_numpy())
-        cart_coords = np.array([x, y, z]).T
+        cart_coords = np.asarray([x, y, z]).T
 
         # Construct the kd-tree.
         self._kd_tree = KDTree(cart_coords)
@@ -710,7 +710,7 @@ class ObsTable:
 
         # Transform the query point(s) to 3-d Cartesian coordinate(s).
         x, y, z = ra_dec_to_cartesian(query_ra, query_dec)
-        cart_query = np.array([x, y, z]).T
+        cart_query = np.asarray([x, y, z]).T
 
         # Adjust the angular radius to a cartesian search radius and perform the search.
         adjusted_radius = 2.0 * np.sin(0.5 * np.radians(radius))

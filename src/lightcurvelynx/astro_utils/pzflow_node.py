@@ -115,7 +115,7 @@ class PZFlowNode(FunctionNode, CiteClass):
             if graph_state.num_samples == 1:
                 results.append(attr_values[0])
             else:
-                results.append(np.array(attr_values))
+                results.append(np.asarray(attr_values))
 
         # Save and return the results. If we only have a single output column,
         # return that directly.
