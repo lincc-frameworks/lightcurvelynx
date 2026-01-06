@@ -379,14 +379,16 @@ def test_random_multi_object_node_min_max() -> None:
         node_label="test",
     )
     states = model.sample_parameters(num_samples=1)
+    assert model.minwave(states) in [100.0, 200.0]
+    assert model.maxwave(states) in [400.0, 500.0]
 
     # Force the selected_object to be 0 for the test.
-    states.set("test", "selected_object", 0)
+    states.set("test", "selected_object", "sed0")
     assert model.minwave(states) == 100.0
     assert model.maxwave(states) == 400.0
 
     # Force the selected_object to be 1 for the test.
-    states.set("test", "selected_object", 1)
+    states.set("test", "selected_object", "sed1")
     assert model.minwave(states) == 200.0
     assert model.maxwave(states) == 500.0
 
