@@ -114,6 +114,8 @@ def test_constant_dust_extinction():
     states = model.sample_parameters(num_samples=3)
     fluxes = model.evaluate_sed(times, wavelengths, states)
 
+    # We check that all fluxes are reduced, and that higher ebv leads to
+    # lower fluxes.
     assert fluxes.shape == (3, 5, 3)
     assert np.all(fluxes < 100.0)
     assert np.all(fluxes[0, :, :] > fluxes[1, :, :])
