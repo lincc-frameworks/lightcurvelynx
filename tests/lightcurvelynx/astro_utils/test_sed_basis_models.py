@@ -47,6 +47,14 @@ def test_sed_basis_model() -> None:
     )
     assert np.allclose(flux_density, expected)
 
+    # The computation fails if any filter is unknown.
+    with pytest.raises(ValueError):
+        _ = sed_basis.compute_sed_from_bandfluxes(["r", "g", "x", "r"], bandfluxes=[2.0, 1.0, 1.5, 2.5])
+
+    # The computation fails if bandfluxes length doesn't match filters length.
+    with pytest.raises(ValueError):
+        _ = sed_basis.compute_sed_from_bandfluxes(["r", "g", "g", "r"], bandfluxes=[2.0, 1.0, 1.5])
+
     # SED creation fails if the lengths do not match.
     with pytest.raises(ValueError):
         _ = SEDBasisModel(np.array([300, 400, 500, 600, 700]), filter_data)
