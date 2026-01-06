@@ -434,7 +434,7 @@ class RandomMultiObjectModel(MultiObjectModel):
             "selected_object",
             value=self._sampler_node,
             allow_gradient=False,
-            description="Index of the object selected for sampling.",
+            description="The name of the object selected for sampling.",
         )
 
     def minwave(self, graph_state=None):
