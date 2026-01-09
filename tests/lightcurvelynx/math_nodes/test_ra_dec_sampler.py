@@ -1,4 +1,9 @@
+import matplotlib
+
+matplotlib.use("Agg")  # Suppress the plots
+
 import tempfile
+import warnings
 from pathlib import Path
 
 import astropy.units as u
@@ -332,6 +337,24 @@ def test_approximate_moc_sampler():
         ApproximateMOCSampler(moc, depth=2000)
 
 
+def test_approximate_moc_sampler_plot():
+    """Test that we can plot the footprint of an ApproximateMOCSampler."""
+    longitudes = Longitude([15.0, 90.0], unit="deg")
+    latitudes = Latitude([-20.0, 20.0], unit="deg")
+    moc = MOC.from_cones(
+        lon=longitudes,
+        lat=latitudes,
+        radius=1.0 * u.deg,
+        max_depth=12,
+        union_strategy="large_cones",
+    )
+    moc_sampler = ApproximateMOCSampler(moc)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        moc_sampler.plot_footprint(depth=12)
+
+
 def test_approximate_moc_sampler_from_file():
     """Test that we can create an ApproximateMOCSampler from a MOC file."""
     longitudes = Longitude([15.0, 90.0], unit="deg")
@@ -375,3 +398,106 @@ def test_approximate_moc_sampler_from_obstable():
     moc_sampler = ApproximateMOCSampler.from_obstable(ops_data, depth=12, radius=1.75, seed=43)
     ra, dec = moc_sampler.generate(num_samples=100)
     assert np.all(ops_data.is_observed(ra, dec, radius=1.8))
+
+
+def test_approximate_moc_sampler_from_union_obstable():
+    """Test that we can create an ApproximateMOCSampler from a union of ObsTables."""
+    # Create four ObsTables with (mostly) different pointings. The 4th is a copy of the 1st.
+    ops_tables = []
+    for center_ra, center_dec in [(15.0, -10.0), (30.0, -5.0), (15.0, 0.0), (15.0, -10.0)]:
+        values = {
+            # Each survey is 3 pointings on the same declination.
+            "observationStartMJD": np.array([0.0, 1.0, 2.0]),
+            "fieldRA": np.array([center_ra, center_ra - 0.1, center_ra + 0.1]),
+            "fieldDec": np.array([center_dec, center_dec, center_dec]),
+            "zp_nJy": np.ones(3),
+        }
+        ops_data = OpSim(values)
+        ops_tables.append(ops_data)
+
+    # Build a single sampler from the union of the ObsTables.
+    moc_sampler = ApproximateMOCSampler.from_obstable_union(
+        ops_tables,
+        depth=14,
+        radii=[0.2, 0.2, 0.2, 0.2],
+        seed=43,
+    )
+
+    # Generate 1000 samples.
+    ra_arr, dec_arr = moc_sampler.generate(num_samples=1_000)
+    sample_coords = SkyCoord(ra=ra_arr * u.deg, dec=dec_arr * u.deg)
+
+    close_mask = np.zeros(len(ra_arr), dtype=bool)
+    for center_ra, center_dec in [(15.0, -10.0), (30.0, -5.0), (15.0, 0.0)]:
+        for ra_offset in [-0.1, 0.0, 0.1]:
+            center_coord = SkyCoord(ra=(center_ra + ra_offset) * u.deg, dec=center_dec * u.deg)
+            separations = center_coord.separation(sample_coords)
+            is_close = separations <= 0.25 * u.deg  # Small buffer for MOC approximation
+            close_mask |= is_close
+
+            # Check we sampled at least one point from this pointing.
+            assert np.any(is_close)
+
+    # Check that all points are close to something.
+    assert np.all(close_mask)
+
+    # We can create a sampler with no radii (just using the default for each table).
+    moc_sampler2 = ApproximateMOCSampler.from_obstable_union(ops_tables, depth=10)
+    assert moc_sampler2 is not None
+
+    # We fail if the list is empty.
+    with pytest.raises(ValueError):
+        _ = ApproximateMOCSampler.from_obstable_union([], depth=10, radii=[], seed=45)
+
+    # We fail if the list lengths do not match.
+    with pytest.raises(ValueError):
+        _ = ApproximateMOCSampler.from_obstable_union(ops_tables, depth=10, radii=[1.0], seed=45)
+
+
+def test_approximate_moc_sampler_from_intersection_obstable():
+    """Test that we can create an ApproximateMOCSampler from a union of ObsTables."""
+    center_coords = [(15.0, -10.0), (16.0, -10.0), (15.5, -9.0)]
+
+    # Create several ObsTables with different, but close, pointings.
+    ops_tables = []
+    for center_ra, center_dec in center_coords:
+        values = {
+            # Each survey is 3 pointings on the same declination.
+            "observationStartMJD": np.array([0.0]),
+            "fieldRA": np.array([center_ra]),
+            "fieldDec": np.array([center_dec]),
+            "zp_nJy": np.ones(1),
+        }
+        ops_data = OpSim(values)
+        ops_tables.append(ops_data)
+
+    # Build a single sampler from the union of the ObsTables.
+    moc_sampler = ApproximateMOCSampler.from_obstable_intersection(
+        ops_tables,
+        depth=14,
+        radii=[1.0, 1.0, 1.0],
+        seed=45,
+    )
+
+    # Generate 1000 samples.
+    ra_arr, dec_arr = moc_sampler.generate(num_samples=1_000)
+    sample_coords = SkyCoord(ra=ra_arr * u.deg, dec=dec_arr * u.deg)
+
+    # Check that all of the points are in to the overlapping region (within
+    # 1 degree of all the centers).
+    for center_ra, center_dec in center_coords:
+        center_coord = SkyCoord(ra=center_ra * u.deg, dec=center_dec * u.deg)
+        separations = center_coord.separation(sample_coords).deg
+        assert np.all(separations <= 1.01)  # Small buffer for MOC approximation
+
+    # We can create a sampler with no radii (just using the default for each table).
+    moc_sampler2 = ApproximateMOCSampler.from_obstable_intersection(ops_tables, depth=10)
+    assert moc_sampler2 is not None
+
+    # We fail if the list is empty.
+    with pytest.raises(ValueError):
+        _ = ApproximateMOCSampler.from_obstable_intersection([], depth=10, radii=[], seed=45)
+
+    # We fail if the list lengths do not match.
+    with pytest.raises(ValueError):
+        _ = ApproximateMOCSampler.from_obstable_intersection(ops_tables, depth=10, radii=[1.0], seed=45)
