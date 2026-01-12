@@ -68,6 +68,8 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
     parallax_model : str, optional
         The pyLIMA parallax model type: 'None', 'Annual', 'Terrestrial', or 'Full'.
         The times for the parallax are automatically set during the evaluation.
+    blend_flux_parameter : str,
+        The pyLIMA blend flux parameter type: 'fblend', 'ftotal', or 'noblend'
     **kwargs : dict, optional
         Any additional keyword arguments.
 
@@ -78,8 +80,7 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
     parallax_model : str, optional
         The pyLIMA parallax model type: 'None', 'Annual', 'Terrestrial', or 'Full'.
     blend_flux_parameter : str,
-        The pyLIMA blend flux parameter type: 'fblend', 'gblend', 'ftotal', or
-        or 'noblend'
+        The pyLIMA blend flux parameter type: 'fblend', 'ftotal', or 'noblend'
     """
 
     def __init__(
@@ -98,6 +99,13 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         # Save the pyLIMA parameters and add the corresponding model parameters.
         self.parallax_model = parallax_model
         self.blend_flux_parameter = blend_flux_parameter
+        if blend_flux_parameter == "gblend":
+            raise ValueError("The 'gblend' blend_flux_parameter is not supported in this wrapper model. ")
+        elif blend_flux_parameter not in ["fblend", "ftotal", "noblend"]:
+            raise ValueError(
+                f"Invalid blend_flux_parameter '{blend_flux_parameter}'. "
+                f"Must be one of 'fblend', 'ftotal', or 'noblend'."
+            )
 
         # Add each source flux as a parameter by converting the input magnitudes.
         self.filters = list(source_mags.keys())
@@ -169,7 +177,7 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         filter : str, optional
             The name of the filter for the telescope to attach.
         times : numpy.ndarray, optional
-            A length T array of observer frame timestamps in MJD for the telescope to attach.
+            A length T array of observer frame timestamps in JD for the telescope to attach.
         """
         try:
             from pyLIMA import event
@@ -213,6 +221,10 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         bandflux : numpy.ndarray
             A length T array of band fluxes for this model in this filter.
         """
+        # Check that the filter is supported.
+        if filter not in self.filters:
+            raise ValueError(f"Filter '{filter}' is not supported by this model (mags / blend).")
+
         params = self.get_local_params(state)
 
         try:
