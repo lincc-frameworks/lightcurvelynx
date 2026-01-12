@@ -11,6 +11,7 @@ from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList, TableSampler
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
+from lightcurvelynx.models.physical_model import SEDModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.obstable.opsim import OpSim
@@ -658,6 +659,95 @@ def test_simulate_multiple_surveys(test_data_dir):
             [obstable1, obstable2],
             [passband_group1, passband_group2],
         )
+
+
+def test_simulate_multiple_surveys_diff_filters():
+    """Test an end to end run of simulating a single object's light curve
+    from multiple surveys with different filters (using the same name)."""
+    # The first survey points at a single location on the sky in the "r" band.
+    # It's filter overlaps the SED of the object.
+    obsdata1 = {
+        "time": [0.0, 1.0, 2.0],
+        "ra": [0.0, 0.0, 0.0],
+        "dec": [10.0, 10.0, 10.0],
+        "filter": ["r", "r", "r"],
+        "zp": [0.5, 0.5, 0.5],
+        "seeing": [1.12, 1.12, 1.12],
+        "skybrightness": [20.0, 20.0, 20.0],
+        "exptime": [29.2, 29.2, 29.2],
+        "nexposure": [2, 2, 2],
+    }
+    obstable1 = OpSim(obsdata1)
+
+    waves = np.arange(5000, 8000, 100)
+    transmission1 = np.where((waves >= 6000) & (waves <= 7000), 1.0, 0.0)
+    r_passband1 = Passband(np.column_stack((waves, transmission1)), "survey1", "r")
+    passband_group1 = PassbandGroup([r_passband1])
+
+    # The second survey points at the same location at different times. But uses
+    # a shifted passband for the "r" filter that only partially overlaps the SED.
+    obsdata2 = {
+        "time": [3.0, 4.0, 5.0],
+        "ra": [0.0, 0.0, 0.0],
+        "dec": [10.0, 10.0, 10.0],
+        "filter": ["r", "r", "r"],
+        "zp": [0.5, 0.5, 0.5],
+        "seeing": [1.12, 1.12, 1.12],
+        "skybrightness": [20.0, 20.0, 20.0],
+        "exptime": [29.2, 29.2, 29.2],
+        "nexposure": [2, 2, 2],
+    }
+    obstable2 = OpSim(obsdata2)
+    transmission2 = np.where((waves >= 5500) & (waves <= 6500), 1.0, 0.0)
+    r_passband2 = Passband(np.column_stack((waves, transmission2)), "survey2", "r")
+    passband_group2 = PassbandGroup([r_passband2])
+
+    # Create an SED model that is a step function over part of the range.
+    class _ToyRedSEDModel(SEDModel):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+
+        def compute_sed(self, times, wavelengths, graph_state, **kwargs):
+            """Draw effect-free observations for this object.
+
+            Parameters
+            ----------
+            times : numpy.ndarray
+                A length T array of rest frame timestamps.
+            wavelengths : numpy.ndarray, optional
+                A length N array of wavelengths (in angstroms).
+            graph_state : GraphState
+                An object mapping graph parameters to their values.
+            **kwargs : dict, optional
+                Any additional keyword arguments.
+
+            Returns
+            -------
+            flux_density : numpy.ndarray
+                A length T x N matrix of SED values (in nJy).
+            """
+            results = np.full((len(times), len(wavelengths)), 0.0)
+            red_mask = (wavelengths >= 6000.0) & (wavelengths <= 7000.0)
+            results[:, red_mask] = 1000.0
+            return results
+
+    # Create a constant SED model with known brightnesses and RA, dec values that
+    # match the (0.0, 10.0) pointing.
+    model = _ToyRedSEDModel(t0=0.0, ra=0.0, dec=10.0, redshift=0.0)
+    results = simulate_lightcurves(
+        model,
+        1,
+        [obstable1, obstable2],
+        [passband_group1, passband_group2],
+        obstable_save_cols=["zp", "custom_col"],
+    )
+    assert len(results) == 1
+    assert results["nobs"][0] == 6
+
+    # The first three observations should be brighter than the last three.
+    lightcurve = results["lightcurve"][0]
+    assert np.all(lightcurve["flux_perfect"][0:3] > 800.0)
+    assert np.all(lightcurve["flux_perfect"][3:6] < 500.0)
 
 
 def test_compute_noise_free_lightcurves_single(test_data_dir):
