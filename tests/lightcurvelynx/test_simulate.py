@@ -27,28 +27,77 @@ from nested_pandas import read_parquet
 
 def test_get_time_windows():
     """Test the get_time_windows function with various inputs."""
-    assert get_time_windows(None, None) == (None, None)
-    assert get_time_windows(0.0, None) == (None, None)
-    assert get_time_windows(None, (1.0, 2.0)) == (None, None)
+    # No bounds
+    assert get_time_windows(None, None, None, None) == (None, None)
 
-    result = get_time_windows(0.0, (-1.0, 2.0))
+    # No t0
+    assert get_time_windows(0.0, None, None, None) == (None, None)
+    assert get_time_windows(None, None, (1.0, 2.0), None) == (None, None)
+    assert get_time_windows(None, None, None, (1.0, 2.0)) == (None, None)
+    assert get_time_windows(0.0, 2.0, None, None) == (None, None)
+    assert get_time_windows(None, 2.0, (1.0, 2.0), None) == (None, None)
+    assert get_time_windows(None, 2.0, None, (1.0, 2.0)) == (None, None)
+
+    # t0 = 0.0, z=1.0, time_window = (1.0, 2.0) in observer frame
+    result = get_time_windows(0.0, 1.0, (-1.0, 2.0), None)
     assert np.array_equal(result[0], np.array([-1.0]))
     assert np.array_equal(result[1], np.array([2.0]))
 
-    result = get_time_windows(1.0, (None, 2.0))
+    # t0 = 0.0, z=1.0, time_window = (inf, 2.0) in observer frame
+    result = get_time_windows(1.0, 1.0, (None, 2.0), None)
     assert result[0] is None
     assert np.array_equal(result[1], np.array([3.0]))
 
-    result = get_time_windows(-10.0, (-1.0, None))
+    # t0 = -10.0, z=1.0, time_window = (-1.0, inf) in observer frame
+    result = get_time_windows(-10.0, 1.0, (-1.0, None), None)
     assert np.array_equal(result[0], np.array([-11.0]))
     assert result[1] is None
 
-    result = get_time_windows(np.array([0.0, 1.0, 2.0]), (-1.0, 2.0))
+    # t0 = array, z=1.0, time_window = (-1.0, 2.0) in observer frame
+    result = get_time_windows(np.array([0.0, 1.0, 2.0]), 1.0, (-1.0, 2.0), None)
     assert np.array_equal(result[0], np.array([-1.0, 0.0, 1.0]))
     assert np.array_equal(result[1], np.array([2.0, 3.0, 4.0]))
 
+    # Wrong size bounds tuple.
     with pytest.raises(ValueError):
-        get_time_windows(0.0, (1.0, 2.0, 3.0))
+        get_time_windows(0.0, None, (1.0, 2.0, 3.0), None)
+
+    # t0 = array, z=1.5
+    # time_window = (inf, 2.0) in rest frame = (inf, 5.0) in observer frame
+    result = get_time_windows(np.array([0.0, 1.0, 2.0]), 1.5, None, (None, 2.0))
+    assert result[0] is None
+    assert np.array_equal(result[1], np.array([5.0, 6.0, 7.0]))
+
+    # t0 = array, z=2.0
+    # time_window = (-1.0, inf) in rest frame = (-3.0, inf) in observer frame
+    result = get_time_windows(np.array([0.0, 1.0, 2.0]), 2.0, None, (-1.0, None))
+    assert np.array_equal(result[0], np.array([-3.0, -2.0, -1.0]))
+    assert result[1] is None
+
+    # t0 = array, z=1.0
+    # time_window = (-1.0, 2.0) in rest frame = (-2.0, 4.0) in observer frame
+    result = get_time_windows(np.array([0.0, 1.0, 2.0]), 1.0, None, (-1.0, 2.0))
+    assert np.array_equal(result[0], np.array([-2.0, -1.0, 0.0]))
+    assert np.array_equal(result[1], np.array([4.0, 5.0, 6.0]))
+
+    # t0 = array, z = array, time_window = (-1.0, 2.0) in rest frame.
+    # The obs frame windows get larger as z increases.
+    result = get_time_windows(
+        np.array([0.0, 1.0, 2.0]),  # Different t0 values
+        np.array([1.0, 1.5, 2.0]),  # Different z values
+        None,
+        (-1.0, 2.0),
+    )
+    assert np.array_equal(result[0], np.array([-2.0, -1.5, -1.0]))
+    assert np.array_equal(result[1], np.array([4.0, 6.0, 8.0]))
+
+    with pytest.raises(ValueError):
+        # No z value provided.
+        result = get_time_windows(np.array([0.0, 1.0, 2.0]), None, None, (-1.0, 2.0))
+
+    with pytest.raises(ValueError):
+        # Wrong size bounds.
+        result = get_time_windows(np.array([0.0, 1.0, 2.0]), None, None, (-1.0, 2.0, 3.0))
 
 
 def test_simulation_info():
@@ -83,11 +132,11 @@ def test_simulation_info():
         num_samples=100,
         obstable=ops_data,
         passbands=pb_group,
-        time_window_offset=(-5.0, 10.0),  # A keyword argument to test
+        obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
         rng=np.random.default_rng(12345),
     )
     assert sim_info.num_samples == 100
-    assert sim_info.time_window_offset == (-5.0, 10.0)
+    assert sim_info.obs_time_window_offset == (-5.0, 10.0)
 
     # Test splitting into batches.
     batches = sim_info.split(num_batches=3)
@@ -100,9 +149,9 @@ def test_simulation_info():
     assert batches[2].sample_offset == 68
 
     # We propagate all the keyword parameters.
-    assert batches[0].time_window_offset == (-5.0, 10.0)
-    assert batches[1].time_window_offset == (-5.0, 10.0)
-    assert batches[2].time_window_offset == (-5.0, 10.0)
+    assert batches[0].obs_time_window_offset == (-5.0, 10.0)
+    assert batches[1].obs_time_window_offset == (-5.0, 10.0)
+    assert batches[2].obs_time_window_offset == (-5.0, 10.0)
 
     # They have different RNGs with different sampling states.
     assert batches[0].rng is not batches[1].rng
@@ -135,7 +184,7 @@ def test_simulation_info():
             num_samples=-10,
             obstable=ops_data,
             passbands=pb_group,
-            time_window_offset=(-5.0, 10.0),  # A keyword argument to test
+            obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
             rng=np.random.default_rng(12345),
         )
 
@@ -546,32 +595,52 @@ def test_simulate_with_time_window(test_data_dir):
     # values that match the opsim.
     source = ConstantSEDModel(
         brightness=1000.0,
-        t0=GivenValueList([20.0, 15.0]),
+        t0=GivenValueList([20.0, 15.0, 20.0, 15.0, 20.0, 15.0, 20.0, 15.0]),
         ra=15.0,
         dec=10.0,
-        redshift=0.0,
+        redshift=1.5,
         node_label="source",
     )
 
-    results = simulate_lightcurves(
+    # Define the time window in the observer frame as (-5, 10) days from t0.
+    results1 = simulate_lightcurves(
         source,
         2,
         opsim_db,
         passband_group,
-        time_window_offset=(-5.0, 10.0),
+        obs_time_window_offset=(-5.0, 10.0),
     )
-    assert len(results) == 2
+    assert len(results1) == 2
 
     # We should simulate the observations that are only within the time window, (15.0, 30.0) for the
     # first samples and (10.0, 25.0) for the second sample, and at the matching RA/Dec (the even indices).
     assert np.array_equal(
-        results["lightcurve"][0]["mjd"],
+        results1["lightcurve"][0]["mjd"],
         np.array([16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0, 30.0]),
     )
     assert np.array_equal(
-        results["lightcurve"][1]["mjd"],
+        results1["lightcurve"][1]["mjd"],
         np.array([10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0]),
     )
+
+    # Define the time window in the rest frame as (5, 15) days from t0.
+    results2 = simulate_lightcurves(
+        source,
+        2,
+        opsim_db,
+        passband_group,
+        rest_time_window_offset=(-5.0, 5.0),
+    )
+    assert len(results2) == 2
+
+    # We should simulate the observations that are only within the time window:
+    # First sample (t0=20.0, z=1.5) =>
+    # (20.0 - 5.0 * (1.0 + 1.5), 20 + 5.0 * (1.0 + 1.5)) = (7.5, 32.5)
+    # Second sample (t0=15.0, z=1.5) =>
+    # (15.0 - 5.0 * (1.0 + 1.5), 15 + 5.0 * (1.0 + 1.5)) = (2.5, 27.5)
+    # We only sample evens because of the RA/Dec match.
+    assert np.array_equal(results2["lightcurve"][0]["mjd"].values, np.arange(8.0, 33.0, 2.0))
+    assert np.array_equal(results2["lightcurve"][1]["mjd"].values, np.arange(4.0, 28.0, 2.0))
 
 
 def test_simulate_multiple_surveys(test_data_dir):

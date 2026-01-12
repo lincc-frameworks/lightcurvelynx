@@ -32,11 +32,16 @@ class SimulationInfo:
         The ObsTable(s) from which to extract information for the samples.
     passbands : PassbandGroup or List of PassbandGroup
         The passbands to use for generating the bandfluxes.
-    time_window_offset : tuple(float, float), optional
+    obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
         specified observer-frame time window (t0 + start, t0 + end). If None or the model
         does not have a t0 specified, no time window is applied.
+    rest_time_window_offset : tuple(float, float), optional
+        A tuple specifying the rest-frame time window offset (start, end) relative
+        to t0 in days. This is used to filter the observations to only those within the
+        specified rest-frame time window (t0 + start, t0 + end). If None or the model
+        does not have a t0 and redshift specified, no time window is applied.
     obstable_save_cols : list of str, optional
         A list of ObsTable columns to be saved as part of the results. This is used
         to save context information about how the light curves were generated. If the column
@@ -69,7 +74,8 @@ class SimulationInfo:
         *,
         obstable_save_cols=None,
         param_cols=None,
-        time_window_offset=None,
+        obs_time_window_offset=None,
+        rest_time_window_offset=None,
         sample_offset=0,
         rng=None,
         output_file_path=None,
@@ -79,7 +85,8 @@ class SimulationInfo:
         self.num_samples = num_samples
         self.obstable = obstable
         self.passbands = passbands
-        self.time_window_offset = time_window_offset
+        self.obs_time_window_offset = obs_time_window_offset
+        self.rest_time_window_offset = rest_time_window_offset
         self.obstable_save_cols = obstable_save_cols
         self.param_cols = param_cols
         self.sample_offset = sample_offset
@@ -164,7 +171,8 @@ class SimulationInfo:
                 passbands=self.passbands,
                 obstable_save_cols=self.obstable_save_cols,
                 param_cols=self.param_cols,
-                time_window_offset=self.time_window_offset,
+                obs_time_window_offset=self.obs_time_window_offset,
+                rest_time_window_offset=self.rest_time_window_offset,
                 sample_offset=self.sample_offset + start_idx,
                 rng=batch_rng,
                 output_file_path=batch_output_file_path,
@@ -174,37 +182,67 @@ class SimulationInfo:
         return batches
 
 
-def get_time_windows(t0, time_window_offset):
+def get_time_windows(t0, z, obs_time_window_offset, rest_time_window_offset):
     """Get the time windows for each sample state based on the time window offset.
 
     Parameters
     ----------
     t0 : float or np.ndarray, optional
         The reference time (t0) for the time windows.
-    time_window_offset : tuple(float, float), optional
+    z : float or np.ndarray, optional
+        The redshift for the time windows.
+    obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
+        to t0 in days. If None, no time window is applied.
+    rest_time_window_offset : tuple(float, float), optional
+        A tuple specifying the rest-frame time window offset (start, end) relative
         to t0 in days. If None, no time window is applied.
 
     Returns
     -------
     start_times : np.ndarray or None
-        The start times for each sample t0 + time_window_offset[0] in the observer frame.
+        The start times for each sample (t0 + an offset) in the observer frame.
         If a before time is given, this is always returned as an array (even if t0 is a scalar).
         None returned if there is no start time.
     end_times : np.ndarray or None
-        The end times for each sample t0 + time_window_offset[1] in the observer frame.
+        The end times for each sample (t0 + an offset) in the observer frame.
         If an after time is given, this is always returned as an array (even if t0 is a scalar).
         None returned if there is no end time.
     """
-    # If the model did not have a t0 or we do not have a time_window_offset,
-    # we cannot apply a time window.
-    if t0 is None or time_window_offset is None:
-        return None, None
-    if len(time_window_offset) != 2:
-        raise ValueError("time_window_offset must be a tuple of (before, after) in days.")
-    before, after = time_window_offset
+    if rest_time_window_offset is not None and obs_time_window_offset is not None:
+        raise ValueError("Only one of obs_time_window_offset or rest_time_window_offset can be provided.")
 
-    # If t0 is a scalar apply the offset directly.
+    # If the model did not have a t0 or we do not have a time offsets (in either frame),
+    # we cannot apply a time window.
+    if t0 is None or (obs_time_window_offset is None and rest_time_window_offset is None):
+        return None, None
+
+    # If we have a rest-frame time window, convert it to observer-frame.
+    if rest_time_window_offset is not None:
+        if z is None:
+            raise ValueError("Redshift must be provided when using rest_time_window_offset.")
+        elif np.isscalar(z):
+            z = np.full(len(t0), z)
+        elif len(z) != len(t0):  # pragma: no cover
+            raise ValueError("Length of redshift array must match length of t0 array.")
+
+        if len(rest_time_window_offset) != 2:
+            raise ValueError("rest_time_window_offset must be a tuple of (before, after) in days.")
+
+        before = rest_time_window_offset[0]
+        if before is not None:
+            before = before * (1 + z)
+
+        after = rest_time_window_offset[1]
+        if after is not None:
+            after = after * (1 + z)
+    else:
+        # We are using observer-frame time windows.
+        if len(obs_time_window_offset) != 2:
+            raise ValueError("obs_time_window_offset must be a tuple of (before, after) in days.")
+        before, after = obs_time_window_offset
+
+    # If t0 is a scalar, apply the offset directly.
     if np.isscalar(t0):
         t0 = np.array([t0])
     start_times = t0 + before if before is not None else None
@@ -315,7 +353,9 @@ def _simulate_lightcurves_batch(simulation_info):
     logger.info("Performing range searches to find matching observations.")
     start_times, end_times = get_time_windows(
         model.get_param(sample_states, "t0"),
-        simulation_info.time_window_offset,
+        model.get_param(sample_states, "redshift"),
+        simulation_info.obs_time_window_offset,
+        simulation_info.rest_time_window_offset,
     )
     all_obs_matches = [
         obstable[i].range_search(ra, dec, t_min=start_times, t_max=end_times) for i in range(num_surveys)
@@ -438,7 +478,8 @@ def simulate_lightcurves(
     *,
     obstable_save_cols=None,
     param_cols=None,
-    time_window_offset=None,
+    obs_time_window_offset=None,
+    rest_time_window_offset=None,
     output_file_path=None,
     rng=None,
     executor=None,
@@ -466,11 +507,18 @@ def simulate_lightcurves(
         The ObsTable(s) from which to extract information for the samples.
     passbands : PassbandGroup or List of PassbandGroup
         The passbands to use for generating the bandfluxes.
-    time_window_offset : tuple(float, float), optional
+    obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
         specified observer-frame time window (t0 + start, t0 + end). If None or the model
-        does not have a t0 specified, no time window is applied.
+        does not have a t0 specified, no time window is applied. May not be used together
+        with rest_time_window_offset.
+    rest_time_window_offset : tuple(float, float), optional
+        A tuple specifying the rest-frame time window offset (start, end) relative
+        to t0 in days. This is used to filter the observations to only those within the
+        specified rest-frame time window (t0 + start, t0 + end). If None or the model
+        does not have a t0 and redshift specified, no time window is applied. May not be used
+        together with obs_time_window_offset.
     obstable_save_cols : list of str, optional
         A list of ObsTable columns to be saved as part of the results. This is used
         to save context information about how the light curves were generated. If the column
@@ -516,7 +564,8 @@ def simulate_lightcurves(
         obstable=obstable,
         passbands=passbands,
         rng=rng,
-        time_window_offset=time_window_offset,
+        obs_time_window_offset=obs_time_window_offset,
+        rest_time_window_offset=rest_time_window_offset,
         obstable_save_cols=obstable_save_cols,
         param_cols=param_cols,
         output_file_path=output_file_path,
