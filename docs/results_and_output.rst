@@ -28,11 +28,20 @@ Pandas DataFrame with one row for each observation.
     print("The first object's light curve:")
     print(lightcurve)
 
+The key columns in the nested light curve DataFrame are:
 
-The nested light curve DataFrame also contains book keeping information that can be useful in ad hoc post analysis.
-If multiple survey's are used for the simulation, the ``survey_idx`` column indicates from which survey the observation
-is drawn. The ``obs_idx`` indicates the observation's corresponding index in that survey's ``ObsTable``, allowing
-the user extract other columns from that table.
+    * ``mjd``: The Modified Julian Date of the observation.
+    * ``filter``: The filter name for the observation.
+    * ``flux``: The observed flux in nJy for the object at that time and filter. This is what is read out of the sensor.
+    * ``fluxerr``: The uncertainty on the observed flux.
+    * ``flux_perfect``: The underlying flux (in nJy) for the object as it reaches the Earth's atmosphere. This represents the object's flux with all effects applied (except atmosphere/sensor noise).
+
+The nested light curve DataFrame also contains book keeping information that can be useful in ad hoc post analysis:
+
+    * ``survey_idx``: The index of the survey from which the observation was drawn (from the list of surveys provided to the simulator). Always 0 if only one survey is provided.
+    * ``obs_idx``: The index of the observation in the survey's ``ObsTable``. This allows the user to lookup additional information about the observation from the survey's observation table.
+    * ``is_saturated``: A boolean flag indicating whether the observation is saturated.
+
 
 Saved Simulation State
 -------------------------------------------------------------------------------

@@ -104,13 +104,17 @@ def test_norm_star_center_distance_with_spherical_geometry():
     n_samples = 100
     phase = np.random.uniform(0, 1, n_samples)
     inclination = np.random.uniform(0, 90, n_samples)
-
     phase_radians = 2 * np.pi * phase
+
     # Let secondary orbit define x' y' plane, then coordinates are:
     x_prime, y_prime, z_prime = np.cos(phase_radians), np.sin(phase_radians), np.zeros_like(phase_radians)
+
     # Rotate x' y' z' to x y z plane with matrix multiplication.
     # Angle between z and z' is inclination, y is y', so we rotate about y axis.
-    rotation = Rotation.from_euler("y", 90.0 - inclination, degrees=True)
+    # We need to reshape inclination to (n_samples, 1).
+    rotation_amt = (90.0 - inclination).reshape(-1, 1)
+    rotation = Rotation.from_euler("y", rotation_amt, degrees=True)
+
     x, y, z = rotation.apply(np.stack([x_prime, y_prime, z_prime], axis=-1)).T
     # x is looking to the observer, y and z are the observer's plane.
     expected_distance = np.hypot(y, z)

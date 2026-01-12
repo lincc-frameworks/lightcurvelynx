@@ -177,4 +177,7 @@ class ExtinctionEffect(EffectModel, CiteClass):
         if wavelengths is None:
             raise ValueError("wavelengths must be provided")
 
-        return flux_density * self.extinction_model.extinguish(wavelengths * u.angstrom, Ebv=ebv)
+        # The extinction factor computed by dust_extinction is a multiplicative
+        # factor to reduce the flux (<= 1 for all wavelengths).
+        ext_factor = self.extinction_model.extinguish(wavelengths * u.angstrom, Ebv=ebv)
+        return flux_density * ext_factor

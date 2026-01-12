@@ -26,6 +26,12 @@ def ra_dec_to_cartesian(ra, dec):
     z: float or numpy.ndarray
         Z coordinate.
     """
+    # Check the bounds of the inputs and handle wrapping in RA.
+    ra = np.asarray(ra) % 360.0
+    dec = np.asarray(dec)
+    if np.any(dec < -90.0) or np.any(dec > 90.0):
+        raise ValueError("Declination values must be in the range [-90, 90] degrees.")
+
     ra_rad = np.radians(ra)
     dec_rad = np.radians(dec)
 

@@ -336,12 +336,60 @@ class ExponentialDecay(FluxExtrapolationModel):
         return flux
 
 
-class LinearFit(FluxExtrapolationModel):
-    """Linear extrapolation based on a linear fit to the last few points."""
+def _bin_rows_median(last_fluxes, nbin, *, nan_safe=True):
+    """Bin the input fluxes on the first axis given number of bins and return the median values
+       of each bin. This is used for binning the last fluxes to avoid extrapolating to extreme
+       values.
 
-    def __init__(self, nfit=5):
+    Parameters
+    ----------
+    last_fluxes : np.ndarray
+        A N x T array of the input fluxes to be binned.
+    nbin : int
+        Number of bins along the first axis.
+    nan_safe : bool, optional
+        If True, use np.nanmedian (ignore NaNs).
+        If False, use np.median.
+
+    Returns
+    -------
+    binned_fluxes : np.ndarray
+        A nbin x T array of the binned fluxes.
+    """
+    last_fluxes = np.asarray(last_fluxes)
+    N, T = last_fluxes.shape
+
+    if nbin > N:
+        raise ValueError("nbin must be smaller or equal to N")
+    # Bin edges that evenly partition rows
+    edges = np.linspace(0, N, nbin + 1, dtype=int)
+
+    binned_fluxes = np.empty((nbin, T), dtype=float)
+    for b in range(nbin):
+        lo, hi = edges[b], edges[b + 1]
+        chunk = last_fluxes[lo:hi]
+
+        binned_fluxes[b] = np.nanmedian(chunk, axis=0) if nan_safe else np.median(chunk, axis=0)
+
+    return binned_fluxes
+
+
+class LinearFit(FluxExtrapolationModel):
+    """Linear extrapolation based on a linear fit to the last few points.
+
+    Parameters
+    ----------
+    nfit : int
+        The number of points to be used for extrapolation. (Default is 5)
+    nbin : int
+        The number of bins to be used to bin the last fluxes. This can be used to avoid extrapolating
+        to extreme values when models are not well-behaved in smaller bins.
+    """
+
+    def __init__(self, nfit=5, nbin=None):
         super().__init__()
         self.nfit = nfit
+        self.nbin = nbin
 
     def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
@@ -368,21 +416,51 @@ class LinearFit(FluxExtrapolationModel):
         if len(last_values) <= 1:
             raise ValueError("Need at least two points to extrapolate using this method.")
 
-        A = np.vstack([last_values, np.ones_like(last_values)]).T
-        coeffs = np.linalg.lstsq(A, last_fluxes.T, rcond=None)[0]
+        N = last_fluxes.shape[0]
 
+        if self.nbin is None:
+            binned_fluxes = last_fluxes
+        else:
+            # guard: can't have more bins than rows
+            nbin = int(min(self.nbin, N))
+            binned_fluxes = _bin_rows_median(last_fluxes, nbin=nbin, nan_safe=True)
+
+        A = np.column_stack([last_values, np.ones_like(last_values)])
+        B = np.array(binned_fluxes, dtype=float, copy=True).T
+
+        coeffs = np.linalg.lstsq(A, B, rcond=None)[0]
         slope, intercept = coeffs
-        flux = slope[:, None] * query_values + intercept[:, None]
-        flux = np.clip(flux, 0.0, None)
+
+        # (nbin, M)
+        flux_binned = slope[:, None] * query_values[None, :] + intercept[:, None]
+        flux_binned = np.clip(flux_binned, 0.0, None)
+
+        # Expand back to (N, M): row i gets its bin's curve
+        if self.nbin is None:
+            flux = flux_binned
+        else:
+            row_to_bin = (np.arange(N) * nbin) // N
+            flux = flux_binned[row_to_bin]
+
         return flux
 
 
 class LinearFitOnMag(FluxExtrapolationModel):
-    """Linear extrapolation based on a linear fit to the coverted magnitude of the last few points."""
+    """Linear extrapolation based on a linear fit to the coverted magnitude of the last few points.
 
-    def __init__(self, nfit=5):
+    Parameters
+    ----------
+    nfit : int
+        The number of points to be used for extrapolation. (Default is 5)
+    nbin : int
+        The number of bins to be used to bin the last fluxes. This can be used to avoid extrapolating
+        to extreme values when models are not well-behaved in smaller bins.
+    """
+
+    def __init__(self, nfit=5, nbin=None):
         super().__init__()
         self.nfit = nfit
+        self.nbin = nbin
 
     def _extrapolate(self, last_values, last_fluxes, query_values):
         """Evaluate the extrapolation given the last valid points(s) and a list of new
@@ -409,11 +487,33 @@ class LinearFitOnMag(FluxExtrapolationModel):
         if len(last_values) <= 1:
             raise ValueError("Need at least two points to extrapolate using this method.")
 
+        N = last_fluxes.shape[0]
+
         last_fluxes = np.clip(last_fluxes, 1.0e-40, None)
         last_fluxes = flux2mag(last_fluxes)
-        A = np.vstack([last_values, np.ones_like(last_values)]).T
-        coeffs = np.linalg.lstsq(A, last_fluxes.T, rcond=None)[0]
 
+        if self.nbin is None:
+            binned_fluxes = last_fluxes
+        else:
+            # guard: can't have more bins than rows (otherwise some bins empty -> median NaN)
+            nbin = int(min(self.nbin, N))
+            binned_fluxes = _bin_rows_median(last_fluxes, nbin=nbin, nan_safe=True)
+
+        A = np.column_stack([last_values, np.ones_like(last_values)])
+        B = np.array(binned_fluxes, dtype=float, copy=True).T
+
+        coeffs = np.linalg.lstsq(A, B, rcond=None)[0]
         slope, intercept = coeffs
-        flux = slope[:, None] * query_values + intercept[:, None]
+
+        # (nbin, M)
+        flux_binned = slope[:, None] * query_values[None, :] + intercept[:, None]
+        flux_binned = np.clip(flux_binned, 0.0, None)
+
+        if self.nbin is None:
+            flux = flux_binned
+        else:
+            # Expand back to (N, M): row i gets its bin's curve
+            row_to_bin = (np.arange(N) * nbin) // N
+            flux = flux_binned[row_to_bin]
+
         return mag2flux(flux)

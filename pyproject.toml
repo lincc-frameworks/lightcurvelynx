@@ -22,7 +22,7 @@ dependencies = [
     "citation-compass>=0.0.3",
     "matplotlib",
     "mocpy",
-    "nested-pandas",
+    "nested-pandas>=0.6.0",
     "networkx",  # Used for graph visualization
     "numpy>=2.0",
     "pandas",

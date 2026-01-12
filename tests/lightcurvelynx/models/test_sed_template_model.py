@@ -94,6 +94,38 @@ def test_linear_sed_template_data() -> None:
         )
 
 
+def test_linear_sed_template_unsorted_data() -> None:
+    """Test that we can create a SEDTemplate object if the data is unsorted."""
+    data = np.array(
+        [
+            [1.0, 1000.0, 10.0],
+            [1.0, 2000.0, 20.0],
+            [3.0, 2000.0, 30.0],
+            [3.0, 1000.0, 20.0],
+            [2.0, 1000.0, 15.0],
+            [2.0, 2000.0, 25.0],
+        ]
+    )
+    data_obj = SEDTemplate(data, interpolation_type="linear", periodic=False)
+    assert not data_obj.is_periodic
+    assert data_obj.period is None
+    assert np.allclose(data_obj.times, np.array([1.0, 2.0, 3.0]))
+    assert np.allclose(data_obj.wavelengths, np.array([1000.0, 2000.0]))
+
+    eval_times = np.array([-1.5, 1.5, 2.5, 3.5])
+    eval_waves = np.array([1000.0, 2000.0])
+    sed_values = data_obj.evaluate_sed(eval_times, eval_waves)
+    expected_values = np.array(
+        [
+            [0.0, 0.0],  # 0.0 when not baseline provided
+            [12.5, 22.5],
+            [17.5, 27.5],
+            [0.0, 0.0],  # 0.0 when not baseline provided
+        ]
+    )
+    assert np.allclose(sed_values, expected_values)
+
+
 def test_linear_sed_template_data_periodic() -> None:
     """Test that we can create periodic SEDTemplate object with linear interpolation."""
     data = np.array(

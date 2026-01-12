@@ -194,3 +194,69 @@ def test_linear_fit_on_mag_extrapolate():
     expected_flux = mag2flux(np.repeat([[21.6], [21.8], [22.0]], 5, axis=1)).T
     result = extrapolator.extrapolate_wavelength(last_waves, last_fluxes, query_waves)
     np.testing.assert_allclose(result, expected_flux)
+
+
+def test_linear_fit_extrapolate_binning():
+    """Test that binning works for LinearFit"""
+
+    extrapolator = LinearFit(nbin=1)
+    assert extrapolator.nbin == 1
+
+    last_times = np.array([30.0, 40.0, 50.0, 55.0])
+    last_fluxes = np.repeat(
+        [[300.0, 305.0, 295.0], [250.0, 255.0, 245.0], [200.0, 205.0, 195.0], [175.0, 170.0, 180.0]],
+        5,
+        axis=1,
+    )
+    query_times = np.array([60.0, 70.0, 80.0])
+    expected_flux = np.repeat([[150.0], [100.0], [50.0]], 15, axis=1)
+    result = extrapolator.extrapolate_time(last_times, last_fluxes, query_times)
+    np.testing.assert_allclose(result, expected_flux)
+
+    extrapolator = LinearFit(nbin=20)
+    last_times = np.array([30.0, 40.0, 50.0, 55.0])
+    last_fluxes = np.repeat(
+        [[300.0, 305.0, 295.0], [250.0, 255.0, 245.0], [200.0, 205.0, 195.0], [175.0, 180.0, 170.0]],
+        5,
+        axis=1,
+    )
+    query_times = np.array([60.0, 70.0, 80.0])
+    expected_flux = np.repeat([[150.0, 155.0, 145.0], [100.0, 105.0, 95.0], [50.0, 55.0, 45.0]], 5, axis=1)
+    result = extrapolator.extrapolate_time(last_times, last_fluxes, query_times)
+    np.testing.assert_allclose(result, expected_flux)
+
+
+def test_linear_fit_on_mag_extrapolate_binning():
+    """Test that binning works for LinearFitOnMag"""
+
+    extrapolator = LinearFitOnMag(nbin=1)
+    assert extrapolator.nbin == 1
+
+    last_times = np.array([30.0, 40.0, 50.0, 55.0])
+    last_fluxes = mag2flux(
+        np.repeat(
+            [[21.0, 21.05, 20.95], [21.2, 21.15, 21.25], [21.4, 21.35, 21.45], [21.5, 21.45, 21.55]],
+            5,
+            axis=1,
+        )
+    )
+    query_times = np.array([60.0, 70.0, 80.0])
+    expected_flux = mag2flux(np.repeat([[21.6], [21.8], [22.0]], 15, axis=1))
+    result = extrapolator.extrapolate_time(last_times, last_fluxes, query_times)
+    np.testing.assert_allclose(result, expected_flux)
+
+    extrapolator = LinearFitOnMag(nbin=20)
+    last_times = np.array([30.0, 40.0, 50.0, 55.0])
+    last_fluxes = mag2flux(
+        np.repeat(
+            [[21.0, 20.95, 21.05], [21.2, 21.15, 21.25], [21.4, 21.35, 21.45], [21.5, 21.45, 21.55]],
+            5,
+            axis=1,
+        )
+    )
+    query_times = np.array([60.0, 70.0, 80.0])
+    expected_flux = mag2flux(
+        np.repeat([[21.6, 21.55, 21.65], [21.8, 21.75, 21.85], [22.0, 21.95, 22.05]], 5, axis=1)
+    )
+    result = extrapolator.extrapolate_time(last_times, last_fluxes, query_times)
+    np.testing.assert_allclose(result, expected_flux)
