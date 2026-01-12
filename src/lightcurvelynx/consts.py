@@ -40,7 +40,7 @@ ANGSTROM_TO_CM = (1.0 * u.AA).to_value(u.cm)
 CGS_FNU_UNIT_TO_NJY = (1.0 * u.erg / u.second / u.cm**2 / u.Hz).to_value(u.nJy)
 """Conversion factor from erg/s/cm²/Hz to nJy, 1e32."""
 
-MJD_OFFSET = 2400000.5
+MJD_TO_JD_OFFSET = 2400000.5
 """Conversion offset from MJD to JD."""
 
 # Plotting constants ----------------------------------------

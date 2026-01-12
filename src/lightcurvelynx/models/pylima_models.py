@@ -9,7 +9,7 @@ import numpy as np
 from citation_compass import CiteClass
 
 from lightcurvelynx.astro_utils.mag_flux import Mag2FluxNode
-from lightcurvelynx.consts import MJD_OFFSET
+from lightcurvelynx.consts import MJD_TO_JD_OFFSET
 from lightcurvelynx.models.physical_model import BandfluxModel
 from lightcurvelynx.utils.io_utils import SquashOutput
 
@@ -68,8 +68,14 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
     parallax_model : str, optional
         The pyLIMA parallax model type: 'None', 'Annual', 'Terrestrial', or 'Full'.
         The times for the parallax are automatically set during the evaluation.
-    blend_flux_parameter : str,
+    blend_flux_parameter : str, optional
         The pyLIMA blend flux parameter type: 'fblend', 'ftotal', or 'noblend'
+    time_frame_offset : float, optional
+        PyLIMA models use JD for time while users may specify any time system. This offset
+        is added to the input times to convert them to JD. By default, this is set to
+        MJD_TO_JD_OFFSET to convert from MJD to JD.
+    observer_location : str, optional
+        The location of the observer. Default is 'Earth'.
     **kwargs : dict, optional
         Any additional keyword arguments.
 
@@ -79,8 +85,13 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         The list of filters supported by this model.
     parallax_model : str, optional
         The pyLIMA parallax model type: 'None', 'Annual', 'Terrestrial', or 'Full'.
-    blend_flux_parameter : str,
+    blend_flux_parameter : str, optional
         The pyLIMA blend flux parameter type: 'fblend', 'ftotal', or 'noblend'
+    time_frame_offset: float, optional
+        PyLIMA models use JD for time while users may specify any time system. This offset
+        is added to the input times to convert them to JD.
+    observer_location : str, optional
+        The location of the observer.
     """
 
     def __init__(
@@ -92,9 +103,14 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         pylima_params=None,
         parallax_model="None",
         blend_flux_parameter="noblend",
+        time_frame_offset=MJD_TO_JD_OFFSET,
+        observer_location="Earth",
         **kwargs,
     ):
         super().__init__(**kwargs)
+
+        self.time_frame_offset = time_frame_offset
+        self.observer_location = observer_location
 
         # Save the pyLIMA parameters and add the corresponding model parameters.
         self.parallax_model = parallax_model
@@ -140,17 +156,18 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
             self._model_class = model_info
 
         # Create a dummy pyLIMA model instance to get the parameter names and
-        # check that they are all added.
+        # check that they are all added. We use an arbitrary test time for parallax.
+        test_time = 60676.0 + self.time_frame_offset
         with SquashOutput():
             event = self.make_pylima_event(
                 ra=0.0,
                 dec=0.0,
                 filter="r",
-                times=np.array([60676.0 + MJD_OFFSET]),
+                times=np.array([test_time]),
             )
             model = self._model_class(
                 event,
-                parallax=[self.parallax_model, 60676.0 + MJD_OFFSET],
+                parallax=[self.parallax_model, test_time],
                 blend_flux_parameter=self.blend_flux_parameter,
             )
 
@@ -195,7 +212,7 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
             # Create a telescope object for the given filter.
             tel = simulator.simulate_a_telescope(
                 name=filter,
-                location="Earth",
+                location=self.observer_location,
                 timestamps=times,
                 astrometry=False,
             )
@@ -236,8 +253,8 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
             ) from err
 
         # Compute the T0 in JD (which PyLIMA uses) from the MJD value in our parameters.
-        t0_jd = params["t0"] + MJD_OFFSET
-        times_jd = times + MJD_OFFSET
+        t0_jd = params["t0"] + self.time_frame_offset
+        times_jd = times + self.time_frame_offset
 
         # Squash pyLIMA's print output.
         with SquashOutput():
