@@ -663,3 +663,198 @@ def test_build_moc_footprint():
 
     coverage = ops_data.estimate_coverage(use_footprint=True, max_depth=14)
     assert coverage == pytest.approx(1.5, 0.1)  # 3 pointings x 0.5 deg^2 each
+
+
+def test_obstable_make_resampled_table():
+    """Test that we can create a resampled ObsTable."""
+    # Create a fake obs table data with some basic information.
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+        "filter": np.array(["r", "g", "i", "r", "i"]),
+        "exptime": np.array([30.0, 30.0, 30.0, 30.0, 45.0]),
+        "seeing": np.array([0.7, 0.8, 0.9, 1.0, 1.1]),
+        "sample_idx": np.array([0, 1, 2, 3, 4]),
+    }
+    saturation_mags = {"r": 16.0, "g": 17.0, "i": 18.0}
+    ops_data = ObsTable(
+        values,
+        pixel_scale=0.112,
+        radius=1.03,
+        survey_other=1.2,
+        apply_saturation=True,
+        saturation_mags=saturation_mags,
+    )
+
+    # Create a resampled ObsTable with double the pixel scale and half the radius.
+    new_times = np.arange(5.0, 10.0, 0.1)
+    resampled_table = ops_data.make_resampled_table(new_times)
+
+    # Check that the resampled table has the correct values in each entry.
+    assert np.array_equal(resampled_table["time"], new_times)
+    for sample_idx in range(5):
+        mask = resampled_table["sample_idx"] == sample_idx
+        assert np.allclose(resampled_table["ra"][mask], ops_data["ra"][sample_idx])
+        assert np.allclose(resampled_table["dec"][mask], ops_data["dec"][sample_idx])
+        assert np.allclose(resampled_table["zp"][mask], ops_data["zp"][sample_idx])
+        assert np.allclose(resampled_table["exptime"][mask], ops_data["exptime"][sample_idx])
+        assert np.allclose(resampled_table["seeing"][mask], ops_data["seeing"][sample_idx])
+
+        expected_filters = np.array([ops_data["filter"][sample_idx]] * np.sum(mask))
+        assert np.array_equal(resampled_table["filter"][mask], expected_filters)
+
+    # Check that the survey values have been copied.
+    for key, value in ops_data.survey_values.items():
+        assert resampled_table.survey_values[key] == value
+
+    # Check that we copied over the saturation mags, detector footprint, etc.
+    assert set(resampled_table.filters) == set(ops_data.filters)
+    assert resampled_table._detector_footprint is None
+    assert resampled_table.uses_saturation()
+    for key, value in saturation_mags.items():
+        assert resampled_table._saturation_mags[key] == pytest.approx(value)
+
+
+def test_obstable_make_resampled_table_overwrite():
+    """Test that we can create a resampled ObsTable and overwrite (ra, dec) and filter."""
+    # Create a fake obs table data with some basic information.
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+        "filter": np.array(["r", "g", "i", "r", "i"]),
+        "exptime": np.array([30.0, 30.0, 30.0, 30.0, 45.0]),
+        "seeing": np.array([0.7, 0.8, 0.9, 1.0, 1.1]),
+        "sample_idx": np.array([0, 1, 2, 3, 4]),
+    }
+    detector_footprint = DetectorFootprint.from_sky_rect(0.5, 0.5, pixel_scale=36.0)
+    saturation_mags = {"r": 16.0, "g": 17.0, "i": 18.0}
+
+    ops_data = ObsTable(
+        values,
+        detector_footprint=detector_footprint,
+        saturation_mags=saturation_mags,
+        apply_saturation=True,
+    )
+
+    # Create a resampled ObsTable with some new values.
+    new_times = np.arange(5.0, 10.0, 0.1)
+    new_ra = np.arange(len(new_times)) * 0.1
+    new_dec = np.arange(len(new_times)) * -0.1
+    new_filter = np.array(["r"] * len(new_times))
+
+    new_saturation_mags = {"r": 20.0, "g": 21.0, "i": 22.0}
+    resampled_table = ops_data.make_resampled_table(
+        new_times,
+        ra=new_ra,
+        dec=new_dec,
+        filter=new_filter,
+        saturation_mags=new_saturation_mags,
+        dark_current=0.05,
+    )
+
+    # Check that the resampled table has the correct values in each entry.
+    assert np.array_equal(resampled_table["time"], new_times)
+    assert np.array_equal(resampled_table["ra"], new_ra)
+    assert np.array_equal(resampled_table["dec"], new_dec)
+    assert np.array_equal(resampled_table["filter"], new_filter)
+    for sample_idx in range(5):
+        mask = resampled_table["sample_idx"] == sample_idx
+        assert np.allclose(resampled_table["zp"][mask], ops_data["zp"][sample_idx])
+        assert np.allclose(resampled_table["exptime"][mask], ops_data["exptime"][sample_idx])
+        assert np.allclose(resampled_table["seeing"][mask], ops_data["seeing"][sample_idx])
+
+    # Check that we copied over all the metadata except the items we overwrote.
+    assert set(resampled_table.filters) == set(["r"])
+    for key, value in ops_data.survey_values.items():
+        if key == "dark_current":
+            assert resampled_table.survey_values[key] == 0.05
+        else:
+            assert resampled_table.survey_values[key] == value
+    assert resampled_table._detector_footprint is detector_footprint
+
+    assert resampled_table.uses_saturation()
+    for key, value in new_saturation_mags.items():
+        assert resampled_table._saturation_mags[key] == pytest.approx(value)
+
+
+def test_obstable_make_resampled_table_overwrite_single():
+    """Test that we can create a resampled ObsTable and overwrite (ra, dec) and filter
+    with a single sample value."""
+    # Create a fake obs table data with some basic information.
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+        "filter": np.array(["r", "g", "i", "r", "i"]),
+    }
+    ops_data = ObsTable(values)
+
+    # Create a resampled ObsTable with some new values.
+    new_ra = 12.34
+    new_dec = -5.67
+    new_filter = "g"
+    new_times = np.arange(5.0, 10.0, 0.1)
+    resampled_table = ops_data.make_resampled_table(
+        new_times,
+        ra=new_ra,
+        dec=new_dec,
+        filter=new_filter,
+    )
+
+    # Check that the resampled table has the correct values in each entry.
+    assert np.allclose(resampled_table["time"], new_times)
+    assert np.allclose(resampled_table["ra"], new_ra)
+    assert np.allclose(resampled_table["dec"], new_dec)
+    assert np.all(resampled_table["filter"] == new_filter)
+    assert set(resampled_table.filters) == set([new_filter])
+
+
+def test_obstable_make_resampled_table_fail():
+    """Test that we fail to create a resampled ObsTable with bad inputs."""
+    # Create a fake obs table data with some basic information.
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+        "filter": np.array(["r", "g", "i", "r", "i"]),
+    }
+    ops_data = ObsTable(values)
+
+    new_times = np.arange(5.0, 10.0, 0.1)
+
+    # Dec but no RA.
+    with pytest.raises(ValueError):
+        _ = ops_data.make_resampled_table(new_times, ra=None, dec=np.full_like(new_times, 1.0))
+
+    # RA but no Dec.
+    with pytest.raises(ValueError):
+        _ = ops_data.make_resampled_table(new_times, ra=np.full_like(new_times, 1.0), dec=None)
+
+    # RA wrong length
+    with pytest.raises(ValueError):
+        _ = ops_data.make_resampled_table(
+            new_times,
+            ra=np.array([1.0, 2.0]),  # Wrong length
+            dec=np.full_like(new_times, 1.0),
+        )
+
+    # Dec wrong length
+    with pytest.raises(ValueError):
+        _ = ops_data.make_resampled_table(
+            new_times,
+            ra=np.full_like(new_times, 1.0),
+            dec=np.array([1.0, 2.0, 3.0]),  # Wrong length
+        )
+
+    # Filters wrong length
+    with pytest.raises(ValueError):
+        _ = ops_data.make_resampled_table(
+            new_times,
+            filter=np.array(["r", "g", "i"]),  # Wrong length
+        )
