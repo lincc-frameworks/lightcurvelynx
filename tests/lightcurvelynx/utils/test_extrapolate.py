@@ -6,6 +6,7 @@ from lightcurvelynx.utils.extrapolate import (
     ExponentialDecay,
     LastValue,
     LinearDecay,
+    LinearDecayOnMag,
     LinearFit,
     LinearFitOnMag,
     ZeroPadding,
@@ -130,6 +131,37 @@ def test_linear_decay_extrapolate():
     # Test that we fail if the decay width is not positive
     with pytest.raises(ValueError):
         _ = LinearDecay(decay_width=-1.0)
+
+
+def test_linear_decay_on_mag_extrapolate():
+    """Test that the linear decay function works."""
+    decay_rate = 0.1
+    extrapolator = LinearDecayOnMag(decay_rate=decay_rate, mag_thres=20.0)
+
+    # Test extrapolation past the last valid point.
+    last_wave = 1000.0
+    last_mag = np.array([10.0, 11.0, 12.0])
+    last_flux = mag2flux(last_mag)
+    query_waves = np.array([1000.0, 1025.0, 1050.0, 1075.0, 1100.0, 1150.0])
+    expected_mag = np.array(
+        [
+            [10.0, 12.5, 15.0, 17.5, 20.0, 20.0],
+            [11.0, 13.5, 16.0, 18.5, 20.0, 20.0],
+            [12.0, 14.5, 17.0, 19.5, 20.0, 20.0],
+        ]
+    )
+    expected_flux = mag2flux(expected_mag)
+    result = extrapolator.extrapolate_wavelength(last_wave, last_flux, query_waves)
+    np.testing.assert_allclose(result, expected_flux)
+
+    # Test extrapolation before the first valid point.
+    query_waves = np.array([1000.0, 975.0, 950.0, 925.0, 900.0, 850.0])
+    result = extrapolator.extrapolate_wavelength(last_wave, last_flux, query_waves)
+    np.testing.assert_allclose(result, expected_flux)
+
+    # Test that we fail if the decay rate is not positive
+    with pytest.raises(ValueError):
+        _ = LinearDecayOnMag(decay_rate=-1.0)
 
 
 def test_exponential_decay_extrapolate():
