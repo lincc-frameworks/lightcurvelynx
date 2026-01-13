@@ -293,8 +293,7 @@ class LinearDecayOnMag(FluxExtrapolationModel):
         linearly decreased to the mag_thres over this range.
     mag_thres : float or np.ndarray
         The mag threshold for the linear decay extraplation. Fluxes are capped at this value
-        for time/wavelength beyond this value
-        this value.
+        for time/wavelength beyond this value.
     """
 
     def __init__(self, decay_rate=0.02, mag_thres=40.0):
@@ -335,17 +334,15 @@ class LinearDecayOnMag(FluxExtrapolationModel):
 
         last_fluxes = np.asarray(last_fluxes).reshape(-1)
         last_fluxes = np.clip(last_fluxes, mag2flux(self.mag_thres), None)
-        last_fluxes = flux2mag(last_fluxes)
+        last_mags = flux2mag(last_fluxes)
 
         query_values = np.asarray(query_values)
 
         dist = np.abs(query_values - last_values)
 
-        flux = np.clip(
-            last_fluxes[:, np.newaxis] + dist[np.newaxis, :] * self.decay_rate, None, self.mag_thres
-        )
+        mag = np.clip(last_mags[:, np.newaxis] + dist[np.newaxis, :] * self.decay_rate, None, self.mag_thres)
 
-        return mag2flux(flux)
+        return mag2flux(mag)
 
 
 class ExponentialDecay(FluxExtrapolationModel):
