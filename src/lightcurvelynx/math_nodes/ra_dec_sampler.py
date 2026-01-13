@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 from astropy.coordinates import Angle, SkyCoord
 from cdshealpix.nested import healpix_to_skycoord
@@ -78,6 +79,8 @@ class ObsTableRADECSampler(TableSampler):
     """A FunctionNode that randomly samples RA and dec (and any extra columns) from
     around given data. This node is used for both sampling from a list of pointings
     (where the radius is the field of view) or sampling from a list of true objects.
+    This sampling strategy will return a visit-weighted distribution, so areas of the
+    sky that are observed more often will be sampled more often.
 
     Parameters
     ----------
@@ -363,7 +366,7 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
 
     def __init__(self, moc, *, outputs=None, seed=None, depth=12, **kwargs):
         if depth < 2 or depth > 29:
-            raise ValueError("Depth must be [2, 29]. Received {depth}")
+            raise ValueError(f"Depth must be [2, 29]. Received {depth}")
         self.depth = depth
         self.healpix_list = moc.to_order(depth).flatten()
 
@@ -446,6 +449,156 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
             max_depth=depth,
         )
         return cls(moc, depth=depth, **kwargs)
+
+    @classmethod
+    def from_obstable_union(
+        cls,
+        obstables,
+        *,
+        depth=12,
+        use_footprint=False,
+        radii=None,
+        **kwargs,
+    ):
+        """Create an ApproximateMOCSampler from the union of the footprints in an ObsTable.
+
+        The depth parameter controls the approximation level. Higher depths provide
+        better accuracy but require more memory and computation time. We recommend at
+        least depth=12 for reasonable accuracy.
+
+        Parameters
+        ----------
+        obstables : list of ObsTable
+            The list of ObsTable objects to use for creating the MOC. The union of
+            their coverages will be used.
+        depth : int, optional
+            The healpix depth to use as an approximation. Must be [2, 29].
+            Default: 12
+        radii : list of float, optional
+            The radius to use for each image (in degrees). Only used if use_footprint
+            is False. If None, the radius from the survey values will be used.
+        use_footprint : bool, optional
+            Whether to use the detector footprint to build the MOC. If True, the
+            footprint will be used to compute the MOC regions for each pointing.
+            If False, a simple cone with the given radius will be used.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the constructor.
+
+        Returns
+        -------
+        ApproximateMOCSampler
+            The created ApproximateMOCSampler object.
+        """
+        if len(obstables) == 0:
+            raise ValueError("At least one ObsTable must be provided.")
+        if radii is None:
+            radii = [None] * len(obstables)
+        elif len(radii) != len(obstables):
+            raise ValueError("Length of radii must match length of obstables.")
+
+        moc = obstables[0].build_moc(
+            radius=radii[0],
+            use_footprint=use_footprint,
+            duplicate_threshold=10.0 / 3600.0,  # 10 arcsec
+            max_depth=depth,
+        )
+        for i in range(1, len(obstables)):
+            next_moc = obstables[i].build_moc(
+                radius=radii[i],
+                use_footprint=use_footprint,
+                duplicate_threshold=10.0 / 3600.0,  # 10 arcsec
+                max_depth=depth,
+            )
+            moc = moc.union(next_moc)
+
+        return cls(moc, depth=depth, **kwargs)
+
+    @classmethod
+    def from_obstable_intersection(
+        cls,
+        obstables,
+        *,
+        depth=12,
+        use_footprint=False,
+        radii=None,
+        **kwargs,
+    ):
+        """Create an ApproximateMOCSampler from the intersection of the footprints in an ObsTable.
+
+        The depth parameter controls the approximation level. Higher depths provide
+        better accuracy but require more memory and computation time. We recommend at
+        least depth=12 for reasonable accuracy.
+
+        Parameters
+        ----------
+        obstables : list of ObsTable
+            The list of ObsTable objects to use for creating the MOC. The intersection of
+            their coverages will be used.
+        depth : int, optional
+            The healpix depth to use as an approximation. Must be [2, 29].
+            Default: 12
+        radii : list of float, optional
+            The radius to use for each image (in degrees). Only used if use_footprint
+            is False. If None, the radius from the survey values will be used.
+        use_footprint : bool, optional
+            Whether to use the detector footprint to build the MOC. If True, the
+            footprint will be used to compute the MOC regions for each pointing.
+            If False, a simple cone with the given radius will be used.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the constructor.
+
+        Returns
+        -------
+        ApproximateMOCSampler
+            The created ApproximateMOCSampler object.
+        """
+        if len(obstables) == 0:
+            raise ValueError("At least one ObsTable must be provided.")
+        if radii is None:
+            radii = [None] * len(obstables)
+        elif len(radii) != len(obstables):
+            raise ValueError("Length of radii must match length of obstables.")
+
+        moc = obstables[0].build_moc(
+            radius=radii[0],
+            use_footprint=use_footprint,
+            duplicate_threshold=10.0 / 3600.0,  # 10 arcsec
+            max_depth=depth,
+        )
+        for i in range(1, len(obstables)):
+            next_moc = obstables[i].build_moc(
+                radius=radii[i],
+                use_footprint=use_footprint,
+                duplicate_threshold=10.0 / 3600.0,  # 10 arcsec
+                max_depth=depth,
+            )
+            moc = moc.intersection(next_moc)
+
+        return cls(moc, depth=depth, **kwargs)
+
+    def plot_footprint(self, *, depth=None, fig=None, **kwargs):
+        """Plot the MOC footprint using matplotlib.
+
+        Parameters
+        ----------
+        depth : int, optional
+            The healpix depth to use for plotting. If None, uses the depth of the sampler.
+        fig : matplotlib.figure.Figure, optional
+            An existing matplotlib figure to use. If None, a new figure is created.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the mocpy.MOC.fill() function.
+        """
+        if depth is None:
+            depth = self.depth
+
+        # Build a new MOC from the healpix list at the given depth.
+        moc = MOC.from_healpix_cells(self.healpix_list, depth=self.depth, max_depth=depth)
+
+        if fig is None:
+            fig = plt.figure()
+        wcs = moc.wcs(fig)
+        ax = fig.add_subplot(projection=wcs)
+        moc.fill(ax, wcs, **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.

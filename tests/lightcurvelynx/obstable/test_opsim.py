@@ -486,6 +486,27 @@ def test_opsim_get_observations():
         _ = ops_data.get_observations(15.0, 10.0, radius=0.5, cols=["time", "custom_col"])
 
 
+def test_create_opsim_resample():
+    """Test that we can resample an OpSim and get an OpSim with the correct metadata."""
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp_nJy": np.ones(5),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+    }
+    ops_data = OpSim(values)
+
+    new_times = np.arange(5.0, 10.0, 0.1)
+    resampled_table = ops_data.make_resampled_table(new_times)
+    assert isinstance(resampled_table, OpSim)
+    assert len(resampled_table) == len(new_times)
+
+    # Check the metadata carried over.
+    for key, value in ops_data.survey_values.items():
+        assert resampled_table.survey_values[key] == value
+
+
 def test_opsim_docstring():
     """Test if OpSim class has a docstring"""
     assert OpSim.__doc__ is not None

@@ -898,3 +898,98 @@ class ObsTable:
         saturation_flags = true_flux > limits
 
         return saturated_flux, saturated_flux_error, saturation_flags
+
+    def make_resampled_table(
+        self,
+        times,
+        *,
+        ra=None,
+        dec=None,
+        filter=None,
+        **kwargs,
+    ):
+        """Create a new ObsTable object that is resampled to the given times (and optionally
+        positions and filters). All other columns, including noise data, are sampled from the
+        existing table.
+
+        Parameters
+        ----------
+        times : array_like of float
+            The times (in MJD) for the new observations.
+        ra : float or array_like of float, optional
+            The right ascension(s) (in degrees) for the new observations.
+            If a single float is provided, it is used for all times. If None is provided,
+            the existing RA values are kept.
+            Default: None
+        dec : float or array_like of float, optional
+            The declination(s) (in degrees) for the new observations.
+            If a single float is provided, it is used for all times. If None is provided,
+            the existing Dec values are kept.
+            Default: None
+        filter : str or array_like of str, optional
+            The filter(s) for the new observations. If a single string is provided, it is used
+            for all times. If None is provided, the existing filter values are kept.
+            Default: None
+        kwargs : dict, optional
+            Additional keyword arguments to pass to the ObsTable constructor for the new object.
+            These can overwrite any of the values from the original object.
+
+        Returns
+        -------
+        ObsTable
+            A new ObsTable object with the resampled observations.
+        """
+        # Subsample the table to get observational data.
+        times = np.asarray(times)
+        num_samples = len(times)
+        sample_inds = np.random.randint(0, len(self._table), size=num_samples)
+        new_table = self._table.iloc[sample_inds].reset_index(drop=True)
+        new_table["time"] = times
+
+        # If positions were given, use those.
+        if ra is not None:
+            if dec is None:
+                raise ValueError("If ra is provided, dec must also be provided.")
+            if isinstance(ra, float):
+                ra = np.full_like(times, ra)
+            elif len(ra) != num_samples:
+                raise ValueError("If ra is an array, it must have the same length as times.")
+            new_table["ra"] = np.asarray(ra)
+
+        if dec is not None:
+            if ra is None:
+                raise ValueError("If dec is provided, ra must also be provided.")
+            if isinstance(dec, float):
+                dec = np.full_like(times, dec)
+            elif len(dec) != num_samples:
+                raise ValueError("If dec is an array, it must have the same length as times.")
+            new_table["dec"] = np.asarray(dec)
+
+        # If filters were given, use those.
+        if filter is not None:
+            if isinstance(filter, str):
+                filter = np.array([filter] * num_samples, dtype=object)
+            elif len(filter) != num_samples:
+                raise ValueError("If filter is an array, it must have the same length as times.")
+            new_table["filter"] = np.asarray(filter, dtype=object)
+
+        # Create a copy of the kwargs and add anything that is missing. This allows the users
+        # to override any of the survey values if desired.
+        survey_kwargs = kwargs.copy()
+        if "colmap" not in survey_kwargs:
+            survey_kwargs["colmap"] = self._colmap if len(self._colmap) > 0 else None
+        if "detector_footprint" not in survey_kwargs:
+            survey_kwargs["detector_footprint"] = self._detector_footprint
+        if "wcs" not in survey_kwargs:
+            survey_kwargs["wcs"] = None  # None because we have already converted to DetectorFootprint
+        if "apply_saturation" not in survey_kwargs:
+            survey_kwargs["apply_saturation"] = self.uses_saturation()
+        if "saturation_mags" not in survey_kwargs:
+            survey_kwargs["saturation_mags"] = self._saturation_mags
+        for key, value in self.survey_values.items():
+            if key not in survey_kwargs:
+                survey_kwargs[key] = value
+
+        # Create a new object using the correct subclass of ObsTable.
+        result = self.__class__(new_table, **survey_kwargs)
+        return result

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
+from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.utils.post_process_results import (
     augment_single_lightcurve,
@@ -12,6 +13,7 @@ from lightcurvelynx.utils.post_process_results import (
     results_append_param_as_col,
     results_augment_lightcurves,
     results_drop_empty,
+    results_use_full_filter_names,
 )
 from nested_pandas import NestedFrame
 
@@ -484,3 +486,52 @@ def test_augment_lightcurves_with_existing_detection_column():
 
     # Run the augmentation function, which previously failed
     results_augment_lightcurves(results, min_snr=5.0)
+
+
+def test_results_use_full_filter_names():
+    """Test the results_use_full_filter_names function."""
+    # Create a NestedFrame with some empty lightcurves.
+    source_data = {
+        "object_id": [0, 1],
+        "ra": [10.0, 20.0],
+        "dec": [-10.0, -20.0],
+        "nobs": [3, 0],
+        "z": [0.1, 0.2],
+    }
+    results = NestedFrame(data=source_data, index=[0, 1])
+
+    table_vals = np.array([[4000, 0.5], [5000, 0.75], [6000, 0.5]])
+    passbands1 = PassbandGroup([Passband(table_vals, "survey1", "r"), Passband(table_vals, "survey1", "g")])
+    passbands2 = PassbandGroup([Passband(table_vals, "survey2", "r"), Passband(table_vals, "survey2", "g")])
+
+    with pytest.raises(ValueError):
+        # Ensure that the function raises an error if 'lightcurve' is not present.
+        results_use_full_filter_names(results, [passbands1, passbands2])
+
+    # Create a nested DataFrame with lightcurves, some of which are empty.
+    nested_data = {
+        "mjd": [59000, 59001, 59002, 59003, 59004, 59005],
+        "flux": [10.0, 12.0, 0.1, 0.2, 5.0, 6.0],
+        "fluxerr": [1.0, 1.0, 1.0, 20.0, 2.0, 1.0],
+        "filter": ["g", "r", "g", "g", "r", "r"],
+        "survey_idx": [0, 0, 1, 1, 0, 1],
+    }
+    nested_frame = pd.DataFrame(data=nested_data, index=[0, 0, 1, 1, 1, 1])
+
+    # Add the nested DataFrame to the results.
+    results = results.join_nested(nested_frame, "lightcurve")
+    assert len(results) == 2
+    assert np.array_equal(results["lightcurve.filter"][0].tolist(), ["g", "r"])
+    assert np.array_equal(results["lightcurve.filter"][1].tolist(), ["g", "g", "r", "r"])
+
+    # Transform to full filter names.
+    results_use_full_filter_names(results, [passbands1, passbands2])
+    assert len(results) == 2
+    assert np.array_equal(
+        results["lightcurve.filter"][0].tolist(),
+        ["survey1_g", "survey1_r"],
+    )
+    assert np.array_equal(
+        results["lightcurve.filter"][1].tolist(),
+        ["survey2_g", "survey2_g", "survey1_r", "survey2_r"],
+    )
