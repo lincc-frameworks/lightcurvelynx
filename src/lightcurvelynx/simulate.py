@@ -225,7 +225,7 @@ def get_time_windows(t0, z, obs_time_window_offset, rest_time_window_offset):
             try:
                 z = np.broadcast_to(z, len(t0))
             except ValueError:
-                raise ValueError("Length of redshift array must match length of t0 array.")
+                raise ValueError("Length of redshift array must match length of t0 array.") from None
 
         if len(rest_time_window_offset) != 2:
             raise ValueError("rest_time_window_offset must be a tuple of (before, after) in days.")
