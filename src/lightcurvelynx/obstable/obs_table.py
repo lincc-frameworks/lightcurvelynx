@@ -906,11 +906,16 @@ class ObsTable:
         ra=None,
         dec=None,
         filter=None,
+        match_filter=False,
+        seed=None,
         **kwargs,
     ):
         """Create a new ObsTable object that is resampled to the given times (and optionally
         positions and filters). All other columns, including noise data, are sampled from the
         existing table.
+
+        By default the sampled rows are drawn from the entire table. However users can force the
+        rows to be drawn from only those matching the given filter array by setting match_filter=True.
 
         Parameters
         ----------
@@ -930,6 +935,14 @@ class ObsTable:
             The filter(s) for the new observations. If a single string is provided, it is used
             for all times. If None is provided, the existing filter values are kept.
             Default: None
+        match_filter : bool, optional
+            If True, when sampling from the existing table, only sample observations
+            that match the provided filter(s). This is only relevant if filter is provided.
+            Default: False
+        seed : int, optional
+            A random seed for the resampling. If None, a random seed is used.
+            Most users should use None here to get different results on each call.
+            Default: None
         kwargs : dict, optional
             Additional keyword arguments to pass to the ObsTable constructor for the new object.
             These can overwrite any of the values from the original object.
@@ -939,14 +952,43 @@ class ObsTable:
         ObsTable
             A new ObsTable object with the resampled observations.
         """
+        rng = np.random.default_rng(seed)
+
         # Subsample the table to get observational data.
         times = np.asarray(times)
         num_samples = len(times)
-        sample_inds = np.random.randint(0, len(self._table), size=num_samples)
-        new_table = self._table.iloc[sample_inds].reset_index(drop=True)
-        new_table["time"] = times
 
-        # If positions were given, use those.
+        # If filters were given, set those up as an array of the correct size.
+        if filter is not None:
+            if isinstance(filter, str):
+                filter = np.array([filter] * num_samples, dtype=object)
+            elif len(filter) != num_samples:
+                raise ValueError("If filter is an array, it must have the same length as times.")
+
+        # Select the sample indices. If we are matching filters, we do this on a per-filter basis.
+        # Otherwise we can just sample randomly from the whole table.
+        if not match_filter or filter is None:
+            sample_indices = rng.integers(0, len(self._table), size=num_samples)
+        else:
+            unique_filters = np.unique(filter)
+            sample_indices = np.full(num_samples, -1, dtype=int)
+
+            for current_filter in unique_filters:
+                filter_sample_count = np.sum(filter == current_filter)
+                matching_indices = np.where(self._table["filter"] == current_filter)[0]
+
+                if len(matching_indices) == 0:
+                    raise ValueError(f"No observations found in filter '{current_filter}' to match.")
+                chosen_indices = rng.choice(matching_indices, size=filter_sample_count, replace=True)
+                sample_indices[filter == current_filter] = chosen_indices
+
+        # Create the new table. Fill in the time (and optionally filter) column.
+        new_table = self._table.iloc[sample_indices].reset_index(drop=True)
+        new_table["time"] = times
+        if filter is not None:
+            new_table["filter"] = filter
+
+        # If positions were given, overwrite those as well.
         if ra is not None:
             if dec is None:
                 raise ValueError("If ra is provided, dec must also be provided.")
@@ -964,14 +1006,6 @@ class ObsTable:
             elif len(dec) != num_samples:
                 raise ValueError("If dec is an array, it must have the same length as times.")
             new_table["dec"] = np.asarray(dec)
-
-        # If filters were given, use those.
-        if filter is not None:
-            if isinstance(filter, str):
-                filter = np.array([filter] * num_samples, dtype=object)
-            elif len(filter) != num_samples:
-                raise ValueError("If filter is an array, it must have the same length as times.")
-            new_table["filter"] = np.asarray(filter, dtype=object)
 
         # Create a copy of the kwargs and add anything that is missing. This allows the users
         # to override any of the survey values if desired.
