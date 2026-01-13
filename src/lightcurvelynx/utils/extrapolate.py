@@ -281,6 +281,73 @@ class LinearDecay(FluxExtrapolationModel):
         return flux
 
 
+class LinearDecayOnMag(FluxExtrapolationModel):
+    """Linear decay of the converted magnitude using the last valid point(s) with a fixed decay
+    rate down to a specific magnitude threshold. This is generally used for extrapolating in
+    the time axis.
+
+    Attributes
+    ----------
+    decay_rate : float or np.ndarray
+        The rate of the decay region in days. The magnitude is
+        linearly decreased to the mag_thres over this range.
+    mag_thres : float or np.ndarray
+        The mag threshold for the linear decay extraplation. Fluxes are capped at this value
+        for time/wavelength beyond this value
+        this value.
+    """
+
+    def __init__(self, decay_rate=0.02, mag_thres=40.0):
+        super().__init__()
+
+        if decay_rate <= 0:
+            raise ValueError("decay_rate must be positive.")
+        self.decay_rate = decay_rate
+        self.mag_thres = mag_thres
+
+    def _extrapolate(self, last_values, last_fluxes, query_values):
+        """Evaluate the extrapolation given the last valid points(s) and a list of new
+        query points.
+
+        Note
+        ----
+        This function does not care which axis is being extrapolated. The returned values are
+        always len(query_values) x len(last_fluxes) and may need to be transposed by the calling
+        function.
+
+        Parameters
+        ----------
+        last_values : float or np.ndarray
+            The last valid value along the extrapolation axis at which the flux was predicted
+            (e.g., wavelength in AA or time in days).
+        last_fluxes : numpy.ndarray
+            A length N array of the flux values at the last valid time or wavelength (in nJy).
+        query_values : numpy.ndarray
+            A length M array of values along the extrapolation axis (times in days or wavelengths
+            in AA) at which to extrapolate.
+
+        Returns
+        -------
+        flux : numpy.ndarray
+            A N x M matrix of extrapolated values. Where M is the number of query points and
+            N is the number of flux values at the last valid point.
+        """
+
+        last_fluxes = np.asarray(last_fluxes).reshape(-1)
+        last_fluxes = np.clip(last_fluxes, mag2flux(self.mag_thres), None)
+        last_fluxes = flux2mag(last_fluxes)
+
+        query_values = np.asarray(query_values)
+
+        dist = np.abs(query_values - last_values)
+
+        flux = np.clip(
+            last_fluxes[:, np.newaxis] + dist[np.newaxis, :] * self.decay_rate, None, self.mag_thres
+        )
+
+        return mag2flux(flux)
+
+
 class ExponentialDecay(FluxExtrapolationModel):
     """Exponential decay of the flux using the last valid point(s) down to zero.
 
