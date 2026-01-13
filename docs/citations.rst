@@ -33,11 +33,12 @@ citation information in class and function docstrings to help users identify rel
 
 As an example, consider the dust extinction effect. LightCurveLynx supports a variety of external dustmaps
 libraries, but was primarily designed to work with the `dustmaps <https://github.com/gregreen/dustmaps>`_
-package (Green 2018). The dust extinction is computed via the ExtinctionEffect which used the
-`dust_extinction <https://github.com/karllark/dust_extinction>`_ package (Gordon 2024). In addition,
-each individual dustmap and extinction function should be cited from their original science paper.
-The `dustmaps readthedocs <https://dustmaps.readthedocs.io/en/latest/maps.html>`_ page provides
-more information on the available dustmaps and their citations.
+package (Green 2018). The dust extinction is computed via the DustExtinctionEffect which used the
+`dust_extinction <https://github.com/karllark/dust_extinction>`_ package (Gordon 2024) or the
+SncosmoExtinctionEffect which uses the `extinction <https://github.com/sncosmo/extinction>`_ package
+(Barbary et. al. 2017). In addition, each individual dustmap and extinction function should be cited
+from their original science paper. The `dustmaps readthedocs <https://dustmaps.readthedocs.io/en/latest/maps.html>`_
+page provides more information on the available dustmaps and their citations.
 
 Citation-Compass
 -------------------------------------------------------------------------------

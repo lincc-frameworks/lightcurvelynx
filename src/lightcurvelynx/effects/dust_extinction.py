@@ -15,8 +15,8 @@ from citation_compass import CiteClass
 from lightcurvelynx.effects.effect_model import EffectModel
 
 
-class ExtinctionEffect(EffectModel, CiteClass):
-    """A general dust extinction effect model.
+class DustExtinctionEffect(EffectModel, CiteClass):
+    """A general dust_extinction effect model.
 
     References
     ----------
@@ -52,7 +52,7 @@ class ExtinctionEffect(EffectModel, CiteClass):
 
         if isinstance(extinction_model, str):
             self._model_name = extinction_model
-            extinction_model = ExtinctionEffect.load_extinction_model(extinction_model, **kwargs)
+            extinction_model = DustExtinctionEffect.load_extinction_model(extinction_model, **kwargs)
         else:
             self._model_name = None
         self.extinction_model = extinction_model
@@ -77,7 +77,7 @@ class ExtinctionEffect(EffectModel, CiteClass):
         it may not be picklable.
         """
         self.__dict__.update(state)
-        self.extinction_model = ExtinctionEffect.load_extinction_model(self._model_name)
+        self.extinction_model = DustExtinctionEffect.load_extinction_model(self._model_name)
 
     @staticmethod
     def list_extinction_models():
@@ -95,7 +95,7 @@ class ExtinctionEffect(EffectModel, CiteClass):
             import dust_extinction  # noqa: F401
         except ImportError as err:  # pragma: no cover
             raise ImportError(
-                "The dust_extinction package is needed to use the ExtinctionEffect. Please install it via"
+                "The dust_extinction package is needed to use the DustExtinctionEffect. Please install it via"
                 "`pip install dust_extinction` or `conda install conda-forge::dust_extinction`."
             ) from err
 
@@ -130,7 +130,7 @@ class ExtinctionEffect(EffectModel, CiteClass):
             import dust_extinction  # noqa: F401
         except ImportError as err:  # pragma: no cover
             raise ImportError(
-                "The dust_extinction package is needed to use the ExtinctionEffect. Please install it via"
+                "The dust_extinction package is needed to use the DustExtinctionEffect. Please install it via"
                 "`pip install dust_extinction` or `conda install conda-forge::dust_extinction`."
             ) from err
 
