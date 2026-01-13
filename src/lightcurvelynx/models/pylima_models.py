@@ -69,7 +69,8 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         The pyLIMA parallax model type: 'None', 'Annual', 'Terrestrial', or 'Full'.
         The times for the parallax are automatically set during the evaluation.
     blend_flux_parameter : str, optional
-        The pyLIMA blend flux parameter type: 'fblend', 'ftotal', or 'noblend'
+        The pyLIMA blend flux parameter type. Currently only 'fblend' is supported.
+        See also https://github.com/lincc-frameworks/lightcurvelynx/issues/691
     time_frame_offset : float, optional
         PyLIMA models use JD for time while users may specify any time system. This offset
         is added to the input times to convert them to JD. By default, this is set to
@@ -86,7 +87,8 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
     parallax_model : str, optional
         The pyLIMA parallax model type: 'None', 'Annual', 'Terrestrial', or 'Full'.
     blend_flux_parameter : str, optional
-        The pyLIMA blend flux parameter type: 'fblend', 'ftotal', or 'noblend'
+        The pyLIMA blend flux parameter type. Currently only 'fblend' is supported.
+        See also https://github.com/lincc-frameworks/lightcurvelynx/issues/691
     time_frame_offset: float, optional
         PyLIMA models use JD for time while users may specify any time system. This offset
         is added to the input times to convert them to JD.
@@ -102,7 +104,7 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         blend_mags=None,
         pylima_params=None,
         parallax_model="None",
-        blend_flux_parameter="noblend",
+        blend_flux_parameter="fblend",
         time_frame_offset=MJD_TO_JD_OFFSET,
         observer_location="Earth",
         **kwargs,
@@ -115,12 +117,11 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         # Save the pyLIMA parameters and add the corresponding model parameters.
         self.parallax_model = parallax_model
         self.blend_flux_parameter = blend_flux_parameter
-        if blend_flux_parameter == "gblend":
-            raise ValueError("The 'gblend' blend_flux_parameter is not supported in this wrapper model. ")
-        elif blend_flux_parameter not in ["fblend", "ftotal", "noblend"]:
+        if blend_flux_parameter != "fblend":
             raise ValueError(
                 f"Invalid blend_flux_parameter '{blend_flux_parameter}'. "
-                f"Must be one of 'fblend', 'ftotal', or 'noblend'."
+                f"Currently only 'fblend' is supported. See: "
+                "https://github.com/lincc-frameworks/lightcurvelynx/issues/691"
             )
 
         # Add each source flux as a parameter by converting the input magnitudes.
