@@ -249,6 +249,14 @@ def test_simulate_lightcurves(test_data_dir):
         # Check that we extract one of the parameters.
         assert results["source_brightness"][idx] == given_brightness[idx]
 
+    # Check that we can safely write the results to a file.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filename = Path(tmpdir) / "test_simulate.parquet"
+        assert not filename.exists()
+
+        results.to_parquet(filename)
+        assert filename.exists()
+
     # Check that we saved and can reassemble the GraphStates
     assert "params" in results
     state = GraphState.from_list(results["params"].values)
