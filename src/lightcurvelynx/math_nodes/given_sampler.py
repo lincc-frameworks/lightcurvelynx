@@ -364,7 +364,13 @@ class TableSampler(FunctionNode):
         # Parse out each column into a separate parameter with the column name as its name.
         results = []
         for attr_name in self.outputs:
-            attr_values = np.asarray(self.data[attr_name][sample_inds])
+            # If we only have a single sample, return it directly as a scalar.
+            # Otherwise cast it to a numpy array.
+            if graph_state.num_samples == 1:
+                attr_values = self.data[attr_name][sample_inds.item()]
+            else:
+                attr_values = np.asarray(self.data[attr_name][sample_inds])
+
             results.append(attr_values)
 
         # Save and return the results.
