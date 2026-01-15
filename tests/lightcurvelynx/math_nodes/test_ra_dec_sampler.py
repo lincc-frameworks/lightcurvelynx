@@ -102,6 +102,11 @@ def test_obstable_ra_dec_sampler():
     assert state["sampler"]["dec"] == values["fieldDec"][idx]
     assert state["sampler"]["time"] == values["observationStartMJD"][idx]
 
+    # Check that we returned floats, not arrays.
+    assert isinstance(state["sampler"]["ra"], float)
+    assert isinstance(state["sampler"]["dec"], float)
+    assert isinstance(state["sampler"]["time"], float)
+
     # Do randomized sampling (with no offset).
     sampler_node2 = ObsTableRADECSampler(ops_data, radius=0.0, seed=100, node_label="sampler")
     state = sampler_node2.sample_parameters(num_samples=5000)

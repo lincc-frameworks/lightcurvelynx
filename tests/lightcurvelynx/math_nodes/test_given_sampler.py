@@ -264,6 +264,11 @@ def test_table_sampler(test_data_type):
     assert state["node"]["B"] == 1
     assert state["node"]["C"] == 3
 
+    # The results are scalars (not lists or arrays).
+    assert isinstance(state["node"]["A"], (int | np.integer))
+    assert isinstance(state["node"]["B"], (int | np.integer))
+    assert isinstance(state["node"]["C"], (int | np.integer))
+
     # We can sample later values using a forced offset. No warning
     # should be produced here since the offset is different.
     state = table_node.sample_parameters(num_samples=4, sample_offset=2)
