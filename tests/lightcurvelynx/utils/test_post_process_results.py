@@ -304,8 +304,10 @@ def test_results_augment_lightcurves():
     assert "magerr" not in results["lightcurve"].nest.columns
     assert results["object_id"].tolist() == [0, 1, 2]
 
-    # Augmenting the lightcurves should add the new columns.
-    results_augment_lightcurves(results, min_snr=5)
+    # Augmenting the lightcurves should add the new columns. The results object is modified in place,
+    # but check that it also returns a reference for chaining.
+    res2 = results_augment_lightcurves(results, min_snr=5)
+    assert res2 is results
     assert len(results) == 3
 
     # Check the SNR and detection markings.
@@ -524,8 +526,10 @@ def test_results_use_full_filter_names():
     assert np.array_equal(results["lightcurve.filter"][0].tolist(), ["g", "r"])
     assert np.array_equal(results["lightcurve.filter"][1].tolist(), ["g", "g", "r", "r"])
 
-    # Transform to full filter names.
-    results_use_full_filter_names(results, [passbands1, passbands2])
+    # Transform to full filter names. The results object is modified in place,
+    # but check that it also returns a reference for chaining.
+    res2 = results_use_full_filter_names(results, [passbands1, passbands2])
+    assert res2 is results
     assert len(results) == 2
     assert np.array_equal(
         results["lightcurve.filter"][0].tolist(),
