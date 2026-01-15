@@ -360,6 +360,53 @@ def test_results_augment_lightcurves():
         assert filename.exists()
 
 
+def test_results_augment_lightcurves_invalid():
+    """Test the results_augment_lightcurves function with invalid inputs."""
+    # Create a NestedFrame with some empty lightcurves.
+    source_data = {
+        "object_id": [0, 1, 2],
+        "ra": [10.0, 20.0, 30.0],
+        "dec": [-10.0, -20.0, -30.0],
+        "nobs": [3, 0, 1],
+        "z": [0.1, 0.2, 0.3],
+    }
+    results = NestedFrame(data=source_data, index=[0, 1, 2])
+
+    # Create a nested DataFrame with lightcurves, some of which have
+    # negative flux/fluxerr.
+    nested_data = {
+        "mjd": [59000, 59001, 59002, 59003, 59004, 59005],
+        "flux": [10.0, 12.0, 0.1, 0.2, 5.0, -6.0],
+        "fluxerr": [1.0, 1.0, 1.0, -20.0, 2.0, 1.0],
+        "filter": ["g", "r", "i", "g", "r", "i"],
+    }
+    nested_frame = pd.DataFrame(data=nested_data, index=[0, 0, 1, 1, 2, 2])
+    results = results.join_nested(nested_frame, "lightcurve")
+    assert len(results) == 3
+
+    # Augmenting the lightcurves should add the new columns.
+    results_augment_lightcurves(results, min_snr=5)
+
+    # Check the SNR and detection markings.
+    assert "snr" in results["lightcurve"].nest.columns
+    assert _allclose(results["lightcurve.snr"][0].values, [10.0, 12.0])
+    assert _allclose(results["lightcurve.snr"][1].values, [0.1, None])
+    assert _allclose(results["lightcurve.snr"][2].values, [2.5, None])
+
+    assert "detection" in results["lightcurve"].nest.columns
+    assert results["lightcurve.detection"][0].tolist() == [True, True]
+    assert results["lightcurve.detection"][1].tolist() == [False, False]
+    assert results["lightcurve.detection"][2].tolist() == [False, False]
+
+    # Test that we can still write out a file.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filename = Path(tmpdir) / "test_results_augment_lightcurves.parquet"
+        assert not filename.exists()
+
+        results.to_parquet(filename)
+        assert filename.exists()
+
+
 def test_results_augment_lightcurves_empty():
     """Test the results_augment_lightcurves function with a completely empty frame."""
     # Create an empty NestedFrame.
