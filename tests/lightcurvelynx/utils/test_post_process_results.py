@@ -1,3 +1,6 @@
+import tempfile
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -348,6 +351,14 @@ def test_results_augment_lightcurves():
     assert _allclose(results["lightcurve.time_rel"][1].values, [1, 2])
     assert _allclose(results["lightcurve.time_rel"][2].values, [2, 3])
 
+    # Test that we can still write out a file.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filename = Path(tmpdir) / "test_results_augment_lightcurves.parquet"
+        assert not filename.exists()
+
+        results.to_parquet(filename)
+        assert filename.exists()
+
 
 def test_results_augment_lightcurves_empty():
     """Test the results_augment_lightcurves function with a completely empty frame."""
@@ -535,3 +546,11 @@ def test_results_use_full_filter_names():
         results["lightcurve.filter"][1].tolist(),
         ["survey2_g", "survey2_g", "survey1_r", "survey2_r"],
     )
+
+    # Test that we can still write out a file.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filename = Path(tmpdir) / "test_results_full_filter_names.parquet"
+        assert not filename.exists()
+
+        results.to_parquet(filename)
+        assert filename.exists()
