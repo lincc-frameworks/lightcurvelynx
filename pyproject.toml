@@ -42,7 +42,7 @@ dev = [
     "asv[virtualenv]==0.6.5", # Used to compute performance benchmarks
     "bilby",  # Used for Bayesian inference
     "dust_extinction",
-    "extinction>=0.4.7",  # Needed by sncosmo
+    "extinction>=0.4.7",
     "fsspec[http]",  # Read OpSim file from the web with utils/make_opsim_shorten.py
     "jupyter", # Clears output from Jupyter notebooks
     "jax",

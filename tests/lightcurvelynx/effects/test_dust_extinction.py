@@ -5,14 +5,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 from lightcurvelynx.astro_utils.dustmap import ConstantHemisphereDustMap, DustmapWrapper
-from lightcurvelynx.effects.extinction import ExtinctionEffect
+from lightcurvelynx.effects.dust_extinction import DustExtinctionEffect
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 
 
 def test_list_extinction_models():
     """List the available extinction models."""
-    model_names = ExtinctionEffect.list_extinction_models()
+    model_names = DustExtinctionEffect.list_extinction_models()
     assert len(model_names) > 10
     assert "G23" in model_names
     assert "CCM89" in model_names
@@ -20,16 +20,16 @@ def test_list_extinction_models():
 
 def test_load_extinction_model():
     """Load an extinction model by string."""
-    g23_model = ExtinctionEffect.load_extinction_model("G23", Rv=3.1)
+    g23_model = DustExtinctionEffect.load_extinction_model("G23", Rv=3.1)
     assert g23_model is not None
     assert hasattr(g23_model, "extinguish")
 
     # We fail if we try to load a model that does not exist.
     with pytest.raises(KeyError):
-        ExtinctionEffect.load_extinction_model("InvalidModel")
+        DustExtinctionEffect.load_extinction_model("InvalidModel")
 
-    # We can manually load the g23_model into an ExtinctionEffect node.
-    dust_effect = ExtinctionEffect(g23_model, ebv=0.1, frame="rest")
+    # We can manually load the g23_model into an DustExtinctionEffect node.
+    dust_effect = DustExtinctionEffect(g23_model, ebv=0.1, frame="rest")
 
     # We can apply the extinction effect to a set of fluxes.
     fluxes = np.full((10, 3), 1.0)
@@ -47,20 +47,20 @@ def test_load_extinction_model():
 
 def test_set_frame():
     """Test that correct frame is set"""
-    ext = ExtinctionEffect("G23", ebv=0.1, frame="observer")
+    ext = DustExtinctionEffect("G23", ebv=0.1, frame="observer")
     assert ext.rest_frame is False
 
     with pytest.raises(ValueError):
-        ExtinctionEffect("G23", ebv=0.1, frame="InvalidFrame")
+        DustExtinctionEffect("G23", ebv=0.1, frame="InvalidFrame")
 
 
 def test_pickle_extinction_model():
-    """Test that we can pickle and unpickle an ExtinctionEffect object."""
+    """Test that we can pickle and unpickle an DustExtinctionEffect object."""
     # Create two models: one defined by model name and the other with a given object.
-    F99_model = ExtinctionEffect("F99", Rv=3.1, frame="rest", ebv=0.1)
+    F99_model = DustExtinctionEffect("F99", Rv=3.1, frame="rest", ebv=0.1)
 
-    ext_model = ExtinctionEffect.load_extinction_model("F99")
-    F99_model_B = ExtinctionEffect(ext_model, Rv=3.1, frame="rest", ebv=0.1)
+    ext_model = DustExtinctionEffect.load_extinction_model("F99")
+    F99_model_B = DustExtinctionEffect(ext_model, Rv=3.1, frame="rest", ebv=0.1)
 
     # Compute the some sample fluxes before and after extinction.
     org_fluxes = np.full((10, 3), 1.0)
@@ -93,11 +93,11 @@ def test_pickle_extinction_model():
 
 
 def test_constant_dust_extinction():
-    """Test that we can create and sample a ExtinctionEffect object."""
+    """Test that we can create and sample a DustExtinctionEffect object."""
     # Use given ebv values. Usually these would be computed from a dustmap,
     # based on (RA, dec).
     ebv_node = GivenValueList([0.1, 0.2, 0.3, 0.4, 0.5])
-    dust_effect = ExtinctionEffect("CCM89", ebv=ebv_node, Rv=3.1, frame="rest")
+    dust_effect = DustExtinctionEffect("CCM89", ebv=ebv_node, Rv=3.1, frame="rest")
     assert dust_effect.extinction_model is not None
     assert hasattr(dust_effect.extinction_model, "extinguish")
 
@@ -136,7 +136,7 @@ def test_dustmap_chain():
     dust_map_node = DustmapWrapper(dust_map, ra=model.ra, dec=model.dec)
 
     # Create an extinction effect using the EBVs from that dust map.
-    ext_effect = ExtinctionEffect(extinction_model="CCM89", ebv=dust_map_node, Rv=3.1, frame="rest")
+    ext_effect = DustExtinctionEffect(extinction_model="CCM89", ebv=dust_map_node, Rv=3.1, frame="rest")
     model.add_effect(ext_effect)
 
     # Sample the model.
