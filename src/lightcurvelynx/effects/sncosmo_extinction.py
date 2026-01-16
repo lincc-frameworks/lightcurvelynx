@@ -27,8 +27,8 @@ class SncosmoExtinctionEffect(EffectModel, CiteClass):
         The extinction object from the sncosmo extinction library or its name.
         If a string is provided, the code will find a matching extinction
         function in the extinction package and use that.
-    a_v : parameter
-        The setter for the extinction parameter A(V).
+    ebv : parameter
+        The setter for the extinction parameter E(B-V).
     r_v : parameter
         The setter for the extinction parameter R(V).
     frame : str
@@ -40,13 +40,13 @@ class SncosmoExtinctionEffect(EffectModel, CiteClass):
     def __init__(
         self,
         extinction_model=None,
-        a_v=None,
+        ebv=None,
         r_v=None,
         frame=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.add_effect_parameter("a_v", a_v)
+        self.add_effect_parameter("ebv", ebv)
         self.add_effect_parameter("r_v", r_v)
 
         if frame == "observer":
@@ -123,7 +123,7 @@ class SncosmoExtinctionEffect(EffectModel, CiteClass):
         flux_density,
         times=None,
         wavelengths=None,
-        a_v=None,
+        ebv=None,
         r_v=None,
         **kwargs,
     ):
@@ -137,8 +137,8 @@ class SncosmoExtinctionEffect(EffectModel, CiteClass):
             A length T array of times (in MJD). Not used for this effect.
         wavelengths : numpy.ndarray, optional
             A length N array of wavelengths (in angstroms). Not used for this effect.
-        a_v : float, optional
-            The extinction parameter A(V). Raises an error if None is provided.
+        ebv : float, optional
+            The extinction parameter E(B-V). Raises an error if None is provided.
         r_v : float, optional
             The extinction parameter R(V). Raises an error if None is provided
             and the function requires it.
@@ -151,12 +151,18 @@ class SncosmoExtinctionEffect(EffectModel, CiteClass):
         flux_density : numpy.ndarray
             A length T x N matrix of flux densities after the effect is applied (in nJy).
         """
-        if a_v is None:
-            raise ValueError("a_v must be provided")
-        if r_v is None and self._model_name != "fm07":
-            raise ValueError(f"r_v must be provided for model {self._model_name}")
+        if ebv is None:
+            raise ValueError("ebv must be provided")
+        if r_v is None:
+            if self._model_name == "fm07":
+                r_v = 3.1  # Fixed for this model
+            else:
+                raise ValueError(f"r_v must be provided for model {self._model_name}")
         if wavelengths is None:
             raise ValueError("wavelengths must be provided")
+
+        # Compute A(V) from E(B-V) and R(V)
+        a_v = ebv * r_v
 
         # Use the function to compute the extinction magnitudes. Note that the fm07 model
         # requires only a_v (r_v is fixed at 3.1).
