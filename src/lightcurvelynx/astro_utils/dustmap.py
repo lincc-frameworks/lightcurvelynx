@@ -26,8 +26,8 @@ from lightcurvelynx.base_models import FunctionNode
 class DustEBV(FunctionNode):
     """A wrapper that queries a dust map and returns the ebv for each location.
 
-    This wrapper is designed to work with multiple dust map implementtions
-    by providing a stadard interface.
+    This wrapper is designed to work with multiple dust map implementations
+    by providing a standard interface.
 
     Attributes
     ----------
