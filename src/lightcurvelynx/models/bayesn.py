@@ -5,7 +5,7 @@ from citation_compass import CiteClass
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
-from lightcurvelynx.effects.dust_extinction import DustExtinctionEffect
+from lightcurvelynx.effects.extinction import ExtinctionEffect
 from lightcurvelynx.models.physical_model import SEDModel
 
 
@@ -488,7 +488,7 @@ class BayesnModel(SEDModel, CiteClass):
         # Apply dust extinction law
         # Get ebv such that ebv = Av/Rv
         ebv = params["Av"] / params["Rv"]
-        ext = DustExtinctionEffect(extinction_model="F99", ebv=ebv, frame="rest")
+        ext = ExtinctionEffect(extinction_model="F99", ebv=ebv, frame="rest", backend="dust_extinction")
         flux_density = ext.apply(flux_density, tau, wavelengths, ebv)
 
         # Apply the fixed distance modulus normalisation factor effect
