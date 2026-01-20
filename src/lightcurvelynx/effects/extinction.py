@@ -146,7 +146,7 @@ class _SncosmoExtinctionWrapper(CiteClass):
     Parameters
     ----------
     model_name : str
-        The name of the extinction object in the dust_extinction library.
+        The name of the extinction object in the extinction library.
     r_v : float, optional
         The extinction parameter R(V). Optional for some models.
     **kwargs : `dict`, optional
@@ -174,10 +174,10 @@ class _SncosmoExtinctionWrapper(CiteClass):
             if r_v is not None and np.abs(r_v - 3.1) > 1e-8:
                 raise ValueError("The fm07 extinction model requires r_v to be fixed at 3.1.")
             self.r_v = 3.1
-        elif isinstance(r_v, float):
-            self.r_v = r_v
+        elif r_v is not None and np.isscalar(r_v):
+            self.r_v = float(r_v)
         else:  # pragma: no cover
-            raise ValueError(f"The {model_name} extinction model requires a floating point r_v parameter.")
+            raise ValueError(f"The {model_name} extinction model requires a numeric r_v parameter.")
 
     def apply(
         self,
@@ -293,7 +293,7 @@ class ExtinctionEffect(EffectModel):
             raise ValueError("frame must be 'observer' or 'rest'.")
 
         # Check the backend is one of the supported ones and is installed.
-        if self.backend not in self._BACKEND_TO_WRAPPER:
+        if self.backend is None or self.backend not in self._BACKEND_TO_WRAPPER:
             raise ValueError(f"backend must be one of {list(self._BACKEND_TO_WRAPPER.keys())}")
         if importlib.util.find_spec(self.backend) is None:  # pragma: no cover
             raise ImportError(
