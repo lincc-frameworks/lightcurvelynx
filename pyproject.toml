@@ -46,7 +46,7 @@ dev = [
     "fsspec[http]",  # Read OpSim file from the web with utils/make_opsim_shorten.py
     "jupyter", # Clears output from Jupyter notebooks
     "jax",
-    "lsdb",
+    "lsdb>=0.8",
     "networkx",  # Used for graph visualization
     "pre-commit", # Used to run checks before finalizing a git commit
     "pytest",
