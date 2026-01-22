@@ -104,7 +104,7 @@ class _DustExtinctionWrapper(CiteClass):
         times : numpy.ndarray, optional
             A length T array of times (in MJD). Not used for this effect.
         wavelengths : numpy.ndarray, optional
-            A length N array of wavelengths (in angstroms). Not used for this effect.
+            A length N array of wavelengths (in angstroms).
         ebv : float, optional
             The extinction parameter E(B-V). Raises an error if None is provided.
         **kwargs : `dict`, optional
@@ -196,7 +196,7 @@ class _SncosmoExtinctionWrapper(CiteClass):
         times : numpy.ndarray, optional
             A length T array of times (in MJD). Not used for this effect.
         wavelengths : numpy.ndarray, optional
-            A length N array of wavelengths (in angstroms). Not used for this effect.
+            A length N array of wavelengths (in angstroms).
         ebv : float, optional
             The extinction parameter E(B-V). Raises an error if None is provided.
         **kwargs : `dict`, optional
@@ -345,7 +345,7 @@ class ExtinctionEffect(EffectModel):
         times : numpy.ndarray, optional
             A length T array of times (in MJD). Not used for this effect.
         wavelengths : numpy.ndarray, optional
-            A length N array of wavelengths (in angstroms). Not used for this effect.
+            A length N array of wavelengths (in angstroms).
         ebv : float, optional
             The extinction parameter E(B-V). Raises an error if None is provided.
         **kwargs : `dict`, optional
