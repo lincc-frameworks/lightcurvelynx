@@ -689,8 +689,14 @@ def test_obstable_make_resampled_table():
     )
 
     # Create a resampled ObsTable with double the pixel scale and half the radius.
-    new_times = np.arange(5.0, 10.0, 0.1)
-    resampled_table = ops_data.make_resampled_table(new_times)
+    new_times = np.arange(5.0, 10.0, 0.05)
+    resampled_table = ops_data.make_resampled_table(new_times, seed=45)
+
+    # We should draw (very) approximately equally from each observation.
+    for i in range(5):
+        n_samples = np.sum(resampled_table["sample_idx"] == i)
+        assert n_samples > 10
+        assert n_samples < 30
 
     # Check that the resampled table has the correct values in each entry.
     assert np.array_equal(resampled_table["time"], new_times)
@@ -791,6 +797,8 @@ def test_obstable_make_resampled_table_overwrite_single():
         "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
         "zp": np.ones(5),
         "filter": np.array(["r", "g", "i", "r", "i"]),
+        "other_col": np.array([10, 20, 30, 40, 50]),
+        "sample_idx": np.array([0, 1, 2, 3, 4]),
     }
     ops_data = ObsTable(values)
 
@@ -804,7 +812,14 @@ def test_obstable_make_resampled_table_overwrite_single():
         ra=new_ra,
         dec=new_dec,
         filter=new_filter,
+        seed=46,
     )
+
+    # We should draw (very) approximately equally from each observation.
+    for i in range(5):
+        n_samples = np.sum(resampled_table["sample_idx"] == i)
+        assert n_samples > 5
+        assert n_samples < 15
 
     # Check that the resampled table has the correct values in each entry.
     assert np.allclose(resampled_table["time"], new_times)
@@ -812,6 +827,30 @@ def test_obstable_make_resampled_table_overwrite_single():
     assert np.allclose(resampled_table["dec"], new_dec)
     assert np.all(resampled_table["filter"] == new_filter)
     assert set(resampled_table.filters) == set([new_filter])
+
+    # Check that we can force to sample only from the "g" filter entries.
+    resampled_table = ops_data.make_resampled_table(
+        new_times,
+        ra=new_ra,
+        dec=new_dec,
+        filter=new_filter,
+        seed=46,
+        match_filter=True,
+    )
+    assert np.all(resampled_table["filter"] == new_filter)
+    assert np.all(resampled_table["sample_idx"] == 1)  # Only from the original "g" entry.
+    assert np.all(resampled_table["other_col"] == 20)  # Other columns match the original entry.
+
+    # But we fail if there are no matching entries.
+    with pytest.raises(ValueError):
+        _ = ops_data.make_resampled_table(
+            new_times,
+            ra=new_ra,
+            dec=new_dec,
+            filter="z",  # No "z" filter in original table.
+            seed=46,
+            match_filter=True,
+        )
 
 
 def test_obstable_make_resampled_table_fail():

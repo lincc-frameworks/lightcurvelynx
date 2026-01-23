@@ -189,6 +189,11 @@ def augment_single_lightcurve(results, *, min_snr=0.0, t0=None):
         Minimum SNR required to mark an entry as a detection. Default is 0.0.
     t0 : float or None, optional
         Reference time for the lightcurve.
+
+    Returns
+    -------
+    results : pandas.DataFrame
+        The modified DataFrame (to enable chaining).
     """
     if "flux" not in results.columns or "fluxerr" not in results.columns:
         raise ValueError("flux and fluxerr must be present in the light curve DataFrame.")
@@ -205,6 +210,8 @@ def augment_single_lightcurve(results, *, min_snr=0.0, t0=None):
 
     if t0 is not None and "mjd" in results.columns:
         results["time_rel"] = results["mjd"] - t0
+
+    return results
 
 
 def results_augment_lightcurves(results, *, min_snr=0.0):
@@ -228,6 +235,11 @@ def results_augment_lightcurves(results, *, min_snr=0.0):
         The DataFrame containing lightcurve data. Modified in place.
     min_snr : float, optional
         Minimum SNR required to mark an entry as a detection. Default is 0.0.
+
+    Returns
+    -------
+    results : pandas.DataFrame or nested_pandas.NestedFrame
+        The modified DataFrame (to enable chaining).
     """
     if not isinstance(results, NestedFrame) or "lightcurve" not in results.columns:
         raise ValueError("results must be a NestedFrame with a 'lightcurve' column.")
@@ -260,6 +272,8 @@ def results_augment_lightcurves(results, *, min_snr=0.0):
         t0_idx = np.array(results["lightcurve"]["mjd"].index)
         results["lightcurve.time_rel"] = results["lightcurve.mjd"] - t0[t0_idx]
 
+    return results
+
 
 def results_use_full_filter_names(results, passbands):
     """Modifies the 'filter' column in the results DataFrame to include
@@ -272,6 +286,11 @@ def results_use_full_filter_names(results, passbands):
     passbands : list of PassbandGroup
         The list of PassbandGroups used in the simulation, in the same order
         as in the simulation.
+
+    Returns
+    -------
+    results : pandas.DataFrame or nested_pandas.NestedFrame
+        The modified DataFrame (to enable chaining).
     """
     if not isinstance(results, NestedFrame) or "lightcurve" not in results.columns:
         raise ValueError("results must be a NestedFrame with a 'lightcurve' column.")
@@ -293,3 +312,5 @@ def results_use_full_filter_names(results, passbands):
             full_name = passbands[s_idx][fil].full_name
             filter_names[mask] = full_name
     results["lightcurve.filter"] = filter_names
+
+    return results
