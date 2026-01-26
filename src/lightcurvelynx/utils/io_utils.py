@@ -1,10 +1,12 @@
 import gzip
 import logging
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from astropy.table import Table
 
 
@@ -348,3 +350,47 @@ def read_lclib_data(input_file):
         raise ValueError(f"Unsupported file format: {suffix}.")
 
     return curves
+
+
+def read_sqlite_table(db_path, table_name=None, sql_query=None):
+    """Read a table from a SQLite database into a pandas DataFrame.
+
+    Parameters
+    ----------
+    db_path : str or Path
+        The path to the SQLite database file.
+    table_name : str, optional
+        The name of the table to read. If not provided, sql_query must be provided.
+    sql_query : str, optional
+        A custom SQL query to execute. If provided, this query will be used instead of reading a table.
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        The table data as a pandas DataFrame.
+    """
+    if table_name is None and sql_query is None:  # pragma: no cover
+        raise ValueError("Either table_name or sql_query must be provided.")
+    if sql_query is None:
+        sql_query = f"SELECT * FROM {table_name}"
+
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Reading table {table_name} from SQLite database {db_path}")
+
+    db_path = Path(db_path)
+    if not db_path.is_file():
+        raise FileNotFoundError(f"Database file {db_path} not found.")
+
+    # Connect to the SQLite database.
+    con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+
+    # Read the specified table into a DataFrame.
+    try:
+        df = pd.read_sql_query(sql_query, con)
+    except Exception as e:
+        raise RuntimeError(f"Error executing sql query '{sql_query}' from database {db_path}: {e}") from e
+
+    # Close the database connection.
+    con.close()
+
+    return df

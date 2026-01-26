@@ -119,12 +119,13 @@ class OpSim(ObsTable):
         "filter": ["filter", "band"],
         "maglim": ["maglim", "magLim", "fiveSigmaDepth"],
         "nexposure": ["nexposure", "numExposures", "nexp"],
+        "pixel_scale": ["pixel_scale", "pixelScale"],
         "ra": ["ra", "fieldRA"],
         "rotation": ["rotation", "skyRotation"],
         "seeing": "seeingFwhmEff",
-        "skybrightness": "skyBrightness",
+        "skybrightness": ["skyBrightness", "skyBackground", "skyBg"],
         "skynoise": ["skyNoise", "skynoise", "sky_noise_median"],
-        "time": ["time", "observationStartMJD", "expMidptMJD", "obsStart"],
+        "time": ["time", "observationStartMJD", "obsStartMJD", "expMidptMJD", "obsStart"],
         "zp": "zp_nJy",  # We add this column to the table
         "zp_mag": ["zp_mag", "zeroPoint", "zero_point_median"],
     }
@@ -173,6 +174,14 @@ class OpSim(ObsTable):
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy to the OpSim tables."""
         cols = self._table.columns.to_list()
+
+        # If the zero point column is already present (as a magnitude), we convert it to nJy.
+        if "zp_mag" in cols:
+            zp_values = mag2flux(self._table["zp_mag"])
+            self.add_column("zp", zp_values, overwrite=True)
+            return
+
+        # See if we have the information to derive the zero point.
         if not ("filter" in cols and "airmass" in cols and "exptime" in cols):
             raise ValueError(
                 "OpSim does not include the columns needed to derive zero point "
@@ -226,6 +235,10 @@ class OpSim(ObsTable):
             service = get_tap_service("tap")
             table = service.search("SELECT * FROM dp1.CcdVisit").to_table().to_pandas()
 
+        Or you can read a table from a file (e.g. using the `read_sqlite_table` function).
+            from lightcurvelynx.utils.io_utils import read_sqlite_table
+            table = read_sqlite_table("path_to_file.db", sql_query="SELECT * FROM observations")
+
         Parameters
         ----------
         table : pandas.core.frame.DataFrame
@@ -242,29 +255,6 @@ class OpSim(ObsTable):
             An OpSim object containing the data from the CCDVisit table.
         """
         table = table.copy()
-
-        # Bulk rename the columns to match the expected names. We also use this
-        # dictionary to check that all of the expected columns as given by:
-        # https://sdm-schemas.lsst.io/dp1.html#CcdVisit
-        # are presents. We also annotate the expected units for each column.
-        colmap = {
-            "band": "filter",
-            "ccdVisitId": "ccdVisitId",  # Integer ID
-            "dec": "dec",  # Degrees
-            "expMidptMJD": "time",  # MJD (days)
-            "expTime": "exptime",  # Seconds
-            "magLim": "fiveSigmaDepth",  # Magnitudes
-            "ra": "ra",  # Degrees
-            "seeing": "seeing",  # arcseconds
-            "skyRotation": "rotation",  # Degrees
-            "skyBg": "skybrightness",  # adu
-            "skyNoise": "skynoise",  # adu
-            "zeroPoint": "zp_mag",  # Magnitude (converted to flux below)
-        }
-        for c in colmap:
-            if c not in table.columns:
-                raise ValueError(f"Missing column '{c}' in the CCDVisit table.")
-        table.rename(columns=colmap, inplace=True)
         cols = table.columns.to_list()
 
         # The CCDVisit table uses mag for zero point, we convert it to nJy.
@@ -279,7 +269,8 @@ class OpSim(ObsTable):
             # Use a single approximate average ccd radius.
             kwargs["radius"] = _lsstcam_ccd_radius
 
-        # Create the OpSim object.
+        # Create the OpSim object. Use the default column mapping for OpSim, which
+        # supports multiple schemas including DP1 and DP2.
         opsim = cls(table, **kwargs)
 
         # Create a detector footprint if requested. We use the same (average) footprint for
