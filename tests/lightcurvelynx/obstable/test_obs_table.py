@@ -164,6 +164,27 @@ def test_create_obs_table_custom_names():
     colmap = {"ra": "custom_ra", "dec": "custom_dec", "time": "custom_time"}
     ops_data = ObsTable(values, colmap=colmap)
     assert len(ops_data) == 5
+    assert np.allclose(ops_data["ra"], values["custom_ra"])
+    assert np.allclose(ops_data["dec"], values["custom_dec"])
+    assert np.allclose(ops_data["time"], values["custom_time"])
+    assert np.allclose(ops_data["other"], values["other"])
+
+    # Load succeeds if we pass multiple options for the colmap and also
+    # provide mapping for non-existing columns.
+    colmap = {
+        "ra": ["not_used_ra", "custom_ra", "ra"],
+        "dec": "custom_dec",
+        "time": "custom_time",
+        "my_val": ["something", "other"],
+        "not_a_col": ["nothing", "no_column"],
+        "not_a_col2": "not_here",
+    }
+    ops_data = ObsTable(values, colmap=colmap)
+    assert len(ops_data) == 5
+    assert np.allclose(ops_data["ra"], values["custom_ra"])
+    assert np.allclose(ops_data["dec"], values["custom_dec"])
+    assert np.allclose(ops_data["time"], values["custom_time"])
+    assert np.allclose(ops_data["my_val"], values["other"])
 
     # Test that we fail if we try to map a column onto an existing column (mapping the given
     # "other" column onto the existing "zp" column).

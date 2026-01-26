@@ -33,7 +33,8 @@ class ObsTable:
         The table with all the survey information. Metadata can be included in the
         "lightcurvelynx_survey_data" entry of the attributes dictionary.
     colmap : dict, optional
-        A mapping of standard column names to their names in the input table.
+        A mapping of standard column names to a list of possible names in the input table.
+        Each value in the dictionary can be a string or a list of strings.
         For example, in Rubin's OpSim we might have the column "observationStartMJD"
         which maps to "time". In that case we would have an entry with key="time"
         and value="observationStartMJD".
@@ -110,12 +111,31 @@ class ObsTable:
             self._table = table.copy()
 
         # Remap the columns to standard names. Start with the existing names (from the table)
-        # and overwrite anything provided by the column map. Save the inverse mapping.
+        # and overwrite anything provided by the column map. The column map can have multiple
+        # potential options for each standard name to handle changes in schema
+        # (e.g. Rubin Opsim, DP1, DP2, etc.).
+        # name_map will be the mapping of current -> standard name.
+        # inv_colmap will be the mapping of standard -> current name.
         name_map = {col: col for col in self._table.columns}
         self._inv_colmap = {}
         self._colmap = colmap if colmap is not None else {}
+        all_cols = set(self._table.columns)
         if colmap is not None:
             for key, value in colmap.items():
+                # If the standard column name (key) could be taken from multiple options,
+                # find the first one that exists in the table.
+                if isinstance(value, list):
+                    match_value = None
+                    for val in value:
+                        if val in all_cols:
+                            match_value = val
+                            break
+
+                    if match_value is None:
+                        value = value[0]  # Default to the first option if none found
+                    else:
+                        value = match_value
+
                 if value in name_map:
                     # Check for collisions (mapping a column to an existing column)
                     if key in self._table.columns and key != value:

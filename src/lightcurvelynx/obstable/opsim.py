@@ -90,9 +90,9 @@ class OpSim(ObsTable):
     table : dict or pandas.core.frame.DataFrame
         The table with all the OpSim information.
     colmap : dict
-        A mapping of short column names to their names in the underlying table.
-        Defaults to the Rubin OpSim column names, stored in the class variable
-        _opsim_colnames.
+        A mapping of standard column names to a list of possible names in the input table.
+        Each value in the dictionary can be a string or a list of strings.
+        Defaults to the Rubin column names (OpSim, DP1, etc.), stored in _default_colnames.
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, OpSim-specific defaults will be
@@ -110,18 +110,23 @@ class OpSim(ObsTable):
 
     _required_names = ["ra", "dec", "time"]
 
-    # Default column names for the Rubin OpSim.
+    # Default column names for the Rubin from the different schemas including
+    # OpSim, DP1 CCDVisit, DP2 CCDVisit, etc.
     _default_colnames = {
         "airmass": "airmass",
-        "dec": "fieldDec",
-        "exptime": "visitExposureTime",
-        "filter": "filter",
-        "ra": "fieldRA",
-        "time": "observationStartMJD",
-        "zp": "zp_nJy",  # We add this column to the table
+        "dec": ["dec", "fieldDec"],
+        "exptime": ["exptime", "visitExposureTime", "expTime"],
+        "filter": ["filter", "band"],
+        "maglim": ["maglim", "magLim", "fiveSigmaDepth"],
+        "nexposure": ["nexposure", "numExposures", "nexp"],
+        "ra": ["ra", "fieldRA"],
+        "rotation": ["rotation", "skyRotation"],
         "seeing": "seeingFwhmEff",
         "skybrightness": "skyBrightness",
-        "nexposure": "numExposures",
+        "skynoise": ["skyNoise", "skynoise", "sky_noise_median"],
+        "time": ["time", "observationStartMJD", "expMidptMJD", "obsStart"],
+        "zp": "zp_nJy",  # We add this column to the table
+        "zp_mag": ["zp_mag", "zeroPoint", "zero_point_median"],
     }
 
     # Default survey values.
