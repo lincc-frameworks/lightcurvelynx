@@ -110,18 +110,23 @@ class OpSim(ObsTable):
 
     _required_names = ["ra", "dec", "time"]
 
-    # Default column names for the Rubin OpSim.
+    # Default column names for the Rubin from the different schemas including
+    # OpSim, DP1 CCDVisit, DP2 CCDVisit, etc.
     _default_colnames = {
         "airmass": "airmass",
-        "dec": "fieldDec",
-        "exptime": "visitExposureTime",
-        "filter": "filter",
-        "ra": "fieldRA",
-        "time": "observationStartMJD",
-        "zp": "zp_nJy",  # We add this column to the table
+        "dec": ["dec", "fieldDec"],
+        "exptime": ["exptime", "visitExposureTime", "expTime"],
+        "filter": ["filter", "band"],
+        "maglim": ["maglim", "magLim", "fiveSigmaDepth"],
+        "nexposure": ["nexposure", "numExposures", "nexp"],
+        "ra": ["ra", "fieldRA"],
+        "rotation": ["rotation", "skyRotation"],
         "seeing": "seeingFwhmEff",
         "skybrightness": "skyBrightness",
-        "nexposure": "numExposures",
+        "skynoise": ["skyNoise", "skynoise", "sky_noise_median"],
+        "time": ["time", "observationStartMJD", "expMidptMJD", "obsStart"],
+        "zp": "zp_nJy",  # We add this column to the table
+        "zp_mag": ["zp_mag", "zeroPoint", "zero_point_median"],
     }
 
     # Default survey values.
