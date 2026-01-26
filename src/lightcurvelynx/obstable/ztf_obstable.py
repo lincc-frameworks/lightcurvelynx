@@ -40,7 +40,8 @@ class ZTFObsTable(ObsTable):
     table : dict or pandas.core.frame.DataFrame
         The table with all the observation information.
     colmap : dict
-        A mapping of short column names to their names in the underlying table.
+        A mapping of standard column names to a list of possible names in the input table.
+        Each value in the dictionary can be a string or a list of strings.
         Defaults to the ZTF column names, stored in _default_colnames.
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters

@@ -25,7 +25,8 @@ class FakeObsTable(ObsTable):
         The table with all the ObsTable information.  Must have columns
         "time", "ra", "dec", and "filter".
     colmap : dict, optional
-        A mapping of standard column names to their names in the input table.
+        A mapping of standard column names to a list of possible names in the input table.
+        Each value in the dictionary can be a string or a list of strings.
     zp_per_band : dict, optional
         A dictionary mapping filter names to their instrumental zero points (flux in nJy
         corresponding to 1 electron per exposure). The filters provided must match those

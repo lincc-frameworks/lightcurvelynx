@@ -93,7 +93,8 @@ class RomanObsTable(ObsTable):
     table : dict or pandas.core.frame.DataFrame
         The table with all the observation information.
     colmap : dict
-        A mapping of short column names to their names in the underlying table.
+        A mapping of standard column names to a list of possible names in the input table.
+        Each value in the dictionary can be a string or a list of strings.
         Defaults to the Roman APT column names, stored in _default_colnames.
     ma_table_path : str or pathlib.Path, optional
         The path to the Roman MultiAccum table CSV file. If not provided, a default table included
