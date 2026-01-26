@@ -382,13 +382,15 @@ class ObsTable:
         return cls(survey_data, **kwargs)
 
     @classmethod
-    def from_parquet(cls, filename):
+    def from_parquet(cls, filename, **kwargs):
         """Create an ObsTable object from a parquet file.
 
         Parameters
         ----------
         filename : str
             The name of the parquet file to read.
+        kwargs : dict, optional
+            Additional keyword arguments to pass to the Survey constructor.
 
         Returns
         -------
@@ -398,7 +400,7 @@ class ObsTable:
         if not Path(filename).is_file():
             raise FileNotFoundError(f"File {filename} not found.")
         survey_data = pd.read_parquet(filename)
-        return cls(survey_data)
+        return cls(survey_data, **kwargs)
 
     def estimate_coverage(self, *, radius=None, max_depth=12, use_footprint=False):
         """Estimate the sky coverage of the observations in the ObsTable. This is an
