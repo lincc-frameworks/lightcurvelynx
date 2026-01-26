@@ -121,6 +121,7 @@ class ObsTable:
         name_map = {col: col for col in self._table.columns}
         self._inv_colmap = {}
         self._colmap = colmap if colmap is not None else {}
+        all_cols = set(self._table.columns)
         if colmap is not None:
             for key, value in colmap.items():
                 # If the standard column name (key) could be taken from multiple options,
@@ -128,7 +129,7 @@ class ObsTable:
                 if isinstance(value, list):
                     match_value = None
                     for val in value:
-                        if val in self._table.columns:
+                        if val in all_cols:
                             match_value = val
                             break
 
