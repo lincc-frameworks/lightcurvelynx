@@ -8,4 +8,4 @@ sphinx
 sphinx-autoapi
 sphinx-copybutton
 sphinx-design
-sphinx-rtd-theme
+sphinx-rtd-theme>=3.0
