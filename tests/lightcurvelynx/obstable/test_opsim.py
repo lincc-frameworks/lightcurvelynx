@@ -1,4 +1,5 @@
 import tempfile
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -592,7 +593,7 @@ def test_opsim_from_ccdvisit():
     assert "dec" in opsim
     assert "filter" in opsim
     assert "zp" in opsim
-    assert "fiveSigmaDepth" in opsim
+    assert "maglim" in opsim
     assert "seeing" in opsim
     assert "skybrightness" in opsim
     assert "rotation" in opsim
@@ -613,6 +614,15 @@ def test_opsim_from_ccdvisit():
         make_detector_footprint=True,
     )
     assert opsim_with_footprint._detector_footprint is not None
+
+
+def test_opsim_plot_footprint(opsim_shorten):
+    """Test that we can plot the OpSim footprint."""
+    opsim = OpSim.from_db(opsim_shorten)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        opsim.plot_footprint(depth=12)
 
 
 def test_create_random_opsim():

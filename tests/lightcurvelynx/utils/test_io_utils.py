@@ -6,6 +6,7 @@ from lightcurvelynx.utils.io_utils import (
     read_grid_data,
     read_lclib_data,
     read_numpy_data,
+    read_sqlite_table,
     write_numpy_data,
     write_results_as_hats,
 )
@@ -139,3 +140,24 @@ def test_read_lclib_data(test_data_dir):
         for col in expected_cols:
             assert col in curve.colnames
         assert np.all((curve["type"].data == "S") | (curve["type"].data == "T"))
+
+
+def test_read_sqlite_table(test_data_dir):
+    """Test reading a table from an SQLite database."""
+    table1 = read_sqlite_table(test_data_dir / "opsim_small.db", table_name="observations")
+    assert not table1.empty
+    assert "fieldRA" in table1.columns
+    assert len(table1.columns) > 3
+
+    table2 = read_sqlite_table(
+        test_data_dir / "opsim_small.db",
+        sql_query="SELECT fieldRA, fieldDec, filter FROM observations WHERE filter='g'",
+    )
+    assert not table2.empty
+    assert all(table2["filter"] == "g")
+    assert len(table2.columns) == 3
+
+    with pytest.raises(ValueError):
+        _ = read_sqlite_table(test_data_dir / "opsim_small.db")
+    with pytest.raises(FileNotFoundError):
+        _ = read_sqlite_table("no_such_file_here.db", table_name="observations")

@@ -8,6 +8,7 @@ import warnings
 from pathlib import Path
 
 import astropy.units as u
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy.coordinates import Latitude, Longitude
@@ -19,6 +20,7 @@ from tqdm import tqdm
 from lightcurvelynx.astro_utils.coordinate_utils import dedup_coords, ra_dec_to_cartesian
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.utils.io_utils import read_sqlite_table
 
 logger = logging.getLogger(__name__)
 
@@ -367,19 +369,7 @@ class ObsTable:
         FileNotFoundError if the file does not exist.
         ValueError if unable to load the table.
         """
-        if not Path(filename).is_file():
-            raise FileNotFoundError(f"db file {filename} not found.")
-        con = sqlite3.connect(f"file:{filename}?mode=ro", uri=True)
-
-        # Read the table.
-        try:
-            survey_data = pd.read_sql_query(sql_query, con)
-        except Exception:
-            raise ValueError("Database read failed.") from None
-
-        # Close the connection.
-        con.close()
-
+        survey_data = read_sqlite_table(filename, table_name=None, sql_query=sql_query)
         return cls(survey_data, **kwargs)
 
     @classmethod
@@ -511,6 +501,26 @@ class ObsTable:
                 moc = new_moc if moc is None else MOC.union(moc, new_moc)
 
         return moc
+
+    def plot_footprint(self, *, depth=14, fig=None, **kwargs):
+        """Plot the MOC footprint using matplotlib.
+
+        Parameters
+        ----------
+        depth : int, optional
+            The healpix depth to use for plotting.
+        fig : matplotlib.figure.Figure, optional
+            An existing matplotlib figure to use. If None, a new figure is created.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the mocpy.MOC.fill() function.
+        """
+        moc = self.build_moc(max_depth=depth, use_footprint=True)
+
+        if fig is None:
+            fig = plt.figure()
+        wcs = moc.wcs(fig)
+        ax = fig.add_subplot(projection=wcs)
+        moc.fill(ax, wcs, **kwargs)
 
     def _build_kd_tree(self):
         """Construct the KD-tree from the ObsTable."""
