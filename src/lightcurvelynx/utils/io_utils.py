@@ -346,7 +346,7 @@ def read_lclib_data(input_file):
         # Try to open the file as a regular text file.
         with open(input_file, "r") as file_ptr:
             curves = _read_lclib_data_from_open_file(file_ptr)
-    else:
+    else:  # pragma: no cover
         raise ValueError(f"Unsupported file format: {suffix}.")
 
     return curves
@@ -387,7 +387,7 @@ def read_sqlite_table(db_path, table_name=None, sql_query=None):
     # Read the specified table into a DataFrame.
     try:
         df = pd.read_sql_query(sql_query, con)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         raise RuntimeError(f"Error executing sql query '{sql_query}' from database {db_path}: {e}") from e
 
     # Close the database connection.
