@@ -159,7 +159,7 @@ Additional effects can be applied to the noise-free light curves to produce more
 The effects are applied in two batches. Rest frame effects are applied to the flux densities in the rest frame.
 The flux densities are then converted to the observer frame where the observer frame effects are applied.
 
-Finally, if the the raw flux densities are at the spectral level, they are are converted into the bandflux level
+Finally, if the the raw flux densities are at the spectral level, they are integrated over the bandpasses to obtain the bandflux level
 values using the ``PassbandGroup``.
 
 
