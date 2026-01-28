@@ -66,10 +66,13 @@ with parameterized values of `c`, `x0`, and `x1` to simulate a population of Typ
 
 In addition to the built-in models, the software provides wrappers to common modeling packages such as:
 
+* `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`_ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
 * `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/Bayesian>`).
+* `PyLIMA <https://github.com/ebachelet/pyLIMA>`_ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
 * `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
 * `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`_ - A package for simulating supernovae.
 * `synphot <https://synphot.readthedocs.io/en/latest/>`_ - A package for simulating photometric observations (:doc:`example <notebooks/pre_executed/synphot_example>`).
+* `VBMicrolensing <https://github.com/valboz/VBMicrolensing>`_ - A package for gravitational microlensing events using the advanced contour integration method (:doc:`example <notebooks/pre_executed/wrapping_vbmicrolensing>`).
 
 LightCurveLynx also allows users to load and sample pre-generated light curves, such as the
 ``LCLIB`` (:doc:`example <notebooks/pre_executed/lclib_example>`) and
@@ -118,7 +121,7 @@ provides a large set of predefined nodes that perform common operations. A few e
 
 The directory ``/math_nodes`` contains many additional functions.
 
-All most users will need to know is that the arguments passed to a model’s constructor can
+All most users will need to know is that the arguments passed to a model's constructor can
 take values as:
 
 * constants
@@ -139,9 +142,10 @@ DAG is sampled to get concrete values for each parameter in the model. This comb
 the graph state (and is stored in a ``GraphState`` object), because it represents the sampled state of the DAG.
 
 Next, the ``ObsTable`` is used to determine at what times and in which bands the object will be evaluated.
-These times and wavelengths are based into the object's ``evaluate_sed()`` function along with the graph state.
-The ``evaluate_sed()`` function handles the mechanics of the simulation, such as applying redshifts to both the
-times and wavelengths and handling any requested extrapolations outside the model's valid range.
+These times and wavelengths are based into the object's ``evaluate_sed()`` function (for spectral level models)
+or ``evaluate_bandfluxes()`` (for band flux level models) along with the graph state. These functions
+handle the mechanics of the simulation, such as applying redshifts to both the times and wavelengths and handling
+any requested extrapolations outside the model's valid time or wavelength range.
 
 .. figure:: _static/compute_sed.png
    :class: no-scaled-link
@@ -152,11 +156,11 @@ times and wavelengths and handling any requested extrapolations outside the mode
    An example of the compute_sed function
 
 Additional effects can be applied to the noise-free light curves to produce more realistic light curves.
-The effects are applied in two batches. Rest frame effects are applied to the flux densities in the frame.
+The effects are applied in two batches. Rest frame effects are applied to the flux densities in the rest frame.
 The flux densities are then converted to the observer frame where the observer frame effects are applied.
 
-Finally, the raw flux densities are are converted into the magnitudes observed in each band using the
-``PassbandGroup``.
+Finally, if the the raw flux densities are at the spectral level, they are are converted into the bandflux level
+values using the ``PassbandGroup``.
 
 
 Generating band flux curves
@@ -175,15 +179,15 @@ in each of the filters.
 
    An example of the evaluate_bandfluxes function
 
-In addition to being a convenient helper function, generating the data at the band flux level allows
-certain models to skip SED generation. In particular a ``BandfluxModel`` is a subclass of the ``PhysicalModel``
-whose computation is only defined at the band flux level. An example of this are models of empirically
+In addition to being a convenient helper function for spectral models, generating the data at the band flux level allows
+certain models to skip spectral-level flux density generation. In particular a ``BandfluxModel`` is a subclass of the
+``PhysicalModel`` whose computation is only defined at the band flux level. An example of this are models of empirically
 fit light curves, such as those from LCLIB. Since we do not have the underlying SEDs for these types of models,
 so we can only work with them at the band flux level. See the
 :doc:`lightcurve template model <notebooks/lightcurve_source_demo>` for an example of this type of model.
 
-**Note** that most models in LightCurveLynx operate at the SED level and we *strongly* encourage new models to
-produce SEDs where possible. Working at the finer grained level allows more comprehensive and accurate
+**Note** that most models in LightCurveLynx operate at the spectral level and we *strongly* encourage new models to
+produce spectral-level information where possible. Working at the finer grained level allows more comprehensive and accurate
 simulations, such as accounting for wavelength and time compression due to redshift. The models that generate
 band fluxes directly will not account for all of these factors.
 
@@ -245,7 +249,6 @@ so they may be memory intensive.
 
 **NOTE**: Not all subpackages work with distributed computation yet. If you get an error about
 not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
-We are aware the PZFlowNodes are currently failing.
 
 The :doc:`parallelization notebook <notebooks/parallelization>` provides an example of how to use
 LightCurveLynx to run simulations in parallel including using dask and ray.
