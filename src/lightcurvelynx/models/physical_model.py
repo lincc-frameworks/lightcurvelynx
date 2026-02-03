@@ -284,7 +284,7 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             return spectrograph.fluxes_to_bandflux(spectral_fluxes)
 
         # Fill in the band fluxes one at a time and return them all.
-        bandfluxes = np.empty((state.num_samples, len(times), spectrograph.num_bins))
+        bandfluxes = np.empty((state.num_samples, len(times), len(spectrograph)))
         for sample_num, current_state in enumerate(state):
             spectral_fluxes = self.evaluate_sed(times, spectrograph.waves, current_state)
             bandfluxes[sample_num, :, :] = spectrograph.fluxes_to_bandflux(spectral_fluxes)

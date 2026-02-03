@@ -57,6 +57,11 @@ def test_constant_sed_model() -> None:
     expected2 = np.full((len(times), len(sg_pbg)), 10.0)
     assert np.allclose(values2, expected2)
 
+    # We can do multiple samples as well.
+    mult_state = model.sample_parameters(num_samples=3)
+    values3 = model.evaluate_spectra(times, sg_pbg, mult_state)
+    assert values3.shape == (3, 6, len(sg_pbg))
+
 
 def test_constant_sed_model_pytree():
     """Test that the PyTree only contains brightness."""

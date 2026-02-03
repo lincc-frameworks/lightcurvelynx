@@ -125,10 +125,10 @@ class SpectraPassbandGroup:
             each entry corresponds to the value for a given sample at a given time and wavelength bin.
         """
         if flux_density_matrix.size == 0:
-            raise ValueError("Empty flux density matrix used.")
+            raise ValueError("Empty flux density matrix used.")  # pragma: no cover
         if len(flux_density_matrix.shape) == 2:
             return flux_density_matrix * self.scale[np.newaxis, :]
         elif len(flux_density_matrix.shape) == 3:
             return flux_density_matrix * self.scale[np.newaxis, np.newaxis, :]
         else:
-            raise ValueError("Invalid flux density matrix. Must be 2 or 3-dimensional.")
+            raise ValueError("Invalid flux density matrix. Must be 2 or 3-dimensional.")  # pragma: no cover
