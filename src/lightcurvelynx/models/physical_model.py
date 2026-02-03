@@ -252,6 +252,44 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             bandfluxes[sample_num, :] = current_fluxes[np.newaxis, :]
         return bandfluxes
 
+    def evaluate_spectra(self, spectrograph, times, state, rng_info=None) -> np.ndarray:
+        """Get the band fluxes for a given Passband or PassbandGroup.
+
+        Parameters
+        ----------
+        spectrograph : SpectraPassbandGroup
+            The information about the spectrograph to use.
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        state : GraphState
+            An object mapping graph parameters to their values.
+        rng_info : numpy.random._generator.Generator, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator.
+
+        Returns
+        -------
+        fluxes : numpy.ndarray
+            A matrix of the band fluxes. If only one sample is provided in the GraphState,
+            then returns a length T x B array where B is the number of spectrograph bins.
+            Otherwise returns a size S x T x B array where S is the number of samples in the graph state.
+        """
+        # Check if we need to sample the graph.
+        if state is None:
+            state = self.sample_parameters(num_samples=1, rng_info=rng_info)
+
+        # If we only have a single sample, we can return the spectrograph fluxes directly.
+        if state.num_samples == 1:
+            spectral_fluxes = self.evaluate_sed(times, spectrograph.waves, state)
+            return spectrograph.fluxes_to_bandflux(spectral_fluxes)
+
+        # Fill in the band fluxes one at a time and return them all.
+        bandfluxes = np.empty((state.num_samples, len(times), spectrograph.num_bins))
+        for sample_num, current_state in enumerate(state):
+            spectral_fluxes = self.evaluate_sed(times, spectrograph.waves, current_state)
+            bandfluxes[sample_num, :, :] = spectrograph.fluxes_to_bandflux(spectral_fluxes)
+        return bandfluxes
+
 
 class SEDModel(BasePhysicalModel):
     """A model of a source of flux that is defined at the SED level.
@@ -1049,3 +1087,27 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 **params,  # Provide all the node's parameters to the effect.
             )
         return bandfluxes
+
+    def evaluate_spectra(self, spectrograph, times, state, rng_info=None) -> np.ndarray:
+        """Get the band fluxes for a given Passband or PassbandGroup.
+
+        Parameters
+        ----------
+        spectrograph : SpectraPassbandGroup
+            The information about the spectrograph to use.
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        state : GraphState
+            An object mapping graph parameters to their values.
+        rng_info : numpy.random._generator.Generator, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator.
+
+        Returns
+        -------
+        fluxes : numpy.ndarray
+            A matrix of the band fluxes. If only one sample is provided in the GraphState,
+            then returns a length T x B array where B is the number of spectrograph bins.
+            Otherwise returns a size S x T x B array where S is the number of samples in the graph state.
+        """
+        raise NotImplementedError("BandfluxModel does not support evaluate_spectra.")  # pragma: no cover
