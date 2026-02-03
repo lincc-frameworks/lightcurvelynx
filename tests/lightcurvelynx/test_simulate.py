@@ -246,6 +246,9 @@ def test_simulate_lightcurves(test_data_dir):
         assert len(results.loc[idx]["lightcurve"]["obs_idx"]) == num_obs
         assert len(np.unique(results.loc[idx]["lightcurve"]["obs_idx"])) == num_obs
 
+        # We do not include the full filter name unless that option is selected.
+        assert "full_filter_name" not in results.loc[idx]["lightcurve"]
+
         # Check that we extract one of the parameters.
         assert results["source_brightness"][idx] == given_brightness[idx]
 
@@ -414,6 +417,7 @@ def test_simulate_parallel_threads(test_data_dir):
             param_cols=["source.brightness"],
             executor=executor,
             batch_size=10,
+            save_full_filter_names=True,
         )
     assert len(results) == 100
     assert np.all(results["nobs"].values >= 1)
@@ -426,6 +430,14 @@ def test_simulate_parallel_threads(test_data_dir):
         num_obs = results["nobs"][idx]
         assert num_obs >= 1
         assert len(results["lightcurve"][idx]["flux"]) == num_obs
+
+        # Check that we got the full filter names correct.
+        for filter_name, full_name in zip(
+            results["lightcurve"][idx]["filter"],
+            results["lightcurve"][idx]["full_filter_name"],
+            strict=False,
+        ):
+            assert full_name == f"LSST_{filter_name}"
 
 
 def test_simulate_parallel_processes(test_data_dir):
@@ -817,6 +829,7 @@ def test_simulate_multiple_surveys_diff_filters():
         [obstable1, obstable2],
         [passband_group1, passband_group2],
         obstable_save_cols=["zp", "custom_col"],
+        save_full_filter_names=True,
     )
     assert len(results) == 1
     assert results["nobs"][0] == 6
@@ -825,6 +838,11 @@ def test_simulate_multiple_surveys_diff_filters():
     lightcurve = results["lightcurve"][0]
     assert np.all(lightcurve["flux_perfect"][0:3] > 800.0)
     assert np.all(lightcurve["flux_perfect"][3:6] < 500.0)
+    assert np.array_equal(lightcurve["filter"], ["r"] * 6)
+    assert np.array_equal(
+        lightcurve["full_filter_name"],
+        ["survey1_r", "survey1_r", "survey1_r", "survey2_r", "survey2_r", "survey2_r"],
+    )
 
 
 def test_compute_noise_free_lightcurves_single(test_data_dir):
