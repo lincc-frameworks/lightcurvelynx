@@ -252,15 +252,15 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             bandfluxes[sample_num, :] = current_fluxes[np.newaxis, :]
         return bandfluxes
 
-    def evaluate_spectra(self, spectrograph, times, state, rng_info=None) -> np.ndarray:
+    def evaluate_spectra(self, times, spectrograph, state, rng_info=None) -> np.ndarray:
         """Get the band fluxes for a given Passband or PassbandGroup.
 
         Parameters
         ----------
-        spectrograph : SpectraPassbandGroup
-            The information about the spectrograph to use.
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
+        spectrograph : SpectraPassbandGroup
+            The information about the spectrograph to use.
         state : GraphState
             An object mapping graph parameters to their values.
         rng_info : numpy.random._generator.Generator, optional

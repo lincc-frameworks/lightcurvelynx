@@ -11,7 +11,7 @@ def test_create_spectra_passband_group():
     assert sp_pbg.bin_width == 5.0
     assert sp_pbg.survey == "SpectraPassbandGroup"
     assert len(sp_pbg) == 1600  # (11000 - 3000) / 5 = 1600 bins
-    assert np.array_equal(sp_pbg.waves, np.arange(3000 + 2.5, 11000 + 5.0, 5.0))
+    assert np.array_equal(sp_pbg.waves, np.arange(3000 + 2.5, 11000, 5.0))
 
     l_val, h_val = sp_pbg.wave_bounds()
     assert l_val == 3000
@@ -53,6 +53,14 @@ def test_spectra_passband_group_equals():
     assert sp_pbg1 != sp_pbg3
     assert sp_pbg1 != sp_pbg4
     assert sp_pbg1 != sp_pbg5
+
+
+def test_create_spectra_passband_group_fail():
+    """Test that we fail to create a SpectraPassbandGroup object with invalid parameters."""
+    with pytest.raises(ValueError):
+        _ = SpectraPassbandGroup(wave_start=5000, wave_end=4000, bin_width=5.0)
+    with pytest.raises(ValueError):
+        _ = SpectraPassbandGroup(wave_start=4000, wave_end=5000, bin_width=-5.0)
 
 
 def test_create_spectra_passband_group_with_scale():
@@ -115,3 +123,8 @@ def test_create_spectra_passband_group_with_scale():
     different_scale = np.array([0.5, 1.0, 1.0, 1.0, 0.9])
     sp_pbg3 = SpectraPassbandGroup(wave_start=4000, wave_end=5000, bin_width=200.0, scale=different_scale)
     assert sp_pbg != sp_pbg3
+
+    # Test with a mismatched scale length.
+    bad_scale = np.array([1.0, 0.8])
+    with pytest.raises(ValueError):
+        _ = SpectraPassbandGroup(wave_start=4000, wave_end=5000, bin_width=200.0, scale=bad_scale)
