@@ -54,7 +54,7 @@ def test_constant_sed_model() -> None:
     # When evaluating spectra, we get one result for each bin.
     sg_pbg = SpectraPassbandGroup(wave_start=4000, wave_end=8000, bin_width=200.0)
     values2 = model.evaluate_spectra(times, sg_pbg, state)
-    expected2 = np.full((len(times), sg_pbg.num_bins), 10.0)
+    expected2 = np.full((len(times), len(sg_pbg)), 10.0)
     assert np.allclose(values2, expected2)
 
 
