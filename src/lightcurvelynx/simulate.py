@@ -61,6 +61,8 @@ class SimulationInfo:
     output_file_path : str or Path, optional
         The file path and name of where to save the results. If provided the results
         are saved to this file instead of being returned directly.
+    save_full_filter_names : bool
+        Whether to save the full filter names in the results (including survey prefix).
     kwargs : dict
         Additional keyword arguments to pass to the simulation function.
     """
@@ -79,6 +81,7 @@ class SimulationInfo:
         sample_offset=0,
         rng=None,
         output_file_path=None,
+        save_full_filter_names=False,
         **kwargs,
     ):
         self.model = model
@@ -93,6 +96,7 @@ class SimulationInfo:
         self.rng = rng
         self.kwargs = kwargs
         self.output_file_path = None
+        self.save_full_filter_names = save_full_filter_names
 
         if self.num_samples <= 0:
             raise ValueError("Number of samples must be a positive integer.")
@@ -176,6 +180,7 @@ class SimulationInfo:
                 sample_offset=self.sample_offset + start_idx,
                 rng=batch_rng,
                 output_file_path=batch_output_file_path,
+                save_full_filter_names=self.save_full_filter_names,
                 **self.kwargs,
             )
             batches.append(batch_info)
@@ -349,6 +354,8 @@ def _simulate_lightcurves_batch(simulation_info):
         obstable_save_cols = []
     for col in obstable_save_cols:
         nested_dict[col] = []
+    if simulation_info.save_full_filter_names:
+        nested_dict["full_filter_name"] = []
 
     # Determine which of the of the simulated positions match the pointings from each ObsTable.
     logger.info("Performing range searches to find matching observations.")
@@ -422,6 +429,15 @@ def _simulate_lightcurves_batch(simulation_info):
             total_num_obs += nobs
             nested_index.extend([idx] * nobs)
 
+            # Add the survey name from the passband information if we chose to save it.
+            if simulation_info.save_full_filter_names:
+                obs_filters = np.asarray(obs_filters)
+                full_filter_names = np.empty_like(obs_filters, dtype=object)
+                for filter_name in np.unique(obs_filters):
+                    pb_obj = passbands[survey_idx][filter_name]
+                    full_filter_names[obs_filters == filter_name] = pb_obj.full_name
+                nested_dict["full_filter_name"].extend(list(full_filter_names))
+
         # The number of observations is the total across all surveys.
         results_dict["nobs"][idx] = total_num_obs
 
@@ -486,6 +502,7 @@ def simulate_lightcurves(
     executor=None,
     num_jobs=None,
     batch_size=100_000,
+    save_full_filter_names=False,
 ):
     """Generate a number of simulations of the given model and information
     from one or more surveys. The result data can either be returned directly
@@ -547,6 +564,8 @@ def simulate_lightcurves(
     batch_size : int, optional
         The number of samples to process in each batch when using multiprocessing.
         Default is 100_000.
+    save_full_filter_names : bool
+        Whether to save the full filter names in the results (including survey prefix).
 
     Returns
     -------
@@ -570,6 +589,7 @@ def simulate_lightcurves(
         obstable_save_cols=obstable_save_cols,
         param_cols=param_cols,
         output_file_path=output_file_path,
+        save_full_filter_names=save_full_filter_names,
     )
 
     # If we do not have any parallelization information, perform in serial.
