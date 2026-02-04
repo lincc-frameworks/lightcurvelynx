@@ -2,11 +2,10 @@
 
 import numpy as np
 from astropy import units as u
-from citation_compass import cite_function
 
+from lightcurvelynx.astro_utils.sed import SED
 from lightcurvelynx.math_nodes.given_sampler import GivenValueSampler
 from lightcurvelynx.models.physical_model import BandfluxModel, SEDModel
-from lightcurvelynx.utils.io_utils import read_numpy_data
 
 
 class StaticSEDModel(SEDModel):
@@ -22,17 +21,15 @@ class StaticSEDModel(SEDModel):
 
     Attributes
     ----------
-    sed_values : list
+    sed_values : list of numpy.ndarray or SED
        A list of SEDs from which to sample. Each SED is represented as a
        two row numpy-array where the first row is wavelength and the
-       second is flux value.
+       second is flux value, or as an instance of the SED class.
 
     Parameters
     ----------
-    sed_values : list or numpy array.
-       A single SED or a list of SEDs from which to sample. Each SED is
-       represented as a two row numpy-array where the first row is wavelength
-       and the second is flux value.
+    sed_values : list of SED objects
+       A single SED or a list of SEDs from which to sample.
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
         an SED at random. If None, all SEDs will be weighted equally.
@@ -45,19 +42,24 @@ class StaticSEDModel(SEDModel):
         **kwargs,
     ):
         # If only a single SED was passed, then put it in a list by itself.
-        if isinstance(sed_values, np.ndarray) and len(sed_values) == 2:
+        if isinstance(sed_values, SED):
             self.sed_values = [sed_values]
-        else:
+        elif isinstance(sed_values, np.ndarray) and len(sed_values) == 2:
+            self.sed_values = [sed_values]
+        elif isinstance(sed_values, list | np.ndarray):
             self.sed_values = sed_values
+        else:
+            raise ValueError("sed_values must be a single SED, a two row numpy array, or a list of SEDs.")
 
         # Validate the SED input data.
         for idx, sed in enumerate(self.sed_values):
-            if not isinstance(sed, np.ndarray) or len(sed.shape) != 2 or sed.shape[0] != 2:
-                raise ValueError(f"SED {idx} must be a two row numpy array of wavelength and flux.")
-            if sed.shape[1] < 2:
-                raise ValueError(f"SED {idx} must have at least 2 entries.")
-            if not np.all(np.diff(sed[0, :]) > 0):
-                raise ValueError(f"SED {idx} wavelenths are not in sorted order.")
+            # If the entry is a numpy array, turn it into an SED object.
+            if isinstance(sed, np.ndarray):
+                if sed.shape[0] != 2 or sed.shape[1] < 2:
+                    raise ValueError(f"SED {idx} must be a two row numpy array of wavelength and flux.")
+                self.sed_values[idx] = SED(sed[0, :], sed[1, :])
+            elif not isinstance(sed, SED):
+                raise ValueError(f"SED {idx} must be an instance of the SED class or a two row numpy array.")
 
         super().__init__(**kwargs)
 
@@ -92,15 +94,10 @@ class StaticSEDModel(SEDModel):
         StaticSEDModel
             An instance of StaticSEDModel with the loaded SED data.
         """
-        # Load the SED data from the file (automatically detected format)
-        sed_data = read_numpy_data(sed_file)
-        if sed_data.ndim != 2 or sed_data.shape[1] != 2:
-            raise ValueError(f"SED data from {sed_file} must be a two column array.")
-
-        return cls(sed_values=sed_data.T, **kwargs)
+        sed_data = SED.from_file(sed_file)
+        return cls(sed_values=sed_data, **kwargs)
 
     @classmethod
-    @cite_function
     def from_synphot(cls, sp_model, waves=None, **kwargs):
         """Generate the spectrum from a given synphot model.
 
@@ -123,28 +120,10 @@ class StaticSEDModel(SEDModel):
         StaticSEDModel
             An instance of StaticSEDModel with the generated SED data.
         """
-        try:
-            from synphot import units
-        except ImportError as err:  # pragma: no cover
-            raise ImportError(
-                "synphot package is not installed be default. To use the synphot models, please "
-                "install it. For example, you can install it with `pip install synphot`."
-            ) from err
-
-        if sp_model.z > 0.0:
-            raise ValueError(
-                "The synphot model must be defined at the rest frame (z=0.0). "
-                f"Current redshift is {sp_model.z}."
-            )
-
         if waves is None:
             waves = np.array(sp_model.waveset * u.angstrom)
-
-        # Extract the SED data from the synphot model. Synphot models return flux in units
-        # of PHOTLAM (photons s^-1 cm^-2 A^-1), so we convert to nJy.
-        photlam_flux = sp_model(waves, flux_unit=units.PHOTLAM)
-        sed_data = np.array(units.convert_flux(waves, photlam_flux, "nJy"))
-        return cls(np.vstack((waves, sed_data)), **kwargs)
+        sed_data = SED.from_synphot(sp_model, waves=waves)
+        return cls(sed_values=sed_data, **kwargs)
 
     def minwave(self, graph_state=None):
         """Get the minimum wavelength of the model.
@@ -162,7 +141,7 @@ class StaticSEDModel(SEDModel):
             if the model does not have a defined minimum wavelength.
         """
         idx = self.get_param(graph_state, "selected_idx")
-        return self.sed_values[idx][0, 0]
+        return self.sed_values[idx].minwave()
 
     def maxwave(self, graph_state=None):
         """Get the maximum wavelength of the model.
@@ -180,7 +159,7 @@ class StaticSEDModel(SEDModel):
             if the model does not have a defined maximum wavelength.
         """
         idx = self.get_param(graph_state, "selected_idx")
-        return self.sed_values[idx][0, -1]
+        return self.sed_values[idx].maxwave()
 
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.
@@ -201,19 +180,14 @@ class StaticSEDModel(SEDModel):
         """
         # Use the SED selected by the sampler node to compute the flux density.
         model_ind = self.get_param(graph_state, "selected_idx")
-        num_times = len(times)
-        num_waves = len(wavelengths)
+        sed_obj = self.sed_values[model_ind]
 
         # At each time step we interpolate SED at the query wavelengths.
-        sed_fluxes = np.interp(
-            wavelengths,
-            self.sed_values[model_ind][0, :],
-            self.sed_values[model_ind][1, :],
-            left=0.0,
-            right=0.0,
-        )
+        sed_fluxes = sed_obj.evaluate(wavelengths)
 
         # We repeat the interpolated SED values at each time.
+        num_times = len(times)
+        num_waves = len(wavelengths)
         flux_density = np.tile(sed_fluxes, num_times).reshape(num_times, num_waves)
         return flux_density
 
