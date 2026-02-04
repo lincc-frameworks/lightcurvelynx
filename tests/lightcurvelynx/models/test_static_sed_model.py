@@ -1,11 +1,34 @@
 import numpy as np
 import pytest
+from lightcurvelynx.astro_utils.sed import SED
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel, StaticSEDModel
 from lightcurvelynx.utils.extrapolate import LinearDecay
 from lightcurvelynx.utils.io_utils import write_numpy_data
 
 
 def test_single_static_sed() -> None:
+    """Test that we can create and sample a StaticSEDModel object with a single SED."""
+    sed = SED(
+        wavelengths=np.array([100.0, 200.0, 300.0, 400.0]),
+        fluxes=np.array([10.0, 20.0, 20.0, 10.0]),
+    )
+    model = StaticSEDModel(sed, node_label="test")
+    assert len(model) == 1
+
+    times = np.array([1, 2, 3, 10, 20])
+    wavelengths = np.array([50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0])
+
+    with pytest.warns(UserWarning):
+        # Warns for wavelengths outside the SED range.
+        values = model.evaluate_sed(times, wavelengths)
+    assert values.shape == (5, 9)
+
+    expected = np.array([0.0, 10.0, 15.0, 20.0, 20.0, 20.0, 15.0, 10.0, 0.0])
+    for t_idx in range(5):
+        assert np.array_equal(values[t_idx, :], expected)
+
+
+def test_single_static_sed_from_numpy() -> None:
     """Test that we can create and sample a StaticSEDModel object with a single SED."""
     sed = np.array(
         [
@@ -106,17 +129,16 @@ def test_static_sed_from_file(tmp_path) -> None:
 
 def test_multiple_static_seds() -> None:
     """Test that we can create and sample a StaticSEDModel object with a multiple SEDs."""
+    # We use a combination of numpy arrays and SED objects.
     sed0 = np.array(
         [
             [100.0, 200.0, 300.0, 400.0],  # Wavelengths
             [10.0, 20.0, 20.0, 10.0],  # fluxes
         ]
     )
-    sed1 = np.array(
-        [
-            [100.0, 200.0, 300.0, 400.0],  # Wavelengths
-            [20.0, 40.0, 40.0, 20.0],  # fluxes
-        ]
+    sed1 = SED(
+        wavelengths=np.array([100.0, 200.0, 300.0, 400.0]),
+        fluxes=np.array([20.0, 40.0, 40.0, 20.0]),
     )
     model = StaticSEDModel([sed0, sed1], weights=[0.25, 0.75], node_label="test")
     assert len(model) == 2
@@ -143,6 +165,17 @@ def test_multiple_static_seds() -> None:
             assert np.array_equal(values[idx], expected_0)
         else:
             assert np.array_equal(values[idx], expected_1)
+
+    # We can retrieve SEDs by index and iterate over them. Everything is
+    # extracted as an SED object.
+    assert isinstance(model[0], SED)
+    assert isinstance(model[1], SED)
+
+    count = 0
+    for sed in model:
+        assert isinstance(sed, SED)
+        count += 1
+    assert count == 2
 
 
 def test_multiple_static_seds_min_max():

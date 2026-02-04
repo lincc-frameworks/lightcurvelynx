@@ -153,3 +153,29 @@ class SED:
         """
         sed_data = np.column_stack((self.wavelengths, self.fluxes))
         write_numpy_data(sed_file, sed_data)
+
+    def plot(self, *, ax=None, **kwargs):
+        """Plot the SED.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            The axes to plot on. If None, a new figure and axes will be created.
+        **kwargs : dict
+            Additional keyword arguments to pass to the plot function.
+
+        Returns
+        -------
+        ax : matplotlib.axes.Axes
+            The axes with the SED plot.
+        """
+        import matplotlib.pyplot as plt
+
+        if ax is None:
+            _, ax = plt.subplots()  # pragma: no cover
+
+        ax.plot(self.wavelengths, self.fluxes, **kwargs)
+        ax.set_xlabel("Wavelength (Angstroms)")
+        ax.set_ylabel("Flux (nJy)")
+        ax.set_title("Spectral Energy Distribution (SED)")
+        return ax

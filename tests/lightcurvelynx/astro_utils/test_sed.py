@@ -123,3 +123,16 @@ def test_sed_from_synphot() -> None:
     fluxes = model.evaluate(wavelengths)
     assert fluxes.shape == (len(wavelengths),)
     np.testing.assert_allclose(fluxes, expected, rtol=1e-5)
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+def test_sed_plot() -> None:
+    """Test that we can plot a SED."""
+    sed = np.array(
+        [
+            [1000.0, 2000.0, 3000.0, 4000.0],  # Wavelengths
+            [10.0, 20.0, 20.0, 10.0],  # fluxes
+        ]
+    )
+    model = SED(sed[0], sed[1])
+    model.plot()  # Just ensure this runs without error

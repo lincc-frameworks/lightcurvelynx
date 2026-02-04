@@ -77,6 +77,14 @@ class StaticSEDModel(SEDModel):
         """Get the number of SED value."""
         return len(self.sed_values)
 
+    def __iter__(self):
+        """Iterate over the SED values."""
+        return iter(self.sed_values)
+
+    def __getitem__(self, index):
+        """Get the SED at the given index."""
+        return self.sed_values[index]
+
     @classmethod
     def from_file(cls, sed_file, **kwargs):
         """Load a static SED from a file containing a two column array where the
