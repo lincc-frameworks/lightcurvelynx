@@ -181,10 +181,6 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
             seed_param = NumpyRandomFunc("integers", low=0, high=2**32 - 1)
         self.add_parameter("eztaox_seed_param", seed_param)
 
-    def clear_cache(self):
-        """Clear any cached data for this model node."""
-        self._cached_data = {}
-
     def _compute_all_bandfluxes(self, times, filters, state):
         """Evaluate the model at the passband level for a single, given graph state and
         and all of the filters at once. We do this and cache the results to avoid
@@ -205,18 +201,19 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         dict
             A dictionary of cached data with the filters, times, and computed bandfluxes.
         """
-        if "bandfluxes" in self._cached_data:
-            # Basic error checking that we do not have a dirty cache.
-            if not np.array_equal(self._cached_data["filters"], filters):
-                raise ValueError("Dirty cache detected in _compute_all_bandfluxes.")
-            if not np.array_equal(self._cached_data["times"], times):
-                raise ValueError("Dirty cache detected in _compute_all_bandfluxes.")
+        if (
+            "bandfluxes" in self._cached_data
+            and state is self._cached_data.get("state")
+            and np.array_equal(self._cached_data["filters"], filters)
+            and np.array_equal(self._cached_data["times"], times)
+        ):
             return self._cached_data
 
         # Cache the input data (times and filters).
         self._cached_data = {}  # Clear the cache (just in case).
         self._cached_data["times"] = times
         self._cached_data["filters"] = filters
+        self._cached_data["state"] = state
 
         # Import the dependencies that we need for this computation (these have all
         # been checked in the constructor).
@@ -295,42 +292,8 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         bandflux : numpy.ndarray
             A length T array of band fluxes for this model in this filter.
         """
+        # The _compute_all_bandfluxes method will handle checking if the cache is valid and,
+        # if not, will clear it and recompute the bandfluxes for all filters.
         bandflux_data = self._compute_all_bandfluxes(times, filter, state)
         filter_mask = bandflux_data["filters"] == filter
         return bandflux_data["bandfluxes"][filter_mask]
-
-    def evaluate_bandfluxes(self, passband_or_group, times, filters, state, rng_info=None) -> np.ndarray:
-        """Get the band fluxes for a given Passband or PassbandGroup.
-
-        Parameters
-        ----------
-        passband_or_group : Passband or PassbandGroup
-            The passband (or passband group) to use.
-        times : numpy.ndarray
-            A length T array of observer frame timestamps in MJD.
-        filters : numpy.ndarray or None
-            A length T array of filter names. It may be None if
-            passband_or_group is a Passband.
-        state : GraphState
-            An object mapping graph parameters to their values.
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
-
-        Returns
-        -------
-        bandfluxes : numpy.ndarray
-            A matrix of the band fluxes. If only one sample is provided in the GraphState,
-            then returns a length T array. Otherwise returns a size S x T array where S is the
-            number of samples in the graph state.
-        """
-        # Check that we do not have a dirty cache.
-        self.clear_cache()
-
-        # Do the normal computation (relying on the cached bandfluxes).
-        bandfluxes = super().evaluate_bandfluxes(passband_or_group, times, filters, state, rng_info)
-
-        # Clear the cache.
-        self.clear_cache()
-
-        return bandfluxes
