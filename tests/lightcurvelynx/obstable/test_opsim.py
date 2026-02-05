@@ -31,11 +31,12 @@ def test_create_opsim():
     assert len(ops_data.columns) == 4
 
     # We have all the attributes set at their default values.
-    assert ops_data.survey_values["dark_current"] == 0.2
+    assert ops_data.survey_values["dark_current"] == 0.02
     assert ops_data.survey_values["ext_coeff"] == _lsstcam_extinction_coeff
+    assert ops_data.survey_values["gain"] == 1.595
     assert ops_data.survey_values["pixel_scale"] == 0.2
     assert ops_data.survey_values["radius"] == 1.75
-    assert ops_data.survey_values["read_noise"] == 8.8
+    assert ops_data.survey_values["read_noise"] == 5.8
     assert ops_data.survey_values["zp_per_sec"] == _lsstcam_zeropoint_per_sec_zenith
     assert ops_data.survey_values["survey_name"] == "LSST"
 
@@ -522,7 +523,9 @@ def test_read_opsim_shorten(opsim_shorten):
 
 def test_opsim_flux_err_point_source(opsim_shorten):
     """Check if OpSim.flux_err_point_source is consistent with fiveSigmaDepth."""
-    ops_data = OpSim.from_db(opsim_shorten)
+    # We need to use the dark_current and read_noise values from the original opsim,
+    # which used the upper bounds.
+    ops_data = OpSim.from_db(opsim_shorten, dark_current=0.2, read_noise=8.8)
     # fiveSigmaDepth is the 5-sigma limiting magnitude.
     flux = mag2flux(ops_data["fiveSigmaDepth"])
     expected_flux_err = flux / 5.0
@@ -595,6 +598,7 @@ def test_opsim_from_ccdvisit():
     assert "zp" in opsim
     assert "maglim" in opsim
     assert "seeing" in opsim
+    assert "sky_noise" in opsim
     assert "rotation" in opsim
     assert "radius" in opsim
 

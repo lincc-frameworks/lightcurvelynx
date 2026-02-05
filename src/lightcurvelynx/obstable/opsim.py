@@ -20,16 +20,25 @@ from lightcurvelynx.utils.data_download import download_data_file_if_needed
 LSSTCAM_PIXEL_SCALE = 0.2
 """The pixel scale for the LSST camera in arcseconds per pixel."""
 
-_lsstcam_readout_noise = 8.8
+_lsstcam_readout_noise = 5.8
 """The standard deviation of the count of readout electrons per pixel for the LSST camera.
+This is the average value from the two CCD types used (e2v and ITL) in the LSST camera.
 
-The value is from https://smtn-002.lsst.io/v/OPSIM-1171/index.html
+The value is from https://lsstcam.lsst.io/index.html
 """
 
-_lsstcam_dark_current = 0.2
+_lsstcam_dark_current = 0.02
 """The dark current for the LSST camera in electrons per second per pixel.
+This is the average value from the two CCD types used (e2v and ITL) in the LSST camera.
 
-The value is from https://smtn-002.lsst.io/v/OPSIM-1171/index.html
+The value is from https://lsstcam.lsst.io/index.html
+"""
+
+_lsstcam_gain = 1.595
+"""The gain for the LSST camera in electrons per ADU.
+This is the average value from the two CCD types used (e2v and ITL) in the LSST camera.
+
+The value is from https://lsstcam.lsst.io/index.html
 """
 
 _lsstcam_view_radius = 1.75
@@ -102,6 +111,7 @@ class OpSim(ObsTable):
         for survey parameters such as:
         - dark_current : The dark current for the camera in electrons per second per pixel.
         - ext_coeff: Mapping of filter names to extinction coefficients.
+        - gain: The gain for the camera in electrons per ADU.
         - pixel_scale: The pixel scale for the camera in arcseconds per pixel.
         - radius: The angular radius of the observations (in degrees).
         - read_noise: The readout noise for the camera in electrons per pixel.
@@ -126,6 +136,7 @@ class OpSim(ObsTable):
         "seeing": ["seeing", "seeingFwhmEff"],  # arcseconds
         "sky_bg_adu": ["sky_bg_adu", "skyBg"],  # Averge sky background in ADU
         "skybrightness": ["skybrightness", "skyBrightness"],  # mag per arcsec^2
+        "sky_noise": ["sky_noise", "skyNoise"],  # rms sky noise in ADU
         "time": ["time", "observationStartMJD", "obsStartMJD", "expMidptMJD", "obsStart"],  # days
         "zp": "zp_nJy",  # We add this column to the table
         "zp_mag": ["zp_mag", "zeroPoint", "zero_point_median"],  # magnitudes
@@ -136,6 +147,7 @@ class OpSim(ObsTable):
         "ccd_pixel_width": 4000,
         "ccd_pixel_height": 4000,
         "dark_current": _lsstcam_dark_current,
+        "gain": _lsstcam_gain,
         "ext_coeff": _lsstcam_extinction_coeff,
         "pixel_scale": LSSTCAM_PIXEL_SCALE,
         "radius": _lsstcam_view_radius,
@@ -309,10 +321,15 @@ class OpSim(ObsTable):
         psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
         zp = observations["zp"]
 
-        # Table value is in mag/arcsec^2
-        sky_njy_angular = mag2flux(observations["skybrightness"])
-        # We need electrons per pixel^2
-        sky = sky_njy_angular * pixel_scale**2 / zp
+        # Extract the sky noise information from either sky_noise or skybrightness.
+        if "sky_noise" in observations.columns:
+            # Table value is in ADU and we need electrons per pixel^2
+            sky = (observations["sky_noise"] * self.safe_get_survey_value("gain")) ** 2
+        else:
+            # Table value is in mag/arcsec^2
+            sky_njy_angular = mag2flux(observations["skybrightness"])
+            # We need electrons per pixel^2
+            sky = sky_njy_angular * pixel_scale**2 / zp
 
         return poisson_bandflux_std(
             bandflux,

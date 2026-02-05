@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.astro_utils.mag_flux import flux2mag, mag2flux
 from lightcurvelynx.astro_utils.zeropoint import (
     calculate_zp_from_maglim,
     sky_bg_adu_to_electrons,
@@ -161,7 +161,10 @@ class ParamDeriver(ABC):
             The observation table from which to initialize parameters.
         """
         # Get the filter row so we can unpack dictionaries if needed.
-        filters = obs_table["filter"]
+        if "filter" not in obs_table.columns:
+            filters = []
+        else:
+            filters = obs_table["filter"]
 
         # Load each parameter from the ObsTable if it exists and is valid.
         for param in self.parameters:
@@ -330,6 +333,14 @@ class FullParamDeriver(ParamDeriver):
             parameter="sky_bg_adu",
             inputs=["sky_bg_electrons", "gain"],
             formula=lambda sky_electrons, gain: sky_electrons / gain,
+        )
+
+        # Electrons per pixel * nJy per electron / (arcsec^2 per pixel) -> nJy per arcsec^2
+        # Then convert nJy per arcsec^2 to mag per arcsec^2.
+        self.add_formula(
+            parameter="skybrightness",
+            inputs=["sky_bg_electrons", "pixel_scale", "zp"],
+            formula=lambda sky_electrons, pixel_scale, zp: flux2mag((sky_electrons * zp) / (pixel_scale**2)),
         )
 
         # Formulas for deriving the zero point (in nJy per electron) and related information.
