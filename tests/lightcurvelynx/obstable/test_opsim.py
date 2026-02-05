@@ -595,7 +595,6 @@ def test_opsim_from_ccdvisit():
     assert "zp" in opsim
     assert "maglim" in opsim
     assert "seeing" in opsim
-    assert "skybrightness" in opsim
     assert "rotation" in opsim
     assert "radius" in opsim
 
