@@ -6,7 +6,7 @@ from lightcurvelynx.astro_utils.zeropoint import (
     magnitude_electron_zeropoint,
     sky_bg_adu_to_electrons,
 )
-from lightcurvelynx.obstable.opsim import LSSTCAM_PIXEL_SCALE, _lsstcam_dark_current, _lsstcam_readout_noise
+from lightcurvelynx.obstable.opsim import _opsim_dark_current, _opsim_pixel_scale, _opsim_readout_noise
 from scipy.optimize import fsolve
 
 
@@ -63,8 +63,8 @@ def test_magnitude_electron_zeropoint():
         ext_coeff=extinction_coeff,
     )
     sky_count_per_arcsec_sq = np.power(10.0, -0.4 * (sky_brightness_getter(bands) - zp))
-    readout_per_arcsec_sq = _lsstcam_readout_noise**2 / LSSTCAM_PIXEL_SCALE**2
-    dark_per_arcsec_sq = _lsstcam_dark_current * exptime / LSSTCAM_PIXEL_SCALE**2
+    readout_per_arcsec_sq = _opsim_readout_noise**2 / _opsim_pixel_scale**2
+    dark_per_arcsec_sq = _opsim_dark_current * exptime / _opsim_pixel_scale**2
     count_per_arcsec_sq = sky_count_per_arcsec_sq + readout_per_arcsec_sq + dark_per_arcsec_sq
 
     area = 2.266 * fwhm_eff_getter(bands) ** 2  # effective seeing area in arcsec^2

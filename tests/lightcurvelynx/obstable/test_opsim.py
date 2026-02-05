@@ -8,8 +8,8 @@ import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.obstable.opsim import (
     OpSim,
-    _lsstcam_extinction_coeff,
-    _lsstcam_zeropoint_per_sec_zenith,
+    _opsim_extinction_coeff,
+    _opsim_zeropoint_per_sec_zenith,
     create_random_opsim,
     opsim_add_random_data,
     oversample_opsim,
@@ -32,11 +32,11 @@ def test_create_opsim():
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.2
-    assert ops_data.survey_values["ext_coeff"] == _lsstcam_extinction_coeff
+    assert ops_data.survey_values["ext_coeff"] == _opsim_extinction_coeff
     assert ops_data.survey_values["pixel_scale"] == 0.2
     assert ops_data.survey_values["radius"] == 1.75
     assert ops_data.survey_values["read_noise"] == 8.8
-    assert ops_data.survey_values["zp_per_sec"] == _lsstcam_zeropoint_per_sec_zenith
+    assert ops_data.survey_values["zp_per_sec"] == _opsim_zeropoint_per_sec_zenith
     assert ops_data.survey_values["survey_name"] == "LSST"
 
     # Check that we can extract the time bounds.
@@ -578,42 +578,6 @@ def _make_fake_data(times):
     data["zeroPoint"] = np.random.normal(31.0, 0.2, num_samples)  # mag
 
     return pd.DataFrame(data)
-
-
-def test_opsim_from_ccdvisit():
-    """Test that we can create an OpSim from a CCD visit database."""
-    times = 60623.25 + np.arange(20) * 0.1  # 20 time steps (15 minutes apart)
-    ccd_visit_table = _make_fake_data(times)
-    opsim = OpSim.from_ccdvisit_table(ccd_visit_table)
-    assert len(opsim) == 180  # Number of rows in the test ccdvisit table
-
-    # Check that we have the expected columns.
-    assert "time" in opsim
-    assert "ra" in opsim
-    assert "dec" in opsim
-    assert "filter" in opsim
-    assert "zp" in opsim
-    assert "maglim" in opsim
-    assert "seeing" in opsim
-    assert "skybrightness" in opsim
-    assert "rotation" in opsim
-    assert "radius" in opsim
-
-    # Check that we have the expected survey radius values.
-    assert np.all(opsim["radius"] >= 0.15)
-    assert np.all(opsim["radius"] <= 0.16)
-    assert np.all(opsim["pixel_scale"] >= 0.19)
-    assert np.all(opsim["pixel_scale"] <= 0.21)
-
-    # No footprint is created by default.
-    assert opsim._detector_footprint is None
-
-    # If we create a footprint, it is set correctly.
-    opsim_with_footprint = OpSim.from_ccdvisit_table(
-        ccd_visit_table,
-        make_detector_footprint=True,
-    )
-    assert opsim_with_footprint._detector_footprint is not None
 
 
 def test_opsim_plot_footprint(opsim_shorten):
