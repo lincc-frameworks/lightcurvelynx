@@ -130,7 +130,7 @@ class LSSTObsTable(ObsTable):
         "seeing": "seeing",  # arcseconds
         "sky_bg_adu": "skyBg",  # Averge sky background in ADU
         "sky_noise": "skyNoise",  # rms sky noise in ADU
-        "time": "obsStartMJD",  # days
+        "time": ["obsStartMJD", "expMidptMJD"],  # days
         "zp_mag": "zeroPoint",  # magnitudes
     }
 
@@ -198,7 +198,7 @@ class LSSTObsTable(ObsTable):
 
     @classmethod
     def from_ccdvisit_table(cls, table, make_detector_footprint=False, **kwargs):
-        """Construct an OpSim object from a CCDVisit table.
+        """Construct an LSSTObsTable object from a CCDVisit table.
 
         As an example we could access the DP1 CCDVisit table from RSP as:
             from lsst.rsp import get_tap_service
@@ -212,17 +212,17 @@ class LSSTObsTable(ObsTable):
         Parameters
         ----------
         table : pandas.core.frame.DataFrame
-            The CCDVisit table containing the OpSim data.
+            The CCDVisit table containing the LSSTObsTable data.
         make_detector_footprint : bool, optional
             If True, the detector footprint will be created based on the xSize and ySize columns
             in the table.
         **kwargs : dict
-            Additional keyword arguments to pass to the OpSim constructor.
+            Additional keyword arguments to pass to the LSSTObsTable constructor.
 
         Returns
         -------
-        opsim : OpSim
-            An OpSim object containing the data from the CCDVisit table.
+        obstable : LSSTObsTable
+            An LSSTObsTable object containing the data from the CCDVisit table.
         """
         table = table.copy()
         cols = table.columns.to_list()
@@ -254,8 +254,31 @@ class LSSTObsTable(ObsTable):
 
         return obstable
 
-    # TODO: Add a from_consdb function
-    # https://sdm-schemas.lsst.io/cdb_lsstcam.html
+    @classmethod
+    def from_consdb_table(cls, table, make_detector_footprint=False, **kwargs):
+        """Construct an LSSTObsTable object from a ConsDB table stored in a SQLite file.
+        (Schema: https://sdm-schemas.lsst.io/cdb_lsstcam.html)
+
+        As an example we can read a table from a file (e.g. using the `read_sqlite_table` function).
+            from lightcurvelynx.utils.io_utils import read_sqlite_table
+            table = read_sqlite_table("path_to_file.db", sql_query="SELECT * FROM observations")
+
+        Parameters
+        ----------
+        table : pandas.core.frame.DataFrame
+            The ConsDB table containing the LSSTObsTable data.
+        make_detector_footprint : bool, optional
+            If True, the detector footprint will be created based on the xSize and ySize columns
+            in the table.
+        **kwargs : dict
+            Additional keyword arguments to pass to the LSSTObsTable constructor.
+
+        Returns
+        -------
+        obstable : LSSTObsTable
+            An LSSTObsTable object containing the data from the ConsDB table.
+        """
+        raise NotImplementedError("LSSTObsTable.from_consdb_table is not implemented yet.")
 
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
@@ -265,7 +288,7 @@ class LSSTObsTable(ObsTable):
         bandflux : array_like of float
             Band bandflux of the point source in nJy.
         index : array_like of int
-            The index of the observation in the OpSim table.
+            The index of the observation in the LSSTObsTable table.
 
         Returns
         -------
