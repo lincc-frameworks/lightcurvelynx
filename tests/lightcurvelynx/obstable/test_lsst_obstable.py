@@ -14,7 +14,7 @@ def test_create_lsst_obstable():
         "obsStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "zp_mag": np.ones(5),
+        "zp": np.ones(5),
     }
     pdf = pd.DataFrame(values)
 
@@ -79,7 +79,7 @@ def _make_fake_data(times):
     # Create a tile of pointings around a random center at each time
     # where the center is chosen from a 1 degree by 1 degree box.
     data = {
-        "expMidptMJD": [],
+        "obsStartMJD": [],
         "ra": [],
         "dec": [],
         "band": [],

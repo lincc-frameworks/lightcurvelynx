@@ -580,42 +580,6 @@ def _make_fake_data(times):
     return pd.DataFrame(data)
 
 
-def test_opsim_from_ccdvisit():
-    """Test that we can create an OpSim from a CCD visit database."""
-    times = 60623.25 + np.arange(20) * 0.1  # 20 time steps (15 minutes apart)
-    ccd_visit_table = _make_fake_data(times)
-    opsim = OpSim.from_ccdvisit_table(ccd_visit_table)
-    assert len(opsim) == 180  # Number of rows in the test ccdvisit table
-
-    # Check that we have the expected columns.
-    assert "time" in opsim
-    assert "ra" in opsim
-    assert "dec" in opsim
-    assert "filter" in opsim
-    assert "zp" in opsim
-    assert "maglim" in opsim
-    assert "seeing" in opsim
-    assert "skybrightness" in opsim
-    assert "rotation" in opsim
-    assert "radius" in opsim
-
-    # Check that we have the expected survey radius values.
-    assert np.all(opsim["radius"] >= 0.15)
-    assert np.all(opsim["radius"] <= 0.16)
-    assert np.all(opsim["pixel_scale"] >= 0.19)
-    assert np.all(opsim["pixel_scale"] <= 0.21)
-
-    # No footprint is created by default.
-    assert opsim._detector_footprint is None
-
-    # If we create a footprint, it is set correctly.
-    opsim_with_footprint = OpSim.from_ccdvisit_table(
-        ccd_visit_table,
-        make_detector_footprint=True,
-    )
-    assert opsim_with_footprint._detector_footprint is not None
-
-
 def test_opsim_plot_footprint(opsim_shorten):
     """Test that we can plot the OpSim footprint."""
     opsim = OpSim.from_db(opsim_shorten)

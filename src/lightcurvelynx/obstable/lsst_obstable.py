@@ -184,12 +184,17 @@ class LSSTObsTable(ObsTable):
         """Assign instrumental zero points in nJy to the OpSim tables."""
         cols = self._table.columns.to_list()
 
+        if "zp" in cols:
+            return  # Nothing to do
+
         # If the zero point column is already present (as a magnitude),
         # we convert it to nJy.
         if "zp_mag" in cols:
             zp_values = mag2flux(self._table["zp_mag"])
             self.add_column("zp", zp_values, overwrite=True)
             return
+
+        raise ValueError("Not enough information to compute the zero points.")
 
     @classmethod
     def from_ccdvisit_table(cls, table, make_detector_footprint=False, **kwargs):
@@ -248,6 +253,9 @@ class LSSTObsTable(ObsTable):
             obstable.set_detector_footprint(detect_fp)
 
         return obstable
+
+    # TODO: Add a from_consdb function
+    # https://sdm-schemas.lsst.io/cdb_lsstcam.html
 
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
