@@ -2,7 +2,7 @@ import random
 
 import numpy as np
 import pytest
-from lightcurvelynx.astro_utils.spectrograph import SpectraPassbandGroup
+from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.models.basic_models import (
     ConstantSEDModel,
@@ -52,7 +52,7 @@ def test_constant_sed_model() -> None:
     assert np.all(values == 5.0)
 
     # When evaluating spectra, we get one result for each bin.
-    sg_pbg = SpectraPassbandGroup(wave_start=4000, wave_end=8000, bin_width=200.0)
+    sg_pbg = Spectrograph.from_regular_grid(wave_start=4000, wave_end=8000, bin_width=200.0)
     values2 = model.evaluate_spectra(times, sg_pbg, state)
     expected2 = np.full((len(times), len(sg_pbg)), 10.0)
     assert np.allclose(values2, expected2)
@@ -205,7 +205,7 @@ def test_linear_wavelength_model() -> None:
     assert np.allclose(values, expected)
 
     # When evaluating spectra, we get one result for each bin.
-    sg_pbg = SpectraPassbandGroup(wave_start=4000, wave_end=5000, bin_width=200.0)
+    sg_pbg = Spectrograph.from_regular_grid(wave_start=4000, wave_end=5000, bin_width=200.0)
     values2 = model.evaluate_spectra(times, sg_pbg, state)
     expected2 = np.tile(np.array([411.0, 431.0, 451.0, 471.0, 491.0]), (len(times), 1))
     assert np.allclose(values2, expected2)

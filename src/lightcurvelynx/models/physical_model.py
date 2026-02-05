@@ -259,7 +259,7 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         ----------
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
-        spectrograph : SpectraPassbandGroup
+        spectrograph : Spectrograph
             The information about the spectrograph to use.
         state : GraphState
             An object mapping graph parameters to their values.
@@ -281,13 +281,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         # If we only have a single sample, we can return the spectrograph fluxes directly.
         if state.num_samples == 1:
             spectral_fluxes = self.evaluate_sed(times, spectrograph.waves, state)
-            return spectrograph.fluxes_to_bandflux(spectral_fluxes)
+            return spectrograph.evaluate(spectral_fluxes)
 
         # Fill in the band fluxes one at a time and return them all.
         bandfluxes = np.empty((state.num_samples, len(times), len(spectrograph)))
         for sample_num, current_state in enumerate(state):
             spectral_fluxes = self.evaluate_sed(times, spectrograph.waves, current_state)
-            bandfluxes[sample_num, :, :] = spectrograph.fluxes_to_bandflux(spectral_fluxes)
+            bandfluxes[sample_num, :, :] = spectrograph.evaluate(spectral_fluxes)
         return bandfluxes
 
 
@@ -1093,7 +1093,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
 
         Parameters
         ----------
-        spectrograph : SpectraPassbandGroup
+        spectrograph : Spectrograph
             The information about the spectrograph to use.
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
