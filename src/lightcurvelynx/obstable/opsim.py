@@ -114,21 +114,20 @@ class OpSim(ObsTable):
     # OpSim, DP1 CCDVisit, DP2 CCDVisit, etc.
     _default_colnames = {
         "airmass": "airmass",
-        "dec": ["dec", "fieldDec"],
-        "exptime": ["exptime", "visitExposureTime", "expTime"],
+        "dec": ["dec", "fieldDec"],  # degrees
+        "exptime": ["exptime", "visitExposureTime", "expTime"],  # seconds
         "filter": ["filter", "band"],
-        "maglim": ["maglim", "magLim", "fiveSigmaDepth"],
-        "nexposure": ["nexposure", "numExposures", "nexp"],
-        "pixel_scale": ["pixel_scale", "pixelScale"],
-        "ra": ["ra", "fieldRA"],
-        "rotation": ["rotation", "skyRotation"],
-        "seeing": "seeingFwhmEff",
-        "sky_bg_adu": ["sky_bg_adu", "skyBg"],
-        "skybrightness": ["skybrightness", "skyBrightness"],
-        "skynoise": ["skyNoise", "skynoise", "sky_noise_median"],
-        "time": ["time", "observationStartMJD", "obsStartMJD", "expMidptMJD", "obsStart"],
+        "maglim": ["maglim", "magLim", "fiveSigmaDepth"],  # magnitudes
+        "nexposure": ["nexposure", "numExposures", "nexp"],  # count
+        "pixel_scale": ["pixel_scale", "pixelScale"],  # arcseconds per pixel
+        "ra": ["ra", "fieldRA"],  # degrees
+        "rotation": ["rotation", "skyRotation"],  # degrees
+        "seeing": ["seeing", "seeingFwhmEff"],  # arcseconds
+        "sky_bg_adu": ["sky_bg_adu", "skyBg"],  # ADU per pixel
+        "skybrightness": ["skybrightness", "skyBrightness"],  # mag per arcsec^2
+        "time": ["time", "observationStartMJD", "obsStartMJD", "expMidptMJD", "obsStart"],  # days
         "zp": "zp_nJy",  # We add this column to the table
-        "zp_mag": ["zp_mag", "zeroPoint", "zero_point_median"],
+        "zp_mag": ["zp_mag", "zeroPoint", "zero_point_median"],  # magnitudes
     }
 
     # Default survey values.
