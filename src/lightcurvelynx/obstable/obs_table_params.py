@@ -161,7 +161,10 @@ class ParamDeriver(ABC):
             The observation table from which to initialize parameters.
         """
         # Get the filter row so we can unpack dictionaries if needed.
-        filters = obs_table["filter"]
+        if "filter" not in obs_table.columns:
+            filters = None
+        else:
+            filters = obs_table["filter"]
 
         # Load each parameter from the ObsTable if it exists and is valid.
         for param in self.parameters:
@@ -169,7 +172,8 @@ class ParamDeriver(ABC):
                 values = obs_table[param].to_numpy()
             elif param in obs_table.survey_values:
                 values = obs_table.survey_values[param]
-                if type(values) is dict:
+                if type(values) is dict and filters is not None:
+                    # Unpack the per-band dictionary into an array of values.
                     values = np.array([values.get(band, None) for band in filters])
             else:
                 values = None
