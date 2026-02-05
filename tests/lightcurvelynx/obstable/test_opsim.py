@@ -8,8 +8,8 @@ import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.obstable.opsim import (
     OpSim,
-    _lsstcam_extinction_coeff,
-    _lsstcam_zeropoint_per_sec_zenith,
+    _opsim_extinction_coeff,
+    _opsim_zeropoint_per_sec_zenith,
     create_random_opsim,
     opsim_add_random_data,
     oversample_opsim,
@@ -32,11 +32,11 @@ def test_create_opsim():
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.2
-    assert ops_data.survey_values["ext_coeff"] == _lsstcam_extinction_coeff
+    assert ops_data.survey_values["ext_coeff"] == _opsim_extinction_coeff
     assert ops_data.survey_values["pixel_scale"] == 0.2
     assert ops_data.survey_values["radius"] == 1.75
     assert ops_data.survey_values["read_noise"] == 8.8
-    assert ops_data.survey_values["zp_per_sec"] == _lsstcam_zeropoint_per_sec_zenith
+    assert ops_data.survey_values["zp_per_sec"] == _opsim_zeropoint_per_sec_zenith
     assert ops_data.survey_values["survey_name"] == "LSST"
 
     # Check that we can extract the time bounds.
