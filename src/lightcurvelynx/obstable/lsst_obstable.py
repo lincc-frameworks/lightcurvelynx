@@ -256,8 +256,8 @@ class LSSTObsTable(ObsTable):
 
     @classmethod
     def from_consdb_table(cls, table, make_detector_footprint=False, **kwargs):
-        """Construct an LSSTObsTable object from a ConsDB table stored in a SQLite file.
-        (Schema: https://sdm-schemas.lsst.io/cdb_lsstcam.html)
+        """Construct an LSSTObsTable object from a ConsDB table
+        https://sdm-schemas.lsst.io/cdb_lsstcam.html
 
         As an example we can read a table from a file (e.g. using the `read_sqlite_table` function).
             from lightcurvelynx.utils.io_utils import read_sqlite_table
