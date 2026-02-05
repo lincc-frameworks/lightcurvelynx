@@ -111,9 +111,10 @@ class OpSim(ObsTable):
     _required_names = ["ra", "dec", "time"]
 
     # Default column names for the Rubin from the different schemas including
-    # OpSim, DP1 CCDVisit, DP2 CCDVisit, etc.
+    #   * OpSim
+    #   * DP1 CCDVisit (https://sdm-schemas.lsst.io/dp1.html#CcdVisit)
+    #   * DP2+ CCDVisit (https://sdm-schemas.lsst.io/lsstcam.html#CcdVisit)
     _default_colnames = {
-        "airmass": "airmass",
         "dec": ["dec", "fieldDec"],  # degrees
         "exptime": ["exptime", "visitExposureTime", "expTime"],  # seconds
         "filter": ["filter", "band"],
@@ -121,9 +122,9 @@ class OpSim(ObsTable):
         "nexposure": ["nexposure", "numExposures", "nexp"],  # count
         "pixel_scale": ["pixel_scale", "pixelScale"],  # arcseconds per pixel
         "ra": ["ra", "fieldRA"],  # degrees
-        "rotation": ["rotation", "skyRotation"],  # degrees
+        "rotation": ["rotation", "skyRotation", "rotSkyPos"],  # degrees
         "seeing": ["seeing", "seeingFwhmEff"],  # arcseconds
-        "sky_bg_adu": ["sky_bg_adu", "skyBg"],  # ADU per pixel
+        "sky_bg_adu": ["sky_bg_adu", "skyBg"],  # Averge sky background in ADU
         "skybrightness": ["skybrightness", "skyBrightness"],  # mag per arcsec^2
         "time": ["time", "observationStartMJD", "obsStartMJD", "expMidptMJD", "obsStart"],  # days
         "zp": "zp_nJy",  # We add this column to the table
