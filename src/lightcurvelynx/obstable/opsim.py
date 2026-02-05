@@ -123,7 +123,8 @@ class OpSim(ObsTable):
         "ra": ["ra", "fieldRA"],
         "rotation": ["rotation", "skyRotation"],
         "seeing": "seeingFwhmEff",
-        "skybrightness": ["skyBrightness", "skyBackground", "skyBg"],
+        "sky_bg_adu": ["sky_bg_adu", "skyBg"],
+        "skybrightness": ["skybrightness", "skyBrightness"],
         "skynoise": ["skyNoise", "skynoise", "sky_noise_median"],
         "time": ["time", "observationStartMJD", "obsStartMJD", "expMidptMJD", "obsStart"],
         "zp": "zp_nJy",  # We add this column to the table
