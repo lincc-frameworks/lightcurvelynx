@@ -42,13 +42,16 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
     has_lag : bool
         Whether the model includes lag parameters.
     filter_idx : dict
-        A mapping from filter name to an integer index. If not provided,
-        the default mapping for ugrizy filters is used.
+        A mapping from filter name to an integer index.
 
     Parameters
     ----------
     kernel : eztaox kernel object
         An eztaox kernel object to use for the Gaussian process modeling of the light curve.
+    baseline_mags : dict, optional
+        A mapping from filter name to the setter baseline magnitude for that filter. If not
+        provided, the model will use zero mean or the mean_func/mean_mag parameters.
+        Default is None.
     log_kernel_param : list of setters, required
         Setters for each of the log kernel parameters. These must be in the order expected by
         the kernel functions.
@@ -95,6 +98,7 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         self,
         kernel,
         *,
+        baseline_mags=None,
         log_kernel_param=None,
         amp_scale_func=None,
         log_amp_scale=None,
@@ -158,6 +162,10 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         self._mean_func = mean_func  # The callable if it is provided.
         self._has_mean_vals = mean_mag is not None
         if self._has_mean_vals:
+            if baseline_mags is not None:
+                raise ValueError(
+                    "If mean_mag parameter setters are provided, then baseline_mags cannot also be provided."
+                )
             if len(mean_mag) != self.num_filters - 1:
                 raise ValueError(
                     f"The number of mean parameter setters {len(mean_mag)} must be equal to the "
@@ -179,6 +187,14 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
             for i, setter in enumerate(lag):
                 self.add_parameter(f"eztaox_band_lag_{i}", setter)
 
+        # Store the baseline magnitude information.
+        for filter in self.filter_idx:
+            param_name = f"eztaox_baseline_mag_{filter}"
+            if baseline_mags is not None and filter in baseline_mags:
+                self.add_parameter(param_name, baseline_mags[filter])
+            else:
+                self.add_parameter(param_name, 0.0)  # Default to 0.0 if not provided.
+
         # The seed used per run can be defined by the seed_param. If is not provided,
         # we randomly generate a seed for each run.
         if seed_param is None:
@@ -199,11 +215,6 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         state : GraphState
             An object mapping graph parameters to their values with num_samples=1.
             This is not used in this model, but is required for the function signature.
-
-        Returns
-        -------
-        dict
-            A dictionary of cached data with the filters, times, and computed bandfluxes.
         """
         if (
             "bandfluxes" in self._cached_data
@@ -211,7 +222,7 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
             and np.array_equal(self._cached_data["filters"], filters)
             and np.array_equal(self._cached_data["times"], times)
         ):
-            return self._cached_data
+            return  # Nothing to do, the cache is valid.
 
         # Cache the input data (times and filters).
         self._cached_data = {}  # Clear the cache (just in case).
@@ -224,6 +235,9 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         import jax
         import jax.numpy as jnp
         from eztaox.simulator import MultiVarSim
+
+        # Shift the times to be relative to start at 0.
+        delta_t = jnp.array(times) - jnp.min(jnp.array(times))  # Shift times to start at 0.
 
         # Extract the local parameters for this object from the full state object and build
         # the parameter dict needed by the simulator. This parameter dict must include:
@@ -249,13 +263,12 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
             init_params["lag"] = jnp.array(
                 [local_params[f"eztaox_band_lag_{i}"] for i in range(self.num_filters)]
             )
-        print(init_params)
 
         # Create the simulator object using the given parameters and run it.
         sim = MultiVarSim(
             self.kernel,
             0.01,
-            np.max(times),  # The last time to simulate.
+            jnp.max(delta_t),  # The last time to simulate.
             self.num_filters,
             init_params=init_params,
             mean_func=self._mean_func,
@@ -266,18 +279,25 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         )
 
         # Compute the list of bands as integer indices for the simulator and save them to the cache.
-        band_indices = jnp.array([self.filter_idx[f] for f in self.filter_idx])
+        band_indices = jnp.array([self.filter_idx[f] for f in filters])
 
         # Compute the list of magnitudes for all given times, transform them to fluxes,
         # save them in the cache, and return them.
-        mags = sim.fixed_input_fast(
-            jnp.asarray(times),
-            band_indices,
+        _, mags = sim.fixed_input_fast(
+            (delta_t, band_indices),  # Tuple of times and band indices
             jax.random.PRNGKey(local_params["eztaox_seed_param"]),  # Use the per-run seed.
         )
-        bandfluxes = mag2flux(np.asarray(mags))
+
+        # Add in the baseline magnitudes.
+        mags = np.array(mags)
+        for filter in self.filter_idx:
+            baseline_mag = local_params[f"eztaox_baseline_mag_{filter}"]
+            filter_mask = filters == filter
+            mags[filter_mask] += baseline_mag
+
+        # Convert to fluxes and cache.
+        bandfluxes = mag2flux(mags)
         self._cached_data["bandfluxes"] = bandfluxes
-        return self._cached_data
 
     def compute_bandflux(self, times, filter, state):
         """Evaluate the model at the passband level for a single, given graph state and filter.
@@ -297,8 +317,51 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         bandflux : numpy.ndarray
             A length T array of band fluxes for this model in this filter.
         """
-        # The _compute_all_bandfluxes method will handle checking if the cache is valid and,
-        # if not, will clear it and recompute the bandfluxes for all filters.
-        bandflux_data = self._compute_all_bandfluxes(times, filter, state)
-        filter_mask = bandflux_data["filters"] == filter
-        return bandflux_data["bandfluxes"][filter_mask]
+        if self._cached_data is None or state is not self._cached_data.get("state"):
+            raise NotImplementedError(
+                "The compute_bandflux method should not be called directly for the "
+                "EzTaoXWrapperModel. Instead, use the evaluate_bandfluxes method which "
+                "handles caching of the bandflux computations."
+            )
+
+        # Extract the bandfluxes from the entries with matching filters.
+        filter_mask = self._cached_data["filters"] == filter
+        return self._cached_data["bandfluxes"][filter_mask]
+
+    def evaluate_bandfluxes(self, passband_or_group, times, filters, state, rng_info=None) -> np.ndarray:
+        """Get the band fluxes for a given Passband or PassbandGroup.
+
+        Parameters
+        ----------
+        passband_or_group : Passband or PassbandGroup
+            The passband (or passband group) to use.
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        filters : numpy.ndarray or None
+            A length T array of filter names. It may be None if
+            passband_or_group is a Passband.
+        state : GraphState
+            An object mapping graph parameters to their values.
+        rng_info : numpy.random._generator.Generator, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator.
+
+        Returns
+        -------
+        bandfluxes : numpy.ndarray
+            A matrix of the band fluxes. If only one sample is provided in the GraphState,
+            then returns a length T array. Otherwise returns a size S x T array where S is the
+            number of samples in the graph state.
+        """
+        # Check if we need to sample the graph.
+        if state is None:
+            state = self.sample_parameters(num_samples=1, rng_info=rng_info)
+
+        # Compute the bandfluxes using the cached method.
+        self._compute_all_bandfluxes(times, filters, state)
+
+        # Call the parent method to extract the bandfluxes in the right format.
+        return super().evaluate_bandfluxes(passband_or_group, times, filters, state, rng_info=rng_info)
+
+        # Clear the cache
+        self._cached_data = {}
