@@ -2,6 +2,7 @@
 
 https://github.com/LSST-AGN-Variability/EzTaoX
 """
+
 import importlib
 
 import numpy as np
@@ -80,9 +81,9 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         Setters for the lag for each filter except the first (length N) if has_lag is True
         and lag_func is not provided.
         Default is None.
-    filter_idx : dict, optional
-        A mapping from filter name to an integer index. If not provided,
-        the default mapping for ugrizy filters is used.
+    band_list : list, optional
+        A list of band names in order. If not provided,
+        the default list for ugrizy filters is used.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
@@ -103,7 +104,7 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         has_lag=False,
         lag_func=None,
         lag=None,
-        filter_idx=None,
+        band_list=None,
         seed_param=None,
         **kwargs,
     ):
@@ -124,7 +125,10 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
 
         # Store the kernel and filter index mapping.
         self.kernel = kernel
-        self.filter_idx = filter_idx if filter_idx is not None else self._default_filter_idx
+        if band_list is not None:
+            self.filter_idx = {band: idx for idx, band in enumerate(band_list)}
+        else:
+            self.filter_idx = self._default_filter_idx
         self.num_filters = len(self.filter_idx)
 
         # Add the log kernel parameters to this model node. Since the order is
@@ -223,28 +227,29 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
 
         # Extract the local parameters for this object from the full state object and build
         # the parameter dict needed by the simulator. This parameter dict must include:
-        # - log_kernel_params a JAX numpy array of shape (num_kernel_params,)
-        # - log_amp_scales a JAX numpy array of shape (num_filters,)
+        # - log_kernel_param a JAX numpy array of shape (num_kernel_params,)
+        # - log_amp_scale a JAX numpy array of shape (num_filters,)
         # Optional it may also include:
-        # - band_means a JAX numpy array of shape (num_filters - 1,)
-        # - band_lags a JAX numpy array of shape (num_filters,)
+        # - mean a JAX numpy array of shape (num_filters - 1,)
+        # - lag a JAX numpy array of shape (num_filters,)
         local_params = self.get_local_params(state)
         init_params = {}
-        init_params["log_kernel_params"] = jnp.array(
+        init_params["log_kernel_param"] = jnp.array(
             [local_params[f"eztaox_log_kernel_param_{i}"] for i in range(self.num_kernel_params)]
         )
         if self._has_log_amp_scale:
-            init_params["log_amp_scales"] = jnp.array(
+            init_params["log_amp_scale"] = jnp.array(
                 [local_params[f"eztaox_log_amp_scale_{i}"] for i in range(self.num_filters)]
             )
-        if not self._has_mean_vals:
-            init_params["band_means"] = jnp.array(
+        if self._has_mean_vals:
+            init_params["mean"] = jnp.array(
                 [local_params[f"eztaox_band_mean_{i}"] for i in range(self.num_filters - 1)]
             )
         if self._has_lag_values:
-            init_params["band_lags"] = jnp.array(
+            init_params["lag"] = jnp.array(
                 [local_params[f"eztaox_band_lag_{i}"] for i in range(self.num_filters)]
             )
+        print(init_params)
 
         # Create the simulator object using the given parameters and run it.
         sim = MultiVarSim(
