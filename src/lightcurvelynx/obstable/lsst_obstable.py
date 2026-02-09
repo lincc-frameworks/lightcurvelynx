@@ -58,39 +58,6 @@ We choose a very conservative noise flooring of 1e-4 mag.
 This number will be updated when we have a better estimate from LSST.
 """
 
-_lsstcam_extinction_coeff = {
-    "u": -0.458,
-    "g": -0.208,
-    "r": -0.122,
-    "i": -0.074,
-    "z": -0.057,
-    "y": -0.095,
-}
-"""The extinction coefficients for the LSST filters.
-
-Values are from
-https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
-Calculated with syseng_throughputs v1.9
-"""
-
-_lsstcam_zeropoint_per_sec_zenith = {
-    "u": 26.524,
-    "g": 28.508,
-    "r": 28.361,
-    "i": 28.171,
-    "z": 27.782,
-    "y": 26.818,
-}
-"""The zeropoints for the LSST filters at zenith
-
-This is magnitude that produces 1 electron in a 1 second exposure,
-see _assign_zero_points() docs for more details.
-
-Values are from
-https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
-Calculated with syseng_throughputs v1.9
-"""
-
 
 class LSSTObsTable(ObsTable):
     """An ObsTable for observations from the Rubin Observatory data releases.
@@ -111,12 +78,10 @@ class LSSTObsTable(ObsTable):
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
         - dark_current : The dark current for the camera in electrons per second per pixel.
-        - ext_coeff: Mapping of filter names to extinction coefficients.
         - gain: The gain for the camera in electrons per ADU.
         - pixel_scale: The pixel scale for the camera in arcseconds per pixel.
         - radius: The angular radius of the observations (in degrees).
         - read_noise: The readout noise for the camera in electrons per pixel.
-        - zp_per_sec: Mapping of filter names to zeropoints at zenith.
     """
 
     _required_names = ["ra", "dec", "time"]
@@ -147,11 +112,9 @@ class LSSTObsTable(ObsTable):
         "ccd_pixel_height": 4000,
         "dark_current": _lsstcam_dark_current,
         "gain": _lsstcam_gain,
-        "ext_coeff": _lsstcam_extinction_coeff,
         "pixel_scale": LSSTCAM_PIXEL_SCALE,
         "radius": _lsstcam_view_radius,
         "read_noise": _lsstcam_readout_noise,
-        "zp_per_sec": _lsstcam_zeropoint_per_sec_zenith,
         "zp_err_mag": _lsst_zp_err_mag,
         "survey_name": "LSST",
     }

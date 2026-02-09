@@ -1,10 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from lightcurvelynx.obstable.lsst_obstable import (
-    LSSTObsTable,
-    _lsstcam_zeropoint_per_sec_zenith,
-)
+from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable
 
 
 def test_create_lsst_obstable():
@@ -27,7 +24,6 @@ def test_create_lsst_obstable():
     assert ops_data.survey_values["pixel_scale"] == 0.2
     assert ops_data.survey_values["radius"] == 1.75
     assert ops_data.survey_values["read_noise"] == 5.82
-    assert ops_data.survey_values["zp_per_sec"] == _lsstcam_zeropoint_per_sec_zenith
     assert ops_data.survey_values["survey_name"] == "LSST"
 
     # Check that we can extract the time bounds.
