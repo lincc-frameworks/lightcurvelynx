@@ -38,7 +38,7 @@ The value is from https://lsstcam.lsst.io/index.html
 """
 
 _lsstcam_view_radius = 1.75
-"""The angular radius of the observation field (in degrees)."""
+"""The angular radius of the observation field (in degrees). LSSTCam field of view is 9.6 square degree """
 
 _lsstcam_ccd_radius = 0.1574
 """The approximate angular radius of a single LSST CCD (in degrees). Each CCD is 800*800 arcsec^2.
