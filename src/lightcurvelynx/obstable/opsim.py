@@ -1,5 +1,4 @@
-"""A module to store and manipulate OpSim observation tables.
-"""
+"""A module to store and manipulate OpSim observation tables."""
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 

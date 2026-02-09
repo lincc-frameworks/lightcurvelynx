@@ -16,23 +16,28 @@ from lightcurvelynx.obstable.obs_table import ObsTable
 LSSTCAM_PIXEL_SCALE = 0.2
 """The pixel scale for the LSST camera in arcseconds per pixel."""
 
-_lsstcam_readout_noise = 5.8
-"""The standard deviation of the count of readout electrons per pixel for the LSST camera.
-This is the average value from the two CCD types used (e2v and ITL) in the LSST camera.
+_lsstcam_readout_noise = 5.82
+"""The standard deviation of the count of readout electrons per pixel for the LSST
+camera. This is the average value from the two CCD types used (e2v=5.40 and ITL=6.21)
+in the LSST camera.
+
+Averaging as sqrt((5.40^2 + 6.21^2) / 2) = 5.82
 
 The value is from https://lsstcam.lsst.io/index.html
 """
 
-_lsstcam_dark_current = 0.02
+_lsstcam_dark_current = 0.022
 """The dark current for the LSST camera in electrons per second per pixel.
-This is the average value from the two CCD types used (e2v and ITL) in the LSST camera.
+This is the average value from the two CCD types used (e2v=0.023 and ITL=0.021)
+in the LSST camera.
 
 The value is from https://lsstcam.lsst.io/index.html
 """
 
 _lsstcam_gain = 1.595
 """The gain for the LSST camera in electrons per ADU.
-This is the average value from the two CCD types used (e2v and ITL) in the LSST camera.
+This is the average value from the two CCD types used (e2v=1.51 and ITL=1.68)
+in the LSST camera.
 
 The value is from https://lsstcam.lsst.io/index.html
 """
@@ -129,8 +134,7 @@ class LSSTObsTable(ObsTable):
         "rotation": "skyRotation",  # degrees
         "seeing": "seeing",  # arcseconds
         "sky_bg_adu": "skyBg",  # Averge sky background in ADU
-        "sky_noise": "skyNoise",  # rms sky noise in ADU
-        "time": ["obsStartMJD", "expMidptMJD"],  # days
+        "time": ["expMidptMJD", "obsStartMJD"],  # days
         "zp_mag": "zeroPoint",  # magnitudes
     }
 
@@ -310,7 +314,7 @@ class LSSTObsTable(ObsTable):
         return poisson_bandflux_std(
             bandflux,
             total_exposure_time=observations["exptime"],
-            exposure_count=observations["nexposure"],
+            exposure_count=1,
             psf_footprint=psf_footprint,
             sky=sky,
             zp=zp,
