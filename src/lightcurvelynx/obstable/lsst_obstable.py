@@ -194,10 +194,6 @@ class LSSTObsTable(ObsTable):
         table = table.copy()
         cols = table.columns.to_list()
 
-        # The CCDVisit table uses mag for zero point, we convert it to nJy.
-        if "zp_mag" in cols:
-            table["zp"] = mag2flux(table["zp_mag"])
-
         # Try to derive the viewing radius if we have the information to do so.
         if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
             radius_px = np.sqrt((table["xSize"] / 2) ** 2 + (table["ySize"] / 2) ** 2)
