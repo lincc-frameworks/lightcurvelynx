@@ -304,8 +304,8 @@ class LSSTObsTable(ObsTable):
         psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
         zp = observations["zp"]
 
-        # Extract the sky noise information from either sky_noise or skybrightness.
-        sky = (observations["sky_noise"] * self.safe_get_survey_value("gain")) ** 2
+        # Compute sky background in e- from sky_bg_adu.
+        sky = observations["sky_bg_adu"] * self.safe_get_survey_value("gain")
 
         return poisson_bandflux_std(
             bandflux,
