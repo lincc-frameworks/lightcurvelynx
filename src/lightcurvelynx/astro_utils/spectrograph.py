@@ -15,7 +15,7 @@ class Spectrograph:
     waves : np.ndarray
         The wavelengths at the center of each bin in Angstroms.
     instrument : str
-        The instrument name for the spectra passband group. Default is "Spectrograph".
+        The instrument name for the spectrograph. Default is "Spectrograph".
     scale : np.ndarray
         The multiplicative factor to apply to each bin's flux to capture sensor
         sensitivity, etc. If None, we use 1.0 for all bins.
@@ -147,7 +147,7 @@ class Spectrograph:
 
         Returns
         -------
-        measured : np.ndarray
+        measured_flux : np.ndarray
             A 2D or 3D array. If the flux_density_matrix contains a single sample (2D input) then
             the function returns a 2D matrix where each row is a time and each column is the measurement
             at the corresponding wavelength bin. Otherwise the function returns a size S x T x B array
