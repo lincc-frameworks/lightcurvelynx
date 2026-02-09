@@ -92,7 +92,7 @@ def test_create_spectrograph_with_scale():
     spgraph = Spectrograph.from_regular_grid(wave_start=4000, wave_end=5000, bin_width=200.0, scale=scale)
     assert np.allclose(spgraph.waves, np.array([4100.0, 4300.0, 4500.0, 4700.0, 4900.0]))
 
-    # Two dimensional fluxes to bandfluxes
+    # Two dimensional fluxes to spec_fluxes
     input = np.array(
         [
             [10.0, 20.0, 30.0, 40.0, 50.0],
