@@ -181,7 +181,7 @@ class LSSTObsTable(ObsTable):
         super().__init__(table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
 
     def _assign_zero_points(self):
-        """Assign instrumental zero points in nJy to the OpSim tables."""
+        """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables."""
         cols = self._table.columns.to_list()
 
         if "zp" in cols:
