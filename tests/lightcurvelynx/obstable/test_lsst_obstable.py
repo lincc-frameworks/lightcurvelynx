@@ -3,7 +3,6 @@ import pandas as pd
 import pytest
 from lightcurvelynx.obstable.lsst_obstable import (
     LSSTObsTable,
-    _lsstcam_extinction_coeff,
     _lsstcam_zeropoint_per_sec_zenith,
 )
 
@@ -24,7 +23,6 @@ def test_create_lsst_obstable():
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.022
-    assert ops_data.survey_values["ext_coeff"] == _lsstcam_extinction_coeff
     assert ops_data.survey_values["gain"] == 1.595
     assert ops_data.survey_values["pixel_scale"] == 0.2
     assert ops_data.survey_values["radius"] == 1.75

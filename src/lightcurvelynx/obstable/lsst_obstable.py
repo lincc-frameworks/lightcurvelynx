@@ -135,7 +135,7 @@ class LSSTObsTable(ObsTable):
         "seeing": "seeing",  # arcseconds
         "sky_bg_adu": "skyBg",  # Averge sky background in ADU
         "time": ["expMidptMJD", "obsStartMJD"],  # days
-        "zp_mag": "zeroPoint",  # magnitudes
+        "zp_mag_adu": "zeroPoint",  # magnitudes to produce 1 count (ADU)
     }
 
     # For now use the CCDVisit column mapping as the default.
@@ -193,8 +193,8 @@ class LSSTObsTable(ObsTable):
 
         # If the zero point column is already present (as a magnitude),
         # we convert it to nJy.
-        if "zp_mag" in cols:
-            zp_values = mag2flux(self._table["zp_mag"])
+        if "zp_mag_adu" in cols:
+            zp_values = mag2flux(self._table["zp_mag_adu"]) * self.safe_get_survey_value("gain")
             self.add_column("zp", zp_values, overwrite=True)
             return
 
