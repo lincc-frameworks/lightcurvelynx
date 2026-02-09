@@ -172,7 +172,7 @@ class ParamDeriver(ABC):
                 values = obs_table[param].to_numpy()
             elif param in obs_table.survey_values:
                 values = obs_table.survey_values[param]
-                if type(values) is dict and filters is not None:
+                if isinstance(values, dict) and filters is not None:
                     # Unpack the per-band dictionary into an array of values.
                     values = np.array([values.get(band, None) for band in filters])
             else:
