@@ -88,7 +88,7 @@ Calculated with syseng_throughputs v1.9
 
 
 class LSSTObsTable(ObsTable):
-    """An ObsTable for observations from the Rubin Observatory OpSim.
+    """An ObsTable for observations from the Rubin Observatory data releases.
 
     Parameters
     ----------
