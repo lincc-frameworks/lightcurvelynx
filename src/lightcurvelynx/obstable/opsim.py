@@ -1,7 +1,4 @@
-"""The top-level module for survey related data, such as pointing and noise
-information. By default the module uses the Rubin OpSim data, but it can be
-extended to other survey data as well.
-"""
+"""A module to store and manipulate OpSim observation tables."""
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
@@ -9,7 +6,6 @@ import numpy as np
 import pandas as pd
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
-from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
 from lightcurvelynx.astro_utils.zeropoint import flux_electron_zeropoint
@@ -17,38 +13,38 @@ from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
-LSSTCAM_PIXEL_SCALE = 0.2
+_opsim_pixel_scale = 0.2
 """The pixel scale for the LSST camera in arcseconds per pixel."""
 
-_lsstcam_readout_noise = 8.8
+_opsim_readout_noise = 8.8
 """The standard deviation of the count of readout electrons per pixel for the LSST camera.
 
 The value is from https://smtn-002.lsst.io/v/OPSIM-1171/index.html
 """
 
-_lsstcam_dark_current = 0.2
+_opsim_dark_current = 0.2
 """The dark current for the LSST camera in electrons per second per pixel.
 
 The value is from https://smtn-002.lsst.io/v/OPSIM-1171/index.html
 """
 
-_lsstcam_view_radius = 1.75
+_opsim_view_radius = 1.75
 """The angular radius of the observation field (in degrees)."""
 
-_lsstcam_ccd_radius = 0.1574
+_opsim_ccd_radius = 0.1574
 """The approximate angular radius of a single LSST CCD (in degrees). Each CCD is 800*800 arcsec^2.
 We approximate the radius as 800 arcsec/ sqrt(2). We overestimate slightly, because this value is
 used in range searches. More exact filtering is done with the detector footprint.
 """
 
-_lsst_zp_err_mag = 1.0e-4
+_opsim_zp_err_mag = 1.0e-4
 """The zero point error in magnitude.
 
 We choose a very conservative noise flooring of 1e-4 mag.
 This number will be updated when we have a better estimate from LSST.
 """
 
-_lsstcam_extinction_coeff = {
+_opsim_extinction_coeff = {
     "u": -0.458,
     "g": -0.208,
     "r": -0.122,
@@ -63,7 +59,7 @@ https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
 Calculated with syseng_throughputs v1.9
 """
 
-_lsstcam_zeropoint_per_sec_zenith = {
+_opsim_zeropoint_per_sec_zenith = {
     "u": 26.524,
     "g": 28.508,
     "r": 28.361,
@@ -110,37 +106,32 @@ class OpSim(ObsTable):
 
     _required_names = ["ra", "dec", "time"]
 
-    # Default column names for the Rubin from the different schemas including
-    # OpSim, DP1 CCDVisit, DP2 CCDVisit, etc.
+    # Default column names for the Rubin OpSim observations table.
     _default_colnames = {
-        "airmass": "airmass",
-        "dec": ["dec", "fieldDec"],
-        "exptime": ["exptime", "visitExposureTime", "expTime"],
-        "filter": ["filter", "band"],
-        "maglim": ["maglim", "magLim", "fiveSigmaDepth"],
-        "nexposure": ["nexposure", "numExposures", "nexp"],
-        "pixel_scale": ["pixel_scale", "pixelScale"],
-        "ra": ["ra", "fieldRA"],
-        "rotation": ["rotation", "skyRotation"],
-        "seeing": "seeingFwhmEff",
-        "skybrightness": ["skyBrightness", "skyBackground", "skyBg"],
-        "skynoise": ["skyNoise", "skynoise", "sky_noise_median"],
-        "time": ["time", "observationStartMJD", "obsStartMJD", "expMidptMJD", "obsStart"],
+        "dec": "fieldDec",  # degrees
+        "exptime": "visitExposureTime",  # seconds
+        "filter": "filter",
+        "maglim": "fiveSigmaDepth",  # magnitudes
+        "nexposure": "numExposures",  # count
+        "ra": "fieldRA",  # degrees
+        "rotation": "rotSkyPos",  # degrees
+        "seeing": "seeingFwhmEff",  # arcseconds
+        "skybrightness": "skyBrightness",  # mag per arcsec^2
+        "time": "observationStartMJD",  # days
         "zp": "zp_nJy",  # We add this column to the table
-        "zp_mag": ["zp_mag", "zeroPoint", "zero_point_median"],
     }
 
-    # Default survey values.
+    # Default survey values (LSSTCam).
     _default_survey_values = {
         "ccd_pixel_width": 4000,
         "ccd_pixel_height": 4000,
-        "dark_current": _lsstcam_dark_current,
-        "ext_coeff": _lsstcam_extinction_coeff,
-        "pixel_scale": LSSTCAM_PIXEL_SCALE,
-        "radius": _lsstcam_view_radius,
-        "read_noise": _lsstcam_readout_noise,
-        "zp_per_sec": _lsstcam_zeropoint_per_sec_zenith,
-        "zp_err_mag": _lsst_zp_err_mag,
+        "dark_current": _opsim_dark_current,
+        "ext_coeff": _opsim_extinction_coeff,
+        "pixel_scale": _opsim_pixel_scale,
+        "radius": _opsim_view_radius,
+        "read_noise": _opsim_readout_noise,
+        "zp_per_sec": _opsim_zeropoint_per_sec_zenith,
+        "zp_err_mag": _opsim_zp_err_mag,
         "survey_name": "LSST",
     }
 
@@ -225,64 +216,6 @@ class OpSim(ObsTable):
         if not download_data_file_if_needed(data_path, opsim_url, force_download=force_download):
             raise RuntimeError(f"Failed to download opsim data from {opsim_url}.")
         return cls.from_db(data_path)
-
-    @classmethod
-    def from_ccdvisit_table(cls, table, make_detector_footprint=False, **kwargs):
-        """Construct an OpSim object from a CCDVisit table.
-
-        As an example we could access the DP1 CCDVisit table from RSP as:
-            from lsst.rsp import get_tap_service
-            service = get_tap_service("tap")
-            table = service.search("SELECT * FROM dp1.CcdVisit").to_table().to_pandas()
-
-        Or you can read a table from a file (e.g. using the `read_sqlite_table` function).
-            from lightcurvelynx.utils.io_utils import read_sqlite_table
-            table = read_sqlite_table("path_to_file.db", sql_query="SELECT * FROM observations")
-
-        Parameters
-        ----------
-        table : pandas.core.frame.DataFrame
-            The CCDVisit table containing the OpSim data.
-        make_detector_footprint : bool, optional
-            If True, the detector footprint will be created based on the xSize and ySize columns
-            in the table.
-        **kwargs : dict
-            Additional keyword arguments to pass to the OpSim constructor.
-
-        Returns
-        -------
-        opsim : OpSim
-            An OpSim object containing the data from the CCDVisit table.
-        """
-        table = table.copy()
-        cols = table.columns.to_list()
-
-        # The CCDVisit table uses mag for zero point, we convert it to nJy.
-        if "zp_mag" in cols:
-            table["zp"] = mag2flux(table["zp_mag"])
-
-        # Try to derive the viewing radius if we have the information to do so.
-        if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
-            radius_px = np.sqrt((table["xSize"] / 2) ** 2 + (table["ySize"] / 2) ** 2)
-            table["radius"] = (radius_px * table["pixel_scale"]) / 3600.0  # arcsec to degrees
-        elif "radius" not in kwargs:
-            # Use a single approximate average ccd radius.
-            kwargs["radius"] = _lsstcam_ccd_radius
-
-        # Create the OpSim object. Use the default column mapping for OpSim, which
-        # supports multiple schemas including DP1 and DP2.
-        opsim = cls(table, **kwargs)
-
-        # Create a detector footprint if requested. We use the same (average) footprint for
-        #  all CCDs based on the survey parameters for pixel scale and CCD size.
-        if make_detector_footprint:
-            pixel_scale = opsim.survey_values.get("pixel_scale")
-            width_px = opsim.survey_values.get("ccd_pixel_width")
-            height_px = opsim.survey_values.get("ccd_pixel_height")
-            detect_fp = DetectorFootprint.from_pixel_rect(width_px, height_px, pixel_scale=pixel_scale)
-            opsim.set_detector_footprint(detect_fp)
-
-        return opsim
 
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source

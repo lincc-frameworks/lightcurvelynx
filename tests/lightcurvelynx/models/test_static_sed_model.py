@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from lightcurvelynx.astro_utils.sed import SED
+from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel, StaticSEDModel
 from lightcurvelynx.utils.extrapolate import LinearDecay
 from lightcurvelynx.utils.io_utils import write_numpy_data
@@ -50,6 +51,15 @@ def test_single_static_sed_from_numpy() -> None:
     expected = np.array([0.0, 10.0, 15.0, 20.0, 20.0, 20.0, 15.0, 10.0, 0.0])
     for t_idx in range(5):
         assert np.array_equal(values[t_idx, :], expected)
+
+    # We can evaluate spectral (even if they are sampled differently).
+    sg_pbg = Spectrograph.from_regular_grid(wave_start=150.0, wave_end=475.0, bin_width=50.0)
+    with pytest.warns(UserWarning):
+        # Warns for wavelengths outside the SED range.
+        values2 = model.evaluate_spectra(times, sg_pbg, None)
+    expected_row = np.array([17.5, 20.0, 20.0, 17.5, 12.5, 0.0])
+    expected_all = np.tile(expected_row, (5, 1))
+    assert np.allclose(values2, expected_all)
 
 
 def test_static_sed_fail() -> None:
@@ -228,6 +238,11 @@ def test_single_static_bandflux() -> None:
     fluxes = model.evaluate_bandfluxes(None, times, filters, state)
     assert len(fluxes) == 10
     assert np.array_equal(fluxes, expected)
+
+    # We fail if we try to evaluate a spectra from a bandflux only model.
+    sg_pbg = Spectrograph.from_regular_grid(wave_start=150.0, wave_end=475.0, bin_width=50.0)
+    with pytest.raises(NotImplementedError):
+        _ = model.evaluate_spectra(times, sg_pbg, state)
 
 
 def test_multiple_static_bandflux() -> None:

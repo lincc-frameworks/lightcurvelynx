@@ -108,6 +108,14 @@ class BasicMathNode(FunctionNode):
     }
 
     def __init__(self, expression, backend="numpy", node_label=None, **kwargs):
+        # Set the backend and the corresponding math library.
+        self._set_backend(backend)
+
+        # Check the expression is pure math and translate it into the correct backend.
+        self._prepare(expression, **kwargs)
+        super().__init__(self.eval, node_label=node_label, **kwargs)
+
+    def _set_backend(self, backend):
         if backend == "jax" or backend == "jnp":
             try:
                 import jax.numpy as jnp
@@ -137,34 +145,40 @@ class BasicMathNode(FunctionNode):
                 f"Unsupported math backend '{backend}'. Must be one of: math, numpy, np, jax, or jnp."
             )
 
-        # Check the expression is pure math and translate it into the correct backend.
-        self.expression = expression
-        self._prepare(**kwargs)
+    def __getstate__(self):
+        """We override the default pickling behavior to handle non-pickable attributes such
+        as the backend_lib and to_array function.
+        """
+        state = self.__dict__.copy()
+        # Remove the backend_lib from the state to be pickled.
+        if "backend_lib" in state:
+            del state["backend_lib"]
+        if "to_array" in state:
+            del state["to_array"]
+        return state
 
-        # Create a function from the expression. Note the expression has
-        # already been sanitized and validated via _prepare().
-        def eval_func(**kwargs):
-            params = self._prepare_params(**kwargs)
-            params[self.backend] = self.backend_lib
+    def __setstate__(self, state):
+        """We override the default unpickling behavior to restore the non-pickable attributes."""
+        self.__dict__.update(state)
 
-            try:
-                return eval(self.expression, globals(), params)
-            except Exception as problem:  # pragma: no cover
-                # Provide more detailed logging, including the expression and parameters
-                # used, when we encounter a math error like divide by zero.
-                new_message = (
-                    f"Error during math operation '{self.expression}' with args={kwargs}. "
-                    f"Original error: {problem}"
-                )
-                raise type(problem)(new_message) from problem
-
-        super().__init__(eval_func, node_label=node_label, **kwargs)
+        # Restore the backend_lib and to_array attributes based on the backend.
+        self._set_backend(self.backend)
 
     def eval(self, **kwargs):
         """Evaluate the expression."""
         params = self._prepare_params(**kwargs)
         params[self.backend] = self.backend_lib
-        return eval(self.expression, globals(), params)
+
+        try:
+            return eval(self.expression, globals(), params)
+        except Exception as problem:  # pragma: no cover
+            # Provide more detailed logging, including the expression and parameters
+            # used, when we encounter a math error like divide by zero.
+            new_message = (
+                f"Error during math operation '{self.expression}' with args={kwargs}. "
+                f"Original error: {problem}"
+            )
+            raise type(problem)(new_message) from problem
 
     @staticmethod
     def list_functions():
@@ -196,18 +210,21 @@ class BasicMathNode(FunctionNode):
             params[name] = self.to_array(value)
         return params
 
-    def _prepare(self, **kwargs):
+    def _prepare(self, expression, **kwargs):
         """Rewrite a python expression that consists of only basic math to use
         the prespecified math library. Santizes the string to prevent
         arbitrary code execution.
 
         Parameters
         ----------
+        expression : str
+            The expression to evaluate. Must only contain basic math operations,
+            functions on the allow list, and variables provided in kwargs.
         **kwargs : dict, optional
             Any additional keyword arguments, including the variable
             assignments.
         """
-        tree = ast.parse(self.expression)
+        tree = ast.parse(expression)
 
         # Walk the tree and confirm that it only contains the basic math.
         for node in ast.walk(tree):
