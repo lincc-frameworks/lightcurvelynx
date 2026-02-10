@@ -333,8 +333,8 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
 
         Parameters
         ----------
-        passband_or_group : Passband or PassbandGroup
-            The passband (or passband group) to use.
+        passband_or_group : Passband or PassbandGroup or None
+            The passband (or passband group) to use. Not used in this function.
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
         filters : numpy.ndarray or None
@@ -361,7 +361,9 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         self._compute_all_bandfluxes(times, filters, state)
 
         # Call the parent method to extract the bandfluxes in the right format.
-        return super().evaluate_bandfluxes(passband_or_group, times, filters, state, rng_info=rng_info)
+        bandfluxes = super().evaluate_bandfluxes(passband_or_group, times, filters, state, rng_info=rng_info)
 
         # Clear the cache
         self._cached_data = {}
+
+        return bandfluxes
