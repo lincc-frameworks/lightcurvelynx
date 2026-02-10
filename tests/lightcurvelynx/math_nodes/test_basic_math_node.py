@@ -1,4 +1,5 @@
 import math
+import pickle
 
 import jax
 import numpy as np
@@ -180,3 +181,17 @@ def test_basic_math_node_autodiff_jax():
     assert values == 2.0
     assert gradients["a_node"]["a"] > 0.0
     assert gradients["b_node"]["b"] < 0.0
+
+
+def test_basic_math_node_pickle():
+    """Test that we can pickle and unpickle a BasicMathNode."""
+    node_a = SingleVariableNode("a", 10.0)
+    node_b = SingleVariableNode("b", -5.0)
+    node = BasicMathNode("a + b", a=node_a.a, b=node_b.b, node_label="test", backend="math")
+    state = node.sample_parameters()
+    assert state["test"]["function_node_result"] == 5.0
+
+    pickled_node = pickle.dumps(node)
+    unpickled_node = pickle.loads(pickled_node)
+    unpickled_state = unpickled_node.sample_parameters()
+    assert unpickled_state["test"]["function_node_result"] == 5.0
