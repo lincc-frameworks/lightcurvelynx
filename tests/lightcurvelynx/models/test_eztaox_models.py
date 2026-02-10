@@ -50,6 +50,7 @@ def test_eztaox_wrapper_model(test_data_dir):
 
     # Evaluate the model at some times and wavelengths
     times = np.array([0.0, 1.0, 2.0, 3.0])
-    bandfluxes = source.evaluate_bandfluxes(None, times, ["g", "r", "g", "i"], sampled_state)
+    filters = np.array(["g", "r", "g", "i"])
+    bandfluxes = source.evaluate_bandfluxes(None, times, filters, sampled_state)
     assert bandfluxes.shape == (4,)
     assert np.all(bandfluxes > 0.0)
