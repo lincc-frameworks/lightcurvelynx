@@ -214,7 +214,7 @@ def test_multiple_static_seds_min_max():
 
 
 def test_single_static_bandflux() -> None:
-    """Test that we can create and sample a StaticBandfluxModel object with a single bandflux."""
+    """Test that we can create and sample a StaticBandfluxModel object with given bandfluxes."""
     bandflux = {"r": 10.0, "g": 20.0, "b": 30.0}
     model = StaticBandfluxModel(bandflux, node_label="test")
     assert len(model) == 1
@@ -223,6 +223,25 @@ def test_single_static_bandflux() -> None:
     times = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     filters = ["r", "r", "g", "b", "r", "g", "b", "g", "b", "r"]
     expected = np.array([10.0, 10.0, 20.0, 30.0, 10.0, 20.0, 30.0, 20.0, 30.0, 10.0])
+
+    state = model.sample_parameters(num_samples=1)
+    fluxes = model.evaluate_bandfluxes(None, times, filters, state)
+    assert len(fluxes) == 10
+    assert np.array_equal(fluxes, expected)
+
+
+def test_single_static_bandflux_partial() -> None:
+    """Test that we can create and sample a StaticBandfluxModel object even if we do not
+    query all the given bands.
+    """
+    bandflux = {"r": 10.0, "g": 20.0, "b": 30.0}
+    model = StaticBandfluxModel(bandflux, node_label="test")
+    assert len(model) == 1
+    assert len(model.list_effects()) == 0
+
+    times = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    filters = ["r", "r", "g", "g", "r", "g", "g", "g", "g", "r"]  # No "b" filters
+    expected = np.array([10.0, 10.0, 20.0, 20.0, 10.0, 20.0, 20.0, 20.0, 20.0, 10.0])
 
     state = model.sample_parameters(num_samples=1)
     fluxes = model.evaluate_bandfluxes(None, times, filters, state)

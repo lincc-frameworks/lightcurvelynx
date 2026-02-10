@@ -769,12 +769,12 @@ class SEDModel(BasePhysicalModel):
             # Compute the band fluxes for the times at which this filter is used.
             passband = passband_group[filter_name]
             filter_mask = filters == filter_name
-
-            # Compute the spectral fluxes at the same wavelengths used to define the passband.
-            # The evaluate function applies all effects (rest and observation frame) for the source
-            # as well as handling all the redshift conversions.
-            spectral_fluxes = self.evaluate_sed(times[filter_mask], passband.waves, state)
-            bandfluxes[filter_mask] = passband.fluxes_to_bandflux(spectral_fluxes)
+            if np.any(filter_mask):
+                # Compute the spectral fluxes at the same wavelengths used to define the passband.
+                # The evaluate function applies all effects (rest and observation frame) for the source
+                # as well as handling all the redshift conversions.
+                spectral_fluxes = self.evaluate_sed(times[filter_mask], passband.waves, state)
+                bandfluxes[filter_mask] = passband.fluxes_to_bandflux(spectral_fluxes)
         return bandfluxes
 
 
@@ -1033,11 +1033,12 @@ class BandfluxModel(BasePhysicalModel, ABC):
         bandfluxes = np.zeros(len(times))
         for filter_name in np.unique(filters):
             filter_mask = filters == filter_name
-            bandfluxes[filter_mask] = self.compute_bandflux_with_extrapolation(
-                times[filter_mask],
-                filter_name,
-                state,
-            )
+            if np.any(filter_mask):
+                bandfluxes[filter_mask] = self.compute_bandflux_with_extrapolation(
+                    times[filter_mask],
+                    filter_name,
+                    state,
+                )
 
         # Apply all effects. Note that BandfluxModel does not apply redshift, so all effects
         # are applied in observer frame.
