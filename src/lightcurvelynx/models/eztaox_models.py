@@ -116,12 +116,12 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         super().__init__(**kwargs)
 
         # Confirm that the needed packages are installed.
-        if importlib.util.find_spec("eztaox") is None:
+        if importlib.util.find_spec("eztaox") is None:  # pragma: no cover
             raise ImportError(
                 "The EzTaoX package is required to use the EzTaoXWrapperModel. "
                 "Please install it from https://github.com/LSST-AGN-Variability/EzTaoX"
             )
-        if importlib.util.find_spec("jax") is None:
+        if importlib.util.find_spec("jax") is None:  # pragma: no cover
             raise ImportError(
                 "JAX is required to use the EzTaoXWrapperModel class, please "
                 "install with `pip install jax` or `conda install conda-forge::jax`"
@@ -221,7 +221,7 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
             and state is self._cached_data.get("state")
             and np.array_equal(self._cached_data["filters"], filters)
             and np.array_equal(self._cached_data["times"], times)
-        ):
+        ):  # pragma: no cover
             return  # Nothing to do, the cache is valid.
 
         # Cache the input data (times and filters).
@@ -340,7 +340,7 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         filters : numpy.ndarray or None
             A length T array of filter names. It may be None if
             passband_or_group is a Passband.
-        state : GraphState
+        state : GraphState or None
             An object mapping graph parameters to their values.
         rng_info : numpy.random._generator.Generator, optional
             A given numpy random number generator to use for this computation. If not
