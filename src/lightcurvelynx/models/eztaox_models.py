@@ -87,6 +87,10 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
     band_list : list, optional
         A list of band names in order. If not provided,
         the default list for ugrizy filters is used.
+    seed_param : setter, optional
+        A setter for the seed parameter to use for each run. If not provided, a random
+        seed is generated for each run.
+        Default is None.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
@@ -364,6 +368,6 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         bandfluxes = super().evaluate_bandfluxes(passband_or_group, times, filters, state, rng_info=rng_info)
 
         # Clear the cache
-        self._cached_data = {}
+        self._cached_data.clear()
 
         return bandfluxes
