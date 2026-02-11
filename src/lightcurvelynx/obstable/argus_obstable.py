@@ -2,7 +2,10 @@
 
 import logging
 
+import astropy.units as u
 import numpy as np
+from astropy.coordinates import SkyCoord
+from astropy_healpix import HEALPix
 from mocpy import MOC
 
 from lightcurvelynx.obstable.obs_table import ObsTable
@@ -137,6 +140,9 @@ class ArgusHealpixObsTable(ObsTable):
         # Compute the depth.
         self._depth = int(np.log2(self._nside))
 
+        # Create a healpix mapper for the given nside to convert between healpix ids and coordinates.
+        self._healpix_mapper = HEALPix(nside=self._nside, order="nested", frame="icrs")
+
         self._spatial_data = {}
         if "healpix" in self._table.colnames:
             index = self._table["healpix"].to_numpy()
@@ -234,4 +240,36 @@ class ArgusHealpixObsTable(ObsTable):
             Depending on the input, this is either a list of indices for a single query point
             or a list of arrays (of indices) for an array of query points.
         """
-        raise NotImplementedError("Range search is not implemented for ArgusHealpixObsTable yet.")
+        # If the query RA and Dec are scalars, convert them to 1D arrays for consistent processing.
+        is_scalar = np.isscalar(query_ra) and np.isscalar(query_dec)
+        query_ra = np.atleast_1d(query_ra)
+        query_dec = np.atleast_1d(query_dec)
+        if len(query_ra) != len(query_dec):
+            raise ValueError("Query RA and Dec must have the same length.")
+
+        # Bulk compute the healpix ids for all query points.
+        coords = SkyCoord(query_ra * u.deg, query_dec * u.deg, frame="icrs")
+        healpix = self._healpix_mapper.skycoord_to_healpix(coords)
+
+        # For each query point, get the rows and apply time filtering if specified.
+        inds = []
+        for hp in healpix:
+            if hp in self._spatial_data:
+                row_inds = self._spatial_data[hp]
+
+                # Apply time filtering if specified.
+                if t_min is not None or t_max is not None:
+                    times = self._table["time"][row_inds].to_numpy()
+                    if t_min is not None:
+                        row_inds = row_inds[times >= t_min]
+                    if t_max is not None:
+                        row_inds = row_inds[times <= t_max]
+
+                inds.append(row_inds)
+            else:
+                inds.append(np.array([], dtype=int))
+
+        # If the input was a single query point, return a single array of indices instead of a list of arrays.
+        if is_scalar:
+            inds = inds[0]
+        return inds
