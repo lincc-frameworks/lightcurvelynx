@@ -100,6 +100,28 @@ class LSSTObsTable(ObsTable):
         "zp_mag_adu": "zeroPoint",  # magnitudes to produce 1 count (ADU)
     }
 
+    # Column names for the Rubin Science Validation visit data release, which has
+    # a different schema than the DP1 and DP2+ CCDVisit tables (mostly similar to OpSim):
+    # https://survey-strategy.lsst.io/progress/sv_status/sv_20250930.html
+    # See also:
+    # https://github.com/lsst/tutorial-notebooks/blob/main/Commissioning/101_lsstcam_visits_database.ipynb
+    _sv_visits_colmap = {
+        # Values defined in the OpSim schema:
+        # https://rubin-scheduler.lsst.io/fbs-output-schema.html
+        "dec": "fieldDec",  # degrees
+        "exptime": "visitExposureTime",  # seconds
+        "filter": "band",
+        "maglim": "fiveSigmaDepth",  # magnitudes
+        "ra": "fieldRA",  # degrees
+        "rotation": "rotSkyPos",  # degrees
+        "seeing": "seeingFwhmEff",  # arcseconds
+        "time": "exp_midpt_mjd",  # days
+        # Some of the values are defined in the ConsDB schema:
+        # https://sdm-schemas.lsst.io/cdb_lsstcam.html#exposure
+        "sky_bg_e": "sky_bg_median",  # Averge sky background in electrons per pixel
+        "zp_mag_e": "zero_point_median",  # magnitudes to produce 1 count (electrons)
+    }
+
     # For now use the CCDVisit column mapping as the default.
     _default_colnames = _ccdvisit_colmap
 
@@ -155,6 +177,10 @@ class LSSTObsTable(ObsTable):
         # we convert it to nJy.
         if "zp_mag_adu" in cols:
             zp_values = mag2flux(self._table["zp_mag_adu"]) / self.safe_get_survey_value("gain")
+            self.add_column("zp", zp_values, overwrite=True)
+            return
+        if "zp_mag_e" in cols:
+            zp_values = mag2flux(self._table["zp_mag_e"])
             self.add_column("zp", zp_values, overwrite=True)
             return
 
@@ -215,9 +241,10 @@ class LSSTObsTable(ObsTable):
         return obstable
 
     @classmethod
-    def from_consdb_table(cls, table, make_detector_footprint=False, **kwargs):
-        """Construct an LSSTObsTable object from a ConsDB table
-        https://sdm-schemas.lsst.io/cdb_lsstcam.html
+    def from_sv_visits_table(cls, table, **kwargs):
+        """Construct an LSSTObsTable object from a science validation visits table.
+        https://survey-strategy.lsst.io/progress/sv_status/sv_20250930.html
+        Note this table uses a combination of the schemas (e.g. OpSim and ConsDB).
 
         As an example we can read a table from a file (e.g. using the `read_sqlite_table` function).
             from lightcurvelynx.utils.io_utils import read_sqlite_table
@@ -226,19 +253,28 @@ class LSSTObsTable(ObsTable):
         Parameters
         ----------
         table : pandas.core.frame.DataFrame
-            The ConsDB table containing the LSSTObsTable data.
-        make_detector_footprint : bool, optional
-            If True, the detector footprint will be created based on the xSize and ySize columns
-            in the table.
+            The science validation visits table containing the LSSTObsTable data.
         **kwargs : dict
             Additional keyword arguments to pass to the LSSTObsTable constructor.
 
         Returns
         -------
         obstable : LSSTObsTable
-            An LSSTObsTable object containing the data from the ConsDB table.
+            An LSSTObsTable object containing the data from the science validation visits table.
         """
-        raise NotImplementedError("LSSTObsTable.from_consdb_table is not implemented yet.")
+        # Remove the rows with NaNs in sky_bg_median or zero_point_median.
+        table = table.dropna(subset=["sky_bg_median", "zero_point_median"])
+
+        # Set the radius as the view (not CCD) radius because we do not have
+        # per-CCD information.
+        if "radius" not in kwargs:
+            kwargs["radius"] = _lsstcam_view_radius
+
+        # Create the ObsTable object using the science validation visits column mapping
+        # (if a custom column mapping is not provided).
+        colmap = kwargs.pop("colmap", cls._sv_visits_colmap)
+        obstable = cls(table, colmap=colmap, **kwargs)
+        return obstable
 
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
@@ -265,7 +301,15 @@ class LSSTObsTable(ObsTable):
         zp = observations["zp"]
 
         # Compute sky background in e- from sky_bg_adu.
-        sky = observations["sky_bg_adu"] * self.safe_get_survey_value("gain")
+        if "sky_bg_e" in observations:
+            sky = observations["sky_bg_e"]
+        elif "sky_bg_adu" in observations:
+            sky = observations["sky_bg_adu"] * self.safe_get_survey_value("gain")
+        else:
+            raise ValueError(
+                "Some value of sky background (electrons or ADU) is required to compute "
+                "the sky background noise."
+            )
 
         return poisson_bandflux_std(
             bandflux,

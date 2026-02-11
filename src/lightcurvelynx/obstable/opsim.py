@@ -107,6 +107,7 @@ class OpSim(ObsTable):
     _required_names = ["ra", "dec", "time"]
 
     # Default column names for the Rubin OpSim observations table.
+    # https://rubin-scheduler.lsst.io/fbs-output-schema.html
     _default_colnames = {
         "dec": "fieldDec",  # degrees
         "exptime": "visitExposureTime",  # seconds

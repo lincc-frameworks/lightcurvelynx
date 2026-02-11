@@ -140,3 +140,19 @@ def test_lsst_obstable_from_ccdvisit():
         make_detector_footprint=True,
     )
     assert obs_table_with_footprint._detector_footprint is not None
+
+
+def test_lsst_obstable_from_sv_visits():
+    """Test that we can read an LSSTObsTable from the SV visits table."""
+    values = {
+        "exp_midpt_mjd": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "sky_bg_median": np.ones(5),
+        "zero_point_median": 25.0 * np.ones(5),
+    }
+    pdf = pd.DataFrame(values)
+
+    ops_data = LSSTObsTable.from_sv_visits_table(pdf)
+    assert len(ops_data) == 5
+    assert ops_data.radius == pytest.approx(1.75)
