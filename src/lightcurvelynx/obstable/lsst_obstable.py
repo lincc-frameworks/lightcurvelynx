@@ -119,7 +119,7 @@ class LSSTObsTable(ObsTable):
         # Some of the values are defined in the ConsDB schema:
         # https://sdm-schemas.lsst.io/cdb_lsstcam.html#exposure
         "sky_bg_e": "sky_bg_median",  # Averge sky background in electrons per pixel
-        "zp_mag_adu": "zero_point_median",  # magnitudes to produce 1 count (ADU)
+        "zp_mag_e": "zero_point_median",  # magnitudes to produce 1 count (electrons)
     }
 
     # For now use the CCDVisit column mapping as the default.
@@ -177,6 +177,10 @@ class LSSTObsTable(ObsTable):
         # we convert it to nJy.
         if "zp_mag_adu" in cols:
             zp_values = mag2flux(self._table["zp_mag_adu"]) / self.safe_get_survey_value("gain")
+            self.add_column("zp", zp_values, overwrite=True)
+            return
+        if "zp_mag_e" in cols:
+            zp_values = mag2flux(self._table["zp_mag_e"])
             self.add_column("zp", zp_values, overwrite=True)
             return
 
