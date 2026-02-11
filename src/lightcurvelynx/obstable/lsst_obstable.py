@@ -119,7 +119,7 @@ class LSSTObsTable(ObsTable):
         # Some of the values are defined in the ConsDB schema:
         # https://sdm-schemas.lsst.io/cdb_lsstcam.html#exposure
         "sky_bg_e": "sky_bg_median",  # Averge sky background in electrons per pixel
-        "zp_mag_e": "zero_point_median",  # magnitudes to produce 1 count (electrons)
+        "zp_mag_e": "zero_point_median",  # magnitude to produce 1 electron per exposure
     }
 
     # For now use the CCDVisit column mapping as the default.
