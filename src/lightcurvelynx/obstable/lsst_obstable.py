@@ -154,7 +154,7 @@ class LSSTObsTable(ObsTable):
         # If the zero point column is already present (as a magnitude),
         # we convert it to nJy.
         if "zp_mag_adu" in cols:
-            zp_values = mag2flux(self._table["zp_mag_adu"]) * self.safe_get_survey_value("gain")
+            zp_values = mag2flux(self._table["zp_mag_adu"]) / self.safe_get_survey_value("gain")
             self.add_column("zp", zp_values, overwrite=True)
             return
 
