@@ -289,7 +289,7 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
         )
 
         # Add in the baseline magnitudes.
-        mags = np.array(mags)
+        mags = np.asarray(mags)
         for filter in self.filter_idx:
             baseline_mag = local_params[f"eztaox_baseline_mag_{filter}"]
             filter_mask = filters == filter
