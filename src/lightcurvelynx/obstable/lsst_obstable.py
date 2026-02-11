@@ -1,7 +1,4 @@
-"""The top-level module for survey related data, such as pointing and noise
-information. By default the module uses the Rubin OpSim data, but it can be
-extended to other survey data as well.
-"""
+"""A class for storing and working with Rubin Observatory (LSST) observation tables."""
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
@@ -65,14 +62,14 @@ class LSSTObsTable(ObsTable):
     Parameters
     ----------
     table : dict or pandas.core.frame.DataFrame
-        The table with all the OpSim information.
+        The table with all the LSST survey information.
     colmap : dict
         A mapping of standard column names to a list of possible names in the input table.
         Each value in the dictionary can be a string or a list of strings.
-        Defaults to the Rubin column names (OpSim, DP1, etc.), stored in _default_colnames.
+        Defaults to the Rubin CCDVisit column names, stored in _default_colnames.
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
-        provided must match those in the table. If not provided, OpSim-specific defaults will be
+        provided must match those in the table. If not provided, LSST-specific defaults will be
         used.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
@@ -179,7 +176,7 @@ class LSSTObsTable(ObsTable):
         # If the zero point column is already present (as a magnitude),
         # we convert it to nJy.
         if "zp_mag_adu" in cols:
-            zp_values = mag2flux(self._table["zp_mag_adu"]) * self.safe_get_survey_value("gain")
+            zp_values = mag2flux(self._table["zp_mag_adu"]) / self.safe_get_survey_value("gain")
             self.add_column("zp", zp_values, overwrite=True)
             return
 
