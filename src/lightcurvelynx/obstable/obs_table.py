@@ -71,9 +71,10 @@ class ObsTable:
         A mapping of standard column names to their names in the input table.
     _inv_colmap : dict
         A dictionary mapping the custom column names back to the standard names.
-    _kd_tree : scipy.spatial.KDTree or None
-        A kd_tree of the survey pointings for fast spatial queries. We use the scipy
-        kd-tree instead of astropy's functions so we can directly control caching.
+    _spatial_data : scipy.spatial.KDTree or None
+        A spatial_data structure of the survey pointings for fast spatial queries.
+        We use the scipy kd-tree for most of the implementations instead of astropy's
+        functions so we can directly control caching.
     _detector_footprint : DetectorFootprint, optional
         The footprint object for the instrument's detector. If None, no footprint
         filtering is done. Default is None.
@@ -177,9 +178,9 @@ class ObsTable:
         # Save the saturation thresholds if provided.
         self._saturation_mags = saturation_mags if apply_saturation else None
 
-        # Build the kd-tree.
-        self._kd_tree = None
-        self._build_kd_tree()
+        # Build the kd-tree (or other spatial data structure).
+        self._spatial_data = None
+        self._build_spatial_data()
 
         # Create the footprint if one is provided.
         if detector_footprint is not None:
@@ -211,6 +212,23 @@ class ObsTable:
         if key in self.survey_values and self.survey_values[key] is not None:
             return True
         return False
+
+    def copy(self):
+        """Create a copy of the ObsTable."""
+        new_table = self._table.copy()
+        new_survey_values = self.survey_values.copy()
+        new_colmap = self._colmap.copy()
+        new_detector_footprint = self._detector_footprint  # Assuming this is immutable or we want to share it
+        new_saturation_mags = self._saturation_mags.copy() if self._saturation_mags is not None else None
+
+        return ObsTable(
+            new_table,
+            colmap=new_colmap,
+            detector_footprint=new_detector_footprint,
+            apply_saturation=(new_saturation_mags is not None),
+            saturation_mags=new_saturation_mags,
+            **new_survey_values,
+        )
 
     def uses_footprint(self):
         """Return whether the ObsTable uses a detector footprint for filtering."""
@@ -522,14 +540,14 @@ class ObsTable:
         ax = fig.add_subplot(projection=wcs)
         moc.fill(ax, wcs, **kwargs)
 
-    def _build_kd_tree(self):
+    def _build_spatial_data(self):
         """Construct the KD-tree from the ObsTable."""
         # Convert the pointings to Cartesian coordinates on a unit sphere.
         x, y, z = ra_dec_to_cartesian(self._table["ra"].to_numpy(), self._table["dec"].to_numpy())
         cart_coords = np.array([x, y, z]).T
 
         # Construct the kd-tree.
-        self._kd_tree = KDTree(cart_coords)
+        self._spatial_data = KDTree(cart_coords)
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy to the data table.
@@ -649,10 +667,10 @@ class ObsTable:
             mask = np.full((len(self._table),), False)
             mask[rows] = True
 
-        # Filter the rows in-place and build a new kd-tree.
+        # Filter the rows in-place and build a new spatial data structure.
         self._table = self._table[mask]
-        self._kd_tree = None
-        self._build_kd_tree()
+        self._spatial_data = None
+        self._build_spatial_data()
 
         return self
 
@@ -749,7 +767,7 @@ class ObsTable:
 
         # Adjust the angular radius to a cartesian search radius and perform the search.
         adjusted_radius = 2.0 * np.sin(0.5 * np.radians(radius))
-        inds = self._kd_tree.query_ball_point(cart_query, adjusted_radius)
+        inds = self._spatial_data.query_ball_point(cart_query, adjusted_radius)
 
         if t_min is not None or t_max is not None:
             num_queries = len(query_ra)
