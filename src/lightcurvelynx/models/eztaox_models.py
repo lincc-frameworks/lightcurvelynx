@@ -292,8 +292,9 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
             jax.random.PRNGKey(local_params["eztaox_seed_param"]),  # Use the per-run seed.
         )
 
-        # Add in the baseline magnitudes.
-        mags = np.asarray(mags)
+        # Add in the baseline magnitudes. Note we need to create a new copy of the array here,
+        # because it is a JAX array and cannot be modified in place.
+        mags = np.array(mags)
         for filter in self.filter_idx:
             baseline_mag = local_params[f"eztaox_baseline_mag_{filter}"]
             filter_mask = filters == filter
