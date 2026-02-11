@@ -193,6 +193,31 @@ def test_create_obs_table_custom_names():
         _ = ObsTable(values, colmap=colmap)
 
 
+def test_obs_table_copy():
+    """Test that we can create a copy of an ObsTable object."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+    }
+    pdf = pd.DataFrame(values)
+
+    ops_data = ObsTable(pdf)
+    ops_data_copy = ops_data.copy()
+
+    assert len(ops_data_copy) == len(ops_data)
+    assert set(ops_data_copy.columns) == set(ops_data.columns)
+    assert np.allclose(ops_data_copy["ra"], ops_data["ra"])
+    assert np.allclose(ops_data_copy["dec"], ops_data["dec"])
+    assert np.allclose(ops_data_copy["time"], ops_data["time"])
+
+    # Modify the new table and check that the original table is unchanged.
+    ops_data_copy._table["ra"] += 10.0
+    assert np.allclose(ops_data_copy["ra"], values["ra"] + 10.0)
+    assert np.allclose(ops_data["ra"], values["ra"])
+
+
 def test_obs_table_add_columns():
     """Create a minimal ObsTable object and perform basic queries."""
     values = {
@@ -287,7 +312,7 @@ def test_obs_table_filter_rows():
     assert np.array_equal(ops_data["filter"], values["filter"][inds])
 
     # Check that the size of the internal KD-tree has changed.
-    assert ops_data._kd_tree.n == 8
+    assert ops_data._spatial_data.n == 8
 
     # We can filter the OpSim to specific rows by mask.
     ops_data = ops_data.filter_rows(ops_data["filter"] == "r")
@@ -300,7 +325,7 @@ def test_obs_table_filter_rows():
     assert np.all(ops_data["filter"] == "r")
 
     # Check that the size of the internal KD-tree has changed (again).
-    assert ops_data._kd_tree.n == 4
+    assert ops_data._spatial_data.n == 4
 
     # We throw an error if the mask is the wrong size.
     bad_mask = [True] * (len(ops_data) - 1)
