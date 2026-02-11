@@ -265,7 +265,7 @@ def test_opsim_filter_rows():
     assert np.array_equal(ops_data["filter"], values["filter"][inds])
 
     # Check that the size of the internal KD-tree has changed.
-    assert ops_data._kd_tree.n == 8
+    assert ops_data._spatial_data.n == 8
 
     # We can filter the OpSim to specific rows by mask.
     ops_data = ops_data.filter_rows(ops_data["filter"] == "r")
@@ -278,7 +278,7 @@ def test_opsim_filter_rows():
     assert np.all(ops_data["filter"] == "r")
 
     # Check that the size of the internal KD-tree has changed (again).
-    assert ops_data._kd_tree.n == 4
+    assert ops_data._spatial_data.n == 4
 
     # We throw an error if the mask is the wrong size.
     bad_mask = [True] * (len(ops_data) - 1)
