@@ -8,6 +8,9 @@ from astropy.coordinates import SkyCoord
 from astropy_healpix import HEALPix
 from mocpy import MOC
 
+from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
+from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
+from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 _argus_view_radius = 52.0
@@ -51,14 +54,14 @@ class ArgusHealpixObsTable(ObsTable):
 
     # Column names from the Argus simulation files.
     _argus_sim_colmap = {
-        "dark_electrons": "dark_electrons",  # ?
+        "dark_electrons": "dark_electrons",  # The electrons/pixel/exposure
         "dec": "dec",  # degrees
         "exptime": "expTime",  # seconds
-        "maglim": "magLim",  # magnitudes
+        "maglim": "limmag",  # magnitudes
         "ra": "ra",  # degrees
         "seeing": "seeing",  # arcseconds
         "skybrightness": "sky_brightness",  # mag/arcsec^2
-        "sky_electrons": "sky_electrons",  # ?
+        "sky_electrons": "sky_electrons",  # electrons/pixel/exposure
         "time": "epoch",  # MJD
     }
     _default_colnames = _argus_sim_colmap
@@ -68,7 +71,6 @@ class ArgusHealpixObsTable(ObsTable):
         "pixel_scale": _argus_pixel_scale,
         "radius": _argus_view_radius,
         "read_noise": 1.4,  # e-/pixel
-        "zp_err_mag": None,
         "survey_name": "Argus",
     }
 
@@ -87,6 +89,21 @@ class ArgusHealpixObsTable(ObsTable):
         self._nside = nside
         self._depth = None
 
+        # The table uses the healpix IDs as the index. We bring this into its own column for easier access
+        # and reset the indices.
+        if "healpix" in table.columns:
+            table = table.reset_index()  # Just reset the index if healpix is already a column.
+        elif table.index.name in ["healpix_id", "healpix"]:
+            table = table.reset_index().rename(columns={table.index.name: "healpix"})
+        else:
+            raise ValueError(
+                "The input table must have healpix IDs as the index or in a column named 'healpix'."
+            )
+
+        # Use the default column mapping if one is not provided.
+        if colmap is None:
+            colmap = self._default_colnames
+
         # Check the unsupported terms in the kwargs and raise an error if they are provided.
         if "detector_footprint" in kwargs or "wcs" in kwargs:
             raise ValueError("ArgusObsTable does not support detector footprints.")
@@ -98,10 +115,6 @@ class ArgusHealpixObsTable(ObsTable):
             saturation_mags=saturation_mags,
             **kwargs,
         )
-
-    def uses_footprint(self):
-        """Return whether the ObsTable uses a detector footprint for filtering."""
-        return False
 
     def set_detector_footprint(self, detector_footprint, wcs=None):
         """Set the detector footprint, so footprint filtering is done.
@@ -120,7 +133,7 @@ class ArgusHealpixObsTable(ObsTable):
     def _build_spatial_data(self):
         """Construct a mapping of healpix id to row number from the ObsTable."""
         if self._nside is None:
-            if "nside" in self._table.colnames:
+            if "nside" in self._table.columns:
                 self._nside = self._table["nside"][0]
             else:
                 raise ValueError(
@@ -129,7 +142,7 @@ class ArgusHealpixObsTable(ObsTable):
                 )
 
         # Check all nside values are the same.
-        if "nside" in self._table.colnames:
+        if "nside" in self._table.columns:
             nside = self._table["nside"].to_numpy()
             if not np.all(nside == self._nside):
                 raise ValueError(
@@ -143,20 +156,9 @@ class ArgusHealpixObsTable(ObsTable):
         # Create a healpix mapper for the given nside to convert between healpix ids and coordinates.
         self._healpix_mapper = HEALPix(nside=self._nside, order="nested", frame="icrs")
 
-        self._spatial_data = {}
-        if "healpix" in self._table.colnames:
-            index = self._table["healpix"].to_numpy()
-        elif "healpix_id" in self._table.colnames:
-            index = self._table["healpix_id"].to_numpy()
-        elif self._table.index.name == "healpix_id" or self._table.index.name == "healpix":
-            index = self._table.index.to_numpy()
-        else:
-            raise ValueError(
-                "No healpix id column found in the table. Expected one of 'healpix', "
-                "'healpix_id', or index named 'healpix_id' or 'healpix'."
-            )
-
         # Build a mapping of healpix id to row number.
+        self._spatial_data = {}
+        index = self._table["healpix"].to_numpy()
         for idx in np.unique(index):
             self._spatial_data[idx] = np.where(index == idx)[0]
 
@@ -193,7 +195,36 @@ class ArgusHealpixObsTable(ObsTable):
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables."""
-        raise NotImplementedError("ArgusObsTable does not have a noise model implemented yet.")
+        if "zp" in self._table.columns:
+            return  # Zero points already assigned.
+
+        logger = logging.getLogger(__name__)
+        logger.debug("Assigning zero points to the ArgusHealpixObsTable.")
+
+        # Compute the full-width at half-maximum of the PSF in pixels from the
+        # seeing (in arcseconds) and the pixel scale (in arcseconds per pixel).
+        fwhm_px = self._table["seeing"].to_numpy() / self.safe_get_survey_value("pixel_scale")
+
+        # Compute dark_current (in e-/pixel/second) from dark_electrons (in e-/pixel/exposure)
+        # and exptime (in seconds). Save dark current in the table for later use.
+        exptime = self._table["exptime"].to_numpy()
+        if "dark_current" not in self._table.columns:
+            dark_current = self._table["dark_electrons"].to_numpy() / exptime
+            self._table["dark_current"] = dark_current
+        else:
+            dark_current = self._table["dark_current"].to_numpy()
+
+        # Compute the zero points from the 5-sigma depth (and other parmeters).
+        zp_vals = calculate_zp_from_maglim(
+            maglim=self._table["maglim"].to_numpy(),
+            sky_bg_electrons=self._table["sky_electrons"].to_numpy(),
+            fwhm_px=fwhm_px,
+            read_noise=self.safe_get_survey_value("read_noise"),
+            dark_current=dark_current,
+            exptime=exptime,
+            nexposure=1,
+        )
+        self._table["zp"] = zp_vals
 
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
@@ -210,7 +241,23 @@ class ArgusHealpixObsTable(ObsTable):
         flux_err : array_like of float
             Simulated bandflux noise in nJy.
         """
-        raise NotImplementedError("ArgusObsTable does not have a noise model implemented yet.")
+        observations = self._table.iloc[index]
+
+        # Compute the PSF footprint in pixels from the seeing and pixel scale.
+        pixel_scale = self.safe_get_survey_value("pixel_scale")
+        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
+
+        return poisson_bandflux_std(
+            bandflux,
+            total_exposure_time=observations["exptime"],
+            exposure_count=1,
+            psf_footprint=psf_footprint,
+            sky=observations["sky_electrons"],
+            zp=observations["zp"],
+            readout_noise=self.safe_get_survey_value("read_noise"),
+            dark_current=observations["dark_current"],
+            zp_err_mag=0.0,  # Placeholder for now
+        )
 
     def range_search(self, query_ra, query_dec, *, radius=None, t_min=None, t_max=None):
         """Return the indices of the pointings that fall within the field
