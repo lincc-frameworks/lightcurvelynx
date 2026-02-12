@@ -130,7 +130,7 @@ class NumpyRandomFunc(FunctionNode):
                 arg_value = args[key]
                 if isinstance(arg_value, np.ndarray) and arg_value.shape != target_size:
                     # Add new axes for the sample_size dimensions, then broadcast
-                    expanded_shape = list(arg_value.shape) + [1] * len(self.sample_size)
+                    expanded_shape = arg_value.shape + (1,) * len(self.sample_size)
                     arg_value_expanded = arg_value.reshape(expanded_shape)
                     args[key] = np.broadcast_to(arg_value_expanded, target_size)
 
