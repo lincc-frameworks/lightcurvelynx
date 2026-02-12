@@ -121,7 +121,18 @@ class NumpyRandomFunc(FunctionNode):
         ------
         ValueError is func attribute is None.
         """
+        # Build the arguments. If the size parameter has more than one dimension and we are
+        # requesting more than one sample, we need to expand the function arguments to match.
         args = self._build_inputs(graph_state, **kwargs)
+        if graph_state.num_samples > 1 and len(self.sample_size) > 0:
+            target_size = (graph_state.num_samples, *self.sample_size)
+            for key in args:
+                arg_value = args[key]
+                if isinstance(arg_value, np.ndarray) and arg_value.shape != target_size:
+                    # Add new axes for the sample_size dimensions, then broadcast
+                    expanded_shape = list(arg_value.shape) + [1] * len(self.sample_size)
+                    arg_value_expanded = arg_value.reshape(expanded_shape)
+                    args[key] = np.broadcast_to(arg_value_expanded, target_size)
 
         # If a random number generator is given use that. Otherwise use the default one.
         func = self.func if rng_info is None else getattr(rng_info, self.func_name)
