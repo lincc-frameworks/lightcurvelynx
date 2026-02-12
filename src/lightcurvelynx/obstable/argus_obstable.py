@@ -54,7 +54,7 @@ class ArgusHealpixObsTable(ObsTable):
 
     # Column names from the Argus simulation files.
     _argus_sim_colmap = {
-        "dark_electrons": "dark_electrons",  # The electrons/pixel/exposure
+        "dark_current": "dark_current",  # The electrons/pixel/exposure
         "dec": "dec",  # degrees
         "exptime": "expTime",  # seconds
         "maglim": "limmag",  # magnitudes
@@ -105,7 +105,7 @@ class ArgusHealpixObsTable(ObsTable):
             colmap = self._default_colnames
 
         # Check the unsupported terms in the kwargs and raise an error if they are provided.
-        if "detector_footprint" in kwargs or "wcs" in kwargs:
+        if "detector_footprint" in kwargs or "wcs" in kwargs:  # pragma: no cover
             raise ValueError("ArgusObsTable does not support detector footprints.")
 
         super().__init__(
@@ -187,7 +187,7 @@ class ArgusHealpixObsTable(ObsTable):
         logger = logging.getLogger(__name__)
         logger.debug(f"Building MOC from ArgusHealpixObsTable at depth={max_depth}.")
         moc = MOC.from_healpix_cells(
-            healpix_cells=np.array(list(self._spatial_data.keys())),
+            np.array(list(self._spatial_data.keys())),
             depth=self._depth,
             max_depth=max_depth,
         )
@@ -205,19 +205,15 @@ class ArgusHealpixObsTable(ObsTable):
         # seeing (in arcseconds) and the pixel scale (in arcseconds per pixel).
         fwhm_px = self._table["seeing"].to_numpy() / self.safe_get_survey_value("pixel_scale")
 
-        # Compute dark_current (in e-/pixel/second) from dark_electrons (in e-/pixel/exposure)
-        # and exptime (in seconds). Save dark current in the table for later use.
+        # Compute the dark current in electrons per pixel per second from the dark current in electrons
+        # per pixel per exposure and the exposure time.
         exptime = self._table["exptime"].to_numpy()
-        if "dark_current" not in self._table.columns:
-            dark_current = self._table["dark_electrons"].to_numpy() / exptime
-            self._table["dark_current"] = dark_current
-        else:
-            dark_current = self._table["dark_current"].to_numpy()
+        dark_current = self._table["dark_electrons"].to_numpy() / exptime
 
         # Compute the zero points from the 5-sigma depth (and other parmeters).
         zp_vals = calculate_zp_from_maglim(
-            maglim=self._table["maglim"].to_numpy(),
-            sky_bg_electrons=self._table["sky_electrons"].to_numpy(),
+            maglim=self._table["maglim"],
+            sky_bg_electrons=self._table["sky_electrons"],
             fwhm_px=fwhm_px,
             read_noise=self.safe_get_survey_value("read_noise"),
             dark_current=dark_current,
@@ -247,15 +243,20 @@ class ArgusHealpixObsTable(ObsTable):
         pixel_scale = self.safe_get_survey_value("pixel_scale")
         psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
 
+        # Compute the dark current in electrons per pixel per second from the dark current in electrons
+        # per pixel per exposure and the exposure time.
+        exptime = observations["exptime"]
+        dark_current = observations["dark_electrons"] / exptime
+
         return poisson_bandflux_std(
             bandflux,
-            total_exposure_time=observations["exptime"],
+            total_exposure_time=exptime,
             exposure_count=1,
             psf_footprint=psf_footprint,
             sky=observations["sky_electrons"],
             zp=observations["zp"],
             readout_noise=self.safe_get_survey_value("read_noise"),
-            dark_current=observations["dark_current"],
+            dark_current=dark_current,
             zp_err_mag=0.0,  # Placeholder for now
         )
 
@@ -306,10 +307,11 @@ class ArgusHealpixObsTable(ObsTable):
 
                 # Apply time filtering if specified.
                 if t_min is not None or t_max is not None:
-                    times = self._table["time"][row_inds].to_numpy()
                     if t_min is not None:
+                        times = self._table["time"][row_inds].to_numpy()
                         row_inds = row_inds[times >= t_min]
                     if t_max is not None:
+                        times = self._table["time"][row_inds].to_numpy()
                         row_inds = row_inds[times <= t_max]
 
                 inds.append(row_inds)
