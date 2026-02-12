@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.math_nodes.np_random import NumpyMultivariateNormalFunc, NumpyRandomFunc
 
 
 def test_numpy_random_uniform():
@@ -152,17 +152,34 @@ def test_numpy_random_given_rng():
     assert value1 != pytest.approx(value2)
 
 
-def test_numpy_multi_variate_normal():
+def test_numpy_multivariate_normal():
     """Test that we can generate numbers from a multi-variate normal distribution."""
     mean = [0.0, 10.0]
     cov = [[1.0, 0.5], [0.5, 2.0]]
-    np_node = NumpyRandomFunc("multivariate_normal", mean=mean, cov=cov, seed=100)
 
-    values = np.array([np_node.generate() for _ in range(10_000)])
+    # We cannot sample from a multi-variate normal distribution with NumpyRandomFunc.
+    with pytest.raises(ValueError):
+        _ = NumpyRandomFunc("multivariate_normal", mean=mean, cov=cov, seed=100, size=2)
+
+    np_node = NumpyMultivariateNormalFunc(mean=mean, cov=cov, node_label="xy")
+    state = np_node.sample_parameters(num_samples=10_000)
+
+    values = state["xy"]["function_node_result"]
     assert values.shape == (10_000, 2)
     assert np.abs(np.mean(values[:, 0]) - mean[0]) < 0.1
     assert np.abs(np.mean(values[:, 1]) - mean[1]) < 0.1
     assert np.abs(np.cov(values.T) - cov).max() < 0.1
+
+    # We can set the seed to get deterministic results.
+    np_node.set_seed(100)
+    state1 = np_node.sample_parameters(num_samples=10_000)
+    results1 = state1["xy"]["function_node_result"]
+
+    np_node2 = NumpyMultivariateNormalFunc(mean=mean, cov=cov, node_label="xy", seed=100)
+    state2 = np_node2.sample_parameters(num_samples=10_000)
+    results2 = state2["xy"]["function_node_result"]
+
+    assert np.allclose(results1, results2)
 
 
 def test_numpy_choice_fails():
