@@ -4,6 +4,7 @@ import logging
 
 import astropy.units as u
 import numpy as np
+import pandas as pd
 from astropy.coordinates import SkyCoord
 from astropy_healpix import HEALPix
 from mocpy import MOC
@@ -89,6 +90,10 @@ class ArgusHealpixObsTable(ObsTable):
         self._nside = nside
         self._depth = None
 
+        # If the input is a dictionary, convert it to a DataFrame.
+        if isinstance(table, dict):
+            table = pd.DataFrame(table)
+
         # The table uses the healpix IDs as the index. We bring this into its own column for easier access
         # and reset the indices.
         if "healpix" in table.columns:
@@ -104,6 +109,10 @@ class ArgusHealpixObsTable(ObsTable):
         if colmap is None:
             colmap = self._default_colnames
 
+        # If filter is not provided, use 'g' for all observations.
+        if "filter" not in table.columns:
+            table["filter"] = "g"
+
         # Check the unsupported terms in the kwargs and raise an error if they are provided.
         if "detector_footprint" in kwargs or "wcs" in kwargs:  # pragma: no cover
             raise ValueError("ArgusObsTable does not support detector footprints.")
@@ -115,6 +124,16 @@ class ArgusHealpixObsTable(ObsTable):
             saturation_mags=saturation_mags,
             **kwargs,
         )
+
+    @property
+    def nside(self):
+        """Return the nside of the healpix pixels in the table."""
+        return self._nside
+
+    @property
+    def depth(self):
+        """Return the depth of the healpix pixels in the table."""
+        return self._depth
 
     def set_detector_footprint(self, detector_footprint, wcs=None):
         """Set the detector footprint, so footprint filtering is done.

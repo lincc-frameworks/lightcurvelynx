@@ -35,6 +35,8 @@ def test_create_argus_obstable():
     pdf.index.name = "healpix"
     ops_data = ArgusHealpixObsTable(pdf)
     assert len(ops_data) == 6
+    assert ops_data.nside == 32
+    assert ops_data.depth == 5
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["pixel_scale"] == 1.0
@@ -53,6 +55,7 @@ def test_create_argus_obstable():
     assert "time" in ops_data
     assert "zp" in ops_data
     assert "healpix" in ops_data  # We move the index to a column
+    assert "filter" in ops_data  # We add a default filter column
 
     # We can access columns directly as though it was a table.
     assert np.allclose(ops_data["ra"], values["ra"])
@@ -85,6 +88,24 @@ def test_create_argus_obstable():
 
     # Check we can build a MOC.
     assert ops_data.build_moc() is not None
+
+
+def test_create_argus_obstable_from_dict():
+    """Create a ArgusHealpixObsTable object from a dictionary instead of a DataFrame."""
+    ra = np.array([15.0, 30.0, 15.0, 0.0, 15.0, 30.0])
+    dec = np.array([10.0, -5.0, 10.0, 5.0, 10.0, -5.0])
+    healpix = _ra_dec_to_healpix(ra, dec)
+    values = {
+        "epoch": 59000.0 + np.arange(len(ra)),
+        "ra": ra,
+        "dec": dec,
+        "zp": np.ones_like(ra),
+        "healpix": healpix,
+        "nside": np.full_like(ra, 32),
+    }
+
+    table = ArgusHealpixObsTable(values)
+    assert len(table) == 6
 
 
 def test_create_argus_obstable_alternate():
