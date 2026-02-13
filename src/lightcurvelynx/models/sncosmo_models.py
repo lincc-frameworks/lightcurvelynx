@@ -268,12 +268,13 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         params = self.get_local_params(graph_state)
         self._update_sncosmo_model_parameters(graph_state)
 
-        # Add earlier debugging information about the wavelength range if the wavelengths are out of bounds.
+        # Provide debugging information about the wavelength range if the wavelengths are out of bounds.
         if wavelengths.min() < self.minwave() or wavelengths.max() > self.maxwave():
             raise ValueError(
                 "Wavelengths are out of the sncosmo model's valid range. "
                 f"Model wavelength range: [{self.minwave()}, {self.maxwave()}], "
-                f"Query wavelength range: [{wavelengths.min()}, {wavelengths.max()}]."
+                f"Query wavelength range: [{wavelengths.min()}, {wavelengths.max()}]. Use the "
+                "'wave_extrapolation' parameter specify how to handle out-of-bounds wavelengths."
             )
 
         # Query the model and convert the output to nJy.
