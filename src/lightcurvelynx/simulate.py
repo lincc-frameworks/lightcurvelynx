@@ -10,6 +10,7 @@ from nested_pandas import NestedFrame
 from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.noise_model import apply_noise
+from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.models.physical_model import BandfluxModel
 from lightcurvelynx.utils.post_process_results import concat_results
 
@@ -30,8 +31,9 @@ class SimulationInfo:
         The number of samples.
     obstable : ObsTable or List of ObsTable
         The ObsTable(s) from which to extract information for the samples.
-    passbands : PassbandGroup or List of PassbandGroup
-        The passbands to use for generating the bandfluxes.
+    integrators : PassbandGroup, Spectrograph or List of (PassbandGroup, Spectrograph)
+        The information for transforming a models SED into a bandflux (PassbandGroup) or
+        spectra (Spectrograph).
     obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
@@ -72,7 +74,7 @@ class SimulationInfo:
         model,
         num_samples,
         obstable,
-        passbands,
+        integrators,
         *,
         obstable_save_cols=None,
         param_cols=None,
@@ -87,7 +89,7 @@ class SimulationInfo:
         self.model = model
         self.num_samples = num_samples
         self.obstable = obstable
-        self.passbands = passbands
+        self.integrators = integrators
         self.obs_time_window_offset = obs_time_window_offset
         self.rest_time_window_offset = rest_time_window_offset
         self.obstable_save_cols = obstable_save_cols
@@ -172,7 +174,7 @@ class SimulationInfo:
                 model=self.model,
                 num_samples=batch_num_samples,
                 obstable=self.obstable,
-                passbands=self.passbands,
+                integrators=self.integrators,
                 obstable_save_cols=self.obstable_save_cols,
                 param_cols=self.param_cols,
                 obs_time_window_offset=self.obs_time_window_offset,
@@ -281,7 +283,7 @@ def _simulate_lightcurves_batch(simulation_info):
     model = simulation_info.model
     num_samples = simulation_info.num_samples
     obstable = simulation_info.obstable
-    passbands = simulation_info.passbands
+    integrators = simulation_info.integrators
     obstable_save_cols = simulation_info.obstable_save_cols
     rng = simulation_info.rng
 
@@ -299,11 +301,11 @@ def _simulate_lightcurves_batch(simulation_info):
     # If we are given information for a single survey, make it into a list.
     if not isinstance(obstable, list):
         obstable = [obstable]
-    if not isinstance(passbands, list):
-        passbands = [passbands]
+    if not isinstance(integrators, list):
+        integrators = [integrators]
     num_surveys = len(obstable)
-    if num_surveys != len(passbands):
-        raise ValueError("Number of surveys must match number of passbands.")
+    if num_surveys != len(integrators):
+        raise ValueError("Number of surveys must match number of integrators.")
 
     # We do not currently support bandflux models with multiple surveys because
     # a bandflux model is defined relative to a single survey.
@@ -357,6 +359,15 @@ def _simulate_lightcurves_batch(simulation_info):
     if simulation_info.save_full_filter_names:
         nested_dict["full_filter_name"] = []
 
+    # Create a second nested dictionary for the spectra if we are saving those.
+    spectra_index = []
+    spectra_dict = {
+        "mjd": [],
+        "waves": [],
+        "measured_flux": [],
+        "instrument": [],
+    }
+
     # Determine which of the of the simulated positions match the pointings from each ObsTable.
     logger.info("Performing range searches to find matching observations.")
     start_times, end_times = get_time_windows(
@@ -390,53 +401,78 @@ def _simulate_lightcurves_batch(simulation_info):
 
                 # Extract the filters for this observation.
                 obs_filters = all_filters[survey_idx][obs_index]
-
-            # Compute the bandfluxes and errors over just the given filters.
-            bandfluxes_perfect = model.evaluate_bandfluxes(
-                passbands[survey_idx],
-                obs_times,
-                obs_filters,
-                state,
-                rng_info=rng,
-            )
-            bandfluxes_error = obstable[survey_idx].bandflux_error_point_source(bandfluxes_perfect, obs_index)
-            bandfluxes = apply_noise(bandfluxes_perfect, bandfluxes_error, rng=rng)
-
-            # Apply saturation thresholds from the ObsTable.
-            bandfluxes, bandfluxes_error, saturation_flags = obstable[survey_idx].compute_saturation(
-                bandfluxes, bandfluxes_error, obs_index
-            )
-
-            # Append the per-observation data to the nested dictionary, including
-            # any needed ObsTable columns.
             nobs = len(obs_times)
-            nested_dict["mjd"].extend(list(obs_times))
-            nested_dict["filter"].extend(list(obs_filters))
-            nested_dict["flux_perfect"].extend(list(bandfluxes_perfect))
-            nested_dict["flux"].extend(list(bandfluxes))
-            nested_dict["fluxerr"].extend(list(bandfluxes_error))
-            nested_dict["survey_idx"].extend([survey_idx] * nobs)
-            nested_dict["is_saturated"].extend(list(saturation_flags))
-            nested_dict["obs_idx"].extend(list(obs_index))
-            for col in obstable_save_cols:
-                col_data = (
-                    list(obstable[survey_idx][col].values[obs_index])
-                    if col in obstable[survey_idx]
-                    else [None] * nobs
+
+            # Split on whether we are evaluating bandfluxes or spectra.
+            if isinstance(integrators[survey_idx], Spectrograph):
+                # This is a spectrograph, so we compute the spectra for the spectra column.
+                sg_waves = integrators[survey_idx].waves
+                sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
+                measured_flux = integrators[survey_idx].evaluate(sed)
+
+                # TODO: Simulate spectrograph noise.
+
+                # We append each spectral as a separate entry in the spectra nested dictionary.
+                for obs_idx, obs_time in enumerate(obs_times):
+                    spectra_dict["mjd"].append(obs_time)
+                    spectra_dict["waves"].append(sg_waves)
+                    spectra_dict["measured_flux"].append(measured_flux[obs_idx])
+                    spectra_dict["instrument"].append(integrators[survey_idx].instrument)
+
+                # Add the new entries to the spectra_index.
+                spectra_index.extend([idx] * nobs)
+            else:
+                # This is a PassbandGroup integrator, so we compute the bandfluxes for the lightcurves column.
+                # Compute the bandfluxes and errors over just the given filters.
+                bandfluxes_perfect = model.evaluate_bandfluxes(
+                    integrators[survey_idx],
+                    obs_times,
+                    obs_filters,
+                    state,
+                    rng_info=rng,
                 )
-                nested_dict[col].extend(col_data)
+                bandfluxes_error = obstable[survey_idx].bandflux_error_point_source(
+                    bandfluxes_perfect, obs_index
+                )
+                bandfluxes = apply_noise(bandfluxes_perfect, bandfluxes_error, rng=rng)
 
+                # Apply saturation thresholds from the ObsTable.
+                bandfluxes, bandfluxes_error, saturation_flags = obstable[survey_idx].compute_saturation(
+                    bandfluxes, bandfluxes_error, obs_index
+                )
+
+                # Append the per-observation data to the nested dictionary, including
+                # any needed ObsTable columns.
+                nested_dict["mjd"].extend(list(obs_times))
+                nested_dict["filter"].extend(list(obs_filters))
+                nested_dict["flux_perfect"].extend(list(bandfluxes_perfect))
+                nested_dict["flux"].extend(list(bandfluxes))
+                nested_dict["fluxerr"].extend(list(bandfluxes_error))
+                nested_dict["survey_idx"].extend([survey_idx] * nobs)
+                nested_dict["is_saturated"].extend(list(saturation_flags))
+                nested_dict["obs_idx"].extend(list(obs_index))
+                for col in obstable_save_cols:
+                    col_data = (
+                        list(obstable[survey_idx][col].values[obs_index])
+                        if col in obstable[survey_idx]
+                        else [None] * nobs
+                    )
+                    nested_dict[col].extend(col_data)
+
+                # Add the new entries to the light curve's nested index.
+                nested_index.extend([idx] * nobs)
+
+                # Add the survey name from the integrator information if we chose to save it.
+                if simulation_info.save_full_filter_names:
+                    obs_filters = np.asarray(obs_filters)
+                    full_filter_names = np.empty_like(obs_filters, dtype=object)
+                    for filter_name in np.unique(obs_filters):
+                        pb_obj = integrators[survey_idx][filter_name]
+                        full_filter_names[obs_filters == filter_name] = pb_obj.full_name
+                    nested_dict["full_filter_name"].extend(list(full_filter_names))
+
+            # Regardless of the integrator (instrument), we count the number of observations.
             total_num_obs += nobs
-            nested_index.extend([idx] * nobs)
-
-            # Add the survey name from the passband information if we chose to save it.
-            if simulation_info.save_full_filter_names:
-                obs_filters = np.asarray(obs_filters)
-                full_filter_names = np.empty_like(obs_filters, dtype=object)
-                for filter_name in np.unique(obs_filters):
-                    pb_obj = passbands[survey_idx][filter_name]
-                    full_filter_names[obs_filters == filter_name] = pb_obj.full_name
-                nested_dict["full_filter_name"].extend(list(full_filter_names))
 
         # The number of observations is the total across all surveys.
         results_dict["nobs"][idx] = total_num_obs
@@ -446,6 +482,12 @@ def _simulate_lightcurves_batch(simulation_info):
     results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
     results = results.join_nested(nested_frame, "lightcurve")
+
+    # Add in the spectra (if any were sampled).
+    if len(spectra_index) > 0:
+        spectra_frame = pd.DataFrame(data=spectra_dict, index=spectra_index)
+        results = results.join_nested(spectra_frame, "spectra")
+
     if simulation_info.output_file_path is not None:
         results.to_parquet(simulation_info.output_file_path)
         return simulation_info.output_file_path
@@ -491,7 +533,7 @@ def simulate_lightcurves(
     model,
     num_samples,
     obstable,
-    passbands,
+    integrators,
     *,
     obstable_save_cols=None,
     param_cols=None,
@@ -523,8 +565,8 @@ def simulate_lightcurves(
         The number of samples.
     obstable : ObsTable or List of ObsTable
         The ObsTable(s) from which to extract information for the samples.
-    passbands : PassbandGroup or List of PassbandGroup
-        The passbands to use for generating the bandfluxes.
+    integrators : PassbandGroup, Spectrograph, or List of (PassbandGroup, Spectrograph)
+        The integrators to use for generating the bandfluxes or spectra.
     obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
@@ -582,7 +624,7 @@ def simulate_lightcurves(
         model=model,
         num_samples=num_samples,
         obstable=obstable,
-        passbands=passbands,
+        integrators=integrators,
         rng=rng,
         obs_time_window_offset=obs_time_window_offset,
         rest_time_window_offset=rest_time_window_offset,
