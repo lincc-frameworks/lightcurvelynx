@@ -63,3 +63,20 @@ a few demo notebooks to illustrate various approachs, including:
 
 The LightCurveLynx team is also happy to help you wrap your favorite package. Please
 reach out if you have questions or need assistance.
+
+
+Can I Combine Multiple Surveys in a Single Simulation?
+-------------------------------------------------------------------------------
+
+Yes. LightCurveLynx allows you to combine multiple surveys in a single simulation by passing
+in multiple observation tables and corresponding passband groups. See the 
+:doc:`multiple surveys demo notebook <notebooks/multiple_surveys_demo>` for an example of how to do this.
+
+
+Can I Simulate Spectra?
+--------------------------------------------------------------------------------
+
+Yes with some caveats. LightCurveLynx has built-in support for simulating spectra, but it is currently
+in an early stage of development and does not yet add noise to the measurements. In addition, spectra
+simulation is **only** compaible with models that generate data on the spectral level (not bandflux-only
+models).  For more detail see :doc:`the spectrograph demo notebook <notebooks/spectrograph_demo>`.
