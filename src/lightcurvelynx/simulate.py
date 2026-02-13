@@ -263,6 +263,9 @@ def _simulate_lightcurves_batch(simulation_info):
     """Generate a number of simulations of the given model and information
     from one or more surveys.
 
+    This is a very large function, but the vast majority of the code is just tracking
+    the results in three different dictionaries to assemble the final NestedFrame.
+
     Parameters
     ----------
     simulation_info : SimulationInfo
