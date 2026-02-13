@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.math_nodes.np_random import NumpyMultivariateNormalFunc, NumpyRandomFunc
 
 
 def test_numpy_random_uniform():
@@ -69,6 +69,38 @@ def test_numpy_random_uniform_multi_dim():
     assert samples.shape == (10, 2, 3)
     assert len(np.unique(samples.flatten())) == 60
 
+    # Sample size (2, 3) arrays with parameters. For a given element of each sample,
+    # the values should be between the corresponding low and high values.
+    num_samples = 100
+    low_vals = np.array([[0.0, 10.0, 20.0], [30.0, 40.0, 50.0]])
+    high_vals = low_vals + 5.0
+    np_node = NumpyRandomFunc("uniform", low=low_vals, high=high_vals, seed=100, size=(2, 3))
+    state = np_node.sample_parameters(num_samples=num_samples)
+    samples = np_node.get_param(state, "function_node_result")
+    assert samples.shape == (100, 2, 3)
+    assert len(np.unique(samples.flatten())) == 600
+    assert np.all(samples[:, 0, 0] >= 0.0) and np.all(samples[:, 0, 0] <= 5.0)
+    assert np.all(samples[:, 0, 1] >= 10.0) and np.all(samples[:, 0, 1] <= 15.0)
+    assert np.all(samples[:, 0, 2] >= 20.0) and np.all(samples[:, 0, 2] <= 25.0)
+    assert np.all(samples[:, 1, 0] >= 30.0) and np.all(samples[:, 1, 0] <= 35.0)
+    assert np.all(samples[:, 1, 1] >= 40.0) and np.all(samples[:, 1, 1] <= 45.0)
+    assert np.all(samples[:, 1, 2] >= 50.0) and np.all(samples[:, 1, 2] <= 55.0)
+
+    # We can mix multi-dimensional parameters with single value parameters.
+    num_samples = 100
+    low_vals = np.array([[0.0, 10.0, 20.0], [30.0, 40.0, 50.0]])
+    np_node = NumpyRandomFunc("uniform", low=low_vals, high=100.0, seed=100, size=(2, 3))
+    state = np_node.sample_parameters(num_samples=num_samples)
+    samples = np_node.get_param(state, "function_node_result")
+    assert samples.shape == (100, 2, 3)
+    assert len(np.unique(samples.flatten())) == 600
+    assert np.all(samples[:, 0, 0] >= 0.0) and np.all(samples[:, 0, 0] <= 100.0)
+    assert np.all(samples[:, 0, 1] >= 10.0) and np.all(samples[:, 0, 1] <= 100.0)
+    assert np.all(samples[:, 0, 2] >= 20.0) and np.all(samples[:, 0, 2] <= 100.0)
+    assert np.all(samples[:, 1, 0] >= 30.0) and np.all(samples[:, 1, 0] <= 100.0)
+    assert np.all(samples[:, 1, 1] >= 40.0) and np.all(samples[:, 1, 1] <= 100.0)
+    assert np.all(samples[:, 1, 2] >= 50.0) and np.all(samples[:, 1, 2] <= 100.0)
+
     # If we do not specify a size and use a single sample, we get a float.
     np_node = NumpyRandomFunc("uniform", seed=100)
     state = np_node.sample_parameters(num_samples=1)
@@ -118,6 +150,36 @@ def test_numpy_random_given_rng():
     value1 = np_node1.generate(rng_info=np.random.default_rng(1))
     value2 = np_node2.generate(rng_info=np.random.default_rng(2))
     assert value1 != pytest.approx(value2)
+
+
+def test_numpy_multivariate_normal():
+    """Test that we can generate numbers from a multi-variate normal distribution."""
+    mean = [0.0, 10.0]
+    cov = [[1.0, 0.5], [0.5, 2.0]]
+
+    # We cannot sample from a multi-variate normal distribution with NumpyRandomFunc.
+    with pytest.raises(ValueError):
+        _ = NumpyRandomFunc("multivariate_normal", mean=mean, cov=cov, seed=100, size=2)
+
+    np_node = NumpyMultivariateNormalFunc(mean=mean, cov=cov, node_label="xy")
+    state = np_node.sample_parameters(num_samples=10_000)
+
+    values = state["xy"]["function_node_result"]
+    assert values.shape == (10_000, 2)
+    assert np.abs(np.mean(values[:, 0]) - mean[0]) < 0.1
+    assert np.abs(np.mean(values[:, 1]) - mean[1]) < 0.1
+    assert np.abs(np.cov(values.T) - cov).max() < 0.1
+
+    # We can set the seed to get deterministic results.
+    np_node.set_seed(100)
+    state1 = np_node.sample_parameters(num_samples=10_000)
+    results1 = state1["xy"]["function_node_result"]
+
+    np_node2 = NumpyMultivariateNormalFunc(mean=mean, cov=cov, node_label="xy", seed=100)
+    state2 = np_node2.sample_parameters(num_samples=10_000)
+    results2 = state2["xy"]["function_node_result"]
+
+    assert np.allclose(results1, results2)
 
 
 def test_numpy_choice_fails():

@@ -56,6 +56,11 @@ class NumpyRandomFunc(FunctionNode):
         # list 2, etc.).
         if func_name == "choice":
             raise ValueError("The 'choice' function is not supported. Use GivenValueSampler instead.")
+        if func_name == "multivariate_normal":
+            raise ValueError(
+                "The 'multivariate_normal' function is not supported. "
+                "Use NumpyMultivariateNormalFunc instead."
+            )
 
         # Convert the given size into a tuple of dimensions or None for a single value per sample.
         if size is None or size == 1:
@@ -121,7 +126,18 @@ class NumpyRandomFunc(FunctionNode):
         ------
         ValueError is func attribute is None.
         """
+        # Build the arguments. If the size parameter has more than one dimension and we are
+        # requesting more than one sample, we need to expand the function arguments to match.
         args = self._build_inputs(graph_state, **kwargs)
+        if graph_state.num_samples > 1 and len(self.sample_size) > 0:
+            target_size = (graph_state.num_samples, *self.sample_size)
+            for key in args:
+                arg_value = args[key]
+                if isinstance(arg_value, np.ndarray) and arg_value.shape != target_size:
+                    # Add new axes for the sample_size dimensions, then broadcast
+                    expanded_shape = arg_value.shape + (1,) * len(self.sample_size)
+                    arg_value_expanded = arg_value.reshape(expanded_shape)
+                    args[key] = np.broadcast_to(arg_value_expanded, target_size)
 
         # If a random number generator is given use that. Otherwise use the default one.
         func = self.func if rng_info is None else getattr(rng_info, self.func_name)
@@ -134,5 +150,97 @@ class NumpyRandomFunc(FunctionNode):
 
         # Generate the values. Then save and return the results.
         results = func(**args, size=size_param)
+        self._save_results(results, graph_state)
+        return results
+
+
+class NumpyMultivariateNormalFunc(FunctionNode):
+    """As specific wrapper for the multivariate normal function. This is needed because it does not
+    support vectorizing over multiple input parameters (lists of means) in the same way.
+
+    Only a single mean and covariance matrix can be provided (instead of one per sample).
+
+    Attributes
+    ----------
+    func_name : str
+        The name of the random function to use.
+    _rng : numpy.random._generator.Generator
+        This object's random number generator.
+    sample_size : tuple
+        The shape of the array to generate for each sample. The actual returned value
+        will be (num_samples, *size). If an empty tuple will generate a single value per sample.
+
+    Parameters
+    ----------
+    mean : array-like
+        A length D array with the mean of the distribution for each sample.
+    cov : array-like
+        A D x D array with the covariance matrix of the distribution for each sample.
+    seed : int, optional
+        The seed to use.
+
+    Examples
+    --------
+    # Create a uniform random number generator between 100.0 and 150.0
+    func_node = NumpyRandomFunc("uniform", low=100.0, high=150.0)
+
+    # Create a normal random number generator with mean=5.0 and std=1.0
+    func_node = NumpyRandomFunc("normal", loc=5.0, scale=1.0)
+    """
+
+    def __init__(self, mean, cov, seed=None, **kwargs):
+        self.dims = len(mean)
+        if self.dims == 0:  # pragma: no cover
+            raise ValueError(f"Mean must be a non-empty array. Received {mean}.")
+
+        self.mean = np.asarray(mean)
+        self.cov = np.asarray(cov)
+        if self.mean.shape != (self.dims,):  # pragma: no cover
+            raise ValueError(f"Mean must be a single 1D array. Received {self.mean}.")
+        if self.cov.shape != (self.dims, self.dims):  # pragma: no cover
+            raise ValueError(f"Covariance matrix must be a 2D array with shape ({self.dims}, {self.dims}).")
+
+        # Get a default random number generator for this object, using the
+        # given seed if one is provided.
+        if seed is None:
+            seed = int.from_bytes(urandom(4), "big")
+        self._rng = np.random.default_rng(seed=seed)
+
+        # We use a non-function, since all the work is done in the compute function.
+        super().__init__(self._non_func, **kwargs)
+
+    def set_seed(self, new_seed):
+        """Update the random number generator's seed to a given value.
+
+        Parameters
+        ----------
+        new_seed : int
+            The given seed
+        """
+        self._rng = np.random.default_rng(seed=new_seed)
+
+    def compute(self, graph_state, rng_info=None, **kwargs):
+        """Sample from the multivariate normal distribution.
+
+        Parameters
+        ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values. This object is modified
+            in place as it is sampled.
+        rng_info : numpy.random._generator.Generator, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator.
+        **kwargs : dict, optional
+            Additional function arguments.
+
+        Returns
+        -------
+        results : np.ndarray
+            The result of the computation. If num_samples > 1, this will be an array of shape
+            (num_samples, dims). Otherwise it will be a 1D array of length dims.
+        """
+        rng = self._rng if rng_info is None else rng_info
+        num_samples = graph_state.num_samples if graph_state.num_samples > 1 else None
+        results = rng.multivariate_normal(mean=self.mean, cov=self.cov, size=num_samples)
         self._save_results(results, graph_state)
         return results

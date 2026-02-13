@@ -8,6 +8,7 @@ import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.graph_state import GraphState
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList, TableSampler
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
@@ -23,7 +24,7 @@ from lightcurvelynx.simulate import (
     get_time_windows,
     simulate_lightcurves,
 )
-from nested_pandas import read_parquet
+from nested_pandas import NestedFrame, read_parquet
 
 
 def test_get_time_windows():
@@ -1155,3 +1156,41 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
     # Check that the "is_saturated" column is True for all observations.
     assert "is_saturated" in lightcurve.columns
     assert np.all(lightcurve["is_saturated"])
+
+
+def test_simulate_save_nested_with_parameter_arrays():
+    """Test that we can save non-scalar parameter values in the NestedFrame results
+    and write them out to parquet."""
+    num_samples = 10
+
+    # Generate random array values uniformly between 0.01 and 100.0. Then
+    # take the logarithm of those values.
+    np_node = NumpyRandomFunc("uniform", low=0.01, high=100.0, seed=100, size=5)
+    math_node = BasicMathNode("log(x)", x=np_node, node_label="math")
+    sample_states = math_node.sample_parameters(num_samples=num_samples)
+
+    # Create a nest results frame including the array values.
+    results_dict = {
+        "id": [i for i in range(num_samples)],
+        "ra": np.full(num_samples, 15.0),
+        "dec": np.full(num_samples, -10.0),
+        "params": [state.to_dict() for state in sample_states],
+    }
+    nested_dict = {
+        "mjd": np.full(num_samples * 2, 59000.0),
+    }
+
+    index = [i for i in range(num_samples)]
+    nested_index = [i % num_samples for i in range(2 * num_samples)]
+    results = NestedFrame(data=results_dict, index=index)
+    nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
+    results = results.join_nested(nested_frame, "lightcurve")
+
+    # Each entry in params["math.function_node_result"] contains a length 5 array.
+    assert len(results["params"][0]["math.function_node_result"]) == 5
+
+    # We can write the results to files.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_path = Path(tmpdir) / "test_array_df.parquet"
+        results.to_parquet(base_path)
+        assert base_path.exists()
