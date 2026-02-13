@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
+from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList, TableSampler
@@ -133,7 +134,7 @@ def test_simulation_info():
         model=model,
         num_samples=100,
         obstable=ops_data,
-        passbands=pb_group,
+        integrators=pb_group,
         obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
         rng=np.random.default_rng(12345),
     )
@@ -185,7 +186,7 @@ def test_simulation_info():
             model=model,
             num_samples=-10,
             obstable=ops_data,
-            passbands=pb_group,
+            integrators=pb_group,
             obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
             rng=np.random.default_rng(12345),
         )
@@ -224,6 +225,9 @@ def test_simulate_lightcurves(test_data_dir):
         param_cols=["source.brightness"],
     )
     assert len(results) == 5
+    assert "lightcurve" in results
+    assert "spectra" not in results
+
     assert np.all(results["nobs"].values >= 1)
     assert np.allclose(results["ra"].values, opsim_db["ra"].values[0:5])
     assert np.allclose(results["dec"].values, opsim_db["dec"].values[0:5])
@@ -718,6 +722,8 @@ def test_simulate_multiple_surveys(test_data_dir):
     )
     assert len(results) == 1
     assert results["nobs"][0] == 4
+    assert "lightcurve" in results
+    assert "spectra" not in results
 
     # Check that the light curve was simulated correctly, including saving the zeropoint information
     # from each ObsTable.
@@ -844,6 +850,82 @@ def test_simulate_multiple_surveys_diff_filters():
         lightcurve["full_filter_name"],
         ["survey1_r", "survey1_r", "survey1_r", "survey2_r", "survey2_r", "survey2_r"],
     )
+
+
+def test_simulate_multiple_surveys_spectra(test_data_dir):
+    """Test an end to end run of simulating a single light curve from multiple surveys
+    where one of the instruments is a spectrograph."""
+    # The first survey points at two locations in the sky in the "g" and "r" bands.
+    obsdata1 = {
+        "time": [0.0, 1.0, 2.0, 3.0],
+        "ra": [0.0, 0.0, 180.0, 180.0],
+        "dec": [10.0, 10.0, -10.0, -10.0],
+        "filter": ["g", "r", "g", "r"],
+        "zp": [0.4, 0.5, 0.6, 0.7],
+        "seeing": [1.12, 1.12, 1.12, 1.12],
+        "skybrightness": [20.0, 20.0, 20.0, 20.0],
+        "exptime": [29.2, 29.2, 29.2, 29.2],
+        "nexposure": [2, 2, 2, 2],
+        "custom_col": [1, 1, 1, 1],
+    }
+    obstable1 = OpSim(obsdata1)
+    passband_group1 = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r"],
+    )
+
+    # The second survey points at two locations on the sky and uses a spectrograph.
+    obsdata2 = {
+        "time": [0.5, 1.5, 2.5, 3.5],
+        "ra": [0.0, 90.0, 0.0, 90.0],
+        "dec": [10.0, -10.0, 10.0, -10.0],
+        "filter": ["spectra", "spectra", "spectra", "spectra"],
+        "zp": [0.05, 0.1, 0.2, 0.3],
+        "seeing": [1.12, 1.12, 1.12, 1.12],
+        "skybrightness": [20.0, 20.0, 20.0, 20.0],
+        "exptime": [29.2, 29.2, 29.2, 29.2],
+        "nexposure": [2, 2, 2, 2],
+    }
+    obstable2 = OpSim(obsdata2)
+    spectrograph = Spectrograph.from_regular_grid(2000.0, 10000.0, 100.0, instrument="survey2")
+
+    # Create a constant SED model with known brightnesses and RA, dec values that
+    # match the (0.0, 10.0) pointing.
+    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=10.0, redshift=0.0, node_label="source")
+    results = simulate_lightcurves(
+        model,
+        1,
+        [obstable1, obstable2],
+        [passband_group1, spectrograph],
+    )
+    assert len(results) == 1
+    assert results["nobs"][0] == 4
+    assert "lightcurve" in results
+    assert "spectra" in results
+
+    # Check that the light curve was simulated correctly, including saving the zeropoint information
+    # from each ObsTable.
+    lightcurve = results["lightcurve"][0]
+    assert np.allclose(lightcurve["mjd"], np.array([0.0, 1.0]))
+    assert np.array_equal(lightcurve["filter"], np.array(["g", "r"]))
+    assert np.array_equal(lightcurve["survey_idx"], np.array([0, 0]))
+
+    # Check that the spectra were simulated correctly. Waves and measured fluxes should have
+    # an array per-nested entry.
+    spectra = results.iloc[0]["spectra"]
+    assert np.allclose(spectra["mjd"], np.array([0.5, 2.5]))
+    assert np.shape(spectra.iloc[0]["waves"]) == (80,)
+    assert np.shape(spectra.iloc[1]["waves"]) == (80,)
+    assert np.shape(spectra.iloc[0]["measured_flux"]) == (80,)
+    assert np.shape(spectra.iloc[1]["measured_flux"]) == (80,)
+    assert np.array_equal(spectra["instrument"], ["survey2", "survey2"])
+
+    # Check that we can save the full results to a file.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_path = Path(tmpdir) / "test_spectra_results.parquet"
+        results.to_parquet(base_path)
+        assert base_path.exists()
 
 
 def test_compute_noise_free_lightcurves_single(test_data_dir):

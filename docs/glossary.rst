@@ -41,4 +41,6 @@ Glossary
 
 **SEDModel**: ``SEDModel`` is a subclass of the ``BasePhysicalModel`` class that specifically represents flux density of a physical source as a function of time and wavelength.
 
+**Spectrograph**: A spectrograph is an instrument that measures the flux density of a source as a function of wavelength.
+
 **Wavelength**: Photon wavelength, in angstroms.
