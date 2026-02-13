@@ -1061,6 +1061,8 @@ class Passband:
 
             # Load the table.
             loaded_table = np.loadtxt(table_path, **kwargs)
+        elif table_path.suffix in [".parquet"]:
+            loaded_table = pd.read_parquet(table_path, **kwargs).to_numpy()
         else:
             raise ValueError(f"Unsupported file format for transmission table: {table_path.suffix}")
 
