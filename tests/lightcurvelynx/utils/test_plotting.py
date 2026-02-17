@@ -10,7 +10,6 @@ def test_plot_lightcurves():
     fluxes = np.array([1.0, 2.0, 3.0])
     times = np.array([1.0, 2.0, 3.0])
     plot_lightcurves(fluxes, times)
-
     # ValueError if len(times) != len(fluxes)
     wrong_times = np.array([1.0, 2.0])
     with pytest.raises(ValueError):
@@ -34,6 +33,9 @@ def test_plot_lightcurves():
     filters = np.array(["A", "B", "A"])
     title = "Test Title"
     plot_lightcurves(fluxes, times, fluxerrs=fluxerrs, filters=filters, title=title)
+
+    # Plot in magnitudes.
+    plot_lightcurves(fluxes, times, fluxerrs=fluxerrs, filters=filters, plot_magnitudes=True)
 
     # Test with all inputs given:
     # - ax (matplotlib axes object)

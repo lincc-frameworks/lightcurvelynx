@@ -3,6 +3,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+from lightcurvelynx.astro_utils.mag_flux import flux2mag
+
 
 def plot_lightcurves(
     fluxes,
@@ -15,6 +17,7 @@ def plot_lightcurves(
     figure=None,
     title=None,
     colormap=None,
+    plot_magnitudes=False,
     **kwargs,
 ):
     """Plot one or more light curves.
@@ -44,6 +47,8 @@ def plot_lightcurves(
         Title of the plot. None by default.
     colormap: dict, optional
         A dictionary that provides mapping between filters and the colors to be plotted.
+    plot_magnitudes : bool, optional
+        Whether to plot magnitudes instead of fluxes. False by default.
     **kwargs : dict
         Optional parameters to pass to the plotting function
 
@@ -58,6 +63,17 @@ def plot_lightcurves(
         if figure is None:
             figure = plt.figure()
         ax = figure.add_axes([0, 0, 1, 1])
+
+    # If we are plotting in magnitudes, convert the fluxes and flux errors to magnitudes
+    # and magnitude errors.
+    if plot_magnitudes:
+        valid_mask = fluxes > 0
+        if filters is not None:
+            filters = filters[valid_mask]
+        if fluxerrs is not None:
+            fluxerrs = (2.5 / np.log(10)) * (fluxerrs[valid_mask] / fluxes[valid_mask])
+        fluxes = flux2mag(fluxes[valid_mask])
+        times = times[valid_mask]
 
     # Set up the time array if it is not given.
     num_pts = len(fluxes)
@@ -123,7 +139,11 @@ def plot_lightcurves(
     if title is not None:
         ax.set_title(title)
     ax.set_xlabel("Time (MJD)")
-    ax.set_ylabel("Flux (nJy)")
+    if plot_magnitudes:
+        ax.set_ylabel("Magnitude")
+        ax.invert_yaxis()  # Invert y-axis for magnitudes since lower magnitudes are brighter.
+    else:
+        ax.set_ylabel("Flux (nJy)")
 
     # Only include a legend if there are at least two curves.
     if len(unique_filters) > 1:
