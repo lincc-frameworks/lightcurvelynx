@@ -65,7 +65,9 @@ def plot_lightcurves(
         ax = figure.add_axes([0, 0, 1, 1])
 
     # If we are plotting in magnitudes, convert the fluxes and flux errors to magnitudes
-    # and magnitude errors.
+    # and magnitude errors. We filter out any invalid points from times, filters, fluxes,
+    # and fluxerrs if they are given. We also convert the underlying model to magnitudes
+    # if it is provided.
     if plot_magnitudes:
         valid_mask = fluxes > 0
         if filters is not None:
@@ -74,6 +76,12 @@ def plot_lightcurves(
             fluxerrs = (2.5 / np.log(10)) * (fluxerrs[valid_mask] / fluxes[valid_mask])
         fluxes = flux2mag(fluxes[valid_mask])
         times = times[valid_mask]
+
+        # Convert the underlying model to magnitudes if it is provided.
+        if underlying_model is not None:
+            for key in underlying_model:
+                if key != "times":
+                    underlying_model[key] = flux2mag(underlying_model[key])
 
     # Set up the time array if it is not given.
     num_pts = len(fluxes)

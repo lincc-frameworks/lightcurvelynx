@@ -37,6 +37,21 @@ def test_plot_lightcurves():
     # Plot in magnitudes.
     plot_lightcurves(fluxes, times, fluxerrs=fluxerrs, filters=filters, plot_magnitudes=True)
 
+    # Plot in magnitudes with an underlying model.
+    underlying_model = {
+        "A": np.array([1.5, 2.5, 3.5]),
+        "B": np.array([2.0, 3.0, 4.0]),
+        "times": np.array([1.0, 2.0, 3.0]),
+    }
+    plot_lightcurves(
+        fluxes,
+        times,
+        fluxerrs=fluxerrs,
+        filters=filters,
+        plot_magnitudes=True,
+        underlying_model=underlying_model,
+    )
+
     # Test with all inputs given:
     # - ax (matplotlib axes object)
     # - figure (matplotlib figure object)
