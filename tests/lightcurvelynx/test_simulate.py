@@ -134,7 +134,7 @@ def test_simulation_info():
         model=model,
         num_samples=100,
         obstable=ops_data,
-        integrators=pb_group,
+        passbands=pb_group,
         obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
         rng=np.random.default_rng(12345),
     )
@@ -186,7 +186,7 @@ def test_simulation_info():
             model=model,
             num_samples=-10,
             obstable=ops_data,
-            integrators=pb_group,
+            passbands=pb_group,
             obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
             rng=np.random.default_rng(12345),
         )

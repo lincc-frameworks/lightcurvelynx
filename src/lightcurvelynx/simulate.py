@@ -31,7 +31,7 @@ class SimulationInfo:
         The number of samples.
     obstable : ObsTable or List of ObsTable
         The ObsTable(s) from which to extract information for the samples.
-    integrators : PassbandGroup, Spectrograph or List of (PassbandGroup, Spectrograph)
+    passbands : PassbandGroup, Spectrograph or List of (PassbandGroup, Spectrograph)
         The information for transforming a models SED into a bandflux (PassbandGroup) or
         spectra (Spectrograph).
     obs_time_window_offset : tuple(float, float), optional
@@ -74,7 +74,7 @@ class SimulationInfo:
         model,
         num_samples,
         obstable,
-        integrators,
+        passbands,
         *,
         obstable_save_cols=None,
         param_cols=None,
@@ -89,7 +89,7 @@ class SimulationInfo:
         self.model = model
         self.num_samples = num_samples
         self.obstable = obstable
-        self.integrators = integrators
+        self.passbands = passbands
         self.obs_time_window_offset = obs_time_window_offset
         self.rest_time_window_offset = rest_time_window_offset
         self.obstable_save_cols = obstable_save_cols
@@ -174,7 +174,7 @@ class SimulationInfo:
                 model=self.model,
                 num_samples=batch_num_samples,
                 obstable=self.obstable,
-                integrators=self.integrators,
+                passbands=self.passbands,
                 obstable_save_cols=self.obstable_save_cols,
                 param_cols=self.param_cols,
                 obs_time_window_offset=self.obs_time_window_offset,
@@ -286,7 +286,7 @@ def _simulate_lightcurves_batch(simulation_info):
     model = simulation_info.model
     num_samples = simulation_info.num_samples
     obstable = simulation_info.obstable
-    integrators = simulation_info.integrators
+    passbands = simulation_info.passbands
     obstable_save_cols = simulation_info.obstable_save_cols
     rng = simulation_info.rng
 
@@ -304,11 +304,11 @@ def _simulate_lightcurves_batch(simulation_info):
     # If we are given information for a single survey, make it into a list.
     if not isinstance(obstable, list):
         obstable = [obstable]
-    if not isinstance(integrators, list):
-        integrators = [integrators]
+    if not isinstance(passbands, list):
+        passbands = [passbands]
     num_surveys = len(obstable)
-    if num_surveys != len(integrators):
-        raise ValueError("Number of surveys must match number of integrators.")
+    if num_surveys != len(passbands):
+        raise ValueError("Number of surveys must match number of passbands.")
 
     # We do not currently support bandflux models with multiple surveys because
     # a bandflux model is defined relative to a single survey.
@@ -407,11 +407,11 @@ def _simulate_lightcurves_batch(simulation_info):
             nobs = len(obs_times)
 
             # Split on whether we are evaluating bandfluxes or spectra.
-            if isinstance(integrators[survey_idx], Spectrograph):
+            if isinstance(passbands[survey_idx], Spectrograph):
                 # This is a spectrograph, so we compute the spectra for the spectra column.
-                sg_waves = integrators[survey_idx].waves
+                sg_waves = passbands[survey_idx].waves
                 sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
-                measured_flux = integrators[survey_idx].evaluate(sed)
+                measured_flux = passbands[survey_idx].evaluate(sed)
 
                 # TODO: Simulate spectrograph noise.
 
@@ -420,7 +420,7 @@ def _simulate_lightcurves_batch(simulation_info):
                     spectra_dict["mjd"].append(obs_time)
                     spectra_dict["waves"].append(sg_waves)
                     spectra_dict["measured_flux"].append(measured_flux[obs_idx])
-                    spectra_dict["instrument"].append(integrators[survey_idx].instrument)
+                    spectra_dict["instrument"].append(passbands[survey_idx].instrument)
 
                 # Add the new entries to the spectra_index.
                 spectra_index.extend([idx] * nobs)
@@ -428,7 +428,7 @@ def _simulate_lightcurves_batch(simulation_info):
                 # This is a PassbandGroup integrator, so we compute the bandfluxes for the lightcurves column.
                 # Compute the bandfluxes and errors over just the given filters.
                 bandfluxes_perfect = model.evaluate_bandfluxes(
-                    integrators[survey_idx],
+                    passbands[survey_idx],
                     obs_times,
                     obs_filters,
                     state,
@@ -470,7 +470,7 @@ def _simulate_lightcurves_batch(simulation_info):
                     obs_filters = np.asarray(obs_filters)
                     full_filter_names = np.empty_like(obs_filters, dtype=object)
                     for filter_name in np.unique(obs_filters):
-                        pb_obj = integrators[survey_idx][filter_name]
+                        pb_obj = passbands[survey_idx][filter_name]
                         full_filter_names[obs_filters == filter_name] = pb_obj.full_name
                     nested_dict["full_filter_name"].extend(list(full_filter_names))
 
@@ -536,7 +536,7 @@ def simulate_lightcurves(
     model,
     num_samples,
     obstable,
-    integrators,
+    passbands,
     *,
     obstable_save_cols=None,
     param_cols=None,
@@ -568,8 +568,8 @@ def simulate_lightcurves(
         The number of samples.
     obstable : ObsTable or List of ObsTable
         The ObsTable(s) from which to extract information for the samples.
-    integrators : PassbandGroup, Spectrograph, or List of (PassbandGroup, Spectrograph)
-        The integrators to use for generating the bandfluxes or spectra.
+    passbands : PassbandGroup, Spectrograph, or List of (PassbandGroup, Spectrograph)
+        The passbands to use for generating the bandfluxes or spectra.
     obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
@@ -627,7 +627,7 @@ def simulate_lightcurves(
         model=model,
         num_samples=num_samples,
         obstable=obstable,
-        integrators=integrators,
+        passbands=passbands,
         rng=rng,
         obs_time_window_offset=obs_time_window_offset,
         rest_time_window_offset=rest_time_window_offset,
