@@ -592,6 +592,16 @@ def simulate_lightcurves(
         save_full_filter_names=save_full_filter_names,
     )
 
+    # If we are given a number of jobs, make sure the batch size is not larger than
+    # the number of samples per job.
+    if num_jobs is not None:
+        if num_jobs <= 0:  # pragma: no cover
+            raise ValueError("num_jobs must be a positive integer.")
+        if num_jobs > num_samples:  # pragma: no cover
+            num_jobs = num_samples
+        batch_size = np.min([batch_size, np.ceil(num_samples / num_jobs).astype(int)])
+        logger.info(f"Using num_jobs={num_jobs} and batch_size={batch_size} for parallel processing.")
+
     # If we do not have any parallelization information, perform in serial.
     if executor is None and num_jobs is None:
         return _simulate_lightcurves_batch(simulation_info)
