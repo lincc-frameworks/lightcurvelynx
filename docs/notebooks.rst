@@ -28,6 +28,7 @@ features and models of the LightCurveLynx package.
     Using Rubin CCD Visit Table in Simulations <notebooks/pre_executed/rubin_ccdvisit>
     Sampling Object Positions <notebooks/sampling_positions>
     Passband Demo <notebooks/passband-demo>
+    Simulating Spectra <notebooks/spectrograph_demo>
     Adding New Model Types <notebooks/adding_models>
     Debugging Models <notebooks/debugging>
     Combining Models (including Hosts/Sources) <notebooks/host_source_models>
