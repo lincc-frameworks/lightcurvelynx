@@ -1,0 +1,1 @@
+This folder contains notebooks that were used as one-time analysis (e.g. for papers). While we want to keep these notebooks around, they are not part of the documentation.
