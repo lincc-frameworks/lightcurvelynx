@@ -65,6 +65,8 @@ class SimulationInfo:
         are saved to this file instead of being returned directly.
     save_full_filter_names : bool
         Whether to save the full filter names in the results (including survey prefix).
+    progress_bar : bool
+        Whether to show a progress bar during the simulation.
     kwargs : dict
         Additional keyword arguments to pass to the simulation function.
     """
@@ -84,6 +86,7 @@ class SimulationInfo:
         rng=None,
         output_file_path=None,
         save_full_filter_names=False,
+        progress_bar=True,
         **kwargs,
     ):
         self.model = model
@@ -99,6 +102,7 @@ class SimulationInfo:
         self.kwargs = kwargs
         self.output_file_path = None
         self.save_full_filter_names = save_full_filter_names
+        self.progress_bar = progress_bar
 
         if self.num_samples <= 0:
             raise ValueError("Number of samples must be a positive integer.")
@@ -183,6 +187,7 @@ class SimulationInfo:
                 rng=batch_rng,
                 output_file_path=batch_output_file_path,
                 save_full_filter_names=self.save_full_filter_names,
+                progress_bar=self.progress_bar,
                 **self.kwargs,
             )
             batches.append(batch_info)
@@ -390,7 +395,13 @@ def _simulate_lightcurves_batch(simulation_info):
     # We loop over objects first, then surveys. This allows us to generate a single block
     # of data for the object over all surveys.
     logger.info("Simulating light curves for each object.")
-    for idx, state in tqdm(enumerate(sample_states), total=num_samples, desc="Simulating", unit="obj"):
+    for idx, state in tqdm(
+        enumerate(sample_states),
+        total=num_samples,
+        desc="Simulating",
+        unit="obj",
+        disable=not simulation_info.progress_bar,
+    ):
         total_num_obs = 0
 
         for survey_idx in range(num_surveys):
@@ -548,6 +559,7 @@ def simulate_lightcurves(
     num_jobs=None,
     batch_size=100_000,
     save_full_filter_names=False,
+    progress_bar=True,
 ):
     """Generate a number of simulations of the given model and information
     from one or more surveys. The result data can either be returned directly
@@ -611,6 +623,8 @@ def simulate_lightcurves(
         Default is 100_000.
     save_full_filter_names : bool
         Whether to save the full filter names in the results (including survey prefix).
+    progress_bar : bool
+        Whether to show a progress bar during the simulation.
 
     Returns
     -------
@@ -635,6 +649,7 @@ def simulate_lightcurves(
         param_cols=param_cols,
         output_file_path=output_file_path,
         save_full_filter_names=save_full_filter_names,
+        progress_bar=progress_bar,
     )
 
     # If we are given a number of jobs, make sure the batch size is not larger than
