@@ -276,7 +276,7 @@ class LSSTObsTable(ObsTable):
         obstable = cls(table, colmap=colmap, **kwargs)
         return obstable
 
-    def bandflux_error_point_source(self, bandflux, index):
+    def _compute_bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
 
         Parameters

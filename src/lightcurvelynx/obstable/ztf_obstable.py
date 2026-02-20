@@ -176,7 +176,7 @@ class ZTFObsTable(ObsTable):
 
         return ZTFObsTable(obstable, colmap=colmap)
 
-    def bandflux_error_point_source(self, bandflux, index):
+    def _compute_bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
 
         Parameters

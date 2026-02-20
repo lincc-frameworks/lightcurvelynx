@@ -218,7 +218,7 @@ class OpSim(ObsTable):
             raise RuntimeError(f"Failed to download opsim data from {opsim_url}.")
         return cls.from_db(data_path)
 
-    def bandflux_error_point_source(self, bandflux, index):
+    def _compute_bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
 
         Parameters

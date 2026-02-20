@@ -54,6 +54,9 @@ class ObsTable:
         A dictionary mapping filter names to their saturation thresholds in magnitudes.
         The filters provided must match those in the table. If not provided,
         saturation effects will not be applied.
+    noise_floor : dict, optional
+        A dictionary mapping filter names to their noise floor in magnitudes. The filters
+        provided must match those in the table. If not provided, no noise floor will be applied.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This can include
         overrides of any of the survey values.
@@ -105,6 +108,7 @@ class ObsTable:
         wcs=None,
         apply_saturation=True,
         saturation_mags=None,
+        noise_floor=None,
         **kwargs,
     ):
         # Create a copy of the table.
@@ -175,8 +179,9 @@ class ObsTable:
         if "zp" not in self:
             self._assign_zero_points()
 
-        # Save the saturation thresholds if provided.
+        # Save the saturation thresholds and noise floors if provided.
         self._saturation_mags = saturation_mags if apply_saturation else None
+        self._noise_floor = noise_floor
 
         # Build the kd-tree (or other spatial data structure).
         self._spatial_data = None
@@ -220,6 +225,7 @@ class ObsTable:
         new_colmap = self._colmap.copy()
         new_detector_footprint = self._detector_footprint  # Assuming this is immutable or we want to share it
         new_saturation_mags = self._saturation_mags.copy() if self._saturation_mags is not None else None
+        new_noise_floor = self._noise_floor.copy() if self._noise_floor is not None else None
 
         return ObsTable(
             new_table,
@@ -227,6 +233,7 @@ class ObsTable:
             detector_footprint=new_detector_footprint,
             apply_saturation=(new_saturation_mags is not None),
             saturation_mags=new_saturation_mags,
+            noise_floor=new_noise_floor,
             **new_survey_values,
         )
 
@@ -867,6 +874,25 @@ class ObsTable:
             results[col] = self[col][neighbors].to_numpy()
         return results
 
+    def _compute_bandflux_error_point_source(self, bandflux, index):
+        """Compute observational bandflux error for a point source. This
+        is the internal function that should be implemented by each
+        subclass to compute the bandflux error based on the survey characteristics.
+
+        Parameters
+        ----------
+        bandflux : array_like of float
+            Band bandflux of the point source in nJy.
+        index : array_like of int
+            The index of the observation in the ObsTable table.
+
+        Returns
+        -------
+        flux_err : array_like of float
+            Simulated bandflux noise in nJy.
+        """
+        raise NotImplementedError()  # pragma: no cover
+
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source.
 
@@ -882,7 +908,25 @@ class ObsTable:
         flux_err : array_like of float
             Simulated bandflux noise in nJy.
         """
-        raise NotImplementedError()  # pragma: no cover
+        flux_err = self._compute_bandflux_error_point_source(bandflux, index)
+
+        # If we have a noise floor, apply it.
+        if self._noise_floor is not None:
+            if "filter" not in self._table.columns:
+                raise ValueError("Cannot apply noise floor without filter column in the table.")
+            filters = np.asarray(self._table["filter"].iloc[index])
+
+            # Compute the noise floor values for each observation based on the filter.
+            floor_vals = np.zeros_like(flux_err)
+            for f in np.unique(filters):
+                if f not in self._noise_floor:
+                    raise ValueError(f"Noise floor does not have a value for filter '{f}'")
+                floor_vals[filters == f] = mag2flux(self._noise_floor[f])
+
+            # Apply the noise floor as a minimum.
+            flux_err = np.maximum(flux_err, floor_vals)
+
+        return flux_err
 
     def compute_saturation(self, flux, flux_error, index):
         """Apply the saturation limits to a given flux and flux error.
@@ -1070,6 +1114,8 @@ class ObsTable:
             survey_kwargs["apply_saturation"] = self.uses_saturation()
         if "saturation_mags" not in survey_kwargs:
             survey_kwargs["saturation_mags"] = self._saturation_mags
+        if "noise_floor" not in survey_kwargs:
+            survey_kwargs["noise_floor"] = self._noise_floor
         for key, value in self.survey_values.items():
             if key not in survey_kwargs:
                 survey_kwargs[key] = value

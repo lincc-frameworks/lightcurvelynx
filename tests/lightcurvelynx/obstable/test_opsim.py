@@ -532,6 +532,13 @@ def test_opsim_flux_err_point_source(opsim_shorten):
     # Tolerance is very high, we should investigate why the values are so different.
     np.testing.assert_allclose(flux_err, expected_flux_err, rtol=0.2)
 
+    # If we provide a minimum flux error, it should be applied. We use a very bright
+    # noise floor, so that should be the flux_error for all observations.
+    noise_floor = {f: 15.0 for f in ops_data.filters}
+    ops_data2 = OpSim.from_db(opsim_shorten, noise_floor=noise_floor)
+    flux_err2 = ops_data2.bandflux_error_point_source(flux, index=np.arange(len(ops_data2)))
+    np.testing.assert_allclose(flux_err2, mag2flux(15.0), rtol=0.01)
+
 
 def _make_fake_data(times):
     """Create 9 fake ccd pointings at each timestep using
