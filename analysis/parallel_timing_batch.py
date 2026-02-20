@@ -85,6 +85,7 @@ def run_timing_tests(args):
                 passbands=passband_group,
                 num_jobs=num_threads,
                 obs_time_window_offset=(-100, 400),
+                progress_bar=False,  # Disable progress bar
             )
 
             # Time each of the simulations and store the results.
