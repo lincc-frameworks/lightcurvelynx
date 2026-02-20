@@ -192,6 +192,25 @@ simulations, such as accounting for wavelength and time compression due to redsh
 band fluxes directly will not account for all of these factors.
 
 
+Running a Full Simulation
+-------------------------------------------------------------------------------
+
+To run a full simulation, users call the ``simulate_lightcurves()`` function, which handles the parameter sampling, matching with ``ObsTable`` positions, the full density simulation (including effects), application of noise, etc. The function takes the model object to simulation, the number of samples to generate, and the survey information (``ObsTable`` and ``PassbandGroup``). It returns a nested pandas DataFrame as described in the  :doc:`Results and Output documentation page <results_and_output>`, which includes both the sampled parameters and the resulting light curves for each simulated object.
+
+.. code-block:: python
+
+    results = simulate_lightcurves(model, num_samples, obs_table, passband_group)
+
+The ``simulate_lightcurves()`` function has many additional arguments to allow the user to
+control various aspects of the simulation. These include:
+
+* ``obs_time_window_offset`` and ``rest_time_window_offset`` which limit simulation to windows around the (observer and rest-frame respectively) t0 of the model.
+* ``obstable_save_cols``, ``param_cols``, and ``save_full_filter_names`` which allow users to save additional context information about the simulation in the results.
+* ``output_file_path`` which allows users to save the results to a file instead of returning them directly.
+* ``executor``, ``batch_size``, and ``num_jobs`` which allow users to run the simulation in parallel. See the section on parallelization below for more details.
+* ``rng`` which allows users to control the randomness of the simulation by passing in a predefined random number generator. See the section on controlling randomness below for more details.
+
+
 Examples
 -------------------------------------------------------------------------------
 
@@ -213,17 +232,15 @@ See our selection of :doc:`tutorial notebooks <notebooks>` for further examples.
 Controlling Randomness
 -------------------------------------------------------------------------------
 
-LightCurveLynx allows the user to control randomness by passing in a predefined
-random number generator via the `rng` parameter. If the user provides a random number
-generator with a fixed seed, then the parameters sampled throughout the simulation are
-effectively predefined and identical between simulations.
+LightCurveLynx allows the user to control randomness by passing in a predefined random number generator to ``simulate_lightcurves()`` via the `rng` parameter. If the user provides a random number generator with a fixed seed, then the parameters sampled throughout the simulation are effectively predefined and identical between simulations.
 
 .. code-block:: python
 
     my_rng = np.random.default_rng(42)
 
-If the provided random number generator does not use a fixed seed (or no `rng`
-argument is provided), the parameters will vary from run to run.
+If the provided random number generator does not use a fixed seed (or no ``rng`` argument is provided), the parameters will vary from run to run.
+
+**WARNING:** Most analysis should **NOT** use a fixed seed. This option is provided for testing and debugging purposes.
 
 
 Simulating from Multiple Surveys
