@@ -3,15 +3,15 @@ import numpy as np
 import pandas as pd
 import pytest
 from astropy.coordinates import SkyCoord
-from astropy_healpix import HEALPix
+from cdshealpix import skycoord_to_healpix
 from lightcurvelynx.obstable.argus_obstable import ArgusHealpixObsTable
 
 
 def _ra_dec_to_healpix(ra, dec, nside=32):
     """Convert RA and Dec to HEALPix indices."""
-    hpx = HEALPix(nside=nside, order="nested", frame="icrs")
+    healpix_depth = int(np.log2(nside))
     coords = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
-    return hpx.skycoord_to_healpix(coords)
+    return skycoord_to_healpix(coords, healpix_depth)
 
 
 def test_create_argus_obstable():
@@ -35,8 +35,8 @@ def test_create_argus_obstable():
     pdf.index.name = "healpix"
     ops_data = ArgusHealpixObsTable(pdf)
     assert len(ops_data) == 6
-    assert ops_data.nside == 32
-    assert ops_data.depth == 5
+    assert ops_data.healpix_nside == 32
+    assert ops_data.healpix_depth == 5
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["pixel_scale"] == 1.0

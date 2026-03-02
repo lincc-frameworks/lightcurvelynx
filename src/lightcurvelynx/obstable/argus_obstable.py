@@ -6,7 +6,7 @@ import astropy.units as u
 import numpy as np
 import pandas as pd
 from astropy.coordinates import SkyCoord
-from astropy_healpix import HEALPix
+from cdshealpix import skycoord_to_healpix
 from mocpy import MOC
 
 from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
@@ -17,6 +17,8 @@ from lightcurvelynx.obstable.obs_table import ObsTable
 _argus_view_radius = 52.0
 """The angular radius of the observation field (in degrees):
 https://argus.unc.edu/about
+
+This is not used in search, but provided for the `radius` getter.
 """
 
 _argus_pixel_scale = 1.0
@@ -87,8 +89,8 @@ class ArgusHealpixObsTable(ObsTable):
     ):
         # Set some default values.
         self._spatial_data = None
-        self._nside = nside
-        self._depth = None
+        self._healpix_nside = nside
+        self._healpix_depth = None
 
         # If the input is a dictionary, convert it to a DataFrame.
         if isinstance(table, dict):
@@ -126,14 +128,14 @@ class ArgusHealpixObsTable(ObsTable):
         )
 
     @property
-    def nside(self):
+    def healpix_nside(self):
         """Return the nside of the healpix pixels in the table."""
-        return self._nside
+        return self._healpix_nside
 
     @property
-    def depth(self):
+    def healpix_depth(self):
         """Return the depth of the healpix pixels in the table."""
-        return self._depth
+        return self._healpix_depth
 
     def set_detector_footprint(self, detector_footprint, wcs=None):
         """Set the detector footprint, so footprint filtering is done.
@@ -151,9 +153,9 @@ class ArgusHealpixObsTable(ObsTable):
 
     def _build_spatial_data(self):
         """Construct a mapping of healpix id to row number from the ObsTable."""
-        if self._nside is None:
+        if self._healpix_nside is None:
             if "nside" in self._table.columns:
-                self._nside = self._table["nside"][0]
+                self._healpix_nside = self._table["nside"][0]
             else:
                 raise ValueError(
                     "nside must be provided for ArgusHealpixObsTable construction or "
@@ -163,17 +165,14 @@ class ArgusHealpixObsTable(ObsTable):
         # Check all nside values are the same.
         if "nside" in self._table.columns:
             nside = self._table["nside"].to_numpy()
-            if not np.all(nside == self._nside):
+            if not np.all(nside == self._healpix_nside):
                 raise ValueError(
                     "Inconsistent nside values found in the table. Expected all nside values"
-                    f"to be {self._nside}, but found values: {np.unique(nside)}"
+                    f"to be {self._healpix_nside}, but found values: {np.unique(nside)}"
                 )
 
         # Compute the depth.
-        self._depth = int(np.log2(self._nside))
-
-        # Create a healpix mapper for the given nside to convert between healpix ids and coordinates.
-        self._healpix_mapper = HEALPix(nside=self._nside, order="nested", frame="icrs")
+        self._healpix_depth = int(np.log2(self._healpix_nside))
 
         # Build a mapping of healpix id to row number.
         self._spatial_data = {}
@@ -201,13 +200,13 @@ class ArgusHealpixObsTable(ObsTable):
             The Multi-Order Coverage Map constructed from the data set.
         """
         if max_depth is None:
-            max_depth = self._depth
+            max_depth = self._healpix_depth
 
         logger = logging.getLogger(__name__)
         logger.debug(f"Building MOC from ArgusHealpixObsTable at depth={max_depth}.")
         moc = MOC.from_healpix_cells(
             np.array(list(self._spatial_data.keys())),
-            depth=self._depth,
+            depth=self._healpix_depth,
             max_depth=max_depth,
         )
         return moc
@@ -316,7 +315,7 @@ class ArgusHealpixObsTable(ObsTable):
 
         # Bulk compute the healpix ids for all query points.
         coords = SkyCoord(query_ra * u.deg, query_dec * u.deg, frame="icrs")
-        healpix = self._healpix_mapper.skycoord_to_healpix(coords)
+        healpix = skycoord_to_healpix(coords, self._healpix_depth)
 
         # For each query point, get the rows and apply time filtering if specified.
         inds = []
