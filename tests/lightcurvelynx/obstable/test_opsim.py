@@ -141,11 +141,7 @@ def test_create_opsim_saturation():
 
     # Without any arguments the default saturation mags are used.
     ops_data = OpSim(pdf)
-    assert ops_data.uses_saturation()
-
-    # If we set apply_saturation to False, we do not store the saturation mags.
-    ops_data = OpSim(pdf, apply_saturation=False)
-    assert ops_data.uses_saturation() is False
+    assert ops_data._saturation_mags is not None
 
 
 def test_create_opsim_no_zp():

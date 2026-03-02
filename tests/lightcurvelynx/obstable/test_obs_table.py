@@ -25,7 +25,7 @@ def test_create_obs_table():
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
     assert not ops_data.uses_footprint()
-    assert not ops_data.uses_saturation()
+    assert not ops_data._saturation_mags is not None
 
     # We have all the attributes set at their default values (which are None for the base class).
     assert ops_data.survey_values["dark_current"] is None
@@ -271,11 +271,7 @@ def test_create_obs_table_saturation():
     saturation_mags = {"r": 16.0, "g": 17.0, "i": 18.0}
 
     ops_data = ObsTable(pdf, saturation_mags=saturation_mags)
-    assert ops_data.uses_saturation()
-
-    # If we set apply_saturation to False, we do not store the saturation mags.
-    ops_data = ObsTable(pdf, saturation_mags=saturation_mags, apply_saturation=False)
-    assert ops_data.uses_saturation() is False
+    assert ops_data._saturation_mags is not None
 
 
 def test_obs_table_filter_rows():
@@ -764,7 +760,7 @@ def test_obstable_make_resampled_table():
     # Check that we copied over the saturation mags, detector footprint, etc.
     assert set(resampled_table.filters) == set(ops_data.filters)
     assert resampled_table._detector_footprint is None
-    assert resampled_table.uses_saturation()
+    assert resampled_table._saturation_mags is not None
     for key, value in saturation_mags.items():
         assert resampled_table._saturation_mags[key] == pytest.approx(value)
 
@@ -828,7 +824,7 @@ def test_obstable_make_resampled_table_overwrite():
             assert resampled_table.survey_values[key] == value
     assert resampled_table._detector_footprint is detector_footprint
 
-    assert resampled_table.uses_saturation()
+    assert resampled_table._saturation_mags is not None
     for key, value in new_saturation_mags.items():
         assert resampled_table._saturation_mags[key] == pytest.approx(value)
 
