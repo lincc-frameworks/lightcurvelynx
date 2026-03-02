@@ -240,8 +240,6 @@ LightCurveLynx allows the user to control randomness by passing in a predefined 
 
 If the provided random number generator does not use a fixed seed (or no ``rng`` argument is provided), the parameters will vary from run to run.
 
-**WARNING:** Most analysis should **NOT** use a fixed seed. This option is provided for testing and debugging purposes.
-
 
 Simulating from Multiple Surveys
 -------------------------------------------------------------------------------
