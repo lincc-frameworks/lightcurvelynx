@@ -311,9 +311,12 @@ class LSSTObsTable(ObsTable):
                 "the sky background noise."
             )
 
+        # If exposure time is not provided, use the default value of 30 seconds for LSST.
+        exptime = 30.0 if "exptime" not in observations.columns else observations["exptime"]
+
         return poisson_bandflux_std(
             bandflux,
-            total_exposure_time=observations["exptime"],
+            total_exposure_time=exptime,
             exposure_count=1,
             psf_footprint=psf_footprint,
             sky=sky,

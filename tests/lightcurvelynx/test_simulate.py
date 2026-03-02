@@ -140,6 +140,7 @@ def test_simulation_info():
     )
     assert sim_info.num_samples == 100
     assert sim_info.obs_time_window_offset == (-5.0, 10.0)
+    assert sim_info.progress_bar is True
 
     # Test splitting into batches.
     batches = sim_info.split(num_batches=3)
@@ -223,6 +224,7 @@ def test_simulate_lightcurves(test_data_dir):
         passband_group,
         obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
+        progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results) == 5
     assert "lightcurve" in results
@@ -295,6 +297,7 @@ def test_simulate_lightcurves(test_data_dir):
             opsim_db,
             passband_group,
             param_cols=["source2.unknown_parameter"],
+            progress_bar=False,  # Disable progress bar for testing
         )
     assert "Available parameters are:" in str(excinfo.value)
     assert "source2.ra" in str(excinfo.value)
@@ -337,6 +340,7 @@ def test_simulate_lightcurves_to_file(test_data_dir):
             obstable_save_cols=["observationId", "zp_nJy"],
             param_cols=["source.brightness"],
             output_file_path=file_path,
+            progress_bar=False,  # Disable progress bar for testing
         )
         assert str(results) == str(file_path)
         assert file_path.exists()
@@ -377,7 +381,7 @@ def test_simulate_bandfluxes(test_data_dir):
     # Create a static bandflux model and simulate 2 runs. Check that we correctly extract per-observation
     # information, such as times, filters, and data indices.
     model = StaticBandfluxModel({"g": 1.0, "i": 2.0, "r": 3.0, "y": 4.0, "z": 5.0}, ra=0.0, dec=10.0)
-    results = simulate_lightcurves(model, 2, obstable, passband_group)
+    results = simulate_lightcurves(model, 2, obstable, passband_group, progress_bar=False)
     assert len(results) == 2
     for idx in range(2):
         assert np.allclose(results["lightcurve"][idx]["mjd"], [0.0, 1.0, 3.0, 5.0])
@@ -423,6 +427,7 @@ def test_simulate_parallel_threads(test_data_dir):
             executor=executor,
             batch_size=10,
             save_full_filter_names=True,
+            progress_bar=False,  # Disable progress bar for testing
         )
     assert len(results) == 100
     assert np.all(results["nobs"].values >= 1)
@@ -488,6 +493,7 @@ def test_simulate_parallel_processes(test_data_dir):
             param_cols=["source.brightness"],
             executor=executor,
             batch_size=10,
+            progress_bar=False,  # Disable progress bar for testing
         )
     assert len(results) == 500
     assert np.all(results["nobs"].values >= 1)
@@ -517,6 +523,7 @@ def test_simulate_parallel_processes(test_data_dir):
         param_cols=["source.brightness"],
         batch_size=10,
         num_jobs=2,
+        progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results2) == 100
 
@@ -539,6 +546,7 @@ def test_simulate_parallel_processes(test_data_dir):
             output_file_path=base_path,
             batch_size=50,
             num_jobs=4,
+            progress_bar=False,  # Disable progress bar for testing
         )
         assert len(results3) == 4
         for i in range(4):
@@ -580,6 +588,7 @@ def test_simulate_single_lightcurve(test_data_dir):
         passband_group,
         obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
+        progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results) == 1
 
@@ -635,6 +644,7 @@ def test_simulate_with_time_window(test_data_dir):
         opsim_db,
         passband_group,
         obs_time_window_offset=(-5.0, 10.0),
+        progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results1) == 2
 
@@ -656,6 +666,7 @@ def test_simulate_with_time_window(test_data_dir):
         opsim_db,
         passband_group,
         rest_time_window_offset=(-5.0, 5.0),
+        progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results2) == 2
 
@@ -719,6 +730,7 @@ def test_simulate_multiple_surveys(test_data_dir):
         [obstable1, obstable2],
         [passband_group1, passband_group2],
         obstable_save_cols=["zp", "custom_col"],
+        progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results) == 1
     assert results["nobs"][0] == 4
@@ -837,6 +849,7 @@ def test_simulate_multiple_surveys_diff_filters():
         [passband_group1, passband_group2],
         obstable_save_cols=["zp", "custom_col"],
         save_full_filter_names=True,
+        progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results) == 1
     assert results["nobs"][0] == 6
@@ -898,6 +911,7 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
         1,
         [obstable1, obstable2],
         [passband_group1, spectrograph],
+        progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results) == 1
     assert results["nobs"][0] == 4
