@@ -15,10 +15,8 @@
         "HEAD"
     ],
     // The install needs to include the optional sncosmo dependency.
-    // We pin numpy to version 2.3.5 for compatibility.
     "install_command": [
         "python -m pip install {wheel_file} sncosmo",
-        "python -m pip install --upgrade numpy<=2.3.5",
     ],
     "build_command": [
         "python -m build --wheel -o {build_cache_dir} {build_dir}"
