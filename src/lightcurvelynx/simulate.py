@@ -44,6 +44,8 @@ class SimulationInfo:
         to t0 in days. This is used to filter the observations to only those within the
         specified rest-frame time window (t0 + start, t0 + end). If None or the model
         does not have a t0 and redshift specified, no time window is applied.
+    apply_saturation : bool
+        Whether to apply saturation thresholds from the ObsTable.
     obstable_save_cols : list of str, optional
         A list of ObsTable columns to be saved as part of the results. This is used
         to save context information about how the light curves were generated. If the column
@@ -82,6 +84,7 @@ class SimulationInfo:
         param_cols=None,
         obs_time_window_offset=None,
         rest_time_window_offset=None,
+        apply_saturation=True,
         sample_offset=0,
         rng=None,
         output_file_path=None,
@@ -95,6 +98,7 @@ class SimulationInfo:
         self.passbands = passbands
         self.obs_time_window_offset = obs_time_window_offset
         self.rest_time_window_offset = rest_time_window_offset
+        self.apply_saturation = apply_saturation
         self.obstable_save_cols = obstable_save_cols
         self.param_cols = param_cols
         self.sample_offset = sample_offset
@@ -183,6 +187,7 @@ class SimulationInfo:
                 param_cols=self.param_cols,
                 obs_time_window_offset=self.obs_time_window_offset,
                 rest_time_window_offset=self.rest_time_window_offset,
+                apply_saturation=self.apply_saturation,
                 sample_offset=self.sample_offset + start_idx,
                 rng=batch_rng,
                 output_file_path=batch_output_file_path,
@@ -450,10 +455,13 @@ def _simulate_lightcurves_batch(simulation_info):
                 )
                 bandfluxes = apply_noise(bandfluxes_perfect, bandfluxes_error, rng=rng)
 
-                # Apply saturation thresholds from the ObsTable.
-                bandfluxes, bandfluxes_error, saturation_flags = obstable[survey_idx].compute_saturation(
-                    bandfluxes, bandfluxes_error, obs_index
-                )
+                # Apply saturation thresholds from the ObsTable if they are requested.
+                if simulation_info.apply_saturation:
+                    bandfluxes, bandfluxes_error, saturation_flags = obstable[survey_idx].compute_saturation(
+                        bandfluxes, bandfluxes_error, obs_index
+                    )
+                else:
+                    saturation_flags = [False] * nobs
 
                 # Append the per-observation data to the nested dictionary, including
                 # any needed ObsTable columns.
@@ -553,6 +561,7 @@ def simulate_lightcurves(
     param_cols=None,
     obs_time_window_offset=None,
     rest_time_window_offset=None,
+    apply_saturation=True,
     output_file_path=None,
     rng=None,
     executor=None,
@@ -594,6 +603,8 @@ def simulate_lightcurves(
         specified rest-frame time window (t0 + start, t0 + end). If None or the model
         does not have a t0 and redshift specified, no time window is applied. May not be used
         together with obs_time_window_offset.
+    apply_saturation : bool
+        Whether to apply saturation thresholds from the ObsTable.
     obstable_save_cols : list of str, optional
         A list of ObsTable columns to be saved as part of the results. This is used
         to save context information about how the light curves were generated. If the column
@@ -645,6 +656,7 @@ def simulate_lightcurves(
         rng=rng,
         obs_time_window_offset=obs_time_window_offset,
         rest_time_window_offset=rest_time_window_offset,
+        apply_saturation=apply_saturation,
         obstable_save_cols=obstable_save_cols,
         param_cols=param_cols,
         output_file_path=output_file_path,

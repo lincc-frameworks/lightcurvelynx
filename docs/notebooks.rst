@@ -40,6 +40,7 @@ features and models of the LightCurveLynx package.
     Simulating Multiple Surveys <notebooks/multiple_surveys>
     Detector Footprints <notebooks/detector_footprint>
     Parallel Runs <notebooks/parallel_runs>
+    Setting Saturation Limits <notebooks/saturation>
 
 
 Citations

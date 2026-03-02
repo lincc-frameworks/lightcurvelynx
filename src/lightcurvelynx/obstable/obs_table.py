@@ -47,9 +47,6 @@ class ObsTable:
     wcs : astropy.wcs.WCS, optional
         The WCS for the footprint. Either this or pixel_scale must be provided if
         a footprint is provided as a Astropy region.
-    apply_saturation : bool, optional
-        Whether to apply saturation effects when computing fluxes. Also requires a valid
-        saturation_mags dictionary. Default is True.
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes.
         The filters provided must match those in the table. If not provided,
@@ -103,7 +100,6 @@ class ObsTable:
         colmap=None,
         detector_footprint=None,
         wcs=None,
-        apply_saturation=True,
         saturation_mags=None,
         **kwargs,
     ):
@@ -175,8 +171,8 @@ class ObsTable:
         if "zp" not in self:
             self._assign_zero_points()
 
-        # Save the saturation thresholds if provided.
-        self._saturation_mags = saturation_mags if apply_saturation else None
+        # Save the saturation thresholds.
+        self._saturation_mags = saturation_mags
 
         # Build the kd-tree (or other spatial data structure).
         self._spatial_data = None
@@ -225,7 +221,6 @@ class ObsTable:
             new_table,
             colmap=new_colmap,
             detector_footprint=new_detector_footprint,
-            apply_saturation=(new_saturation_mags is not None),
             saturation_mags=new_saturation_mags,
             **new_survey_values,
         )
@@ -233,10 +228,6 @@ class ObsTable:
     def uses_footprint(self):
         """Return whether the ObsTable uses a detector footprint for filtering."""
         return self._detector_footprint is not None
-
-    def uses_saturation(self):
-        """Return whether the ObsTable uses saturation effects."""
-        return self._saturation_mags is not None
 
     def clear_detector_footprint(self):
         """Clear the detector footprint, so no footprint filtering is done."""
@@ -1066,8 +1057,6 @@ class ObsTable:
             survey_kwargs["detector_footprint"] = self._detector_footprint
         if "wcs" not in survey_kwargs:
             survey_kwargs["wcs"] = None  # None because we have already converted to DetectorFootprint
-        if "apply_saturation" not in survey_kwargs:
-            survey_kwargs["apply_saturation"] = self.uses_saturation()
         if "saturation_mags" not in survey_kwargs:
             survey_kwargs["saturation_mags"] = self._saturation_mags
         for key, value in self.survey_values.items():
