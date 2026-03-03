@@ -82,7 +82,7 @@ class ObsTable:
 
     _required_columns = ["ra", "dec", "time"]
 
-    # Default survey values. These are all None for the abstract base class.
+    # Default survey values. Most of these are all None for the abstract base class.
     _default_survey_values = {
         "dark_current": None,
         "ext_coeff": None,
@@ -90,6 +90,7 @@ class ObsTable:
         "radius": None,
         "read_noise": None,
         "zp_per_sec": None,
+        "zp_err_mag": 0.0,  # Default of no noise floor.
         "survey_name": "Unknown",
     }
 
