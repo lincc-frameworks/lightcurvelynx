@@ -688,7 +688,7 @@ class PassbandGroup:
         combined_df = pd.concat(all_data, ignore_index=True)
         combined_df.to_csv(file_path, index=False)
 
-    def plot(self, *, ax=None, figure=None):
+    def plot(self, *, ax=None, figure=None, plot_transmission=False):
         """Plot the PassbandGroup on a single plot.
 
         Parameters
@@ -697,6 +697,9 @@ class PassbandGroup:
             Axes, None by default.
         figure : matplotlib.pyplot.Figure or None
             Figure, None by default.
+        plot_transmission : bool
+            Whether to plot the original transmission table instead of the normalized system response.
+            Default is False, which plots the normalized system response.
         """
         if ax is None:
             if figure is None:
@@ -705,7 +708,7 @@ class PassbandGroup:
 
         # Plot each passband.
         for pb_obj in self.passbands.values():
-            pb_obj.plot(ax=ax, plot_loaded=False)
+            pb_obj.plot(ax=ax, plot_transmission=plot_transmission)
         ax.legend()
 
 
@@ -1300,7 +1303,14 @@ class Passband:
             bandfluxes = scipy.integrate.trapezoid(integrand, x=self.waves, axis=w_axis)
         return bandfluxes
 
-    def plot(self, *, ax=None, figure=None, color=None, plot_loaded=False):
+    def plot(
+        self,
+        *,
+        ax=None,
+        figure=None,
+        color=None,
+        plot_transmission=False,
+    ):
         """Plot the passband.
 
         Parameters
@@ -1311,8 +1321,9 @@ class Passband:
             Figure, None by default.
         color : str or None, optional
             The color of the curve.
-        plot_loaded : bool
-            Also plot the loaded table as a dashed line. Used for debugging.
+        plot_transmission : bool
+            Plot the loaded transmission table instead of the normalized system response.
+            Default is False (which plots the normalized system response).
         """
         if ax is None:
             if figure is None:
@@ -1324,20 +1335,22 @@ class Passband:
         if color is None:
             color = lsst_filter_plot_colors.get(self.filter_name, "black")
 
-        ax.plot(
-            self.normalized_system_response[:, 0],  # X values are the wavelength
-            self.normalized_system_response[:, 1],  # Y values are the transmission values.
-            color=color,
-            label=self.full_name,
-        )
-        if plot_loaded:
+        if plot_transmission:
             ax.plot(
                 self.transmission_table[:, 0],  # X values are the wavelength
                 self.transmission_table[:, 1],  # Y values are the transmission values.
                 color=color,
-                linestyle="--",
+                label=self.full_name,
             )
+            ax.set_ylabel("Transmission Value")
+        else:
+            ax.plot(
+                self.normalized_system_response[:, 0],  # X values are the wavelength
+                self.normalized_system_response[:, 1],  # Y values are the transmission values.
+                color=color,
+                label=self.full_name,
+            )
+            ax.set_ylabel(r"Normalized response, $1/\AA$")
 
         ax.set_xlabel(r"Wavelength, $\AA$")
-        ax.set_ylabel("Transmission Value")
         ax.set_ylim(0, None)
