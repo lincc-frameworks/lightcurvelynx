@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pooch
 
+from lightcurvelynx.utils.io_utils import SquashLogging
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,14 +42,17 @@ def download_data_file_if_needed(data_path, data_url, force_download=False):
     data_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Use pooch to download the data files and extract them to the data directory.
-    full_path = pooch.retrieve(
-        url=data_url,
-        known_hash=None,
-        fname=data_path.name,
-        path=data_path.parent,
-    )
+    # We use SquashLogging to suppress the INFO output from pooch, which is not
+    # often useful to the user.
+    with SquashLogging(logger=pooch.utils.get_logger(), level=logging.WARNING):
+        full_path = pooch.retrieve(
+            url=data_url,
+            known_hash=None,
+            fname=data_path.name,
+            path=data_path.parent,
+        )
 
     if full_path is None or not Path(full_path).exists():
-        logger.error(f"Transmission table not downloaded from {data_url}.")
+        logger.error(f"Data file not downloaded from {data_url}.")
         return False
     return True

@@ -13,37 +13,123 @@ from astropy.table import Table
 class SquashOutput:
     """Context manager to temporarily squash all output to stdout and stderr.
 
+    Optionally, stdout can be redirected to a logger instead of being suppressed.
+
+    Parameters
+    ----------
+    stdout_to_log : bool, optional
+        If True, stdout and stderr will be redirected to the logger instead of
+        being suppressed.
+        Default is False.
+    logger : logging.Logger, optional
+        The logger to which to redirect the output if stdout_to_log is True.
+        If None, the root logger will be used. Default is None.
+    log_level : int, optional
+        The logging level to use when redirecting stdout and stderr to the logger.
+        Default is logging.DEBUG.
+
     Example
     -------
     with SquashOutput():
         # Code that produces unwanted output
         ...
+
+    with SquashOutput(stdout_to_log=True):
+        # Printed output is sent to logger.debug
+        ...
     """
 
-    def __init__(self):
+    class _LoggerWriter:
+        """File-like wrapper that forwards writes to a logger."""
+
+        def __init__(self, logger, level=logging.DEBUG):
+            self._logger = logger
+            self._level = level
+
+        def write(self, message):
+            for line in message.rstrip().splitlines():
+                if line:
+                    self._logger.log(self._level, line)
+            return len(message)
+
+        def flush(self):
+            return None
+
+    def __init__(self, stdout_to_log=False, logger=None, log_level=logging.DEBUG):
+        self._stdout_to_log = stdout_to_log
+        self._log_level = log_level
+        self._logger = logger if logger is not None else logging.getLogger()
         self._original_stdout = None
         self._original_stderr = None
         self._null_file = None
+        self._stdout_logger = None
 
     def __enter__(self):
-        if self._null_file is None:
-            self._null_file = open(os.devnull, "w")  # noqa: SIM115
-
         # Save the original stdout and stderr streams.
         self._original_stdout = sys.stdout
         self._original_stderr = sys.stderr
 
-        # Redirect stdout and stderr to the null file.
-        sys.stdout = self._null_file
-        sys.stderr = self._null_file
+        # Redirect output streams.
+        if self._stdout_to_log:
+            # Create a log writter if needed, and redirect stdout and stderr to it.
+            if self._stdout_logger is None:
+                self._stdout_logger = SquashOutput._LoggerWriter(
+                    self._logger,
+                    level=self._log_level,
+                )
+            sys.stdout = self._stdout_logger
+            sys.stderr = self._stdout_logger
+        else:
+            # Open the null file if we haven't already, and redirect stdout and stderr to it.
+            if self._null_file is None:
+                self._null_file = open(os.devnull, "w")  # noqa: SIM115
+            sys.stdout = self._null_file
+            sys.stderr = self._null_file
 
     def __exit__(self, exc_type, exc_value, traceback):
         # Restore the original stdout and stderr streams.
         sys.stdout = self._original_stdout
         sys.stderr = self._original_stderr
 
-        # Close the null file.
-        self._null_file.close()  # noqa: SIM115
+        # Close the null file (if we opened one).
+        if self._null_file is not None:
+            self._null_file.close()  # noqa: SIM115
+            self._null_file = None
+
+
+class SquashLogging:
+    """A context manager to temporarily squash all logging (below a certain level)
+    to a logger.
+
+    Parameters
+    ----------
+    logger : logging.Logger, optional
+        The logger to which to redirect the logging output. If None, the root
+        logger will be used. Default: None
+    level : int, optional
+        The logging level below which to suppress logging output. Default: logging.ERROR
+
+    Example
+    -------
+    with SquashLogging(level=logging.ERROR):
+        # Code that produces unwanted logging at any level below logging.ERROR
+        ...
+    """
+
+    def __init__(self, logger=None, level=logging.ERROR):
+        self._logger = logger if logger is not None else logging.getLogger()
+        self._old_level = None
+        self._new_level = level
+
+    def __enter__(self):
+        # Save the original logging level and set the new level.
+        self._old_level = self._logger.level
+        self._logger.setLevel(self._new_level)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Restore the original logging level.
+        self._logger.setLevel(self._old_level)
 
 
 def write_results_as_hats(base_catalog_path, results, *, catalog_name=None, overwrite=False):
