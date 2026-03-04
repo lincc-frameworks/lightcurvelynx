@@ -667,3 +667,6 @@ def test_passband_plot(tmp_path):
     transmission_table = "100 0.5\n200 0.75\n300 0.25\n"
     a_band = create_toy_passband(tmp_path, transmission_table, delta_wave=100, trim_quantile=None)
     _ = a_band.plot()
+
+    # Test that we can plot the (unnormalized) transmission table.
+    _ = a_band.plot(plot_transmission=True)
