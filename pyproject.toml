@@ -41,7 +41,6 @@ dependencies = [
 dev = [
     "asv[virtualenv]==0.6.5", # Used to compute performance benchmarks
     "bilby",  # Used for Bayesian inference
-    "cdshealpix",  # Used for HEALPix-based sky partitioning
     "dust_extinction",
     "extinction>=0.4.7",
     "fsspec[http]",  # Read OpSim file from the web with utils/make_opsim_shorten.py
