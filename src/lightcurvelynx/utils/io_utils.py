@@ -103,9 +103,8 @@ class SquashLogging:
 
     Parameters
     ----------
-    logger : logging.Logger, optional
-        The logger to which to redirect the logging output. If None, the root
-        logger will be used. Default: None
+    logger : logging.Logger
+        The logger to which to redirect the logging output.
     level : int, optional
         The logging level below which to suppress logging output. Default: logging.ERROR
 
@@ -116,8 +115,10 @@ class SquashLogging:
         ...
     """
 
-    def __init__(self, logger=None, level=logging.ERROR):
-        self._logger = logger if logger is not None else logging.getLogger()
+    def __init__(self, logger, level=logging.ERROR):
+        if logger is None:
+            raise ValueError("Logger must be provided to SquashLogging.")
+        self._logger = logger
         self._old_level = None
         self._new_level = level
 

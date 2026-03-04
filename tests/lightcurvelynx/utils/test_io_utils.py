@@ -51,10 +51,12 @@ def test_squash_logging(caplog):
     """Test that SquashLogging suppresses lower-level logs and restores the logger level."""
     logger = logging.getLogger("lightcurvelynx.tests.squash_logging")
     logger.setLevel(logging.INFO)
+    assert logger.level == logging.INFO
 
     with caplog.at_level(logging.DEBUG, logger=logger.name):
         logger.info("before context")
         with SquashLogging(logger=logger, level=logging.ERROR):
+            assert logger.level == logging.ERROR
             logger.info("suppressed info")
             logger.error("kept error")
         logger.info("after context")
@@ -63,6 +65,25 @@ def test_squash_logging(caplog):
     assert "after context" in caplog.text
     assert "kept error" in caplog.text
     assert "suppressed info" not in caplog.text
+    assert logger.level == logging.INFO
+
+    # Check that if we use a different logger, its output is not squashed.
+    other_logger = logging.getLogger("lightcurvelynx.tests.squash_logging_other")
+    other_logger.setLevel(logging.DEBUG)
+    with caplog.at_level(logging.DEBUG, logger=other_logger.name):
+        assert other_logger.level == logging.DEBUG
+
+        with SquashLogging(logger=logger, level=logging.ERROR):
+            assert other_logger.level == logging.DEBUG
+            assert logger.level == logging.ERROR
+            other_logger.info("kept debug")
+            other_logger.info("kept info")
+            other_logger.error("kept error")
+
+    assert "kept debug" in caplog.text
+    assert "kept info" in caplog.text
+    assert "kept error" in caplog.text
+    assert other_logger.level == logging.DEBUG
     assert logger.level == logging.INFO
 
 
