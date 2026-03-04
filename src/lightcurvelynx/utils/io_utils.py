@@ -110,7 +110,7 @@ class SquashLogging:
 
     Example
     -------
-    with SquashLogging(level=logging.ERROR):
+    with SquashLogging(logger=logging.getLogger(), level=logging.ERROR):
         # Code that produces unwanted logging at any level below logging.ERROR
         ...
     """
