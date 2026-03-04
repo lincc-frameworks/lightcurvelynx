@@ -1350,7 +1350,7 @@ class Passband:
                 color=color,
                 label=self.full_name,
             )
-            ax.set_ylabel(r"Normalized response, $1/\AA$")
+            ax.set_ylabel(r"Normalized Response, $1/\AA$")
 
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylim(0, None)
