@@ -1,5 +1,8 @@
 """A collection of functions for plotting and visualization."""
 
+import warnings
+
+import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -266,3 +269,85 @@ def plot_flux_spectrogram(flux_density, times=None, wavelengths=None, ax=None, f
             ax.text(i, j, round(label, 1), ha="center", va="center", size=8)
 
     return ax
+
+
+def plot_moc(
+    moc,
+    *,
+    full_sky=False,
+    fig=None,
+    ax=None,
+    **kwargs,
+):
+    """Plot a Multi-Order Coverage (MOC) map of the sky.
+
+    Parameters
+    ----------
+    moc : mocpy.MOC
+        The MOC object to plot.
+    full_sky : bool, optional
+        Whether to plot the full sky or just the region covered by the MOC. Default is
+        False (just the region covered by the MOC).
+    fig : matplotlib.pyplot.Figure or None, optional
+        The figure to use for the plot. If None, a new figure will be created.
+    ax : matplotlib.pyplot.Axes or None, optional
+        The axes to use for the plot. If None, new axes will be created on the figure.
+    kwargs : dict
+        Additional keyword arguments to pass to the moc.fill() function for customizing the plot.
+
+    Returns
+    -------
+    fig: matplotlib.figure.Figure
+        The figure containing the plot.
+    ax: matplotlib.pyplot.Axes
+        The axes containing the plot.
+    """
+    from astropy.coordinates import Angle, SkyCoord
+    from astropy.visualization.wcsaxes import WCSAxes
+    from astropy.visualization.wcsaxes.frame import EllipticalFrame, RectangularFrame
+    from mocpy import WCS
+
+    if fig is None:
+        # If we are given an axes, use the figure from the axes. Otherwise, create a new figure.
+        fig = plt.figure() if ax is None else ax.get_figure()
+
+    if ax is not None:
+        # If an axis is given, we use that to determine the WCS and frame type.
+        if not isinstance(ax, WCSAxes):
+            raise ValueError("If ax is given, it must be a WCSAxes.")
+        if full_sky:
+            warnings.warn("full_sky=True is ignored when ax is given.")
+        wcs = ax.wcs
+        frame_type = type(ax.coords.frame)
+    elif full_sky:
+        # We create a WCS that covers the full sky in a Mollweide projection.
+        wcs = WCS(
+            fig,
+            fov=(320 * u.deg, 160 * u.deg),
+            center=SkyCoord(0, 0, unit="deg", frame="icrs"),
+            coordsys="icrs",
+            rotation=Angle(0, u.deg),
+            projection="MOL",
+        ).w
+        frame_type = EllipticalFrame
+    else:
+        # We use only the local area including the MOC.
+        wcs = moc.wcs(fig)
+        frame_type = RectangularFrame
+
+    # Create the axes if they were not given.
+    if ax is None:
+        ax = fig.add_subplot(projection=wcs, frame_class=frame_type)
+    ax.coords[0].set_format_unit("deg")
+
+    # Start with some basic plotting arguments that can be overridden by kwargs.
+    mocpy_args = {"alpha": 0.5, "fill": True, "color": "blue"}
+    mocpy_args.update(**kwargs)
+
+    # Plot the MOC.
+    moc.fill(ax, wcs, **mocpy_args)
+
+    plt.grid()
+    plt.ylabel("Dec")
+    plt.xlabel("RA")
+    return fig, ax
