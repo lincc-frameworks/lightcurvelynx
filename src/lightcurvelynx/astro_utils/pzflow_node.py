@@ -106,11 +106,9 @@ class PZFlowNode(FunctionNode, CiteClass):
 
             samples = self.flow.sample(nsamples=1, conditions=input_df, seed=seed)
         else:
-            # Check that we have a positive number of samples.
-            if graph_state.num_samples < 1:
-                raise ValueError(f"num_samples must be a positive integer. Got {graph_state.num_samples}.")
-
-            samples = self.flow.sample(nsamples=graph_state.num_samples, seed=seed)
+            # Because pzflow does isinstance type checking, we need to make sure the
+            # number of samples is a python int (not np.int64, np.int32, etc.).
+            samples = self.flow.sample(int(graph_state.num_samples), seed=seed)
 
         # Parse out each output column in the flow samples as its own result vector.
         results = []
