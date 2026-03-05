@@ -1,6 +1,5 @@
 """A collection of functions for plotting and visualization."""
 
-
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
