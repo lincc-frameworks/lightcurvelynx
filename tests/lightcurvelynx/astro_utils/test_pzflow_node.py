@@ -76,7 +76,7 @@ def test_pzflow_node_chained():
     # Make sure that we only call the pzflow's sample() once during sampling of the node
     # (so all the outputs are consistent with each other). In other words, we do
     # not call compute once for each output variable.
-    def _mock_sample(self, nsamples=1, conditions=None, save_conditions=True, seed=None):
+    def _mock_sample(self=None, nsamples=1, conditions=None, save_conditions=True, seed=None):
         return pd.DataFrame({"a": [1], "b": [2]})
 
     with patch("pzflow.flow.Flow.sample", side_effect=_mock_sample) as mocked_sample:
