@@ -57,7 +57,9 @@ def test_plot_lightcurves():
     # - figure (matplotlib figure object)
     fig, ax = plt.subplots()
     plot_lightcurves(fluxes, times, fluxerrs=fluxerrs, filters=filters, ax=ax, figure=fig, title=title)
-    plt.close(fig)
+
+    # Close all the open figures.
+    plt.close("all")
 
 
 def test_plot_bandflux_lightcurves():
@@ -75,7 +77,9 @@ def test_plot_bandflux_lightcurves():
     fig, ax = plt.subplots()
     title = "Test Title"
     plot_bandflux_lightcurves(bandfluxes, times=times, ax=ax, figure=fig, title=title)
-    plt.close(fig)
+
+    # Close all the open figures.
+    plt.close("all")
 
 
 def test_plot_flux_spectrogram():
@@ -93,4 +97,6 @@ def test_plot_flux_spectrogram():
     fig, ax = plt.subplots()
     title = "Test Title"
     plot_flux_spectrogram(fluxes, times=times, ax=ax, figure=fig, title=title)
-    plt.close(fig)
+
+    # Close all the open figures.
+    plt.close("all")
