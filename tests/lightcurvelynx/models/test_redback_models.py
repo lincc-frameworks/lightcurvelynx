@@ -164,3 +164,56 @@ def test_redback_models_chained_toy() -> None:
     # The returned fluxes should all be different since height is changing.
     assert fluxes.shape == (3, 1, 1)
     assert len(np.unique(fluxes)) == 3
+
+
+def _toy_redback_function(times, param1=None, param2=None, output_format=None, **kwargs):
+    """A no-op function that mimics the signature of a redback model function."""
+    return None
+
+
+def test_redback_model_from_function() -> None:
+    """Test that we can create a RedbackWrapperModel from a function."""
+    t0 = 64350.0
+    model = RedbackWrapperModel(
+        _toy_redback_function,
+        parameters={"param1": 1.0, "param2": 2.0},
+        t0=t0,
+        node_label="source",
+    )
+    assert model.source_name == "_toy_redback_function"
+    assert set(model.source_param_names) == {"param1", "param2"}
+    assert model.minwave() is None
+    assert model.maxwave() is None
+    assert model.minphase() is None
+    assert model.maxphase() is None
+
+    state = model.sample_parameters(num_samples=1)
+    assert state["source"]["param1"] == 1.0
+    assert state["source"]["param2"] == 2.0
+
+
+def test_redback_models_min_max_phase() -> None:
+    """Test that we can set and get the minimum and maximum phase of the model."""
+    t0 = 64350.0
+    minphase = -5.0
+    maxphase = 20.0
+
+    model = RedbackWrapperModel(
+        _toy_redback_function,
+        parameters={"param1": 5.0, "param2": 6.0},
+        t0=t0,
+        minphase=minphase,
+        maxphase=maxphase,
+        node_label="source",
+    )
+    assert model.source_name == "_toy_redback_function"
+    assert set(model.source_param_names) == {"param1", "param2"}
+    assert model.minwave() is None
+    assert model.maxwave() is None
+    assert model.minphase() == minphase
+    assert model.maxphase() == maxphase
+
+    # We can override the phase range using the set_phase_range method.
+    model.set_phase_range(-10.0, 30.0)
+    assert model.minphase() == -10.0
+    assert model.maxphase() == 30.0

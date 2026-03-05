@@ -46,6 +46,16 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         The redback model's Bilby priors.
     parameters : dict, optional
         A dictionary of parameter setters to pass to the source function.
+    minphase : float, optional
+        The minimum supported phase of the model in days relative to t0. This allows users
+        to manually cut off the model at a certain phase (e.g. if the model is not valid
+        outside of that phase) and instead apply extrapolation.
+        The default is None, which means the model does not have a defined minimum phase.
+    maxphase : float, optional
+        The maximum supported phase of the model in days relative to t0. This allows users
+        to manually cut off the model at a certain phase (e.g. if the model is not valid
+        outside of that phase) and instead apply extrapolation.
+        The default is None, which means the model does not have a defined maximum phase.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
@@ -59,6 +69,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         *,
         priors=None,
         parameters=None,
+        minphase=None,
+        maxphase=None,
         **kwargs,
     ):
         # Check that the parameters passed in the dictionary and keyword arguments
@@ -118,10 +130,13 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         if hasattr(self.source, "citation"):
             cite_inline("redback model", self.source.citation)
 
+        # Set the phase range.
+        self.set_phase_range(minphase, maxphase)
+
         # Redback models already handle redshift, so we do not want to double apply it.
         self.apply_redshift = False
 
-        # We save a cahced version of the last computed SED.
+        # We save a cached version of the last computed SED.
         self._last_sed = None
 
     @property
@@ -170,6 +185,59 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         if self._last_sed is not None:
             return self._last_sed.maxwave()
         return None
+
+    def minphase(self, **kwargs):
+        """Get the minimum supported phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        return self._minphase
+
+    def maxphase(self, **kwargs):
+        """Get the maximum supported phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        maximum : float or None
+            The maximum phase of the model (in days) or None
+            if the model does not have a defined maximum phase.
+        """
+        return self._maxphase
+
+    def set_phase_range(self, minphase, maxphase):
+        """Set the minimum and maximum supported phase of the model in days.
+
+        We allow the user to manually set the minimum and maximum phase of the model, because
+        redback models might have a limited valid phase range, but we cannot automatically
+        extract that from the redback function.
+
+        Parameters
+        ----------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        maxphase : float or None
+            The maximum phase of the model (in days) or None
+            if the model does not have a defined maximum phase.
+        """
+        if minphase is not None and maxphase is not None and minphase > maxphase:
+            raise ValueError("Minimum phase cannot be greater than maximum phase.")
+        self._minphase = minphase
+        self._maxphase = maxphase
 
     def compute_sed(self, times, wavelengths, graph_state=None, **kwargs):
         """Draw effect-free observations for this object.
