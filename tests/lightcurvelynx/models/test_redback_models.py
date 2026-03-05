@@ -5,6 +5,8 @@ import pytest
 from citation_compass import find_in_citations
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.redback_models import RedbackWrapperModel
+from lightcurvelynx.utils.extrapolate import ConstantPadding
+from sncosmo.models import TimeSeriesSource
 
 
 class ToySNModel:
@@ -32,6 +34,14 @@ class ToySNModel:
     def maxwave(self):
         """Get the maximum wavelength of the model."""
         return np.inf
+
+    def minphase(self):
+        """Get the minimum phase of the model."""
+        return None
+
+    def maxphase(self):
+        """Get the maximum phase of the model."""
+        return None
 
     def get_flux_density(self, times, wavelengths):
         """A toy flux function that depends on time and wave.
@@ -168,17 +178,37 @@ def test_redback_models_chained_toy() -> None:
 
 def _toy_redback_function(times, param1=None, param2=None, output_format=None, **kwargs):
     """A no-op function that mimics the signature of a redback model function."""
-    return None
+    assert output_format == "sncosmo_source"
+
+    # The model is only defined on times -5.0 to 10.0 and wavelengths 4000 to 8000 A.
+    eval_phase = np.arange(-5.0, 10.0, 1.0)
+    eval_waves = np.arange(4000.0, 8000.0, 1000.0)
+    source = TimeSeriesSource(
+        eval_phase,
+        eval_waves,
+        np.zeros((len(eval_phase), len(eval_waves))),  # flux is not important
+    )
+
+    # Attach a get_flux_density method to mimic the RedbackTimeSeriesSource.
+    def _get_flux_density(times, wavelengths):
+        return np.zeros((len(times), len(wavelengths)))
+
+    source.get_flux_density = _get_flux_density
+
+    return source
 
 
-def test_redback_model_from_function() -> None:
-    """Test that we can create a RedbackWrapperModel from a function."""
+def test_redback_model_extrapolation() -> None:
+    """Test that we can create a RedbackWrapperModel from a function
+    and extrapolate for points outside the wavelength or phase bounds."""
     t0 = 64350.0
     model = RedbackWrapperModel(
         _toy_redback_function,
         parameters={"param1": 1.0, "param2": 2.0},
         t0=t0,
         node_label="source",
+        wave_extrapolation=(ConstantPadding(1.0), ConstantPadding(2.0)),
+        time_extrapolation=(ConstantPadding(3.0), ConstantPadding(4.0)),
     )
     assert model.source_name == "_toy_redback_function"
     assert set(model.source_param_names) == {"param1", "param2"}
@@ -191,29 +221,20 @@ def test_redback_model_from_function() -> None:
     assert state["source"]["param1"] == 1.0
     assert state["source"]["param2"] == 2.0
 
+    times = np.array([-10.0, 1.0, 2.0, 20.0]) + t0
+    waves_ang = np.array([3000.0, 5000.0, 6000.0, 7000.0, 9000.0])
+    fluxes = model.evaluate_sed(times, waves_ang, state)
+    assert fluxes.shape == (4, 5)
 
-def test_redback_models_min_max_phase() -> None:
-    """Test that we can set and get the minimum and maximum phase of the model."""
-    t0 = 64350.0
-    minphase = -5.0
-    maxphase = 20.0
+    # Time is extrapolated after wavelength, so we start with everything in bounds
+    # and move outward through the layers of extrapolation.
+    assert np.all(fluxes[1:3, 1:4] == 0.0)  # in bounds
+    assert np.all(fluxes[1:3, 0] == 1.0)  # wavelength extrapolation on the left
+    assert np.all(fluxes[1:3, 4] == 2.0)  # wavelength extrapolation on the right
+    assert np.all(fluxes[0, :] == 3.0)  # time extrapolation on the left
+    assert np.all(fluxes[3, :] == 4.0)  # time extrapolation on the right
 
-    model = RedbackWrapperModel(
-        _toy_redback_function,
-        parameters={"param1": 5.0, "param2": 6.0},
-        t0=t0,
-        minphase=minphase,
-        maxphase=maxphase,
-        node_label="source",
-    )
-    assert model.source_name == "_toy_redback_function"
-    assert set(model.source_param_names) == {"param1", "param2"}
-    assert model.minwave() is None
-    assert model.maxwave() is None
-    assert model.minphase() == minphase
-    assert model.maxphase() == maxphase
-
-    # We can override the phase range using the set_phase_range method.
-    model.set_phase_range(-10.0, 30.0)
-    assert model.minphase() == -10.0
-    assert model.maxphase() == 30.0
+    # If we call compute_sed directly the caching logic still works and the code will
+    # bypass the extrapolation logic and just query the spline directly (all zeros).
+    direct_fluxes = model.compute_sed(times, waves_ang, state)
+    assert np.all(direct_fluxes == 0.0)

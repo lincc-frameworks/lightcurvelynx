@@ -46,16 +46,6 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         The redback model's Bilby priors.
     parameters : dict, optional
         A dictionary of parameter setters to pass to the source function.
-    minphase : float, optional
-        The minimum supported phase of the model in days relative to t0. This allows users
-        to manually cut off the model at a certain phase (e.g. if the model is not valid
-        outside of that phase) and instead apply extrapolation.
-        The default is None, which means the model does not have a defined minimum phase.
-    maxphase : float, optional
-        The maximum supported phase of the model in days relative to t0. This allows users
-        to manually cut off the model at a certain phase (e.g. if the model is not valid
-        outside of that phase) and instead apply extrapolation.
-        The default is None, which means the model does not have a defined maximum phase.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
@@ -69,8 +59,6 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         *,
         priors=None,
         parameters=None,
-        minphase=None,
-        maxphase=None,
         **kwargs,
     ):
         # Check that the parameters passed in the dictionary and keyword arguments
@@ -130,14 +118,12 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         if hasattr(self.source, "citation"):
             cite_inline("redback model", self.source.citation)
 
-        # Set the phase range.
-        self.set_phase_range(minphase, maxphase)
-
         # Redback models already handle redshift, so we do not want to double apply it.
         self.apply_redshift = False
 
-        # We save a cached version of the last computed SED.
-        self._last_sed = None
+        # We save a cached version of the last computed SED. This starts as None
+        # since we have not computed any SEDs yet.
+        self._cached_data = {}
 
     @property
     def param_names(self):
@@ -159,11 +145,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
-        # The minwave of the redback model depends on the result of the
-        # last computed SED.
-        if self._last_sed is not None:
-            return self._last_sed.minwave()
-        return None
+        return self._cached_data.get("minwave", None)
 
     def maxwave(self, graph_state=None):
         """Get the maximum wavelength of the model.
@@ -180,11 +162,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The maximum wavelength of the model (in angstroms) or None
             if the model does not have a defined maximum wavelength.
         """
-        # The maxwave of the redback model depends on the result of the
-        # last computed SED.
-        if self._last_sed is not None:
-            return self._last_sed.maxwave()
-        return None
+        return self._cached_data.get("maxwave", None)
 
     def minphase(self, **kwargs):
         """Get the minimum supported phase of the model in days.
@@ -200,7 +178,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The minimum phase of the model (in days) or None
             if the model does not have a defined minimum phase.
         """
-        return self._minphase
+        return self._cached_data.get("minphase", None)
 
     def maxphase(self, **kwargs):
         """Get the maximum supported phase of the model in days.
@@ -216,28 +194,96 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The maximum phase of the model (in days) or None
             if the model does not have a defined maximum phase.
         """
-        return self._maxphase
+        return self._cached_data.get("maxphase", None)
 
-    def set_phase_range(self, minphase, maxphase):
-        """Set the minimum and maximum supported phase of the model in days.
+    def _do_bounds_precomputation(self, times, wavelengths, graph_state=None, **kwargs):
+        """Precompute the SED model for the given times and wavelengths.
 
-        We allow the user to manually set the minimum and maximum phase of the model, because
-        redback models might have a limited valid phase range, but we cannot automatically
-        extract that from the redback function.
+        This is needed for redback models because bounds [minwave, maxwave] and
+        [minphase, maxphase] depend on the last computed SED.
 
         Parameters
         ----------
-        minphase : float or None
-            The minimum phase of the model (in days) or None
-            if the model does not have a defined minimum phase.
-        maxphase : float or None
-            The maximum phase of the model (in days) or None
-            if the model does not have a defined maximum phase.
+        times : numpy.ndarray
+            A length T array of rest frame timestamps (MJD).
+        wavelengths : numpy.ndarray, optional
+            A length N array of wavelengths (in angstroms).
+        graph_state : GraphState
+            An object mapping graph parameters to their values.
+        **kwargs : dict, optional
+           Any additional keyword arguments.
         """
-        if minphase is not None and maxphase is not None and minphase > maxphase:
-            raise ValueError("Minimum phase cannot be greater than maximum phase.")
-        self._minphase = minphase
-        self._maxphase = maxphase
+        # Check that the cached data is empty.
+        if len(self._cached_data) != 0:  # pragma: no cover
+            raise RuntimeError(
+                "Cached data should be empty before precomputation. This indicates a bug "
+                " in the code where the cached data is not being cleared after use."
+            )
+
+        # Build the function arguments from the parameter values.
+        params = self.get_local_params(graph_state)
+        fn_args = {}
+        for name in self.source_param_names:
+            fn_args[name] = params[name]
+
+        # Compute the shifted times.
+        t0 = params.get("t0", 0.0)
+        if t0 is None:
+            t0 = 0.0
+        shifted_times = times - t0
+
+        # Call the source function to get the RedbackTimeSeriesSource object.
+        # We create this object with each call, because it depends on the parameters (fn_args).
+        rb_result = self.source(
+            shifted_times,
+            output_format="sncosmo_source",
+            **fn_args,
+        )
+
+        # Save the computed RedbackTimeSeriesSource and the bounds.
+        self._cached_data["minwave"] = rb_result.minwave()
+        self._cached_data["maxwave"] = rb_result.maxwave()
+        self._cached_data["minphase"] = rb_result.minphase()
+        self._cached_data["maxphase"] = rb_result.maxphase()
+        self._cached_data["last_sed"] = rb_result
+
+    def compute_sed_with_extrapolation(self, times, wavelengths, graph_state, **kwargs):
+        """Draw effect-free observations for this object, extrapolating
+        to times and wavelengths where the model is not defined.
+
+        We override this method because the extrapolation bounds will depend on the materialized
+        RedbackTimeSeriesSource object, so we need to do the precomputation to get that object.
+        We will cache the object so we don't perform the computation twice.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of rest frame timestamps.
+        wavelengths : numpy.ndarray, optional
+            A length N array of wavelengths (in angstroms).
+        graph_state : GraphState
+            An object mapping graph parameters to their values.
+        **kwargs : dict, optional
+           Any additional keyword arguments.
+
+        Returns
+        -------
+        flux_density : numpy.ndarray
+            A length T x N matrix of SED values (in nJy).
+        """
+        # Do any precomputation that is needed to set the bounds. This generates
+        # cached data that will be used in the compute_sed method to avoid redundant
+        # computation.
+        self._do_bounds_precomputation(times, wavelengths, graph_state, **kwargs)
+
+        # Call the superclass method to do the extrapolation. This will call compute_sed,
+        # which will use the cached data to avoid redundant computation.
+        sed = super().compute_sed_with_extrapolation(times, wavelengths, graph_state, **kwargs)
+
+        # Clear the cached data values.
+        self._cached_data.clear()
+
+        return sed
 
     def compute_sed(self, times, wavelengths, graph_state=None, **kwargs):
         """Draw effect-free observations for this object.
@@ -258,29 +304,27 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         flux_density : numpy.ndarray
             A length T x N matrix of SED values (in nJy).
         """
+        if self._cached_data.get("last_sed") is None:
+            # If we have not computed the result object for the current parameters, do so now.
+            self._do_bounds_precomputation(times, wavelengths, graph_state, **kwargs)
+            created_cache = True
+        else:
+            created_cache = False
+
+        # Load the RedbackTimeSeriesSource we need for this computation.
+        rb_result = self._cached_data["last_sed"]
+
+        # Compute the shifted times. Note these might be different from the times used in
+        # precomputation because of the applied phase bounds.
+        # times used for precomputation.
         params = self.get_local_params(graph_state)
-
-        # Build the function arguments from the parameter values.
-        fn_args = {}
-        for name in self.source_param_names:
-            fn_args[name] = params[name]
-
-        # Compute the shifted times.
         t0 = params.get("t0", 0.0)
         if t0 is None:
             t0 = 0.0
         shifted_times = times - t0
 
-        # Call the source function to get the RedbackTimeSeriesSource object.
-        # We create this object with each call, because it depends on the parameters (fn_args).
-        rb_result = self.source(
-            shifted_times,
-            output_format="sncosmo_source",
-            **fn_args,
-        )
-        self._last_sed = rb_result
-
-        # Query the model and convert the output to nJy.
+        # Query the RedbackTimeSeriesSource at the given times and wavelengths.
+        # Then convert the output to nJy.
         model_flam = rb_result.get_flux_density(shifted_times, wavelengths)
         model_fnu = flam_to_fnu(
             model_flam,
@@ -290,7 +334,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             fnu_unit=uu.nJy,
         )
 
-        # Clear the cached SED value since we have now evaluated it.
-        self._last_sed = None
+        # Clear the cached data values if we created them locally.
+        if created_cache:
+            self._cached_data.clear()
 
         return model_fnu
