@@ -3,7 +3,7 @@ from unittest.mock import patch
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
 
-def test_download_data_file_if_needed(tmp_path):
+def test_download_data_file_if_needed(tmp_path, capsys):
     """Test the functionality of downloading a data file using pooch."""
     data_url = "mock"
 
@@ -26,9 +26,13 @@ def test_download_data_file_if_needed(tmp_path):
             assert f.read() == "Test"
 
         # If we force the download, it should overwrite the existing file.
-        assert download_data_file_if_needed(data_path_1, data_url, force_download=True)
+        assert download_data_file_if_needed(data_path_1, data_url, force_download=True, silent=True)
         with open(data_path_1, "r") as f:
             assert f.read() == "Mock data"
+
+        # With silent=True, we not should see print statements from the download process.
+        captured = capsys.readouterr()
+        assert "Downloading data file from" not in captured.out
 
         # Create a second data file that does not exist.
         data_path_2 = tmp_path / "test_data_2.dat"
@@ -38,3 +42,7 @@ def test_download_data_file_if_needed(tmp_path):
         assert download_data_file_if_needed(data_path_2, data_url, force_download=False)
         with open(data_path_2, "r") as f:
             assert f.read() == "Mock data"
+
+        # With silent=False, we should see print statements from the download process.
+        captured = capsys.readouterr()
+        assert "Downloading data file from" in captured.out
