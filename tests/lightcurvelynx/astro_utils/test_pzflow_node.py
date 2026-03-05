@@ -1,3 +1,6 @@
+import pickle
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
@@ -131,3 +134,27 @@ def test_pzflow_node_citation(test_flow_filename):
     citations = find_in_citations("PZFlowNode")
     for citation in citations:
         assert "Crenshaw et. al. 2024" in citation
+
+
+def test_pzflow_node_pickle():
+    """Test that we can pickle and unpickle a PZFlowNode."""
+    flow = Flow(("x", "y"), Reverse())
+    pz_node = PZFlowNode(flow, node_label="pznode")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        file_path = Path(tmpdir) / "test_pzflow_node.pkl"
+        assert not file_path.exists()
+
+        with open(file_path, "wb") as f:
+            pickle.dump(pz_node, f)
+        assert file_path.exists()
+
+        with open(file_path, "rb") as f:
+            loaded_pz_node = pickle.load(f)
+        assert loaded_pz_node is not None
+
+        # Sample a parameters.
+        state = loaded_pz_node.sample_parameters(num_samples=10)
+        assert len(state["pznode"]) == 2
+        assert len(state["pznode"]["x"]) == 10
+        assert len(state["pznode"]["y"]) == 10
