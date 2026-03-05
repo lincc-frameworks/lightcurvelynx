@@ -670,3 +670,4 @@ def test_passband_plot(tmp_path):
 
     # Test that we can plot the (unnormalized) transmission table.
     _ = a_band.plot(plot_transmission=True)
+    matplotlib.pyplot.close("all")

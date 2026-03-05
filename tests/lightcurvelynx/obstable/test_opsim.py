@@ -2,6 +2,7 @@ import tempfile
 import warnings
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -583,6 +584,7 @@ def test_opsim_plot_footprint(opsim_shorten):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         opsim.plot_footprint(depth=12)
+        plt.close("all")
 
 
 def test_create_random_opsim():

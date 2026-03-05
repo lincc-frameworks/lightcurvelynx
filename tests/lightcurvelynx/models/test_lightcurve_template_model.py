@@ -689,6 +689,9 @@ def test_lightcurve_plot() -> None:
     lc_model.plot_lightcurves()
     lc_model.plot_sed_basis()
 
+    # Close all the open figures.
+    matplotlib.pyplot.close("all")
+
 
 def test_create_multilightcurve_template_model() -> None:
     """Test that we can create a simple MultiLightcurveTemplateModel object."""

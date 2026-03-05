@@ -358,6 +358,7 @@ def test_approximate_moc_sampler_plot():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         moc_sampler.plot_footprint(depth=12)
+        matplotlib.pyplot.close("all")
 
 
 def test_approximate_moc_sampler_from_file():
