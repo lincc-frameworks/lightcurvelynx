@@ -8,7 +8,6 @@ import warnings
 from pathlib import Path
 
 import astropy.units as u
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from astropy.coordinates import Latitude, Longitude
@@ -21,6 +20,7 @@ from lightcurvelynx.astro_utils.coordinate_utils import dedup_coords, ra_dec_to_
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.utils.io_utils import read_sqlite_table
+from lightcurvelynx.utils.plotting import plot_moc
 
 logger = logging.getLogger(__name__)
 
@@ -512,25 +512,37 @@ class ObsTable:
 
         return moc
 
-    def plot_footprint(self, *, depth=14, fig=None, **kwargs):
+    def plot_footprint(
+        self,
+        *,
+        depth=14,
+        fig=None,
+        ax=None,
+        **kwargs,
+    ):
         """Plot the MOC footprint using matplotlib.
 
         Parameters
         ----------
         depth : int, optional
-            The healpix depth to use for plotting.
+            The healpix depth to use for plotting. Default is 14.
         fig : matplotlib.figure.Figure, optional
             An existing matplotlib figure to use. If None, a new figure is created.
+        ax : matplotlib.pyplot.Axes or None, optional
+            The axes to use for the plot. If None, new axes will be created on the figure.
         **kwargs : dict, optional
-            Additional keyword arguments to pass to the mocpy.MOC.fill() function.
+            Additional keyword arguments to pass to the plot_moc function.
+
+        Returns
+        -------
+        fig: matplotlib.figure.Figure
+            The figure containing the plot.
+        ax: matplotlib.pyplot.Axes
+            The axes containing the plot.
         """
         moc = self.build_moc(max_depth=depth, use_footprint=True)
-
-        if fig is None:
-            fig = plt.figure()
-        wcs = moc.wcs(fig)
-        ax = fig.add_subplot(projection=wcs)
-        moc.fill(ax, wcs, **kwargs)
+        fig, ax = plot_moc(moc, fig=fig, ax=ax, **kwargs)
+        return fig, ax
 
     def _build_spatial_data(self):
         """Construct the KD-tree from the ObsTable."""

@@ -3,7 +3,6 @@
 import logging
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 from astropy.coordinates import Angle, SkyCoord
 from cdshealpix.nested import healpix_to_skycoord
@@ -13,6 +12,7 @@ from mocpy import MOC
 from lightcurvelynx.math_nodes.given_sampler import TableSampler
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.obstable.obs_table import ObsTable
+from lightcurvelynx.utils.plotting import plot_moc
 
 
 class UniformRADEC(NumpyRandomFunc):
@@ -576,7 +576,14 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
 
         return cls(moc, depth=depth, **kwargs)
 
-    def plot_footprint(self, *, depth=None, fig=None, **kwargs):
+    def plot_footprint(
+        self,
+        *,
+        depth=None,
+        fig=None,
+        ax=None,
+        **kwargs,
+    ):
         """Plot the MOC footprint using matplotlib.
 
         Parameters
@@ -585,8 +592,17 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
             The healpix depth to use for plotting. If None, uses the depth of the sampler.
         fig : matplotlib.figure.Figure, optional
             An existing matplotlib figure to use. If None, a new figure is created.
+        ax : matplotlib.pyplot.Axes or None, optional
+            The axes to use for the plot. If None, new axes will be created on the figure.
         **kwargs : dict, optional
-            Additional keyword arguments to pass to the mocpy.MOC.fill() function.
+            Additional keyword arguments to pass to the plot_moc function.
+
+        Returns
+        -------
+        fig: matplotlib.figure.Figure
+            The figure containing the plot.
+        ax: matplotlib.pyplot.Axes
+            The axes containing the plot.
         """
         if depth is None:
             depth = self.depth
@@ -594,11 +610,8 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
         # Build a new MOC from the healpix list at the given depth.
         moc = MOC.from_healpix_cells(self.healpix_list, depth=self.depth, max_depth=depth)
 
-        if fig is None:
-            fig = plt.figure()
-        wcs = moc.wcs(fig)
-        ax = fig.add_subplot(projection=wcs)
-        moc.fill(ax, wcs, **kwargs)
+        fig, ax = plot_moc(moc, fig=fig, ax=ax, **kwargs)
+        return fig, ax
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
