@@ -727,6 +727,10 @@ class ParameterizedNode:
         ValueError
             If the sampling encounters a problem with the order of dependencies.
         """
+        # Check that the number of samples is valid.
+        if num_samples < 1:
+            raise ValueError(f"num_samples must be a positive integer. Got {num_samples}.")
+
         # If the graph structure has never been set, do that now.
         if self.node_pos is None:
             nodes = set()

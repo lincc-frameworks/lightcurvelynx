@@ -104,9 +104,11 @@ class PZFlowNode(FunctionNode, CiteClass):
                 input_params[col] = all_params[col]
             input_df = pd.DataFrame(input_params)
 
-            samples = self.flow.sample(1, conditions=input_df, seed=seed)
+            samples = self.flow.sample(nsamples=1, conditions=input_df, seed=seed)
         else:
-            samples = self.flow.sample(graph_state.num_samples, seed=seed)
+            # Because pzflow does isinstance type checking, we need to make sure the
+            # number of samples is a python int (not np.int64, np.int32, etc.).
+            samples = self.flow.sample(nsamples=int(graph_state.num_samples), seed=seed)
 
         # Parse out each output column in the flow samples as its own result vector.
         results = []

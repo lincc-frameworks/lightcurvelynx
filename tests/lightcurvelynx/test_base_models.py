@@ -213,6 +213,10 @@ def test_parameterized_node(capsys):
     with pytest.raises(ValueError):
         _ = model1.get_local_params(None)
 
+    # We fail if we try to sample with an invalid num_samples.
+    with pytest.raises(ValueError):
+        _ = model1.sample_parameters(num_samples=0)
+
 
 def test_parameterized_node_label_collision():
     """Test that throw an error when two nodes use the same label."""
