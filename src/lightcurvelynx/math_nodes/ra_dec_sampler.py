@@ -579,7 +579,6 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
     def plot_footprint(
         self,
         *,
-        full_sky=False,
         depth=None,
         fig=None,
         ax=None,
@@ -591,9 +590,6 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
         ----------
         depth : int, optional
             The healpix depth to use for plotting. If None, uses the depth of the sampler.
-        full_sky : bool, optional
-            Whether to plot the full sky or just the region covered by the MOC. Default is
-            False (just the region covered by the MOC).
         fig : matplotlib.figure.Figure, optional
             An existing matplotlib figure to use. If None, a new figure is created.
         ax : matplotlib.pyplot.Axes or None, optional
@@ -614,7 +610,7 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
         # Build a new MOC from the healpix list at the given depth.
         moc = MOC.from_healpix_cells(self.healpix_list, depth=self.depth, max_depth=depth)
 
-        fig, ax = plot_moc(moc, full_sky=full_sky, fig=fig, ax=ax, **kwargs)
+        fig, ax = plot_moc(moc, fig=fig, ax=ax, **kwargs)
         return fig, ax
 
     def compute(self, graph_state, rng_info=None, **kwargs):

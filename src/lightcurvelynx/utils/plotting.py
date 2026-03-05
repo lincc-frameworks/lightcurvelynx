@@ -1,6 +1,5 @@
 """A collection of functions for plotting and visualization."""
 
-import warnings
 
 import astropy.units as u
 import matplotlib.pyplot as plt
@@ -274,7 +273,6 @@ def plot_flux_spectrogram(flux_density, times=None, wavelengths=None, ax=None, f
 def plot_moc(
     moc,
     *,
-    full_sky=False,
     fig=None,
     ax=None,
     **kwargs,
@@ -285,9 +283,6 @@ def plot_moc(
     ----------
     moc : mocpy.MOC
         The MOC object to plot.
-    full_sky : bool, optional
-        Whether to plot the full sky or just the region covered by the MOC. Default is
-        False (just the region covered by the MOC).
     fig : matplotlib.pyplot.Figure or None, optional
         The figure to use for the plot. If None, a new figure will be created.
     ax : matplotlib.pyplot.Axes or None, optional
@@ -304,7 +299,7 @@ def plot_moc(
     """
     from astropy.coordinates import Angle, SkyCoord
     from astropy.visualization.wcsaxes import WCSAxes
-    from astropy.visualization.wcsaxes.frame import EllipticalFrame, RectangularFrame
+    from astropy.visualization.wcsaxes.frame import EllipticalFrame
     from mocpy import WCS
 
     if fig is None:
@@ -315,11 +310,9 @@ def plot_moc(
         # If an axis is given, we use that to determine the WCS and frame type.
         if not isinstance(ax, WCSAxes):
             raise ValueError("If ax is given, it must be a WCSAxes.")
-        if full_sky:
-            warnings.warn("full_sky=True is ignored when ax is given.")
         wcs = ax.wcs
         frame_type = type(ax.coords.frame)
-    elif full_sky:
+    else:
         # We create a WCS that covers the full sky in a Mollweide projection.
         wcs = WCS(
             fig,
@@ -330,10 +323,6 @@ def plot_moc(
             projection="MOL",
         ).w
         frame_type = EllipticalFrame
-    else:
-        # We use only the local area including the MOC.
-        wcs = moc.wcs(fig)
-        frame_type = RectangularFrame
 
     # Create the axes if they were not given.
     if ax is None:
@@ -341,7 +330,12 @@ def plot_moc(
     ax.coords[0].set_format_unit("deg")
 
     # Start with some basic plotting arguments that can be overridden by kwargs.
-    mocpy_args = {"alpha": 0.5, "fill": True, "color": "blue"}
+    mocpy_args = {
+        "alpha": 0.5,
+        "edgecolor": "darkblue",
+        "facecolor": "blue",
+        "fill": True,
+    }
     mocpy_args.update(**kwargs)
 
     # Plot the MOC.

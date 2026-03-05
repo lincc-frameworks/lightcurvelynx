@@ -515,7 +515,6 @@ class ObsTable:
     def plot_footprint(
         self,
         *,
-        full_sky=False,
         depth=14,
         fig=None,
         ax=None,
@@ -527,9 +526,6 @@ class ObsTable:
         ----------
         depth : int, optional
             The healpix depth to use for plotting. Default is 14.
-        full_sky : bool, optional
-            Whether to plot the full sky or just the region covered by the MOC. Default is
-            False (just the region covered by the MOC).
         fig : matplotlib.figure.Figure, optional
             An existing matplotlib figure to use. If None, a new figure is created.
         ax : matplotlib.pyplot.Axes or None, optional
@@ -545,7 +541,7 @@ class ObsTable:
             The axes containing the plot.
         """
         moc = self.build_moc(max_depth=depth, use_footprint=True)
-        fig, ax = plot_moc(moc, full_sky=full_sky, fig=fig, ax=ax, **kwargs)
+        fig, ax = plot_moc(moc, fig=fig, ax=ax, **kwargs)
         return fig, ax
 
     def _build_spatial_data(self):
