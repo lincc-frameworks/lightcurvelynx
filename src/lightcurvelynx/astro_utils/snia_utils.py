@@ -90,11 +90,11 @@ def num_snia_per_redshift_bin(
     int_arr = np.linspace(zarr[:-1], zarr[1:], 50, axis=1)
     z_mean = np.mean(int_arr, axis=1)
 
-    dV = (
-        solid_angle * cosmo.differential_comoving_volume(int_arr) * (H0 / 70.0) ** 3
+    dV = solid_angle * cosmo.differential_comoving_volume(
+        int_arr
     )  # * 4pi because differential_comoving_volume is per solid angle
-    r_v = vol_rate_function(int_arr)
-    dn_dz = r_v * dV.value
+    r_v = vol_rate_function(int_arr) * (H0 / 70.0) ** 3
+    dn_dz = r_v * dV.value / (1.0 + int_arr)
 
     num_sn = integrate.trapezoid(dn_dz, int_arr, axis=1)
 
