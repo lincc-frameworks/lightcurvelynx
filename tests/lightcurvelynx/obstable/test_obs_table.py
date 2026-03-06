@@ -61,6 +61,10 @@ def test_create_obs_table():
     # Without a filters column we cannot access the filters.
     assert len(ops_data.filters) == 0
 
+    # Check the head function.
+    assert len(ops_data.head(3)) == 3
+    assert len(ops_data.head(10)) == 5
+
     # We can create an ObsTable directly from the dictionary as well.
     ops_data2 = ObsTable(pdf)
     assert len(ops_data2) == 5

@@ -226,6 +226,10 @@ class ObsTable:
             **new_survey_values,
         )
 
+    def head(self, n=5):
+        """Return the first n rows of the observation table."""
+        return self._table.head(n)
+
     def uses_footprint(self):
         """Return whether the ObsTable uses a detector footprint for filtering."""
         return self._detector_footprint is not None
