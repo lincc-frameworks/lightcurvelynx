@@ -426,17 +426,18 @@ def _simulate_lightcurves_batch(simulation_info):
             if isinstance(passbands[survey_idx], Spectrograph):
                 # This is a spectrograph, so we compute the spectra for the spectra column.
                 sg_waves = passbands[survey_idx].waves
-                sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
-                measured_flux = passbands[survey_idx].evaluate(sed)
+                if nobs > 0:
+                    sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
+                    measured_flux = passbands[survey_idx].evaluate(sed)
 
-                # TODO: Simulate spectrograph noise.
+                    # TODO: Simulate spectrograph noise.
 
-                # We append each spectral as a separate entry in the spectra nested dictionary.
-                for obs_idx, obs_time in enumerate(obs_times):
-                    spectra_dict["mjd"].append(obs_time)
-                    spectra_dict["waves"].append(sg_waves)
-                    spectra_dict["measured_flux"].append(measured_flux[obs_idx])
-                    spectra_dict["instrument"].append(passbands[survey_idx].instrument)
+                    # We append each spectral as a separate entry in the spectra nested dictionary.
+                    for obs_idx, obs_time in enumerate(obs_times):
+                        spectra_dict["mjd"].append(obs_time)
+                        spectra_dict["waves"].append(sg_waves)
+                        spectra_dict["measured_flux"].append(measured_flux[obs_idx])
+                        spectra_dict["instrument"].append(passbands[survey_idx].instrument)
 
                 # Add the new entries to the spectra_index.
                 spectra_index.extend([idx] * nobs)
