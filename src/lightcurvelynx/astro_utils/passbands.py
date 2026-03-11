@@ -352,7 +352,7 @@ class PassbandGroup:
             )
 
         for filter_name in ["u", "g", "r", "i", "z", "y"]:
-            url = f"https://github.com/lsst/throughputs/blob/main/baseline/total_{filter_name}.dat?raw=true"
+            url = f"https://raw.githubusercontent.com/lsst/throughputs/main/baseline/total_{filter_name}.dat"
             pb = Passband.from_file(
                 "LSST",
                 filter_name,
@@ -398,8 +398,8 @@ class PassbandGroup:
         force_download = kwargs.get("force_download", False)
         table_path = table_dir / "Roman" / "roman_wfi_filters.ecsv"
         table_url = (
-            "https://github.com/RomanSpaceTelescope/roman-technical-information/blob/main/data/"
-            "WideFieldInstrument/Imaging/EffectiveAreas/Roman_effarea_v8_SCA01_20240301.ecsv?raw=true"
+            "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/main/data/"
+            "WideFieldInstrument/Imaging/EffectiveAreas/Roman_effarea_v8_SCA01_20240301.ecsv"
         )
 
         # Download the table if it does not exist or if force_download is True.
