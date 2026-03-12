@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.integrate
+from astropy import units as u
 from astropy.io.votable import parse
 from astroquery.svo_fps import SvoFps
 from citation_compass import cite_function
@@ -992,6 +993,10 @@ class Passband:
 
         # Use astroquery to download the filter.
         data = SvoFps.get_transmission_data(full_filter_name)
+
+        # If the wavelength is given in anything other than Angstroms, convert it to Angstroms.
+        if data["Wavelength"].unit is not None and data["Wavelength"].unit != u.AA:
+            data["Wavelength"] = data["Wavelength"].to(u.AA)
 
         # The data is returned as a table with columns "Wavelength" and "Transmission", each
         # of which can be masked. We convert this to a 2D numpy array, dropping the masked values.

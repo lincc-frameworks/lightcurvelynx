@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from astropy import units as u
 from astropy.table import Table
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.models.sed_template_model import SEDTemplateModel
@@ -465,7 +466,7 @@ def test_passband_group_from_svo():
         """Return a predefined AstroPyTable object instead of downloading the transmission table."""
         table = Table(
             {
-                "Wavelength": [6000.0, 6005.0, 6010.0],
+                "Wavelength": [6000.0, 6005.0, 6010.0] * u.AA,
                 "Transmission": [0.5, 0.6, 0.7],
             },
             masked=True,
