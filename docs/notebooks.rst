@@ -29,13 +29,9 @@ features and models of the LightCurveLynx package.
     Sampling Object Positions <notebooks/sampling_positions>
     Passband Demo <notebooks/passband-demo>
     Simulating Spectra <notebooks/spectrograph_demo>
-    Adding New Model Types <notebooks/adding_models>
     Debugging Models <notebooks/debugging>
     Combining Models (including Hosts/Sources) <notebooks/host_source_models>
     Extrapolation in Time and Wavelength <notebooks/extrapolation>
-    Adding New Effect Types <notebooks/adding_effects>
-    Creating Time Varying Effects <notebooks/time_varying_effects>
-    Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
     Advanced Sampling Techniques <notebooks/advanced_sampling>
     Simulating Multiple Surveys <notebooks/multiple_surveys>
     Detector Footprints <notebooks/detector_footprint>
@@ -58,27 +54,42 @@ track citations in your LightCurveLynx simulations.
 Example Simulations
 -----------------------------------------------------------------------------------------
 
-The following notebooks provide example simulations using the LightCurveLynx package.
+The following notebooks provide example simulations using the LightCurveLynx package (listed
+in roughly alphabetical order of simulation package or simulation type).
 
 .. toctree::
     :maxdepth: 1
 
+    AGN Damped Random Walk Model <notebooks/pre_executed/agn>
+    EzTaoX <notebooks/pre_executed/eztaox_example>
+    Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
     Microlensing Effect Example <notebooks/pre_executed/microlensing>
     PLAsTiCC SNIa <notebooks/pre_executed/plasticc_snia>
-    AGN Damped Random Walk Model <notebooks/pre_executed/agn>
     PyLIMA Micro-Lensing Model <notebooks/pre_executed/pylima_example>
     PZFlow Source Demo <notebooks/pre_executed/using_pzflow>
+    Redback Models <notebooks/pre_executed/redback_example>
     Resampling LCLIB <notebooks/pre_executed/lclib_example>
     SNANA Models <notebooks/pre_executed/snana_example>
     Synphot-based Models <notebooks/pre_executed/synphot_example>
-    Redback Models <notebooks/pre_executed/redback_example>
 
 
-Examples of Wrapping External Models
+
+Extending LightCurveLynx
 -----------------------------------------------------------------------------------------
 
-The following notebooks provide examples of how to wrap external models for use in
-LightCurveLynx.
+The following notebooks provide examples of how you can add your own models and effects
+to the LightCurveLynx package.
+
+.. toctree::
+    :maxdepth: 1
+
+    Adding New Model Types <notebooks/adding_models>
+    Adding New Effect Types <notebooks/adding_effects>
+    Creating Time Varying Effects <notebooks/time_varying_effects>
+
+
+The following notebooks provide more in-depth examples of how to wrap external packages
+for use in LightCurveLynx.
 
 .. toctree::
     :maxdepth: 1
