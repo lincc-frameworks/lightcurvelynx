@@ -12,7 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.integrate
+from astropy import units as u
 from astropy.io.votable import parse
+from astroquery.svo_fps import SvoFps
 from citation_compass import cite_function
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
@@ -427,12 +429,11 @@ class PassbandGroup:
         *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
-        table_dir: Union[str, Path] | None = None,
-        force_download: bool = False,
         **kwargs,
     ):
         """Create a PassbandGroup object from the SVO Filter Profile Service given a list
-        of full filter names in the form of "{OBSERVATORY}/{CAMERA}.{FILTER}".
+        of full filter names in the form of "{FACILITY}/{INSTRUMENT}.{FILTER}" or a single
+        string of the form "{FACILITY}/{INSTRUMENT}" to download all filters.
 
         References
         ----------
@@ -444,9 +445,11 @@ class PassbandGroup:
 
         Parameters
         ----------
-        all_filters : list[str]
-            A list of full filter names to load from the SVO Filter Profile Service in the
-            form of "{OBSERVATORY}/{CAMERA}.{FILTER}". This can include filters from multiple surveys.
+        all_filters : str or list[str]
+            A string of the form "{FACILITY}/{INSTRUMENT}" to download all filters for a given
+            facility and instrument or a list of full filter names to load from the SVO Filter
+            Profile Service in the FORM "{FACILITY}/{INSTRUMENT}.{FILTER}" to download a subset
+            of filters. If a list is provided, it can include filters from multiple surveys.
         delta_wave : float or None, optional
             The grid step of the wave grid, in angstroms.
             It is typically used to downsample transmission using linear interpolation.
@@ -455,24 +458,36 @@ class PassbandGroup:
             The quantile to trim the transmission table by. For example, if trim_quantile is 1e-3, the
             transmission table will be trimmed to include only the central 99.8% of the area under the
             transmission curve.
-        table_dir : str, optional
-            The path to the base directory in which to store cached passband tables. If the passband
-            exists in this directory, it will be loaded from there; otherwise it will be downloaded
-            and saved in that directory.
-        force_download : bool, optional
-            If True, the transmission table will be downloaded even if it already exists locally. Default is
-            False.
         **kwargs
             Additional keyword arguments to pass to the Passband constructor.
         """
+        if isinstance(all_filters, str):
+            # If we are given a string, we assume it is of the form "{FACILITY}/{INSTRUMENT}"
+            # and we want to download all filters for that facility and instrument.
+            if "/" not in all_filters:
+                raise ValueError(
+                    f"Expected a string of the form '{{FACILITY}}/{{INSTRUMENT}}' to download "
+                    f"all those filters, but got {all_filters}"
+                )
+            if "." in all_filters:
+                raise ValueError(
+                    f"Expected a string of the form '{{FACILITY}}/{{INSTRUMENT}}' to download "
+                    f"all those filters, but got {all_filters}. If you want to specify a single filter, "
+                    f"please provide a list of one filter."
+                )
+
+            # Do the actual downloading.
+            facility, instrument = all_filters.split("/")
+            all_filter_data = SvoFps.get_filter_list(facility=facility, instrument=instrument)
+            all_filters = all_filter_data["filterID"].tolist()
+
+        # Download and pre-process each passband.
         passband_list = []
         for full_filter_name in all_filters:
             pb = Passband.from_svo(
                 full_filter_name,
                 delta_wave=delta_wave,
                 trim_quantile=trim_quantile,
-                table_dir=table_dir,
-                force_download=force_download,
                 **kwargs,
             )
             passband_list.append(pb)
@@ -941,8 +956,6 @@ class Passband:
         *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
-        table_dir: Union[str, Path] | None = None,
-        force_download: bool = False,
         **kwargs,
     ):
         """Create a Passband object from the SVO Filter Profile Service.
@@ -959,7 +972,7 @@ class Passband:
         ----------
         full_filter_name : str
             The full name of the survey and filter in the SVO database in the form of
-            "{OBSERVATORY}/{CAMERA}.{FILTER}", e.g., "SLOAN/SDSS.u".
+            "{FACILITY}/{INSTRUMENT}.{FILTER}", e.g., "SLOAN/SDSS.u".
         delta_wave : float or None, optional
             The grid step of the wave grid, in angstroms.
             It is typically used to downsample transmission using linear interpolation.
@@ -968,10 +981,6 @@ class Passband:
             The quantile to trim the transmission table by. For example, if trim_quantile is 1e-3, the
             transmission table will be trimmed to include only the central 99.8% of the area under the
             transmission curve.
-        table_dir : str, optional
-            The path to the base directory in which to store cached passband tables. If the passband
-            exists in this directory, it will be loaded from there; otherwise it will be downloaded
-            and saved in that directory.
         force_download : bool, optional
             If True, the transmission table will be downloaded even if it already exists locally. Default is
             False.
@@ -982,21 +991,26 @@ class Passband:
         # path and URL to the SVO database.
         survey, filter = full_filter_name.split(".")
 
-        if table_dir is None:
-            table_dir = Path(_LIGHTCURVELYNX_BASE_DATA_DIR, "passbands", survey)
-        else:
-            table_dir = Path(table_dir) / survey
-        table_path = Path(table_dir, f"{filter}.xml")
-        table_url = f"https://svo2.cab.inta-csic.es/svo/theory/fps3/fps.php?ID={full_filter_name}"
+        # Use astroquery to download the filter.
+        data = SvoFps.get_transmission_data(full_filter_name)
 
-        return cls.from_file(
+        # If the wavelength is given in anything other than Angstroms, convert it to Angstroms.
+        if data["Wavelength"].unit is not None and data["Wavelength"].unit != u.AA:
+            data["Wavelength"] = data["Wavelength"].to(u.AA)
+
+        # The data is returned as a table with columns "Wavelength" and "Transmission", each
+        # of which can be masked. We convert this to a 2D numpy array, dropping the masked values.
+        waves = data["Wavelength"].filled(np.nan).data
+        trans = data["Transmission"].filled(np.nan).data
+        valid = ~np.isnan(waves) & ~np.isnan(trans)
+        table_data = np.vstack([waves[valid], trans[valid]]).T
+
+        return cls(
+            table_data,
             survey=survey,
             filter_name=filter,
             delta_wave=delta_wave,
             trim_quantile=trim_quantile,
-            table_path=table_path,
-            table_url=table_url,
-            force_download=force_download,
             **kwargs,
         )
 
