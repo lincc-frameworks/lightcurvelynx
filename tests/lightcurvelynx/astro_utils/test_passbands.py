@@ -9,6 +9,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 import scipy.integrate
+from astropy.table import Table
 from lightcurvelynx.astro_utils.passbands import Passband
 from lightcurvelynx.models.sed_template_model import SEDTemplateModel
 from sncosmo import Bandpass
@@ -324,15 +325,32 @@ def test_passband_from_sncosmo(passbands_dir):
         _ = Passband.from_sncosmo("ZTF", "g", None)
 
 
-def test_passband_from_svo(passbands_dir):
+def test_passband_from_svo():
     """Test that we can load data from SVO passbands."""
-    pb = Passband.from_svo("Palomar/ZTF.g", table_dir=passbands_dir, force_download=False)
+
+    # Mock the astroquery.svo_fps.SvoFps.get_transmission_data method to return
+    # an AstroPy Table instead of downloading it.
+    def _mock_from_svo(full_filter_name, *args, **kwargs):
+        """Return a predefined AstroPyTable object instead of downloading the transmission table."""
+        table = Table(
+            {
+                "Wavelength": [6000.0, 6005.0, 6010.0],
+                "Transmission": [0.5, 0.6, 0.7],
+            },
+            masked=True,
+        )
+        return table
+
+    # Mock the get_bandpass portion of the download method
+    with patch("astroquery.svo_fps.SvoFps.get_transmission_data", side_effect=_mock_from_svo):
+        pb = Passband.from_svo("Palomar/ZTF.g")
+
     assert pb.survey == "Palomar/ZTF"
     assert pb.filter_name == "g"
     assert pb.full_name == "Palomar/ZTF_g"
 
 
-def test_process_transmission_table(passbands_dir, tmp_path):
+def test_process_transmission_table(tmp_path, passbands_dir):
     """Test the process_transmission_table method of the Passband class; check correct methods are called."""
     transmission_table = "100 0.5\n200 0.75\n300 0.25\n"
     a_band = create_toy_passband(tmp_path, transmission_table)

@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from astropy.table import Table
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.models.sed_template_model import SEDTemplateModel
 from sncosmo import Bandpass
@@ -458,19 +459,21 @@ def test_passband_ztf_preset():
 def test_passband_group_from_svo():
     """Test that we can load a PassbandGroup from the SVO database."""
 
-    # Mock the Passband.from_svo method to return a predefined Passband object.
-    # This function is already tested in test_passband.py.
+    # Mock the astroquery.svo_fps.SvoFps.get_transmission_data method to return
+    # an AstroPy Table instead of downloading it.
     def _mock_from_svo(full_filter_name, *args, **kwargs):
-        """Return a predefined Passband object instead of downloading the transmission table."""
-        survey, filter = full_filter_name.split(".")
-        return Passband(
-            np.array([[6000, 0.5], [6005, 0.6], [6010, 0.7]]),
-            survey=survey,
-            filter_name=filter,
+        """Return a predefined AstroPyTable object instead of downloading the transmission table."""
+        table = Table(
+            {
+                "Wavelength": [6000.0, 6005.0, 6010.0],
+                "Transmission": [0.5, 0.6, 0.7],
+            },
+            masked=True,
         )
+        return table
 
     # Mock the get_bandpass portion of the download method
-    with patch("lightcurvelynx.astro_utils.passbands.Passband.from_svo", side_effect=_mock_from_svo):
+    with patch("astroquery.svo_fps.SvoFps.get_transmission_data", side_effect=_mock_from_svo):
         group = PassbandGroup.from_svo(
             ["SLOAN/SDSS.u", "SLOAN/SDSS.g", "SLOAN/SDSS.r", "SLOAN/SDSS.i", "SLOAN/SDSS.z"]
         )
@@ -480,6 +483,37 @@ def test_passband_group_from_svo():
         assert "SLOAN/SDSS_r" in group
         assert "SLOAN/SDSS_i" in group
         assert "SLOAN/SDSS_z" in group
+
+    # Add a second mocking function to load the list of filters.
+    def _mock_filters(facility, instrument):
+        """Return a predefined list of filters for the SVO database."""
+        filters = ["u", "g", "r", "i"]
+        filterid = [f"{facility}/{instrument}.{filter}" for filter in filters]
+        table = Table(
+            {
+                "filterID": filterid,
+                "some_data_column": [1, 2, 3, 4],
+                "other_data_column": [5, 6, 7, 8],
+            },
+            masked=True,
+        )
+        return table
+
+    with patch("astroquery.svo_fps.SvoFps.get_transmission_data", side_effect=_mock_from_svo):
+        with patch("astroquery.svo_fps.SvoFps.get_filter_list", side_effect=_mock_filters):
+            group = PassbandGroup.from_svo("MYOBS/MYINT")
+            assert len(group) == 4
+            assert "MYOBS/MYINT_u" in group
+            assert "MYOBS/MYINT_g" in group
+            assert "MYOBS/MYINT_r" in group
+            assert "MYOBS/MYINT_i" in group
+
+    with pytest.raises(ValueError):
+        # Not in the form of "FACILITY/INSTRUMENT"
+        _ = PassbandGroup.from_svo("BAD_STRING")
+    with pytest.raises(ValueError):
+        # Can't pass a string with just one filter name.
+        _ = PassbandGroup.from_svo("SLOAN/SDSS.u")
 
 
 def test_passband_invalid_preset():
