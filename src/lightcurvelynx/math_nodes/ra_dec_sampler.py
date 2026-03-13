@@ -4,11 +4,13 @@ import logging
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from astropy.coordinates import Angle, SkyCoord
 from cdshealpix.nested import healpix_to_skycoord
-from citation_compass import CiteClass
+from citation_compass import CiteClass, cite_inline
 from mocpy import MOC
 
+from lightcurvelynx.astro_utils.coordinate_utils import dedup_coords
 from lightcurvelynx.math_nodes.given_sampler import TableSampler
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.obstable.obs_table import ObsTable
@@ -96,11 +98,15 @@ class ObsTableRADECSampler(TableSampler):
         Use 0.0 to return the exact given points.
         If None and data is an ObsTable, uses the value from the ObsTable.
         Default: None
+    dedup_threshold : float, optional
+        The deduplication threshold in degrees. If two rows have RA and dec values that
+        are within this threshold, only one of them will be kept for sampling. Use 0.0 to
+        keep all rows. Default: 0.0
     **kwargs : dict, optional
         Additional keyword arguments to pass to the parent class constructor.
     """
 
-    def __init__(self, data, *, extra_cols=None, radius=None, **kwargs):
+    def __init__(self, data, *, extra_cols=None, radius=None, dedup_threshold=0.0, **kwargs):
         if isinstance(data, ObsTable):
             if radius is None:
                 radius = data.radius
@@ -111,6 +117,9 @@ class ObsTableRADECSampler(TableSampler):
         if radius is None or radius < 0.0:
             raise ValueError(f"Invalid radius: {radius}")
         self.radius = radius
+
+        if "ra" not in data or "dec" not in data:
+            raise ValueError("Data must contain 'ra' and 'dec' columns.")
 
         # Start with RA, dec, and (optionally) time.
         data_dict = {
@@ -126,11 +135,29 @@ class ObsTableRADECSampler(TableSampler):
                 if col not in data_dict:
                     data_dict[col] = data[col]
 
+        # Do a deduplication step to remove rows with very close RA and dec values.
+        if dedup_threshold > 0.0:
+            data_dict = pd.DataFrame(data_dict)
+            _, _, inds = dedup_coords(
+                data_dict["ra"].values,
+                data_dict["dec"].values,
+                threshold=dedup_threshold,
+            )
+            data_dict = data_dict.iloc[inds].reset_index(drop=True)
+
         super().__init__(data_dict, in_order=False, **kwargs)
 
     @classmethod
-    def from_hats(cls, path, *, radius=None, extra_cols=None, **kwargs):
-        """Create a GivenRADECSampler from the observations in a HATS Catalog.
+    def from_hats(
+        cls,
+        path,
+        *,
+        radius=None,
+        extra_cols=None,
+        dedup_threshold=0.0,
+        **kwargs,
+    ):
+        """Create a ObsTableRADECSampler from the observations in a HATS Catalog.
 
         Note
         ----
@@ -148,13 +175,17 @@ class ObsTableRADECSampler(TableSampler):
         extra_cols : list of str, optional
             A list of extra column names to include in the sampling.
             Default: None
+        dedup_threshold : float, optional
+            The deduplication threshold in degrees. If two rows have RA and dec values that
+            are within this threshold, only one of them will be kept for sampling. Use 0.0 to
+            keep all rows. Default: 0.0
         **kwargs : dict, optional
             Additional keyword arguments to pass to the constructor.
 
         Returns
         -------
-        GivenRADECSampler
-            The created GivenRADECSampler object.
+        ObsTableRADECSampler
+            The created ObsTableRADECSampler object.
         """
         # See if the (optional) LSDB package is installed.
         try:
@@ -171,8 +202,17 @@ class ObsTableRADECSampler(TableSampler):
             cols_to_load.extend(extra_cols)
         columns = list(set(cols_to_load))  # Remove any duplicates.
 
+        # Cite the HATS format.
+        cite_inline("HATS Catalog Format", "https://www.ivoa.net/documents/Notes/HATS/)")
+
         data = read_hats(path, columns=columns).compute()
-        return cls(data, extra_cols=extra_cols, radius=radius, **kwargs)
+        return cls(
+            data,
+            extra_cols=extra_cols,
+            radius=radius,
+            dedup_threshold=dedup_threshold,
+            **kwargs,
+        )
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
@@ -660,3 +700,29 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
         graph_state.set(self.node_string, "ra", ra)
         graph_state.set(self.node_string, "dec", dec)
         return (ra, dec)
+
+
+class CatalogRADECSampler(ObsTableRADECSampler):
+    """A FunctionNode that randomly samples RA and dec from a given catalog of objects.
+
+    Note
+    ----
+    This is a thin convenience wrapper around ObsTableRADECSampler.
+
+    Parameters
+    ----------
+    data : Pandas DataFrame, NestedFrame, or dict
+        The data to use for sampling. Must contain 'ra' and 'dec' columns.
+    dedup_threshold : float, optional
+        The deduplication threshold in degrees. If two rows have RA and dec values that
+        are within this threshold, only one of them will be kept for sampling. Use 0.0 to
+        keep all rows. Default: 0.0
+    **kwargs : dict, optional
+        Additional keyword arguments to pass to the parent class constructor.
+    """
+
+    def __init__(self, data, *, dedup_threshold=0.0, **kwargs):
+        # Always default to a radius of 0.0.
+        if "radius" not in kwargs or kwargs["radius"] is None:
+            kwargs["radius"] = 0.0
+        super().__init__(data, dedup_threshold=dedup_threshold, **kwargs)
