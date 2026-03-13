@@ -249,6 +249,8 @@ class RomanObsTable(ObsTable):
         self.apt_table["time"] = 0.0
 
         for f in np.unique(self.apt_table.BANDPASS):
+            if f == "PRISM":
+                continue
             zp_abmag = self.zp_table.loc[self.zp_table.element == f, "ABMag"].values[0]
             self.apt_table.loc[f == self.apt_table.BANDPASS, "zp_abmag"] = zp_abmag
             n_eff_pix = self.psf_table.loc[self.psf_table["Filter"] == f, "N_Eff_Pix"].values[0]

@@ -54,21 +54,23 @@ track citations in your LightCurveLynx simulations.
 Example Simulations
 -----------------------------------------------------------------------------------------
 
-The following notebooks provide example simulations using the LightCurveLynx package.
+The following notebooks provide example simulations using the LightCurveLynx package (listed
+in roughly alphabetical order of simulation package or simulation type).
 
 .. toctree::
     :maxdepth: 1
 
+    AGN Damped Random Walk Model <notebooks/pre_executed/agn>
+    EzTaoX <notebooks/pre_executed/eztaox_example>
     Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
     Microlensing Effect Example <notebooks/pre_executed/microlensing>
     PLAsTiCC SNIa <notebooks/pre_executed/plasticc_snia>
-    AGN Damped Random Walk Model <notebooks/pre_executed/agn>
     PyLIMA Micro-Lensing Model <notebooks/pre_executed/pylima_example>
     PZFlow Source Demo <notebooks/pre_executed/using_pzflow>
+    Redback Models <notebooks/pre_executed/redback_example>
     Resampling LCLIB <notebooks/pre_executed/lclib_example>
     SNANA Models <notebooks/pre_executed/snana_example>
     Synphot-based Models <notebooks/pre_executed/synphot_example>
-    Redback Models <notebooks/pre_executed/redback_example>
 
 
 
