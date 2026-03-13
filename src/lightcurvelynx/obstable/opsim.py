@@ -1,4 +1,4 @@
-"""A module to store and manipulate OpSim observation tables."""
+"""A module to store and manipulate Rubin's simulated survey data (OpSim)."""
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
@@ -79,7 +79,7 @@ Calculated with syseng_throughputs v1.9
 
 
 class OpSim(ObsTable):
-    """A wrapper class around the opsim table with cached data for efficiency.
+    """A wrapper class around the Rubin's simulated data Opsim.
 
     Parameters
     ----------

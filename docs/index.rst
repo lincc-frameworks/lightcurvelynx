@@ -31,7 +31,8 @@ The main simulation components in LightCurveLynx include:
 * A model that defines the properties of the time-domain light source, which can
   also include a host-galaxy model, and is used to generate the noise-free light curves.
 * ``ObsTable`` contains the survey information such as survey strategy and observing
-  conditions. It is used to specify the observing times and bands.
+  conditions. It is used to specify the observing times and bands. For more information
+  see the :doc:`survey data documentation page <survey_data>`.
 * A set of predefined effects, such as dust extinction and detector noise, are applied to
   the noise-free light curves to produce realistic light curves.
 * The ``PassbandGroup`` contains the filter information of the telescope and is used
@@ -167,6 +168,7 @@ This project is supported by Schmidt Sciences.
 
    Home page <self>
    Simulations <simulations>
+   Survey Data <survey_data>
    Custom Models and Effects <custom_models>
    Results and Output <results_and_output>
    Notebooks <notebooks>
