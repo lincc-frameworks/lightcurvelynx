@@ -1,7 +1,7 @@
 Survey Data
 ========================================================================================
 
-In order to generate a simulation, the simulator needs information on whether the telescope is pointing and the noise characteristics at the time. As you can imagine, the available data and its format varies significantly from survey to survey (and even between data releases of the same survey). `LightCurveLynx` uses a an object-based model to encapsulate the survey information and provide a common interface.
+In order to generate a simulation, the simulator needs information on whether the telescope is pointing and the noise characteristics at the time. As you can imagine, the available data and its format varies significantly from survey to survey (and even between data releases of the same survey). `LightCurveLynx` uses an object-based model to encapsulate the survey information and provide a common interface.
 
 
 ObsTable
@@ -34,33 +34,29 @@ The ``LSSTObsTable`` class stores actual pointing and noise information from the
 
 The survey-specific constants are set to [published values](https://lsstcam.lsst.io/index.html).
 
+See the (:doc:`Rubin CCDVisit Notebook <notebooks/pre_executed/rubin_ccdvisit>`) for an example of how to load Rubin data using the ``LSSTObsTable`` class.
+
 
 OpSim Data (OpSim)
 -------------------------------------------------------------------------------
 
 The ``OpSim`` class stores pointing and noise information from the Rubin Observatory's simulated survey data (OpSim).  The survey-specific constants are set to [the values defined in the simulator](https://smtn-002.lsst.io/v/OPSIM-1171/index.html).
 
+See the (:doc:`Rubin OpSim Notebook <notebooks/opsim_notebook>`) for an example of how to load simulated Rubin data using the ``OpSim`` class. This notebook also provides an overview of the functionality of the ``ObsTable`` class.
+
 
 Roman Simulated Data (RomanObsTable)
 -------------------------------------------------------------------------------
-The ``RomanObsTable`` class stores pointing and noise information from the Roman Space Telescope's simulated survey data. The survey-specific constants are set to the values defined in the [Roman documentation](https://roman-docs.stsci.edu/) and the [Roman Github repository](https://github.com/RomanSpaceTelescope). 
+The ``RomanObsTable`` class stores pointing and noise information from the [Nancy Grace Roman Space Telescope](https://roman.gsfc.nasa.gov)'s simulated survey data. The survey-specific constants are set to the values defined in the [Roman documentation](https://roman-docs.stsci.edu/) and the [Roman Github repository](https://github.com/RomanSpaceTelescope). 
 
-Special preprocessing is needed to handle the spectra information. Please contact the LightCurveLynx team if you need help with this.
+Special preprocessing is needed to handle the spectra observations (spectra simulation within LightCurveLynx is in early testing). Please contact the LightCurveLynx team if you need help with this.
 
 
 ZTF Data (ZTFObsTable)
 -------------------------------------------------------------------------------
-The ``ZTFObsTable`` class stores pointing and noise information from the Zwicky Transient Facility (ZTF) visit information.
+The ``ZTFObsTable`` class stores pointing and noise information from the [Zwicky Transient Facility (ZTF)](https://www.ztf.caltech.edu/) visit information.
 
 
 Argus Data (ArgusObsTable)
 -------------------------------------------------------------------------------
-The ``ArgusObsTable`` class stores pointing and noise information from the Argus simulations. This class is still being validated and may change. Please contact the LightCurveLynx team if you want to use this class or have suggestions for improvement.
-
-
-
-
-
-
-
-
+The ``ArgusObsTable`` class stores pointing and noise information from simulations of the upcoming [Argus Array](https://www.argusarray.org/). This class is still being validated and may change. Please contact the LightCurveLynx team if you want to use this class or have suggestions for improvement.
