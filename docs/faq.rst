@@ -16,7 +16,7 @@ your simulation:
 You can also use `logging.DEBUG` to see even more detailed debug-level messages.
 
 
-I Am Seeing Empty Light Curves for Some Entrys. Why Is This Happening?
+I Am Seeing Empty Light Curves for Some Entries. Why Is This Happening?
 -------------------------------------------------------------------------------
 
 The most common reason that LightCurveLynx produces rows with empty light curves is
@@ -80,3 +80,16 @@ Yes with some caveats. LightCurveLynx has built-in support for simulating spectr
 in an early stage of development and does not yet add noise to the measurements. In addition, spectra
 simulation is **only** compaible with models that generate data on the spectral level (not bandflux-only
 models).  For more detail see :doc:`the spectrograph demo notebook <notebooks/spectrograph_demo>`.
+
+
+Can I Generate Points from a Catalog?
+--------------------------------------------------------------------------------
+
+Yes. LightCurveLynx allows you to generate light curves for objects in a catalog containing 
+positions using the``CatalogRADECSampler`` object This sampler takes in a table
+of information with at least "ra" and "dec" columns. The helper function 
+``from_hats()`` is provided to load directly from a [HATS](https://www.ivoa.net/documents/Notes/HATS/)
+catalog.
+
+See the :doc:`sampling positions demo notebook <notebooks/sampling_positions>` notebook
+for a detailed description of how to sample (RA, dec) positions.
