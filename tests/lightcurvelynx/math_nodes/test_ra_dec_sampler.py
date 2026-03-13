@@ -14,6 +14,7 @@ from astropy.coordinates import Latitude, Longitude, SkyCoord, angular_separatio
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.math_nodes.ra_dec_sampler import (
     ApproximateMOCSampler,
+    CatalogRADECSampler,
     ObsTableRADECSampler,
     ObsTableUniformRADECSampler,
     UniformRADEC,
@@ -81,7 +82,7 @@ def test_uniform_ra_dec():
 
 
 def test_obstable_ra_dec_sampler():
-    """Test that we can sample from am OpSim object."""
+    """Test that we can sample from an OpSim object."""
     values = {
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
@@ -157,10 +158,16 @@ def test_obstable_ra_dec_sampler_extra():
     values = {
         "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
-        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
         "zp": np.ones(5),
         "extra": np.array([10, 20, 30, 40, 50]),
     }
+    ops_df = pd.DataFrame(values)
+
+    # We fail without a dec column.
+    with pytest.raises(ValueError):
+        _ = ObsTableRADECSampler(ops_df)
+
+    values["dec"] = np.array([-10.0, -5.0, 0.0, 5.0, 10.0])
     ops_df = pd.DataFrame(values)
     sampler_node = ObsTableRADECSampler(ops_df, radius=0.0, extra_cols=["extra"], node_label="sampler")
     assert sampler_node.radius == 0.0
@@ -218,6 +225,46 @@ def test_obstable_ra_dec_sampler_from_hats(test_data_dir):
             assert states["sampler"]["ra"][i] == outer_dict["ra"][idx]
             assert states["sampler"]["dec"][i] == outer_dict["dec"][idx]
             assert states["sampler"]["z"][i] == outer_dict["z"][idx]
+
+
+def test_obstable_ra_dec_sampler_dedup():
+    """Test that we can deduplicate when sampling an from an OpSim object."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 15.0, 15.0]),
+        "dec": np.array([-10.0, 5.0, -10.0, -10.0, -10.0]),
+    }
+
+    sampler_node = ObsTableRADECSampler(
+        values,
+        radius=0.0,
+        dedup_threshold=0.2,
+        node_label="sampler",
+    )
+    assert len(sampler_node) == 2
+
+    # Do randomized sampling (with no offset). Test that ~50% of the sample
+    # are from each unique pointing and that the samples are consistent with the centers.
+    state = sampler_node.sample_parameters(num_samples=5000)
+    northern = state["sampler"]["dec"] > 0.0
+    assert 2000 < np.count_nonzero(northern) < 3000  # Approximately 50%
+    assert np.all(state["sampler"]["ra"][northern] == 30.0)
+    assert np.all(state["sampler"]["dec"][northern] == 5.0)
+    assert np.all(state["sampler"]["ra"][~northern] == 15.0)
+    assert np.all(state["sampler"]["dec"][~northern] == -10.0)
+
+    # Without deduplication, we should sample from all 5 pointings.
+    sampler_node_no_dedup = ObsTableRADECSampler(
+        values,
+        radius=0.0,
+        dedup_threshold=0.0,
+        node_label="sampler_no_dedup",
+    )
+    assert len(sampler_node_no_dedup) == 5
+
+    state_no_dedup = sampler_node_no_dedup.sample_parameters(num_samples=5000)
+    northern = state_no_dedup["sampler_no_dedup"]["dec"] > 0.0
+    assert 0 < np.count_nonzero(northern) < 1500
 
 
 def test_opsim_uniform_ra_dec_sampler():
@@ -507,3 +554,104 @@ def test_approximate_moc_sampler_from_intersection_obstable():
     # We fail if the list lengths do not match.
     with pytest.raises(ValueError):
         _ = ApproximateMOCSampler.from_obstable_intersection(ops_tables, depth=10, radii=[1.0], seed=45)
+
+
+def test_catalog_ra_dec_sampler():
+    """Test that we can sample from a catalog of RA and dec values."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 15.0, 15.0]),
+        "dec": np.array([-10.0, 5.0, -10.0, -10.0, -10.0]),
+    }
+
+    sampler_node = CatalogRADECSampler(
+        values,
+        dedup_threshold=0.2,
+        node_label="sampler",
+    )
+    assert len(sampler_node) == 2
+
+    # Do randomized sampling (with no offset). Test that ~50% of the sample
+    # are from each unique pointing and that the samples are consistent with the centers.
+    state = sampler_node.sample_parameters(num_samples=5000)
+    northern = state["sampler"]["dec"] > 0.0
+    assert 2000 < np.count_nonzero(northern) < 3000  # Approximately 50%
+    assert np.all(state["sampler"]["ra"][northern] == 30.0)
+    assert np.all(state["sampler"]["dec"][northern] == 5.0)
+    assert np.all(state["sampler"]["ra"][~northern] == 15.0)
+    assert np.all(state["sampler"]["dec"][~northern] == -10.0)
+
+    # Without deduplication, we should sample from all 5 pointings.
+    sampler_node_no_dedup = CatalogRADECSampler(
+        values,
+        dedup_threshold=0.0,
+        node_label="sampler_no_dedup",
+    )
+    assert len(sampler_node_no_dedup) == 5
+
+    state_no_dedup = sampler_node_no_dedup.sample_parameters(num_samples=5000)
+    northern = state_no_dedup["sampler_no_dedup"]["dec"] > 0.0
+    assert 0 < np.count_nonzero(northern) < 1500
+
+
+def test_catalog_ra_dec_sampler_order():
+    """Test that the CatalogRADECSampler works even if the input columns are in
+    a different order than usual."""
+    values = {
+        "dec": np.array([-10.0, 5.0, -10.0, -10.0, -10.0]),
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 15.0, 15.0]),
+    }
+
+    sampler_node = CatalogRADECSampler(
+        values,
+        dedup_threshold=0.2,
+        node_label="sampler",
+    )
+    assert len(sampler_node) == 2
+
+    # Do randomized sampling (with no offset). Test that ~50% of the sample
+    # are from each unique pointing and that the samples are consistent with the centers.
+    state = sampler_node.sample_parameters(num_samples=5000)
+    northern = state["sampler"]["dec"] > 0.0
+    assert 2000 < np.count_nonzero(northern) < 3000  # Approximately 50%
+    assert np.all(state["sampler"]["ra"][northern] == 30.0)
+    assert np.all(state["sampler"]["dec"][northern] == 5.0)
+    assert np.all(state["sampler"]["ra"][~northern] == 15.0)
+    assert np.all(state["sampler"]["dec"][~northern] == -10.0)
+
+
+def test_catalog_ra_dec_sampler_from_hats(test_data_dir):
+    """Test that we can sample from a HATS catalog on disk."""
+    outer_dict = {
+        "id": [0, 1, 2],
+        "ra": [10.0, 10.1, 10.2],
+        "dec": [-10.0, -9.9, -10.1],
+        "nobs": [3, 2, 1],
+        "z": [0.1, 0.2, 0.3],
+    }
+    inner_dict = {
+        "mjd": [59000, 59001, 59002, 59000, 59001, 59000],
+        "flux": [10.0, 12.0, 11.0, 15.0, 14.0, 13.0],
+        "fluxerr": [1.0, 1.0, 1.0, 1.5, 1.5, 1.0],
+        "filter": ["g", "r", "i", "g", "r", "i"],
+    }
+    nested_inds = [0, 0, 0, 1, 1, 2]
+    results = NestedFrame(data=outer_dict, index=[0, 1, 2])
+    nested_1 = pd.DataFrame(data=inner_dict, index=nested_inds)
+    results = results.join_nested(nested_1, "lightcurve")
+
+    with tempfile.TemporaryDirectory() as dir_name:
+        dir_path = Path(dir_name, "test_hats")
+        write_results_as_hats(dir_path, results)
+
+        sampler_node = CatalogRADECSampler.from_hats(
+            dir_path,
+            node_label="sampler",
+        )
+        assert isinstance(sampler_node, CatalogRADECSampler)
+        assert len(sampler_node) == 3
+
+        states = sampler_node.sample_parameters(num_samples=1)
+        assert 10.0 <= states["sampler"]["ra"] <= 10.2
+        assert -10.1 <= states["sampler"]["dec"] <= -9.9
