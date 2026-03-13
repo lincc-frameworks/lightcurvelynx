@@ -77,7 +77,7 @@ in roughly alphabetical order of simulation package or simulation type).
 Extending LightCurveLynx
 -----------------------------------------------------------------------------------------
 
-The following notebooks provide examples of how you can add your own models and effects
+The following notebooks provide examples of how you can add your own models, surveys, and effects
 to the LightCurveLynx package.
 
 .. toctree::
@@ -86,6 +86,7 @@ to the LightCurveLynx package.
     Adding New Model Types <notebooks/adding_models>
     Adding New Effect Types <notebooks/adding_effects>
     Creating Time Varying Effects <notebooks/time_varying_effects>
+    Adding Custom Surveys <notebooks/custom_survey>
 
 
 The following notebooks provide more in-depth examples of how to wrap external packages
