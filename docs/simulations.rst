@@ -22,7 +22,8 @@ step includes the following components:
   also include a host-galaxy model, and is used to generate the noise-free light curves (given
   the sampled parameters).
 * ``ObsTable`` contains the survey information such as survey strategy and observing
-  conditions. It is used to specify the observing times and bands.
+  conditions. It is used to specify the observing times and bands. For more information
+  see the :doc:`survey data documentation page <survey_data>`.
 * A set of predefined effects, such as dust extinction and detector noise, are applied to
   the noise-free light curves to produce realistic light curves.
 * The ``PassbandGroup`` contains the filter information of the telescope and is used
