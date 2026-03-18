@@ -906,7 +906,7 @@ class Passband:
         )
 
     @classmethod
-    @cite_function("https://sncosmo.readthedocs.io/en/stable/api/sncosmo.Bandpass.html")
+    @cite_function
     def from_sncosmo(cls, survey: str, filter_name: str, bandpass=None, **kwargs):
         """Create a Passband object from an sncosmo.Bandpass object.
 
