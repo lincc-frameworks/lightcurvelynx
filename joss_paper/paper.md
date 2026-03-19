@@ -1,0 +1,123 @@
+---
+title: 'LightCurveLynx: Fast and Nimble Time Domain Simulation for Astronomical Surveys'
+tags:
+  - Python
+  - astronomy
+  - time domain
+  - transients
+authors:
+  - name: Jeremy Kubica
+    orcid: 0009-0009-2281-7031
+    affiliation: "1"
+  - name: Mi Dai
+    orcid: 0000-0002-5995-9692
+    affiliation: "2"
+  - name: Olivia Lynn
+    orcid: 0000-0001-5028-146X
+    affiliation: "1"
+  - name: Konstantin Malanchev
+    orcid: 0000-0001-7179-7406
+    affiliation: "1"
+  - name: Alex I. Malz
+    orcid: 0000-0002-8676-1622
+    affiliation: "3"
+  - name: Andrew Connolly
+    orcid: 0000-0001-5576-8189
+    affiliation: "4"
+  - name: Melissa DeLucchi
+    orcid: 0000-0002-1074-2900
+    affiliation: "1"
+  - name: Katarzyna Kruszy{\'n}ska
+    orcid: 0000-0002-2729-5369
+    affiliation: “5”
+  - name: Alice Liu
+    orcid: 0009-0009-3199-2627
+    affiliation: "1"
+  - name: Rachel Mandelbaum
+    orcid: 0000-0003-2271-1527
+    affiliation: "1"
+  - name: Nikhil Sarin
+    orcid: 0000-0003-2700-1030
+    affiliation: "6,7"
+  - name: Steve Schulze
+    orcid: 0000-0001-6797-1889
+    affiliation: "8"
+
+
+affiliations:
+ - index: 1
+   name: McWilliams Center for Cosmology and Astrophysics, Department of Physics, Carnegie Mellon University, Pittsburgh, PA 15213, USA
+ - index: 2
+   name: Pittsburgh Particle Physics, Astrophysics, and Cosmology Center (PITT PACC). Physics and Astronomy Department, University of Pittsburgh, Pittsburgh, PA 15260, USA
+  - index: 3
+   name: Space Telescope Science Institute, 3700 San Martin Drive, Baltimore, Maryland 21218, USA
+  - index: 4
+    name: DiRAC Institute and the Department of Astronomy, University of Washington, 3910 15th Ave NE, Seattle, WA 98195, USA
+ - index 5:
+   name: Las Cumbres Observatory, 6740 Cortona Drive, Suite 102, Goleta, CA 93117, USA
+ - index: 6
+   name: Kavli Institute for Cosmology, University of Cambridge, Madingley Road, CB3 0HA, UK
+ - index: 7
+   name: Institute of Astronomy, University of Cambridge, Madingley Road, CB3 0HA, UK
+ - index: 8
+   name: Department of Particle Physics and Astrophysics, Weizmann Institute of Science, 234 Herzl St, 76100 Rehovot, Israel
+
+date: 16 March 2026
+bibliography: paper.bib
+---
+
+# Summary
+
+`LightCurveLynx` is a forward simulation framework for catalog-level time-varying astronomical phenomena that brings together the community’s many astronomical modeling packages into a single framework. Its goal is to allow the users to mix-and-match different models, effects, and surveys within a single simulation environment. It is optimized for scalability, modularity, and extensibility. `LightCurveLynx` integrates numerous popular packages, such as `sncosmo`, `pzflow`, and `redback`, along with different sampling packages and astronomical surveys.
+
+
+# Statement of need
+
+To fully realize the value of the next generation of large-scale astronomical survey data, it will be necessary to analyze this data relative to expected observations from a range of underlying population models. Such analysis allows scientists to characterize the selection functions inherent in each survey, determine which objects could be observed/classified from the data, and to fit or refine models through simulation-based inference. Further, given these survey’s duration and depth, it is increasingly vital that such simulations are efficient. Making such simulations available early can even help with optimization of the observing strategy for different science cases.
+
+The astronomy community has invested significant resources into developing powerful software packages to simulate and model a wide range of physical phenomena. To provide a few concrete examples, SNANA [@Kessler2009], SNcosmo [@barbary2025], and SkySurvey [@rigault2026], provide powerful libraries for realistic simulations of supernovae; VBMicrolensing [@Bozza2025], PyLIMA [@Bachelet2017], BAGLE [@lu2025] provide approaches for modeling and simulating microlensing events; and redback [@sarin2024] provides a comprehensive library of models for physical phenomena. Although this proliferation of software allows researchers to explore a large number of phenomena, it introduces a level of fragmentation and complexity. The feature set, such as supported surveys and noise effects, varies from package to package.
+
+`LightCurveLynx` is a package for forward simulation of time-varying astronomical phenomena that brings together this extensive ecosystem of software into a consistent framework. The user can access models from different packages, a range of effects, and a variety of surveys and instrument types. In addition, the modular API makes `LightCurveLynx` highly extensible. Users can easily introduce new variability models or wrap other Python packages, expanding the system’s capabilities to incorporate the community’s latest developments.
+
+
+# State of the Field
+
+As noted in the previous section, the astronomy community has developed a range of powerful tools for forward simulation of transient and variable sources. Individual packages often focus on specific types of astronomical phenomena such as supernovae or microlensing. Further each package may support a subset of the existing physical effects or survey strategy. `LightCurveLynx` does not aim to duplicate those efforts, but rather to augment them by providing a common framework for users to combine the existing packages.
+
+
+# Software design
+
+`LightCurveLynx` is designed to enable users to accurately and efficiently run simulations using a range of models and simulations packages. As such, it uses several core principles: (1) provide an extensible and flexible object-oriented API, (2) provide an interface to consistently sample from complex distributions, (3) allow users to save simulation state and replay all/part of the simulation for analysis and debugging, and (4) build in vectorization and parallelization for efficient runs. This modular structure (and the general program flow) are shown in \autoref{fig:flow}.
+
+![The basic simulation flow for LightCurveLynx\label{fig:flow}](figure.png)
+
+The simulation starts by sampling the model’s parameters from given statistical distributions. These parameters are combined with the information about where the survey is pointing to generate observed fluxes at either the spectral or band level. (We use “flux” as a synonym of “spectral flux density per unit frequency", while by “bandflux” we mean spectral flux density measured in the given photometric passband, the same as $$10^{-0.4(m-31.4)}$$ nJy, where $$m$$ is the AB magnitude.) `LightCurveLynx` uses the survey information, along with each object's position, to pre-filter evaluations to just those times when the object will be observed, saving significant computation over evaluating models at all times.  The simulation then applies line of sight effects, such as dust extinction, to the fluxes. If the fluxes were generated at the spectral level, they are integrated with the survey’s filter to produce band fluxes. Finally, instrument and detector noise are sampled and added based on the survey’s characteristics.
+
+The models of each physical phenomena are subclassed from either `SEDModel`, which simulates output at the spectral level, and `BandfluxModel`, which simulates output at the bandflux level only. These parent classes, which themselves share a common `BasePhysicalModel` parent class, provide a common API to disparate packages, encompass, define standard parameters (`RA`, `Dec`, etc.) and provide a single implementation of common computations. For example, redshift transformations of time and wavelength are handled by the parent class, so each individual model only needs to perform computations in the rest frame.
+
+Another advantage of this class hierarchy is that new features can be added in the parent classes and automatically applied to all models. One example of this is `LightCurveLynx`’s extrapolation functionality. Some common models, such as splines fit from data, only produce valid predictions over a finite range of times and wavelengths. By supporting such bounds checking and corresponding extrapolation in the parent classes, `LightCurveLynx` adds the ability to define an extrapolation function to any model.
+
+The parameter distributions are specified using Pythonic syntax as a directed acyclic graph of parameter relations that can draw distributions from packages such as numpy [@harris2020array], scipy [@SciPy2020], or pzflow [@crenshaw2025]. All parameter (and bookkeeping) information is handed through the `ParameterizedNode` base class and saved as a `GraphState` object, which allows the user to analyze or replay the simulations. Sampling is vectorized wherever possible and can be parallelized for efficiency.
+
+Line of sight effects are wrapped subclasses of the `EffectModel` class and can be added to any `BasePhysicalModel` object. This separates the implementation of the model from the effects and allows a single effect type (e.g. dust extinction) to be consistently applied to any physical model. This approach ensures consistency and reduces code duplication.
+
+Survey specific information is encapsulated in subclasses of the `ObsTable`, allowing users to simulate their models under different survey conditions. `LightCurveLynx` currently supports data from the Vera C. Rubin’s LSST [@Ivezic2019] in simulated and DP1/DP2 formats, data from the Zwicky Transient Facility surveys [@Bellm2019], simulations of the Nancy Grace Roman telescope [@Spergel2015], and simulations of the Argus Array [@Law_2022].
+
+Parallelization is natively supported using Python's `ProcessPoolExecutor` as well as multi-machine parallelization using either [Dask](https://www.dask.org/) or [Ray](https://docs.ray.io/en/latest/index.html).
+
+
+# Research Impact
+
+The software was verified by simulating populations of Type Ia supernovae under the ZTF survey and comparing the simulated population statistics to actual data (Dai et. al. in preparation). The software is currently being used for multiple population studies under the proposed Rubin LSST cadence, including simulating RR Lyrae light curves and microlensing events.
+
+# AI usage disclosure
+
+All top level design, including control flow and class structure, was designed by humans. Github copilot (using Claude Sonnet 4) was used during the development of the software for online suggestions and small changes. All code changes, regardless of author, were reviewed by humans. No generative AI tools were used in the writing of this manuscript.
+
+
+# Acknowledgements
+
+This project is supported by Schmidt Sciences.
+
+
+# References

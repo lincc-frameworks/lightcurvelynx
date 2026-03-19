@@ -1,0 +1,241 @@
+
+@article{Bachelet2017,
+    doi = {10.3847/1538-3881/aa911c},
+    url = {https://doi.org/10.3847/1538-3881/aa911c},
+    year = {2017},
+    month = {nov},
+    publisher = {The American Astronomical Society},
+    volume = {154},
+    number = {5},
+    pages = {203},
+    author = {Bachelet, E. and Norbury, M. and Bozza, V. and Street, R.},
+    title = {pyLIMA: An Open-source Package for Microlensing Modeling. I. Presentation of the Software and Analysis of Single-lens Models},
+    journal = {The Astronomical Journal}
+}
+
+
+@software{barbary2025,
+  author       = {Barbary, Kyle and
+                  Bailey, Stephen and
+                  Barentsen, Geert and
+                  Barclay, Tom and
+                  Biswas, Rahul and
+                  Boone, Kyle and
+                  Craig, Matt and
+                  Feindt, Ulrich and
+                  Friesen, Brian and
+                  Goldstein, Danny and
+                  Jha, Saurabh W. and
+                  Jones, David O. and
+                  Mondon, Florian and
+                  Papadogiannakis, Seméli and
+                  Perrefort, Daniel and
+                  Pierel, Justin and
+                  Rodney, Steve and
+                  Rose, Benjamin and
+                  Saunders, Clare and
+                  Sipőcz, Brigitta and
+                  Sofiatti, Caroline and
+                  Thomas, Rollin C. and
+                  van Santen, Jakob and
+                  Vincenzi, Maria and
+                  Wang, David and
+                  Wood-Vasey, Michael},
+  title        = {SNCosmo},
+  month        = mar,
+  year         = 2025,
+  publisher    = {Zenodo},
+  version      = {v2.12.1},
+  doi          = {10.5281/zenodo.15019859},
+  url          = {https://doi.org/10.5281/zenodo.15019859},
+  swhid        = {swh:1:dir:335092d3d6716aebad6d052fc6219ae600062484
+                   ;origin=https://doi.org/10.5281/zenodo.592747;visi
+                   t=swh:1:snp:22689df264588628a8d487675f3a1a7715c77b
+                   26;anchor=swh:1:rel:dccc5b60d0073ddc18c513bc1969c0
+                   9cba697fdb;path=sncosmo-sncosmo-6c34401
+                  }
+}
+
+@article{Bellm2019,
+  author        = {Bellm, Eric C. and Kulkarni, Shrinivas R. and Graham, Matthew J. and Dekany, Richard and Smith, Roger M. and Riddle, Reed and Masci, Frank J. and Patterson, Bryan and Rebbapragada, Umaa and Walters, Richard and Ward, Charlotte and Ye, Quan-Zhi and Zolkower, Jeffry and others},
+  title         = {The Zwicky Transient Facility: System Overview, Performance, and First Results},
+  journal       = {Publications of the Astronomical Society of the Pacific},
+  volume        = {131},
+  number        = {995},
+  pages         = {018002},
+  year          = {2019},
+  doi           = {10.1088/1538-3873/aaecbe},
+  eprint        = {1902.01932},
+  archivePrefix = {arXiv},
+  primaryClass  = {astro-ph.IM}
+}
+
+
+@article{Bozza2025,
+   title={VBMicroLensing: Three algorithms for multiple lensing with contour integration},
+   volume={694},
+   ISSN={1432-0746},
+   url={http://dx.doi.org/10.1051/0004-6361/202452648},
+   DOI={10.1051/0004-6361/202452648},
+   journal={Astronomy &amp; Astrophysics},
+   publisher={EDP Sciences},
+   author={Bozza, V. and Saggese, V. and Covone, G. and Rota, P. and Zhang, J.},
+   year={2025},
+   month=feb,
+   pages={A219}
+}
+
+@software{crenshaw2025,
+  author       = {John Franklin Crenshaw and
+                  颜子昂,Zi'ang Yan and
+                  vladislav doster},
+  title        = {jfcrenshaw/pzflow: v3.3.0},
+  month        = dec,
+  year         = 2025,
+  publisher    = {Zenodo},
+  version      = {v3.3.0},
+  doi          = {10.5281/zenodo.17809535},
+  url          = {https://doi.org/10.5281/zenodo.17809535},
+  swhid        = {swh:1:dir:841d77ccf5d21bab38c38538da1f293b01950ff6
+                   ;origin=https://doi.org/10.5281/zenodo.4619227;vis
+                   it=swh:1:snp:4c26c70426047ac976136d6cd5a3a0878d3fd
+                   c26;anchor=swh:1:rel:fe77c492bde7c21cab1af30ee1ec5
+                   e456cc08794;path=jfcrenshaw-pzflow-6a5d0f6
+                  },
+}
+
+@Article{harris2020array,
+ title         = {Array programming with {NumPy}},
+ author        = {Charles R. Harris and K. Jarrod Millman and St{\'{e}}fan J.
+                 van der Walt and Ralf Gommers and Pauli Virtanen and David
+                 Cournapeau and Eric Wieser and Julian Taylor and Sebastian
+                 Berg and Nathaniel J. Smith and Robert Kern and Matti Picus
+                 and Stephan Hoyer and Marten H. van Kerkwijk and Matthew
+                 Brett and Allan Haldane and Jaime Fern{\'{a}}ndez del
+                 R{\'{i}}o and Mark Wiebe and Pearu Peterson and Pierre
+                 G{\'{e}}rard-Marchant and Kevin Sheppard and Tyler Reddy and
+                 Warren Weckesser and Hameer Abbasi and Christoph Gohlke and
+                 Travis E. Oliphant},
+ year          = {2020},
+ month         = sep,
+ journal       = {Nature},
+ volume        = {585},
+ number        = {7825},
+ pages         = {357--362},
+ doi           = {10.1038/s41586-020-2649-2},
+ publisher     = {Springer Science and Business Media {LLC}},
+ url           = {https://doi.org/10.1038/s41586-020-2649-2}
+}
+
+@article{Ivezic2019,
+  author        = {Ivezi{\'c}, {\v Z}. and Kahn, S. M. and Tyson, J. A. and Abel, B. and Acosta, E. and Allsman, R. and Alonso, D. and Anderson, K. and Andrew, J. and Angel, J. R. P. and others},
+  title         = {LSST: From Science Drivers to Reference Design and Anticipated Data Products},
+  journal       = {The Astrophysical Journal},
+  volume        = {873},
+  number        = {2},
+  pages         = {111},
+  year          = {2019},
+  doi           = {10.3847/1538-4357/ab042c},
+  eprint        = {0805.2366},
+  archivePrefix = {arXiv},
+  primaryClass  = {astro-ph.IM}
+}
+
+
+@article{Kessler2009,
+    doi = {10.1086/605984},
+    url = {https://doi.org/10.1086/605984},
+    year = {2009},
+    month = {aug},
+    publisher = {University of Chicago Press},
+    volume = {121},
+    number = {883},
+    pages = {1028},
+    author = {Kessler, Richard and Bernstein, Joseph P. and Cinabro, David and Dilday, Benjamin and Frieman, Joshua A. and Jha, Saurabh and Kuhlmann, Stephen and Miknaitis, Gajus and Sako, Masao and Taylor, Matt and Vanderplas, Jake},
+    title = {SNANA: A Public Software Package for Supernova Analysis},
+    journal = {Publications of the Astronomical Society of the Pacific}
+}
+
+
+@article{Law_2022,
+doi = {10.1088/1538-3873/ac4811},
+url = {https://doi.org/10.1088/1538-3873/ac4811},
+year = {2022},
+month = {mar},
+publisher = {The Astronomical Society of the Pacific},
+volume = {134},
+number = {1033},
+pages = {035003},
+author = {Law, Nicholas M. and Corbett, Hank and Galliher, Nathan W. and Gonzalez, Ramses and Vasquez, Alan and Walters, Glenn and Machia, Lawrence and Ratzloff, Jeff and Ackley, Kendall and Bizon, Chris and Clemens, Christopher and Cox, Steven and Eikenberry, Steven and Howard, Ward S. and Glazier, Amy and Mann, Andrew W. and Quimby, Robert and Reichart, Daniel and Trilling, David},
+title = {Low-cost Access to the Deep, High-cadence Sky: the Argus Optical Array},
+journal = {Publications of the Astronomical Society of the Pacific},
+abstract = {New mass-produced, wide-field, small-aperture telescopes have the potential to revolutionize ground-based astronomy by greatly reducing the cost of collecting area. In this paper, we introduce a new class of large telescope based on these advances: an all-sky, arcsecond-resolution, 1000 telescope array which builds a simultaneously high-cadence and deep survey by observing the entire sky all night. As a concrete example, we describe the Argus Array, a 5 m-class telescope with an all-sky field of view and the ability to reach extremely high cadences using low-noise CMOS detectors. Each 55 GPix Argus exposure covers 20% of the entire sky to m  g  = 19.6 each minute and m  g  = 21.9 each hour; a high-speed mode will allow sub-second survey cadences for short times. Deep coadds will reach m  g  = 23.6 every five nights over 47% of the sky; a larger-aperture array telescope, with an étendue close to the Rubin Observatory, could reach m  g  = 24.3 in five nights. These arrays can build two-color, million-epoch movies of the sky, enabling sensitive and rapid searches for high-speed transients, fast-radio-burst counterparts, gravitational-wave counterparts, exoplanet microlensing events, occultations by distant solar system bodies, and myriad other phenomena. An array of O(1000) telescopes, however, would be one of the most complex astronomical instruments yet built. Standard arrays with hundreds of tracking mounts entail thousands of moving parts and exposed optics, and maintenance costs would rapidly outpace the mass-produced-hardware cost savings compared to a monolithic large telescope. We discuss how to greatly reduce operations costs by placing all optics in thermally controlled, sealed domes with only a few moving parts. Coupled with careful software scope control and use of existing pipelines, we show that the Argus Array could become the deepest and fastest Northern sky survey, with total costs in the $20M range.}
+}
+
+@misc{lu2025,
+      title={The BAGLE Python Package for Bayesian Analysis of Gravitational Lensing Events}, 
+      author={J. R. Lu and M. Medford and C. Y. Lam and T. D. Bhadra and M. J. Huston and N. S. Abrams and E. Broadberry and J. Chen and S. K. Terry and N. Arredondo and A. Scharf},
+      year={2025},
+      eprint={2512.03364},
+      archivePrefix={arXiv},
+      primaryClass={astro-ph.SR},
+      url={https://arxiv.org/abs/2512.03364}
+}
+
+@software{rigault2026,
+  author       = {Mickael Rigault and others},
+  title        = {MickaelRigault/skysurvey},
+  month        = Feb,
+  year         = 2026,
+  url          = {https://github.com/MickaelRigault/skysurvey},
+}
+
+@article{sarin2024,
+    author = {Sarin, Nikhil and Hübner, Moritz and Omand, Conor M B and Setzer, Christian N and Schulze, Steve and Adhikari, Naresh and Sagués-Carracedo, Ana and Galaudage, Shanika and Wallace, Wendy F and Lamb, Gavin P and Lin, En-Tzu},
+    title = {redback: a Bayesian inference software package for electromagnetic transients},
+    journal = {Monthly Notices of the Royal Astronomical Society},
+    volume = {531},
+    number = {1},
+    pages = {1203-1227},
+    year = {2024},
+    month = {05},
+    issn = {0035-8711},
+    doi = {10.1093/mnras/stae1238},
+    url = {https://doi.org/10.1093/mnras/stae1238},
+    eprint = {https://academic.oup.com/mnras/article-pdf/531/1/1203/57801464/stae1238.pdf}
+}
+
+@ARTICLE{SciPy2020,
+  author  = {Virtanen, Pauli and Gommers, Ralf and Oliphant, Travis E. and
+            Haberland, Matt and Reddy, Tyler and Cournapeau, David and
+            Burovski, Evgeni and Peterson, Pearu and Weckesser, Warren and
+            Bright, Jonathan and {van der Walt}, St{\'e}fan J. and
+            Brett, Matthew and Wilson, Joshua and Millman, K. Jarrod and
+            Mayorov, Nikolay and Nelson, Andrew R. J. and Jones, Eric and
+            Kern, Robert and Larson, Eric and Carey, C J and
+            Polat, {\.I}lhan and Feng, Yu and Moore, Eric W. and
+            {VanderPlas}, Jake and Laxalde, Denis and Perktold, Josef and
+            Cimrman, Robert and Henriksen, Ian and Quintero, E. A. and
+            Harris, Charles R. and Archibald, Anne M. and
+            Ribeiro, Ant{\^o}nio H. and Pedregosa, Fabian and
+            {van Mulbregt}, Paul and {SciPy 1.0 Contributors}},
+  title   = {{{SciPy} 1.0: Fundamental Algorithms for Scientific
+            Computing in Python}},
+  journal = {Nature Methods},
+  year    = {2020},
+  volume  = {17},
+  pages   = {261--272},
+  adsurl  = {https://rdcu.be/b08Wh},
+  doi     = {10.1038/s41592-019-0686-2},
+}
+
+@article{Spergel2015,
+  author        = {Spergel, D. and Gehrels, N. and Baltay, C. and Bennett, D. and others},
+  title         = {Wide-Field InfraRed Survey Telescope (WFIRST) Final Report},
+  journal       = {arXiv preprint},
+  eprint        = {1503.03757},
+  year          = {2015},
+  archivePrefix = {arXiv},
+  primaryClass  = {astro-ph.IM}
+}
+
