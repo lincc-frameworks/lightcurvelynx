@@ -42,26 +42,23 @@ authors:
   - name: Steve Schulze
     orcid: 0000-0001-6797-1889
     affiliation: "8"
-
-
 affiliations:
- - index: 1
-   name: McWilliams Center for Cosmology and Astrophysics, Department of Physics, Carnegie Mellon University, Pittsburgh, PA 15213, USA
- - index: 2
-   name: Pittsburgh Particle Physics, Astrophysics, and Cosmology Center (PITT PACC). Physics and Astronomy Department, University of Pittsburgh, Pittsburgh, PA 15260, USA
-  - index: 3
-   name: Space Telescope Science Institute, 3700 San Martin Drive, Baltimore, Maryland 21218, USA
-  - index: 4
-    name: DiRAC Institute and the Department of Astronomy, University of Washington, 3910 15th Ave NE, Seattle, WA 98195, USA
- - index 5:
-   name: Las Cumbres Observatory, 6740 Cortona Drive, Suite 102, Goleta, CA 93117, USA
- - index: 6
-   name: Kavli Institute for Cosmology, University of Cambridge, Madingley Road, CB3 0HA, UK
- - index: 7
-   name: Institute of Astronomy, University of Cambridge, Madingley Road, CB3 0HA, UK
- - index: 8
-   name: Department of Particle Physics and Astrophysics, Weizmann Institute of Science, 234 Herzl St, 76100 Rehovot, Israel
-
+  - name: McWilliams Center for Cosmology and Astrophysics, Department of Physics, Carnegie Mellon University, Pittsburgh, PA 15213, USA
+    index: 1
+  - name: Pittsburgh Particle Physics, Astrophysics, and Cosmology Center (PITT PACC). Physics and Astronomy Department, University of Pittsburgh, Pittsburgh, PA 15260, USA
+    index: 2
+  - name: Space Telescope Science Institute, 3700 San Martin Drive, Baltimore, Maryland 21218, USA
+    index: 3
+  - name: DiRAC Institute and the Department of Astronomy, University of Washington, 3910 15th Ave NE, Seattle, WA 98195, USA
+    index: 4
+  - name: Las Cumbres Observatory, 6740 Cortona Drive, Suite 102, Goleta, CA 93117, USA
+    index: 5
+  - name: Kavli Institute for Cosmology, University of Cambridge, Madingley Road, CB3 0HA, UK
+    index: 6
+  - name: Institute of Astronomy, University of Cambridge, Madingley Road, CB3 0HA, UK
+    index: 7
+  - name: Department of Particle Physics and Astrophysics, Weizmann Institute of Science, 234 Herzl St, 76100 Rehovot, Israel
+    index: 8
 date: 16 March 2026
 bibliography: paper.bib
 ---
