@@ -1,0 +1,214 @@
+"""A class for storing and working with SkyMapper data."""
+
+import numpy as np
+from citation_compass import CiteClass
+
+from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
+from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
+from lightcurvelynx.obstable.obs_table import ObsTable
+
+SKYMAPPER_PIXEL_SCALE = 0.497
+"""The pixel scale for the SkyMapper's camera in arcseconds per pixel.
+From https://arxiv.org/pdf/2402.02015
+"""
+
+_skymapper_readout_noise = 10.0
+"""The standard deviation of the count of readout electrons per pixel for the camera.
+
+From personal communication with the SkyMapper team.
+"""
+
+_skymapper_gain = 0.75
+"""The gain for the SkyMapper camera in ADU per electron.
+From https://arxiv.org/pdf/2402.02015
+"""
+
+_skymapper_ccd_radius = (
+    0.5 * np.sqrt((4096 * SKYMAPPER_PIXEL_SCALE) ** 2 + (2048 * SKYMAPPER_PIXEL_SCALE) ** 2) / 3600.0
+)
+"""The approximate radius of the SkyMapper CCDs in degrees, computed from the pixel scale
+and the CCD dimensions (2048 x 4096). All numbers from https://arxiv.org/pdf/2402.02015"""
+
+
+class SkyMapperObsTable(ObsTable, CiteClass):
+    """An ObsTable for observations from the SkyMapper survey.
+
+    Parameters
+    ----------
+    table : dict or pandas.core.frame.DataFrame
+        The table with all the SkyMapper survey information.
+    colmap : dict
+        A mapping of standard column names to a list of possible names in the input table.
+        Each value in the dictionary can be a string or a list of strings.
+        Defaults to the SkyMapper CCDVisit column names, stored in _default_colnames.
+    saturation_mags : dict, optional
+        A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
+        provided must match those in the table. If not provided, SkyMapper-specific defaults will be
+        used.
+    **kwargs : dict
+        Additional keyword arguments to pass to the constructor. This includes overrides
+        for survey parameters such as:
+        - dark_current : The dark current for the camera in electrons per second per pixel.
+        - gain: The gain for the camera in electrons per ADU.
+        - pixel_scale: The pixel scale for the camera in arcseconds per pixel.
+        - radius: The angular radius of the observations (in degrees).
+        - read_noise: The readout noise for the camera in electrons per pixel.
+
+    References
+    ----------
+    SkyMapper Southern Survey: Data Release 4 (Onken et al. 2023)
+    https://arxiv.org/pdf/2402.02015
+    """
+
+    # Column names for the SkyMapper visit table (provided by the SkyMapper team)
+    _default_colnames = {
+        "dec": "dec_deg",  # degrees
+        "exptime": "exp_time",  # seconds
+        "ra": "ra_deg",  # degrees
+        "rotation": "pa_deg",  # degrees
+        "skybrightness": "sb_mag",  # mag/arcsec^2
+        "time": "mjd_midpt",  # days
+        "zp_mag_adu": "zeropoint",  # magnitudes to produce 1 count (ADU)
+    }
+
+    # Default survey values (SkyMapper).
+    _default_survey_values = {
+        "ccd_pixel_width": 2048,  # Detector width in pixels
+        "ccd_pixel_height": 4096,  # Detector height in pixels
+        "gain": _skymapper_gain,
+        "pixel_scale": SKYMAPPER_PIXEL_SCALE,
+        "radius": _skymapper_ccd_radius,
+        "read_noise": _skymapper_readout_noise,
+        "survey_name": "SkyMapper",
+    }
+
+    # Default SkyMapper saturation thresholds in magnitudes.
+    # From Table 6 (shallow survey) of https://arxiv.org/pdf/2402.02015
+    _default_saturation_mags = {
+        "u": 8.9,
+        "v": 8.2,
+        "g": 9.4,
+        "r": 9.4,
+        "i": 9.5,
+        "z": 9.6,
+    }
+
+    # Class constants for the column names.
+    def __init__(
+        self,
+        table,
+        colmap=None,
+        saturation_mags=None,
+        **kwargs,
+    ):
+        colmap = self._default_colnames if colmap is None else colmap
+
+        # If saturation thresholds are not provided, then set to the defaults.
+        if saturation_mags is None:
+            saturation_mags = self._default_saturation_mags
+
+        super().__init__(table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
+
+    def _assign_zero_points(self):
+        """Assign instrumental zero points in nJy (which produces 1 e-) to the SkyMapperObsTable tables."""
+        cols = self._table.columns.to_list()
+
+        if "zp" in cols:
+            return  # Nothing to do
+
+        # If the zero point column is already present (as a magnitude),
+        # we convert it to nJy.
+        if "zp_mag_adu" in cols:
+            zp_values = mag2flux(self._table["zp_mag_adu"]) / self.safe_get_survey_value("gain")
+            self.add_column("zp", zp_values, overwrite=True)
+            return
+        if "zp_mag_e" in cols:
+            zp_values = mag2flux(self._table["zp_mag_e"])
+            self.add_column("zp", zp_values, overwrite=True)
+            return
+
+        raise ValueError("Not enough information to compute the zero points.")
+
+    @classmethod
+    def from_ccdvisit_table(cls, table, make_detector_footprint=False, **kwargs):
+        """Construct the SkyMapperObsTable object from a table of CCD level visit data.
+
+        For example we could read from a parquet file as:
+            import pandas as pd
+            table = pd.read_parquet("path_to_file.parquet")
+
+        Parameters
+        ----------
+        table : pandas.core.frame.DataFrame
+            The CCDVisit table containing the SkyMapperObsTable data.
+        make_detector_footprint : bool, optional
+            If True, the detector footprint will be created based on the xSize and ySize
+        **kwargs : dict
+            Additional keyword arguments to pass to the SkyMapperObsTable constructor.
+
+        Returns
+        -------
+        obstable : SkyMapperObsTable
+            A SkyMapperObsTable object containing the data from the CCDVisit table.
+        """
+        table = table.copy()
+
+        # The data is provided at the CCD level, so use that to set the radius.
+        if "radius" not in kwargs:
+            # Use a single approximate average ccd radius.
+            kwargs["radius"] = _skymapper_ccd_radius
+
+        # Create the ObsTable object. Use the default column mapping for SkyMapper.
+        obstable = cls(table, **kwargs)
+
+        # Create a detector footprint if requested. We use the same (average) footprint for
+        #  all CCDs based on the survey parameters for pixel scale and CCD size.
+        if make_detector_footprint:
+            pixel_scale = obstable.survey_values.get("pixel_scale")
+            width_px = obstable.survey_values.get("ccd_pixel_width")
+            height_px = obstable.survey_values.get("ccd_pixel_height")
+            detect_fp = DetectorFootprint.from_pixel_rect(width_px, height_px, pixel_scale=pixel_scale)
+            obstable.set_detector_footprint(detect_fp)
+
+        return obstable
+
+    def bandflux_error_point_source(self, bandflux, index):
+        """Compute observational bandflux error for a point source
+
+        Parameters
+        ----------
+        bandflux : array_like of float
+            Band bandflux of the point source in nJy.
+        index : array_like of int
+            The index of the observation in the LSSTObsTable table.
+
+        Returns
+        -------
+        flux_err : array_like of float
+            Simulated bandflux noise in nJy.
+        """
+        observations = self._table.iloc[index]
+
+        # By the effective FWHM definition, see
+        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
+        # We need it in pixel^2
+        pixel_scale = self.safe_get_survey_value("pixel_scale")
+        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
+        zp = observations["zp"]
+
+        # Compute sky background in e- from skybrightness (in mag/arcsec^2).
+        sky = observations["skybrightness"] * self.safe_get_survey_value("gain")
+
+        return poisson_bandflux_std(
+            bandflux,
+            total_exposure_time=observations["exptime"],
+            exposure_count=1,
+            psf_footprint=psf_footprint,
+            sky=sky,
+            zp=zp,
+            readout_noise=self.safe_get_survey_value("read_noise"),
+            dark_current=self.safe_get_survey_value("dark_current"),
+            zp_err_mag=self.safe_get_survey_value("zp_err_mag"),
+        )
