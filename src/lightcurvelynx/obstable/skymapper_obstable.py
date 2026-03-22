@@ -77,6 +77,7 @@ class SkyMapperObsTable(ObsTable, CiteClass):
     _default_survey_values = {
         "ccd_pixel_width": 2048,  # Detector width in pixels
         "ccd_pixel_height": 4096,  # Detector height in pixels
+        "dark_current": 0.0,  # TODO: Get the actual dark current value for the SkyMapper camera.
         "gain": _skymapper_gain,
         "pixel_scale": SKYMAPPER_PIXEL_SCALE,
         "radius": _skymapper_ccd_radius,
@@ -93,6 +94,17 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         "r": 9.4,
         "i": 9.5,
         "z": 9.6,
+    }
+
+    # Default PSF FWHM values in arcseconds for each filter, from
+    # https://arxiv.org/pdf/2402.02015, Table 1 (median values)
+    _default_psf_fwhm = {
+        "u": 3.15,  # arcseconds
+        "v": 3.00,  # arcseconds
+        "g": 2.80,  # arcseconds
+        "r": 2.63,  # arcseconds
+        "i": 2.54,  # arcseconds
+        "z": 2.49,  # arcseconds
     }
 
     # Class constants for the column names.
@@ -195,7 +207,16 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
         # We need it in pixel^2
         pixel_scale = self.safe_get_survey_value("pixel_scale")
-        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
+        if "seeing" in observations:
+            seeing = observations["seeing"].values
+        else:
+            # Use the median seeing per-filter if the seeing is not provided for each observation.
+            seeing = np.zeros(len(observations))
+            for filter, fwhm_arcsec in self._default_psf_fwhm.items():
+                filter_mask = observations["filter"] == filter
+                seeing[filter_mask] = fwhm_arcsec
+        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
+
         zp = observations["zp"]
 
         # Compute sky background in e- from skybrightness (in mag/arcsec^2).
@@ -210,5 +231,5 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             zp=zp,
             readout_noise=self.safe_get_survey_value("read_noise"),
             dark_current=self.safe_get_survey_value("dark_current"),
-            zp_err_mag=self.safe_get_survey_value("zp_err_mag"),
+            zp_err_mag=0.0,
         )
