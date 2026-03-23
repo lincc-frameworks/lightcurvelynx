@@ -32,6 +32,13 @@ _skymapper_ccd_radius = (
 and the CCD dimensions (2048 x 4096). All numbers from https://arxiv.org/pdf/2402.02015"""
 
 
+_skymapper_dark_current = 0.0
+"""The dark current for the SkyMapper camera in electrons per second per pixel. We assume it
+is negligible for the purposes of this class, based on personal communication with the
+SkyMapper team.
+"""
+
+
 class SkyMapperObsTable(ObsTable, CiteClass):
     """An ObsTable for observations from the SkyMapper survey.
 
@@ -47,6 +54,9 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, SkyMapper-specific defaults will be
         used.
+    make_detector_footprint : bool, optional
+        If True, the detector footprint will be created based on the xSize and ySize survey
+        parameters. This can not be used if a detect footprint is already provided in the input table.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -77,7 +87,7 @@ class SkyMapperObsTable(ObsTable, CiteClass):
     _default_survey_values = {
         "ccd_pixel_width": 2048,  # Detector width in pixels
         "ccd_pixel_height": 4096,  # Detector height in pixels
-        "dark_current": 0.0,  # TODO: Get the actual dark current value for the SkyMapper camera.
+        "dark_current": _skymapper_dark_current,
         "gain": _skymapper_gain,
         "pixel_scale": SKYMAPPER_PIXEL_SCALE,
         "radius": _skymapper_ccd_radius,
@@ -111,8 +121,10 @@ class SkyMapperObsTable(ObsTable, CiteClass):
     def __init__(
         self,
         table,
+        *,
         colmap=None,
         saturation_mags=None,
+        make_detector_footprint=False,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -122,6 +134,17 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             saturation_mags = self._default_saturation_mags
 
         super().__init__(table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
+
+        # Construct a default detector footprint if requested. We use the same (average) footprint for
+        #  all CCDs based on the survey parameters for pixel scale and CCD size.
+        if make_detector_footprint:
+            if "detector_footprint" in kwargs:
+                raise ValueError("Cannot provide a detector footprint if make_detector_footprint is True.")
+            pixel_scale = self.survey_values.get("pixel_scale")
+            width_px = self.survey_values.get("ccd_pixel_width")
+            height_px = self.survey_values.get("ccd_pixel_height")
+            detect_fp = DetectorFootprint.from_pixel_rect(width_px, height_px, pixel_scale=pixel_scale)
+            self.set_detector_footprint(detect_fp)
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy (which produces 1 e-) to the SkyMapperObsTable tables."""
@@ -142,49 +165,6 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             return
 
         raise ValueError("Not enough information to compute the zero points.")
-
-    @classmethod
-    def from_ccdvisit_table(cls, table, make_detector_footprint=False, **kwargs):
-        """Construct the SkyMapperObsTable object from a table of CCD level visit data.
-
-        For example we could read from a parquet file as:
-            import pandas as pd
-            table = pd.read_parquet("path_to_file.parquet")
-
-        Parameters
-        ----------
-        table : pandas.core.frame.DataFrame
-            The CCDVisit table containing the SkyMapperObsTable data.
-        make_detector_footprint : bool, optional
-            If True, the detector footprint will be created based on the xSize and ySize
-        **kwargs : dict
-            Additional keyword arguments to pass to the SkyMapperObsTable constructor.
-
-        Returns
-        -------
-        obstable : SkyMapperObsTable
-            A SkyMapperObsTable object containing the data from the CCDVisit table.
-        """
-        table = table.copy()
-
-        # The data is provided at the CCD level, so use that to set the radius.
-        if "radius" not in kwargs:
-            # Use a single approximate average ccd radius.
-            kwargs["radius"] = _skymapper_ccd_radius
-
-        # Create the ObsTable object. Use the default column mapping for SkyMapper.
-        obstable = cls(table, **kwargs)
-
-        # Create a detector footprint if requested. We use the same (average) footprint for
-        #  all CCDs based on the survey parameters for pixel scale and CCD size.
-        if make_detector_footprint:
-            pixel_scale = obstable.survey_values.get("pixel_scale")
-            width_px = obstable.survey_values.get("ccd_pixel_width")
-            height_px = obstable.survey_values.get("ccd_pixel_height")
-            detect_fp = DetectorFootprint.from_pixel_rect(width_px, height_px, pixel_scale=pixel_scale)
-            obstable.set_detector_footprint(detect_fp)
-
-        return obstable
 
     def bandflux_error_point_source(self, bandflux, index):
         """Compute observational bandflux error for a point source
@@ -207,7 +187,9 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
         # We need it in pixel^2
         pixel_scale = self.safe_get_survey_value("pixel_scale")
-        if "seeing" in observations:
+        if "fwhm" in observations:
+            seeing = observations["fwhm"].values
+        elif "seeing" in observations:
             seeing = observations["seeing"].values
         else:
             # Use the median seeing per-filter if the seeing is not provided for each observation.
