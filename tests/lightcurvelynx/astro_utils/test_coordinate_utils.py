@@ -1,6 +1,11 @@
+import astropy.units as u
 import numpy as np
 import pytest
-from lightcurvelynx.astro_utils.coordinate_utils import dedup_coords, ra_dec_to_cartesian
+from lightcurvelynx.astro_utils.coordinate_utils import (
+    build_moc_from_coords,
+    dedup_coords,
+    ra_dec_to_cartesian,
+)
 
 
 def test_ra_dec_to_cartesian():
@@ -44,3 +49,25 @@ def test_dedup_coords():
     np.testing.assert_array_equal(unique_indices, expected_inds)
     np.testing.assert_allclose(unique_ra, pts[expected_inds, 0], atol=1e-8)
     np.testing.assert_allclose(unique_dec, pts[expected_inds, 1], atol=1e-8)
+
+
+def test_build_moc_from_coords():
+    """Test building a MOC from coordinates."""
+    ra = np.array([0, 90, 180, 270, 45])
+    dec = np.array([0, 0, 0, 0, 30])
+    moc = build_moc_from_coords(ra, dec, depth=8)
+    assert len(moc.flatten()) == 5
+
+    # Test that the MOC covers the input points
+    for r, d in zip(ra, dec, strict=False):
+        assert moc.contains_lonlat(r * u.deg, d * u.deg)
+
+    # Duplicates are naturally dropped when we dedup the healpix ids.
+    ra_dup = np.array([0, 90, 180, 270, 45, 0, 0.0001, 45.0001])
+    dec_dup = np.array([0, 0, 0, 0, 30, 0, 0.0001, 29.9999])
+    moc_dup = build_moc_from_coords(ra_dup, dec_dup, depth=8)
+    assert len(moc_dup.flatten()) == 5
+
+    # We fail if the lists are different lengths.
+    with pytest.raises(ValueError):
+        _ = build_moc_from_coords([0, 90], [0])
