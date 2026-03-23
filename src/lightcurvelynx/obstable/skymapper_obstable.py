@@ -157,7 +157,7 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             return  # Nothing to do
 
         # If the zero point column is already present (as a magnitude),
-        # we convert it to nJy.
+        # we convert it to nJy (per electron).
         if "zp_mag_adu" in cols:
             zp_values = mag2flux(self._table["zp_mag_adu"]) / self.safe_get_survey_value("gain")
             self.add_column("zp", zp_values, overwrite=True)
@@ -177,7 +177,7 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         bandflux : array_like of float
             Band bandflux of the point source in nJy.
         index : array_like of int
-            The index of the observation in the LSSTObsTable table.
+            The index of the observation in the SkyMapperObsTable table.
 
         Returns
         -------
@@ -202,11 +202,12 @@ class SkyMapperObsTable(ObsTable, CiteClass):
                 seeing[filter_mask] = fwhm_arcsec
         psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
 
+        # Get the computed zeropoints in nJy/electron.
         zp = observations["zp"]
 
-        # Compute sky background in (electrons / pixel^2) from skybrightness
-        # (which is in mag/arcsec^2).
-        sky = mag2flux(observations["skybrightness"]) * pixel_scale**2
+        # Convert skybrightness (mag/arcsec^2) -> nJy/arcsec^2 -> nJy/pixel^2,
+        # then divide by zp (nJy/electron) to get electrons/pixel^2.
+        sky = mag2flux(observations["skybrightness"]) * pixel_scale**2 / zp
 
         return poisson_bandflux_std(
             bandflux,
