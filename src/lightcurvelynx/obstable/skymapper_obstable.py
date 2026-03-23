@@ -1,8 +1,10 @@
 """A class for storing and working with SkyMapper data."""
+import logging
 
 import numpy as np
 from citation_compass import CiteClass
 
+from lightcurvelynx.astro_utils.coordinate_utils import build_moc_from_coords
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
@@ -215,3 +217,35 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             dark_current=self.safe_get_survey_value("dark_current"),
             zp_err_mag=0.0,
         )
+
+    def build_moc(
+        self,
+        *,
+        max_depth=10,
+        **kwargs,
+    ):
+        """Build a Multi-Order Coverage Map from the regions in the data set.
+
+        Because SkyMapper data is given at the CCD-level, we use a sampling
+        based approach for MOC construction.
+
+        Parameters
+        ----------
+        max_depth : int, optional
+            The maximum depth of the MOC. Default is 10.
+        kwargs : dict
+            Additional keyword that are passed to other build_moc implementations, but are
+            not used for this class.
+
+        Returns
+        -------
+        MOC
+            The Multi-Order Coverage Map constructed from the data set.
+        """
+        logging.getLogger(__name__).debug(f"Building MOC from SkyMapperObsTable data: Depth={max_depth}.")
+
+        # Deduplicate near-matching pointings to save computation time.
+        ra = self._table["ra"].to_numpy()
+        dec = self._table["dec"].to_numpy()
+        moc = build_moc_from_coords(ra, dec, depth=max_depth)
+        return moc
