@@ -1,4 +1,5 @@
 """A class for storing and working with SkyMapper data."""
+
 import logging
 
 import numpy as np
@@ -97,15 +98,15 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         "survey_name": "SkyMapper",
     }
 
-    # Default SkyMapper saturation thresholds in magnitudes.
-    # From Table 6 (shallow survey) of https://arxiv.org/pdf/2402.02015
+    # Default SkyMapper saturation thresholds in magnitudes for the main
+    # survey. From https://skymapper.anu.edu.au/surveys/
     _default_saturation_mags = {
-        "u": 8.9,
-        "v": 8.2,
-        "g": 9.4,
-        "r": 9.4,
-        "i": 9.5,
-        "z": 9.6,
+        "u": 10.0,
+        "v": 10.5,
+        "g": 13.0,
+        "r": 13.0,
+        "i": 11.0,
+        "z": 10.5,
     }
 
     # Default PSF FWHM values in arcseconds for each filter, from
@@ -203,8 +204,9 @@ class SkyMapperObsTable(ObsTable, CiteClass):
 
         zp = observations["zp"]
 
-        # Compute sky background in e- from skybrightness (in mag/arcsec^2).
-        sky = observations["skybrightness"] * self.safe_get_survey_value("gain")
+        # Compute sky background in (electrons / pixel^2) from skybrightness
+        # (which is in mag/arcsec^2).
+        sky = mag2flux(observations["skybrightness"]) * pixel_scale**2
 
         return poisson_bandflux_std(
             bandflux,
