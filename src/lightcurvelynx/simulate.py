@@ -238,7 +238,11 @@ def get_time_windows(t0, z, obs_time_window_offset, rest_time_window_offset):
     if rest_time_window_offset is not None:
         if z is None:
             raise ValueError("Redshift must be provided when using rest_time_window_offset.")
+        elif np.isscalar(t0):
+            if not np.isscalar(z):
+                raise ValueError("If t0 is a scalar, z must also be a scalar.")
         else:
+            # t0 is an array, so we need to make sure z we can broadcast z to the same shape.
             try:
                 z = np.broadcast_to(z, len(t0))
             except ValueError:
