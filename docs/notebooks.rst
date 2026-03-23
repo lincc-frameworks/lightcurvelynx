@@ -61,6 +61,7 @@ in roughly alphabetical order of simulation package or simulation type).
     :maxdepth: 1
 
     AGN Damped Random Walk Model <notebooks/pre_executed/agn>
+    Basic SNIa Simulation <notebooks/simple_snia>
     EzTaoX <notebooks/pre_executed/eztaox_example>
     Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
     Microlensing Effect Example <notebooks/pre_executed/microlensing>
