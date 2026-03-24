@@ -1,4 +1,8 @@
+import astropy.units as u
 import numpy as np
+from astropy.coordinates import SkyCoord
+from cdshealpix import skycoord_to_healpix
+from mocpy import MOC
 from scipy.spatial import KDTree
 
 
@@ -84,3 +88,30 @@ def dedup_coords(ra, dec, threshold=1e-5):
     unique_ra = ra[unique_indices]
     unique_dec = dec[unique_indices]
     return unique_ra, unique_dec, unique_indices
+
+
+def build_moc_from_coords(ra, dec, depth=8):
+    """
+    Build a MOC at a given depth from RA and Dec coordinates, such that each
+    point is covered by the MOC.
+
+    Parameters
+    ----------
+    ra: numpy.ndarray
+        Array of right ascension values in degrees.
+    dec: numpy.ndarray
+        Array of declination values in degrees.
+    depth: int
+        Maximum depth of the MOC. Higher values give finer resolution but larger MOC size.
+
+    Returns
+    -------
+    moc: MOC
+        MOC object representing the sky coverage of the input coordinates.
+    """
+    if len(ra) != len(dec):
+        raise ValueError("RA and Dec arrays must have the same length.")
+    coords = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
+    hpix = skycoord_to_healpix(coords, depth)
+    unique_hpix = np.unique(hpix)
+    return MOC.from_healpix_cells(unique_hpix, depth=depth, max_depth=depth)

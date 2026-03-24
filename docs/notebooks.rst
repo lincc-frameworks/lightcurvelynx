@@ -61,6 +61,7 @@ in roughly alphabetical order of simulation package or simulation type).
     :maxdepth: 1
 
     AGN Damped Random Walk Model <notebooks/pre_executed/agn>
+    Basic SNIa Simulation <notebooks/simple_snia>
     EzTaoX <notebooks/pre_executed/eztaox_example>
     Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
     Microlensing Effect Example <notebooks/pre_executed/microlensing>
@@ -72,6 +73,17 @@ in roughly alphabetical order of simulation package or simulation type).
     SNANA Models <notebooks/pre_executed/snana_example>
     Synphot-based Models <notebooks/pre_executed/synphot_example>
 
+
+Other Surveys
+-----------------------------------------------------------------------------------------
+
+The following notebooks provide example simulations using non-Rubin surveys.
+
+.. toctree::
+    :maxdepth: 1
+
+    Argus Survey (prototype development)<notebooks/pre_executed/argus_example>
+    SkyMapper Survey <notebooks/pre_executed/skymapper_example>
 
 
 Extending LightCurveLynx

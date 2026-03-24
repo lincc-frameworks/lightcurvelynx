@@ -556,6 +556,31 @@ def test_approximate_moc_sampler_from_intersection_obstable():
         _ = ApproximateMOCSampler.from_obstable_intersection(ops_tables, depth=10, radii=[1.0], seed=45)
 
 
+def test_approximate_moc_sampler_from_list():
+    """Test that we can create and sample from an ApproximateMOCSampler
+    from a list of RA and dec values."""
+    moc_sampler = ApproximateMOCSampler.from_ra_dec_lists(
+        ra_list=[15.0, 90.0, 110.0, 15.000001, 89.999999],
+        dec_list=[-10.0, 0.0, -25.0, -9.999999, 0.000001],
+        depth=10,
+        seed=100,
+    )
+    assert len(moc_sampler.healpix_list) == 3  # The last two points should be deduplicated.
+
+    # Test we can generate many observations
+    num_samples = 10_000
+    ra, dec = moc_sampler.generate(num_samples=num_samples)
+
+    # We should sample roughly uniformly from the three regions.
+    is_first_pointing = (ra > 14.0) & (ra < 16.0) & (dec > -11.0) & (dec < -9.0)
+    is_second_pointing = (ra > 89.0) & (ra < 91.0) & (dec > -1.0) & (dec < 1.0)
+    is_third_pointing = (ra > 109.0) & (ra < 111.0) & (dec > -26.0) & (dec < -24.0)
+    assert np.all(is_first_pointing | is_second_pointing | is_third_pointing)
+    assert np.sum(is_first_pointing) > 0.25 * num_samples
+    assert np.sum(is_second_pointing) > 0.25 * num_samples
+    assert np.sum(is_third_pointing) > 0.25 * num_samples
+
+
 def test_catalog_ra_dec_sampler():
     """Test that we can sample from a catalog of RA and dec values."""
     values = {

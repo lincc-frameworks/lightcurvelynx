@@ -10,7 +10,7 @@ from cdshealpix.nested import healpix_to_skycoord
 from citation_compass import CiteClass, cite_inline
 from mocpy import MOC
 
-from lightcurvelynx.astro_utils.coordinate_utils import dedup_coords
+from lightcurvelynx.astro_utils.coordinate_utils import build_moc_from_coords, dedup_coords
 from lightcurvelynx.math_nodes.given_sampler import TableSampler
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.obstable.obs_table import ObsTable
@@ -614,6 +614,34 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
             )
             moc = moc.intersection(next_moc)
 
+        return cls(moc, depth=depth, **kwargs)
+
+    @classmethod
+    def from_ra_dec_lists(cls, ra_list, dec_list, *, depth=6, **kwargs):
+        """Create an ApproximateMOCSampler from lists of RA and dec values. This method is useful
+        when the survey contains many small pointings, such as CCD-level information.
+
+        The depth parameter controls the approximation level. Higher depths provide
+        better accuracy but require more memory and computation time.
+
+        Parameters
+        ----------
+        ra_list : list or np.ndarray
+            The list of RA values in degrees.
+        dec_list : list or np.ndarray
+            The list of dec values in degrees.
+        depth : int, optional
+            The healpix depth to use as an approximation. Must be [2, 29].
+            Default: 12
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the constructor.
+
+        Returns
+        -------
+        ApproximateMOCSampler
+            The created ApproximateMOCSampler object.
+        """
+        moc = build_moc_from_coords(ra_list, dec_list, depth=depth)
         return cls(moc, depth=depth, **kwargs)
 
     def plot_footprint(
