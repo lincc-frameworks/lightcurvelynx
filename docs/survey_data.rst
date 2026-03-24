@@ -3,6 +3,10 @@ Survey Data
 
 In order to generate a simulation, the simulator needs information on whether the telescope is pointing and the noise characteristics at the time. As you can imagine, the available data and its format varies significantly from survey to survey (and even between data releases of the same survey). `LightCurveLynx` uses an object-based model to encapsulate the survey information and provide a common interface.
 
+`LightCurveLynx` includes built-in support for a range of instruments and surveys. The characteristics of these
+instruments and surveys are generally derived from published values and data releases (see comments in the code
+for specific details). However, **users should always carefully validate the science outputs for their use case.**
+
 
 ObsTable
 -------------------------------------------------------------------------------
@@ -50,6 +54,13 @@ Roman Simulated Data (RomanObsTable)
 The ``RomanObsTable`` class stores pointing and noise information from the `Nancy Grace Roman Space Telescope <https://roman.gsfc.nasa.gov>`__'s simulated survey data. The survey-specific constants are set to the values defined in the `Roman documentation <https://roman-docs.stsci.edu/>`__ and the `Roman GitHub repository <https://github.com/RomanSpaceTelescope>`__. 
 
 Special preprocessing is needed to handle the spectra observations (spectra simulation within LightCurveLynx is in early testing). Please contact the LightCurveLynx team if you need help with this.
+
+
+SkyMapper Data (SkyMapperObsTable)
+-------------------------------------------------------------------------------
+The ``SkyMapperObsTable`` class stores pointing and noise information from the `SkyMapper Southern Survey <https://skymapper.anu.edu.au/>`__.
+
+See the (:doc:`SkyMapper Example Notebook <notebooks/pre_executed/skymapper_example>`) for an example of how to load SkyMapper data using the ``SkyMapperObsTable`` class.
 
 
 ZTF Data (ZTFObsTable)

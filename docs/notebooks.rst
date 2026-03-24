@@ -74,6 +74,17 @@ in roughly alphabetical order of simulation package or simulation type).
     Synphot-based Models <notebooks/pre_executed/synphot_example>
 
 
+Other Surveys
+-----------------------------------------------------------------------------------------
+
+The following notebooks provide example simulations using non-Rubin surveys.
+
+.. toctree::
+    :maxdepth: 1
+
+    Argus Survey (prototype development)<notebooks/pre_executed/argus_example>
+    SkyMapper Survey <notebooks/pre_executed/skymapper_example>
+
 
 Extending LightCurveLynx
 -----------------------------------------------------------------------------------------

@@ -5,9 +5,6 @@
 LightCurveLynx - A fast and nimble package for realistic time-domain light curve simulations
 ========================================================================================
 
-**NOTE:** This project was recently renamed from TDAstro to LightCurveLynx. See the
-details for updating your code below.
-
 Time-Domain Forward-Modeling for the Rubin Era
 -------------------------------------------------------------------------------
 
@@ -155,6 +152,15 @@ update your code:
    * If you have installed from PyPI or conda-forge, uninstall `tdastro` and install `lightcurvelynx` instead.
 
 If you run into any problems or have any questions, please reach out to the team. We are happy to help!
+
+Advisories
+-------------------------------------------------------------------------------
+
+This project is under active development and may see API changes.
+
+Not all wrapped packages, features, and surveys have been used in detailed scientific analysis yet.
+**Users should always carefully validate the science outputs for their use case.**
+Please reach out to the team if you find any problems.
 
 
 Acknowledgements
