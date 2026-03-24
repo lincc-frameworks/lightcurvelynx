@@ -158,7 +158,6 @@ Advisories
 
 This project is under active development and may see API changes.
 
-Not all wrapped packages, features, and surveys have been used in detailed scientific analysis yet.
 **Users should always carefully validate the science outputs for their use case.**
 Please reach out to the team if you find any problems.
 

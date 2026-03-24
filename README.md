@@ -69,12 +69,10 @@ Notes:
    [pre-commit](https://lincc-ppt.readthedocs.io/en/latest/practices/precommit.html)
 
 
-## Disclaimers
+## Advisories
 
 This project is under active development and may see API changes.
 
-The team is consistently adding support for new packages and surveys. Not all of these have
-been used in detailed scientific analysis yet.
 **Users should always carefully validate the science outputs for their use case.**
 Please reach out to the team if you find any problems.
 
