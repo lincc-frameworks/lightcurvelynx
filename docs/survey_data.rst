@@ -3,6 +3,10 @@ Survey Data
 
 In order to generate a simulation, the simulator needs information on whether the telescope is pointing and the noise characteristics at the time. As you can imagine, the available data and its format varies significantly from survey to survey (and even between data releases of the same survey). `LightCurveLynx` uses an object-based model to encapsulate the survey information and provide a common interface.
 
+`LightCurveLynx` includes built-in support for a range of instruments and surveys. The characteristics of these
+instruments and surveys are generally derived from published values and data releases (see comments in the code
+for specific details). However, **users should always carefully validate the science outputs for their use case.**
+
 
 ObsTable
 -------------------------------------------------------------------------------
@@ -17,7 +21,7 @@ In addition to a common API, ``ObsTable`` includes common processing that is use
     * Construction and use of spatial data structures for fast search including built-in cone search (``range_search``)
     * Application of saturation thresholds,
     * Plotting the survey's footprint on the sky (``plot_footprint``),
-    * Construction of a [multi-order coverage map (MOC)](https://www.ivoa.net/documents/MOC/) of the survey (``build_moc``), 
+    * Construction of a `multi-order coverage map (MOC) <https://www.ivoa.net/documents/MOC/>`__ of the survey (``build_moc``), 
     * Resampling the table (``make_resampled_table``), and
     * Writing the observation information to disk.
 
@@ -29,10 +33,10 @@ LSST Data (LSSTObsTable)
 
 The ``LSSTObsTable`` class stores actual pointing and noise information from the Rubin Observatory data releases. It includes functions to read from the currently defined data formats, including:
 
-    * [DP1](https://sdm-schemas.lsst.io/dp1.html#CcdVisit) and [DP2+](https://sdm-schemas.lsst.io/lsstcam.html#CcdVisit) as CCDVisit tables, using the ``from_ccdvisit_table`` method, and
-    * [Science Validation](https://survey-strategy.lsst.io/progress/sv_status/sv_20250930.html) as the released DB file, using the ``from_sv_visits_table`` method.
+    * `DP1 <https://sdm-schemas.lsst.io/dp1.html#CcdVisit>`__ and `DP2+ <https://sdm-schemas.lsst.io/lsstcam.html#CcdVisit>`__ as CCDVisit tables, using the ``from_ccdvisit_table`` method, and
+    * `Science Validation <https://survey-strategy.lsst.io/progress/sv_status/sv_20250930.html>`__ as the released DB file, using the ``from_sv_visits_table`` method.
 
-The survey-specific constants are set to [published values](https://lsstcam.lsst.io/index.html).
+The survey-specific constants are set to `published values <https://lsstcam.lsst.io/index.html>`__.
 
 See the (:doc:`Rubin CCDVisit Notebook <notebooks/pre_executed/rubin_ccdvisit>`) for an example of how to load Rubin data using the ``LSSTObsTable`` class.
 
@@ -40,23 +44,30 @@ See the (:doc:`Rubin CCDVisit Notebook <notebooks/pre_executed/rubin_ccdvisit>`)
 OpSim Data (OpSim)
 -------------------------------------------------------------------------------
 
-The ``OpSim`` class stores pointing and noise information from the Rubin Observatory's simulated survey data (OpSim).  The survey-specific constants are set to [the values defined in the simulator](https://smtn-002.lsst.io/v/OPSIM-1171/index.html).
+The ``OpSim`` class stores pointing and noise information from the Rubin Observatory's simulated survey data (OpSim).  The survey-specific constants are set to `the values defined in the simulator <https://smtn-002.lsst.io/v/OPSIM-1171/index.html>`__.
 
 See the (:doc:`Rubin OpSim Notebook <notebooks/opsim_notebook>`) for an example of how to load simulated Rubin data using the ``OpSim`` class. This notebook also provides an overview of the functionality of the ``ObsTable`` class.
 
 
 Roman Simulated Data (RomanObsTable)
 -------------------------------------------------------------------------------
-The ``RomanObsTable`` class stores pointing and noise information from the [Nancy Grace Roman Space Telescope](https://roman.gsfc.nasa.gov)'s simulated survey data. The survey-specific constants are set to the values defined in the [Roman documentation](https://roman-docs.stsci.edu/) and the [Roman Github repository](https://github.com/RomanSpaceTelescope). 
+The ``RomanObsTable`` class stores pointing and noise information from the `Nancy Grace Roman Space Telescope <https://roman.gsfc.nasa.gov>`__'s simulated survey data. The survey-specific constants are set to the values defined in the `Roman documentation <https://roman-docs.stsci.edu/>`__ and the `Roman GitHub repository <https://github.com/RomanSpaceTelescope>`__. 
 
 Special preprocessing is needed to handle the spectra observations (spectra simulation within LightCurveLynx is in early testing). Please contact the LightCurveLynx team if you need help with this.
 
 
+SkyMapper Data (SkyMapperObsTable)
+-------------------------------------------------------------------------------
+The ``SkyMapperObsTable`` class stores pointing and noise information from the `SkyMapper Southern Survey <https://skymapper.anu.edu.au/>`__.
+
+See the (:doc:`SkyMapper Example Notebook <notebooks/pre_executed/skymapper_example>`) for an example of how to load SkyMapper data using the ``SkyMapperObsTable`` class.
+
+
 ZTF Data (ZTFObsTable)
 -------------------------------------------------------------------------------
-The ``ZTFObsTable`` class stores pointing and noise information from the [Zwicky Transient Facility (ZTF)](https://www.ztf.caltech.edu/) visit information.
+The ``ZTFObsTable`` class stores pointing and noise information from the `Zwicky Transient Facility (ZTF) <https://www.ztf.caltech.edu/>`__ visit information.
 
 
 Argus Data (ArgusObsTable)
 -------------------------------------------------------------------------------
-The ``ArgusObsTable`` class stores pointing and noise information from simulations of the upcoming [Argus Array](https://www.argusarray.org/). This class is still being validated and may change. Please contact the LightCurveLynx team if you want to use this class or have suggestions for improvement.
+The ``ArgusObsTable`` class stores pointing and noise information from simulations of the upcoming `Argus Array <https://www.argusarray.org/>`__. This class is still being validated and may change. Please contact the LightCurveLynx team if you want to use this class or have suggestions for improvement.

@@ -66,19 +66,19 @@ def test_get_time_windows():
         get_time_windows(0.0, None, (1.0, 2.0, 3.0), None)
 
     # t0 = array, z=1.5
-    # time_window = (inf, 2.0) in rest frame = (inf, 5.0) in observer frame
+    # time_window = (inf, 2.0) in rest frame = (inf, 5.0) in rest frame
     result = get_time_windows(np.array([0.0, 1.0, 2.0]), 1.5, None, (None, 2.0))
     assert result[0] is None
     assert np.array_equal(result[1], np.array([5.0, 6.0, 7.0]))
 
     # t0 = array, z=2.0
-    # time_window = (-1.0, inf) in rest frame = (-3.0, inf) in observer frame
+    # time_window = (-1.0, inf) in rest frame = (-3.0, inf) in rest frame
     result = get_time_windows(np.array([0.0, 1.0, 2.0]), 2.0, None, (-1.0, None))
     assert np.array_equal(result[0], np.array([-3.0, -2.0, -1.0]))
     assert result[1] is None
 
     # t0 = array, z=1.0
-    # time_window = (-1.0, 2.0) in rest frame = (-2.0, 4.0) in observer frame
+    # time_window = (-1.0, 2.0) in rest frame = (-2.0, 4.0) in rest frame
     result = get_time_windows(np.array([0.0, 1.0, 2.0]), 1.0, None, (-1.0, 2.0))
     assert np.array_equal(result[0], np.array([-2.0, -1.0, 0.0]))
     assert np.array_equal(result[1], np.array([4.0, 5.0, 6.0]))
@@ -94,6 +94,11 @@ def test_get_time_windows():
     assert np.array_equal(result[0], np.array([-2.0, -1.5, -1.0]))
     assert np.array_equal(result[1], np.array([4.0, 6.0, 8.0]))
 
+    # t0 = 1.0, z=0.1
+    result = get_time_windows(1.0, 0.1, None, (-100.0, 102.0))
+    assert result[0] == pytest.approx(-109.0)  # 1.0 + (-100.0 * (1 + 0.1))
+    assert result[1] == pytest.approx(113.2)  # 1.0 + (102.0 * (1 + 0.1))
+
     with pytest.raises(ValueError):
         # No z value provided.
         result = get_time_windows(np.array([0.0, 1.0, 2.0]), None, None, (-1.0, 2.0))
@@ -101,6 +106,14 @@ def test_get_time_windows():
     with pytest.raises(ValueError):
         # Wrong size bounds.
         result = get_time_windows(np.array([0.0, 1.0, 2.0]), None, None, (-1.0, 2.0, 3.0))
+
+    with pytest.raises(ValueError):
+        # t0 is a scalar but z is an array.
+        result = get_time_windows(0.01, np.array([0.1, 0.2]), None, (-1.0, 2.0))
+
+    with pytest.raises(ValueError):
+        # t0 and z are incompatible shapes
+        result = get_time_windows(np.array([1.0, 2.0, 3.0]), np.array([0.1, 0.2]), None, (-1.0, 2.0))
 
 
 def test_simulation_info():
@@ -678,6 +691,17 @@ def test_simulate_with_time_window(test_data_dir):
     # We only sample evens because of the RA/Dec match.
     assert np.array_equal(results2["lightcurve"][0]["mjd"].values, np.arange(8.0, 33.0, 2.0))
     assert np.array_equal(results2["lightcurve"][1]["mjd"].values, np.arange(4.0, 28.0, 2.0))
+
+    # Everything still works if t0 is a float.
+    results3 = simulate_lightcurves(
+        source,
+        1,
+        opsim_db,
+        passband_group,
+        rest_time_window_offset=(-5.0, 10.0),
+        progress_bar=False,  # Disable progress bar for testing
+    )
+    assert len(results3) == 1
 
 
 def test_simulate_multiple_surveys(test_data_dir):
