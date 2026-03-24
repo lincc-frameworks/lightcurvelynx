@@ -323,7 +323,7 @@ class FullParamDeriver(ParamDeriver):
         self.add_formula(
             parameter="sky_bg_electrons",
             inputs=["skybrightness", "pixel_scale", "zp"],
-            formula=lambda skybrightness, pixel_scale, zp: (mag2flux(skybrightness) * pixel_scale**2 / zp),
+            formula=lambda skybrightness, pixel_scale, zp: mag2flux(skybrightness) * pixel_scale**2 / zp,
         )
         self.add_formula(
             parameter="sky_bg_electrons",

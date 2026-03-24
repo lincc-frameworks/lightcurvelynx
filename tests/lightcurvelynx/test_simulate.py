@@ -10,9 +10,13 @@ from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
-from lightcurvelynx.math_nodes.given_sampler import GivenValueList, TableSampler
+from lightcurvelynx.math_nodes.given_sampler import (
+    GivenValueList,
+    GivenValueSampler,
+    TableSampler,
+)
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
-from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
+from lightcurvelynx.models.basic_models import ConstantSEDModel, SinWaveModel, StepModel
 from lightcurvelynx.models.physical_model import SEDModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
@@ -367,6 +371,73 @@ def test_simulate_lightcurves_to_file(test_data_dir):
         assert np.allclose(results_df["t0"].to_numpy(), 0.0)
 
 
+def test_simulate_lightcurves_reproduce(test_data_dir):
+    """Test two end to end runs of simulation produce the same
+    results when given the same random seed."""
+    num_samples = 10_000
+
+    # We load the OpSim data and passband data once.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a basic sinwave model with random parameters. RA and dec values
+    # should match the opsim so we get at least one observation for each sample.
+    source = SinWaveModel(
+        amplitude=NumpyRandomFunc("uniform", low=100.0, high=200.0),
+        frequency=NumpyRandomFunc("uniform", low=0.5, high=2.0),
+        t0=0.0,
+        ra=GivenValueSampler(opsim_db["ra"].values[0:5]),
+        dec=GivenValueSampler(opsim_db["dec"].values[0:5]),
+        redshift=NumpyRandomFunc("uniform", low=0.01, high=0.1),
+        node_label="source",
+    )
+
+    # Simulate once with a given seed.
+    rng1 = np.random.default_rng(54321)
+    results1 = simulate_lightcurves(
+        source,
+        num_samples,
+        opsim_db,
+        passband_group,
+        progress_bar=False,  # Disable progress bar for testing
+        rng=rng1,
+    )
+    assert len(results1) == num_samples
+
+    # Simulate again with the same seed.
+    rng2 = np.random.default_rng(54321)
+    results2 = simulate_lightcurves(
+        source,
+        num_samples,
+        opsim_db,
+        passband_group,
+        progress_bar=False,  # Disable progress bar for testing
+        rng=rng2,
+    )
+    assert len(results2) == num_samples
+
+    # Check the main columns are the same.
+    assert np.allclose(results1["ra"].values, results2["ra"].values)
+    assert np.allclose(results1["dec"].values, results2["dec"].values)
+    assert np.allclose(results1["z"].values, results2["z"].values)
+    assert np.allclose(results1["t0"].values, results2["t0"].values)
+    assert np.all(results1["nobs"].values == results2["nobs"].values)
+
+    # Check that the light curve columns are equal.
+    for idx in range(num_samples):
+        lc1 = results1.loc[idx]["lightcurve"]
+        lc2 = results2.loc[idx]["lightcurve"]
+
+        assert np.allclose(lc1["mjd"], lc2["mjd"])
+        assert np.allclose(lc1["flux_perfect"], lc2["flux_perfect"])
+        assert np.allclose(lc1["fluxerr"], lc2["fluxerr"])
+        assert np.allclose(lc1["flux"], lc2["flux"])
+
+
 def test_simulate_bandfluxes(test_data_dir):
     """Test an end to end run of simulating a bandflux model."""
     # Create a toy observation table with two pointings.
@@ -568,6 +639,77 @@ def test_simulate_parallel_processes(test_data_dir):
 
             results_df = read_parquet(ind_paths[i])
             assert len(results_df) == 50
+
+
+def test_simulate_parallel_processes_reproduce(test_data_dir):
+    """Test two end to end runs of parallelized simulations produce
+    the same results when given the same random seed."""
+    num_samples = 1_000
+
+    # We load the OpSim data and passband data once.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a basic sinwave model with random parameters. RA and dec values
+    # should match the opsim so we get at least one observation for each sample.
+    source = SinWaveModel(
+        amplitude=NumpyRandomFunc("uniform", low=100.0, high=200.0),
+        frequency=NumpyRandomFunc("uniform", low=0.5, high=2.0),
+        t0=0.0,
+        ra=GivenValueSampler(opsim_db["ra"].values[0:5]),
+        dec=GivenValueSampler(opsim_db["dec"].values[0:5]),
+        redshift=NumpyRandomFunc("uniform", low=0.01, high=0.1),
+        node_label="source",
+    )
+
+    # Simulate once with a given seed.
+    rng1 = np.random.default_rng(543210)
+    results1 = simulate_lightcurves(
+        source,
+        num_samples,
+        opsim_db,
+        passband_group,
+        progress_bar=False,  # Disable progress bar for testing
+        rng=rng1,
+        batch_size=num_samples // 5,
+        num_jobs=2,
+    )
+    assert len(results1) == num_samples
+
+    # Simulate again with the same seed.
+    rng2 = np.random.default_rng(543210)
+    results2 = simulate_lightcurves(
+        source,
+        num_samples,
+        opsim_db,
+        passband_group,
+        progress_bar=False,  # Disable progress bar for testing
+        rng=rng2,
+        batch_size=num_samples // 5,
+        num_jobs=2,
+    )
+    assert len(results2) == num_samples
+
+    # Check the main columns are the same.
+    assert np.allclose(results1["ra"].values, results2["ra"].values)
+    assert np.allclose(results1["dec"].values, results2["dec"].values)
+    assert np.allclose(results1["z"].values, results2["z"].values)
+    assert np.allclose(results1["t0"].values, results2["t0"].values)
+    assert np.all(results1["nobs"].values == results2["nobs"].values)
+
+    # Check that the light curve columns are equal.
+    for idx in range(num_samples):
+        lc1 = results1.loc[idx]["lightcurve"]
+        lc2 = results2.loc[idx]["lightcurve"]
+
+        assert np.allclose(lc1["mjd"], lc2["mjd"])
+        assert np.allclose(lc1["flux_perfect"], lc2["flux_perfect"])
+        assert np.allclose(lc1["fluxerr"], lc2["fluxerr"])
+        assert np.allclose(lc1["flux"], lc2["flux"])
 
 
 def test_simulate_single_lightcurve(test_data_dir):
