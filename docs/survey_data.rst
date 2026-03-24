@@ -52,6 +52,13 @@ The ``RomanObsTable`` class stores pointing and noise information from the `Nanc
 Special preprocessing is needed to handle the spectra observations (spectra simulation within LightCurveLynx is in early testing). Please contact the LightCurveLynx team if you need help with this.
 
 
+SkyMapper Data (SkyMapperObsTable)
+-------------------------------------------------------------------------------
+The ``SkyMapperObsTable`` class stores pointing and noise information from the `SkyMapper Southern Survey <https://skymapper.anu.edu.au/>`__. NOTE: this class is in early development and still being validated.
+
+See the (:doc:`SkyMapper Example Notebook <notebooks/pre_executed/skymapper_example>`) for an example of how to load SkyMapper data using the ``SkyMapperObsTable`` class.
+
+
 ZTF Data (ZTFObsTable)
 -------------------------------------------------------------------------------
 The ``ZTFObsTable`` class stores pointing and noise information from the `Zwicky Transient Facility (ZTF) <https://www.ztf.caltech.edu/>`__ visit information.

@@ -70,6 +70,7 @@ in roughly alphabetical order of simulation package or simulation type).
     PZFlow Source Demo <notebooks/pre_executed/using_pzflow>
     Redback Models <notebooks/pre_executed/redback_example>
     Resampling LCLIB <notebooks/pre_executed/lclib_example>
+    SkyMapper Example (prototype stage) <notebooks/pre_executed/skymapper_example>
     SNANA Models <notebooks/pre_executed/snana_example>
     Synphot-based Models <notebooks/pre_executed/synphot_example>
 

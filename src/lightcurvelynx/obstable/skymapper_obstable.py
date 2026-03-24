@@ -1,6 +1,7 @@
 """A class for storing and working with SkyMapper data."""
 
 import logging
+import warnings
 
 import numpy as np
 from citation_compass import CiteClass
@@ -130,6 +131,11 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         make_detector_footprint=False,
         **kwargs,
     ):
+        warnings.warn(
+            "The SkyMapperObsTable is still in alpha development and may need further scientific"
+            " validation.",
+            UserWarning,
+        )
         colmap = self._default_colnames if colmap is None else colmap
 
         # If saturation thresholds are not provided, then set to the defaults.

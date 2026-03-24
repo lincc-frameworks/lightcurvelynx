@@ -23,7 +23,8 @@ def test_skymapper_obstable_init():
         "elong": [1.109, 1.121, 1.081, 1.07, 1.077],
     }
     survey_data_table = pd.DataFrame(survey_data)
-    obs_table = SkyMapperObsTable(table=survey_data_table, make_detector_footprint=True)
+    with pytest.warns(UserWarning):
+        obs_table = SkyMapperObsTable(table=survey_data_table, make_detector_footprint=True)
 
     assert "zp" in obs_table
     assert np.allclose(survey_data["ra_deg"], obs_table["ra"])

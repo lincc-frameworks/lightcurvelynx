@@ -29,11 +29,13 @@ def test_create_argus_obstable():
     pdf = pd.DataFrame(values, index=healpix)
 
     # We fail if we are missing a healpix column or index.
-    with pytest.raises(ValueError):
-        _ = ArgusHealpixObsTable(pdf)
+    with pytest.warns(UserWarning):
+        with pytest.raises(ValueError):
+            _ = ArgusHealpixObsTable(pdf)
 
     pdf.index.name = "healpix"
-    ops_data = ArgusHealpixObsTable(pdf)
+    with pytest.warns(UserWarning):
+        ops_data = ArgusHealpixObsTable(pdf)
     assert len(ops_data) == 6
     assert ops_data.healpix_nside == 32
     assert ops_data.healpix_depth == 5
@@ -104,7 +106,8 @@ def test_create_argus_obstable_from_dict():
         "nside": np.full_like(ra, 32),
     }
 
-    table = ArgusHealpixObsTable(values)
+    with pytest.warns(UserWarning):
+        table = ArgusHealpixObsTable(values)
     assert len(table) == 6
 
 
@@ -123,16 +126,19 @@ def test_create_argus_obstable_alternate():
     pdf = pd.DataFrame(values)
 
     # We fail without nside information.
-    with pytest.raises(ValueError):
-        _ = ArgusHealpixObsTable(pdf)
+    with pytest.warns(UserWarning):
+        with pytest.raises(ValueError):
+            _ = ArgusHealpixObsTable(pdf)
 
-    table = ArgusHealpixObsTable(pdf, nside=32)
+    with pytest.warns(UserWarning):
+        table = ArgusHealpixObsTable(pdf, nside=32)
     assert len(table) == 6
 
     # We fail if we have inconsistent nside information.
     pdf["nside"] = np.array([32, 32, 16, 32, 32, 32])
-    with pytest.raises(ValueError):
-        _ = ArgusHealpixObsTable(pdf)
+    with pytest.warns(UserWarning):
+        with pytest.raises(ValueError):
+            _ = ArgusHealpixObsTable(pdf)
 
 
 def test_argus_obstable_footprint():
@@ -148,7 +154,8 @@ def test_argus_obstable_footprint():
         "healpix": healpix,  # We move the index to a column
     }
     pdf = pd.DataFrame(values)
-    table = ArgusHealpixObsTable(pdf, nside=32)
+    with pytest.warns(UserWarning):
+        table = ArgusHealpixObsTable(pdf, nside=32)
     assert not table.uses_footprint()
 
     # We fail if we even call set_detector_footprint.
@@ -176,7 +183,8 @@ def test_argus_obstable_noise():
         "sky_electrons": np.full_like(ra, 243.357877),
     }
     pdf = pd.DataFrame(values)
-    table = ArgusHealpixObsTable(pdf, nside=32)
+    with pytest.warns(UserWarning):
+        table = ArgusHealpixObsTable(pdf, nside=32)
 
     assert "zp" in table
     assert np.all(table["zp"] > 15.0)

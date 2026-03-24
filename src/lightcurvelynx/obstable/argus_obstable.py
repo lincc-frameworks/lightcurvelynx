@@ -1,6 +1,7 @@
 """The ArgusObsTable stores observation information from the Argus survey."""
 
 import logging
+import warnings
 
 import astropy.units as u
 import numpy as np
@@ -87,6 +88,11 @@ class ArgusHealpixObsTable(ObsTable):
         nside=None,
         **kwargs,
     ):
+        warnings.warn(
+            "The ArgusHealpixObsTable is still in alpha development and needs further scientific validation.",
+            UserWarning,
+        )
+
         # Set some default values.
         self._spatial_data = None
         self._healpix_nside = nside
