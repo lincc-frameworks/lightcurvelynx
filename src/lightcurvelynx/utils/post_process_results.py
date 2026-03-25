@@ -225,7 +225,7 @@ def results_augment_lightcurves(results, *, min_snr=0.0):
     - AB magnitude
     - AB magnitude error = (2.5 / ln(10)) * (fluxerr / flux)
     - relative time = mjd - t0 (if t0 in the results table)
-    
+
     None is used for invalid entries, e.g. negative flux or zero flux error.
 
     The input data frame can either be a single light curve (pandas.DataFrame)

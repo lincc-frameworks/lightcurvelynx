@@ -184,7 +184,7 @@ class SinWaveModel(SEDModel):
 class LinearWavelengthModel(SEDModel):
     """A model that emits flux as a linear function of wavelength
     (that is constant over time)::
-     
+
         f(t, w) = scale * w + base.
 
     Includes optional minimum and maximum wavelength bounds to test

@@ -55,7 +55,7 @@ class FakeObsTable(ObsTable):
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
-        
+
         - survey_name: The name of the survey (default="FAKE_SURVEY").
     """
 

@@ -22,7 +22,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
     * ra - The object's right ascension in degrees. [from BasePhysicalModel]
     * redshift - The object's redshift. [from BasePhysicalModel]
     * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
-    
+
     Additional parameterized values are used for specific redback models.
 
     References

@@ -113,7 +113,7 @@ class BilbyPriorNode(FunctionNode, CiteClass):
 
         Raises
         ------
-        ValueError 
+        ValueError
             if func attribute is None.
         """
         # Sample from the Bilby prior model and extract the parameters from the dictionary.

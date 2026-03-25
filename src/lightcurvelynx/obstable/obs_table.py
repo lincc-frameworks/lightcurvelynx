@@ -380,9 +380,9 @@ class ObsTable:
 
         Raise
         -----
-        FileNotFoundError 
+        FileNotFoundError
             if the file does not exist.
-        ValueError 
+        ValueError
             if unable to load the table.
         """
         survey_data = read_sqlite_table(filename, table_name=None, sql_query=sql_query)
@@ -604,7 +604,7 @@ class ObsTable:
 
         Raise
         -----
-        FileExistsError 
+        FileExistsError
             if the file already exists and overwrite is False.
         """
         if_exists = "replace" if overwrite else "fail"
@@ -630,7 +630,7 @@ class ObsTable:
 
         Raise
         -----
-        FileExistsError 
+        FileExistsError
             if the file already exists and overwrite is False.
         """
         if not overwrite and Path(filename).is_file():

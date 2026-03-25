@@ -96,7 +96,7 @@ class OpSim(ObsTable):
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
-        
+
         - dark_current : The dark current for the camera in electrons per second per pixel.
         - ext_coeff: Mapping of filter names to extinction coefficients.
         - pixel_scale: The pixel scale for the camera in arcseconds per pixel.

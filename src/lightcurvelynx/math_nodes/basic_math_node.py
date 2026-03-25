@@ -18,7 +18,7 @@ class BasicMathNode(FunctionNode):
     variables in the expression must match the input variables provided by kwargs.
 
     Example::
-    
+
         my_node = BasicMathNode(
             "redshift + 10.0 * sin(phase)",
             redshift=host.redshift,

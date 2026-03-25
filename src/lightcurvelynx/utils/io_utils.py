@@ -30,11 +30,11 @@ class SquashOutput:
 
     Examples
     --------
-    >>> with SquashOutput():
+    >>> with SquashOutput():                       # doctest: +SKIP
     >>>     # Code that produces unwanted output
     >>>     ...
 
-    >>> with SquashOutput(stdout_to_log=True):
+    >>> with SquashOutput(stdout_to_log=True):     # doctest: +SKIP
     >>>     # Printed output is sent to logger.debug
     >>>     ...
     """
@@ -110,7 +110,7 @@ class SquashLogging:
 
     Examples
     --------
-    >>> with SquashLogging(logger=logging.getLogger(), level=logging.ERROR):
+    >>> with SquashLogging(logger=logging.getLogger(), level=logging.ERROR): # doctest: +SKIP
     >>>     # Code that produces unwanted logging at any level below logging.ERROR
     >>>     ...
     """
@@ -263,7 +263,7 @@ def read_grid_data(input_file, format="ascii", validate=False):
 
     Raises
     ------
-    ValueError 
+    ValueError
         if any data validation fails.
     """
     logging.debug(f"Loading file {input_file} (format={format})")

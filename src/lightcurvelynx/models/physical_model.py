@@ -416,7 +416,7 @@ class SEDModel(BasePhysicalModel):
     def compute_sed(self, times, wavelengths, graph_state, **kwargs):
         """Draw effect-free rest frame flux densities.
         The rest-frame flux is defined as::
-         
+
             F_nu = L_nu / 4*pi*D_L**2,
 
         where ``D_L`` is the luminosity distance.

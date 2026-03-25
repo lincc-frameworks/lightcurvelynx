@@ -357,7 +357,7 @@ class FiveSigmaDepthDeriver(ParamDeriver):
     """Class to derive the noise parameters from only the five-sigma depth information.
 
     Supported parameters (and their units) include:
-    
+
     - bandflux_error: The error associated with the computed bandflux.
     - bandflux_ref: The total flux that would be transmitted through the given bandfilter.
     - five_sigma_depth: Five-sigma depth in magnitudes

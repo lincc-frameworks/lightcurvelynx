@@ -17,7 +17,7 @@ class Microlensing(EffectModel, CiteClass):
     but they can be in the future.
 
     Values that should be parametrized are:
-    
+
     * lens_mass (M_L)
     * lens_distance (D_L)
     * source_distance (D_S)

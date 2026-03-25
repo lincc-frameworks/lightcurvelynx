@@ -962,10 +962,10 @@ class Passband:
 
         References
         ----------
-        .. [1] Rodrigo, C., Cruz, P., Aguilar, J.F., et al. 2024; 
+        .. [1] Rodrigo, C., Cruz, P., Aguilar, J.F., et al. 2024;
            https://ui.adsabs.harvard.edu/abs/2024A%26A...689A..93R/abstract
 
-        .. [2] Rodrigo, C., Solano, E., Bayo, A., 2012; 
+        .. [2] Rodrigo, C., Solano, E., Bayo, A., 2012;
            https://ui.adsabs.harvard.edu/abs/2012ivoa.rept.1015R/abstract
 
         .. [3] Rodrigo, C., Solano, E., 2020; https://ui.adsabs.harvard.edu/abs/2020sea..confE.182R/abstract

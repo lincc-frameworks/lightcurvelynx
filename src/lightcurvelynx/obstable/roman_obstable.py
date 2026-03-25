@@ -105,7 +105,7 @@ class RomanObsTable(ObsTable):
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
-        
+
         - dark_current : The dark current for the camera in electrons per second per pixel.
         - gain: The CCD gain (in e-/ADU).
         - pixel_scale: The pixel scale for the camera in arcseconds per pixel.
