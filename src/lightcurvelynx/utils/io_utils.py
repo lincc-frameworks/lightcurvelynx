@@ -31,11 +31,11 @@ class SquashOutput:
     Examples
     --------
     >>> with SquashOutput():                       # doctest: +SKIP
-    >>>     # Code that produces unwanted output   # doctest: +SKIP
+    >>>     # Code that produces unwanted output
     >>>     ...                                    # doctest: +SKIP
 
     >>> with SquashOutput(stdout_to_log=True):       # doctest: +SKIP
-    >>>     # Printed output is sent to logger.debug # doctest: +SKIP
+    >>>     # Printed output is sent to logger.debug
     >>>     ...                                      # doctest: +SKIP
     """
 
@@ -111,8 +111,8 @@ class SquashLogging:
     Examples
     --------
     >>> with SquashLogging(logger=logging.getLogger(), level=logging.ERROR):        # doctest: +SKIP
-    >>>     # Code that produces unwanted logging at any level below logging.ERROR  # doctest: +SKIP
-    >>>     ...
+    >>>     # Code that produces unwanted logging at any level below logging.ERROR
+    >>>     ...                                                                     # doctest: +SKIP
     """
 
     def __init__(self, logger, level=logging.ERROR):
