@@ -4,7 +4,12 @@ on:
     paths:
       - joss_paper/**
       - .github/workflows/draft-pdf.yml
-
+  pull_request:
+    paths:
+      - joss_paper/**
+      - .github/workflows/draft-pdf.yml
+  workflow_dispatch:
+  
 jobs:
   paper:
     runs-on: ubuntu-latest
