@@ -29,7 +29,7 @@ authors:
     affiliation: "1"
   - name: Katarzyna Kruszyńska
     orcid: 0000-0002-2729-5369
-    affiliation: “5”
+    affiliation: "5"
   - name: Alice Liu
     orcid: 0009-0009-3199-2627
     affiliation: "1"
@@ -84,9 +84,9 @@ As noted in the previous section, the astronomy community has developed a range 
 
 # Software design
 
-`LightCurveLynx` is designed to enable users to accurately and efficiently run simulations using a range of models and simulations packages. As such, it uses several core principles: (1) provide an extensible and flexible object-oriented API, (2) provide an interface to consistently sample from complex distributions, (3) allow users to save simulation state and replay all/part of the simulation for analysis and debugging, and (4) build in vectorization and parallelization for efficient runs. This modular structure (and the general program flow) are shown in \autoref{fig:flow}.
+`LightCurveLynx` is designed to enable users to accurately and efficiently run simulations using a range of models and simulation packages. As such, it uses several core principles: (1) provide an extensible and flexible object-oriented API, (2) provide an interface to consistently sample from complex distributions, (3) allow users to save simulation state and replay all/part of the simulation for analysis and debugging, and (4) build in vectorization and parallelization for efficient runs. This modular structure (and the general program flow) are shown in \autoref{fig:flow}.
 
-![The basic simulation flow for LightCurveLynx\label{fig:flow}](figure.png)
+![The basic simulation flow for `LightCurveLynx`\label{fig:flow}](figure.png)
 
 The simulation starts by sampling the model’s parameters from given statistical distributions. These parameters are combined with the information about where the survey is pointing to generate observed fluxes at either the spectral or band level. (We use “flux” as a synonym of “spectral flux density per unit frequency", while by “bandflux” we mean spectral flux density measured in the given photometric passband). `LightCurveLynx` uses the survey information, along with each object's position, to pre-filter evaluations to just those times when the object will be observed, saving significant computation over evaluating models at all times.  The simulation then applies line of sight effects, such as dust extinction, to the fluxes. If the fluxes were generated at the spectral level, they are integrated with the survey’s filter to produce band fluxes. Finally, instrument and detector noise are sampled and added based on the survey’s characteristics.
 
@@ -94,7 +94,7 @@ The models of each physical phenomena are subclassed from either `SEDModel`, whi
 
 Another advantage of this class hierarchy is that new features can be added in the parent classes and automatically applied to all models. One example of this is `LightCurveLynx`’s extrapolation functionality. Some common models, such as splines fit from data, only produce valid predictions over a finite range of times and wavelengths. By supporting bound checking and extrapolation in the parent classes, `LightCurveLynx` adds the ability to use an extrapolation function with any model.
 
-The parameter distributions are specified using Pythonic syntax as a directed acyclic graph of parameter relations that can draw distributions from packages such as numpy [@harris2020array], scipy [@SciPy2020], or pzflow [@crenshaw2025]. All parameter (and bookkeeping) information is handed through the `ParameterizedNode` base class and saved as a `GraphState` object, which allows the user to analyze or replay the simulations. Sampling is vectorized wherever possible and can be parallelized for efficiency.
+The parameter distributions are specified using Pythonic syntax as a directed acyclic graph of parameter relations that can draw distributions from packages such as numpy [@harris2020array], scipy [@SciPy2020], or pzflow [@crenshaw2025]. All parameter (and bookkeeping) information is handled through the `ParameterizedNode` base class and saved as a `GraphState` object, which allows the user to analyze or replay the simulations. Sampling is vectorized wherever possible and can be parallelized for efficiency.
 
 Line of sight effects are wrapped subclasses of the `EffectModel` class and can be added to any `BasePhysicalModel` object. This separates the implementation of the model from the effects and allows a single effect type (e.g. dust extinction) to be consistently applied to any physical model. This approach ensures consistency and reduces code duplication.
 
