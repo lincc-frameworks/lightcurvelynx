@@ -210,6 +210,65 @@ def test_simulation_info():
         )
 
 
+def test_simulation_info_random_split():
+    """Test that is we split two SimulationInfo objects with the same seed,
+    each result has the same set of RNG states."""
+    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0, node_label="source")
+
+    # Create a completely fake passband group and obstable for testing.
+    pb_group = PassbandGroup(
+        [
+            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "a"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "b"),
+        ]
+    )
+
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+    }
+    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    ops_data = FakeObsTable(
+        values,
+        noise_strategy="exhaustive",
+        zp_per_band=zp_per_band,
+        fwhm_px=2.0,
+        sky_bg_electrons=100.0,
+    )
+
+    # Create a SimulationInfo object with a given seed.
+    sim_info1 = SimulationInfo(
+        model=model,
+        num_samples=100,
+        obstable=ops_data,
+        passbands=pb_group,
+        rng=np.random.default_rng(12345),
+    )
+    batches1 = sim_info1.split(num_batches=5)
+    assert len(batches1) == 5
+
+    # Create a second SimulationInfo object with the same given seed.
+    sim_info2 = SimulationInfo(
+        model=model,
+        num_samples=100,
+        obstable=ops_data,
+        passbands=pb_group,
+        rng=np.random.default_rng(12345),
+    )
+    batches2 = sim_info2.split(num_batches=5)
+    assert len(batches2) == 5
+
+    # For each batch, test for each batch's random number generator is the same
+    # for both SimulationInfo objects (since they had the same seed). But the random
+    # number generators vary within the batch.
+    random_samples1 = [batch.rng.integers(0, 100000) for batch in batches1]
+    random_samples2 = [batch.rng.integers(0, 100000) for batch in batches2]
+    assert np.all(random_samples1 == random_samples2)
+    assert len(np.unique(random_samples1)) == 5
+
+
 def test_simulate_lightcurves(test_data_dir):
     """Test an end to end run of simulating the light curves."""
     # Load the OpSim data.
