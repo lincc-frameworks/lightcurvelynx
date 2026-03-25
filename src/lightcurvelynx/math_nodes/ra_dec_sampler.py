@@ -393,8 +393,8 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
     * MOCPY: https://github.com/cds-astro/mocpy/
     * CDS Healpix: https://github.com/cds-astro/cds-healpix-python
     * MOC: Pierre Fernique, Thomas Boch, Tom Donaldson, Daniel Durand , Wil O'Mullane, Martin Reinecke,
-    and Mark Taylor. MOC - HEALPix Multi-Order Coverage map Version 1.0. IVOA Recommendation 02 June 2014,
-    pages 602, Jun 2014. doi:10.5479/ADS/bib/2014ivoa.spec.0602F.
+      and Mark Taylor. MOC - HEALPix Multi-Order Coverage map Version 1.0. IVOA Recommendation 02 June 2014,
+      pages 602, Jun 2014. doi:10.5479/ADS/bib/2014ivoa.spec.0602F.
 
     Attributes
     ----------

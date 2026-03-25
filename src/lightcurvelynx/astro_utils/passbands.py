@@ -921,8 +921,8 @@ class Passband:
         **kwargs
             Additional keyword arguments (unused)
 
-        Reference
-        ---------
+        References
+        ----------
         snocosmo.Bandpass:
         https://sncosmo.readthedocs.io/en/stable/api/sncosmo.Bandpass.html
         """
@@ -958,15 +958,17 @@ class Passband:
         trim_quantile: float | None = 1e-3,
         **kwargs,
     ):
-        """Create a Passband object from the SVO Filter Profile Service.
+        """Create a Passband object from the SVO [1]_, [2]_, [3]_ Filter Profile Service.
 
         References
         ----------
-        This research has made use of the SVO Filter Profile Service "Carlos Rodrigo",
-        funded by MCIN/AEI/10.13039/501100011033/ through grant PID2023-146210NB-I00
-        * Rodrigo, C., Cruz, P., Aguilar, J.F., et al. 2024; https://ui.adsabs.harvard.edu/abs/2024A%26A...689A..93R/abstract
-        * Rodrigo, C., Solano, E., Bayo, A., 2012; https://ui.adsabs.harvard.edu/abs/2012ivoa.rept.1015R/abstract
-        * Rodrigo, C., Solano, E., 2020; https://ui.adsabs.harvard.edu/abs/2020sea..confE.182R/abstract
+        .. [1] Rodrigo, C., Cruz, P., Aguilar, J.F., et al. 2024; 
+           https://ui.adsabs.harvard.edu/abs/2024A%26A...689A..93R/abstract
+
+        .. [2] Rodrigo, C., Solano, E., Bayo, A., 2012; 
+           https://ui.adsabs.harvard.edu/abs/2012ivoa.rept.1015R/abstract
+
+        .. [3] Rodrigo, C., Solano, E., 2020; https://ui.adsabs.harvard.edu/abs/2020sea..confE.182R/abstract
 
         Parameters
         ----------

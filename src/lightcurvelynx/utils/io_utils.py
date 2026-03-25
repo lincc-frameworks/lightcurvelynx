@@ -28,15 +28,15 @@ class SquashOutput:
         The logging level to use when redirecting stdout and stderr to the logger.
         Default is logging.DEBUG.
 
-    Example
-    -------
-    with SquashOutput():
-        # Code that produces unwanted output
-        ...
+    Examples
+    --------
+    >>> with SquashOutput():
+    >>>     # Code that produces unwanted output
+    >>>     ...
 
-    with SquashOutput(stdout_to_log=True):
-        # Printed output is sent to logger.debug
-        ...
+    >>> with SquashOutput(stdout_to_log=True):
+    >>>     # Printed output is sent to logger.debug
+    >>>     ...
     """
 
     class _LoggerWriter:
@@ -108,11 +108,11 @@ class SquashLogging:
     level : int, optional
         The logging level below which to suppress logging output. Default: logging.ERROR
 
-    Example
-    -------
-    with SquashLogging(logger=logging.getLogger(), level=logging.ERROR):
-        # Code that produces unwanted logging at any level below logging.ERROR
-        ...
+    Examples
+    --------
+    >>> with SquashLogging(logger=logging.getLogger(), level=logging.ERROR):
+    >>>     # Code that produces unwanted logging at any level below logging.ERROR
+    >>>     ...
     """
 
     def __init__(self, logger, level=logging.ERROR):
@@ -263,7 +263,8 @@ def read_grid_data(input_file, format="ascii", validate=False):
 
     Raises
     ------
-    ValueError if any data validation fails.
+    ValueError 
+        if any data validation fails.
     """
     logging.debug(f"Loading file {input_file} (format={format})")
     if not Path(input_file).is_file():

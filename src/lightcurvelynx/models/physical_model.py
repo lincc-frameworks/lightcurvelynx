@@ -32,11 +32,12 @@ class BasePhysicalModel(ParameterizedNode, ABC):
     Physical models also support adding and applying a variety of effects, such as redshift.
 
     Parameterized values include:
-      * dec - The object's declination in degrees.
-      * distance - The object's luminosity distance in pc.
-      * ra - The object's right ascension in degrees.
-      * redshift - The object's redshift.
-      * t0 - The t0 of the zero phase (if applicable), date.
+
+    * dec - The object's declination in degrees.
+    * distance - The object's luminosity distance in pc.
+    * ra - The object's right ascension in degrees.
+    * redshift - The object's redshift.
+    * t0 - The t0 of the zero phase (if applicable), date.
 
     Parameters
     ----------
@@ -414,8 +415,11 @@ class SEDModel(BasePhysicalModel):
 
     def compute_sed(self, times, wavelengths, graph_state, **kwargs):
         """Draw effect-free rest frame flux densities.
-        The rest-frame flux is defined as F_nu = L_nu / 4*pi*D_L**2,
-        where D_L is the luminosity distance.
+        The rest-frame flux is defined as::
+         
+            F_nu = L_nu / 4*pi*D_L**2,
+
+        where ``D_L`` is the luminosity distance.
 
         Parameters
         ----------

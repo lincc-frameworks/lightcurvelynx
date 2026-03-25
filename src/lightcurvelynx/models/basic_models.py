@@ -9,12 +9,13 @@ class ConstantSEDModel(SEDModel):
     """A model with a constant SED over both wavelength and time.
 
     Parameterized values include:
-      * brightness - The inherent brightness
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - No effect for static model. [from BasePhysicalModel]
+
+    * brightness - The inherent brightness
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - No effect for static model. [from BasePhysicalModel]
 
     Parameters
     ----------
@@ -60,13 +61,14 @@ class StepModel(ConstantSEDModel):
     """A static model that is on for a fixed amount of time.
 
     Parameterized values include:
-      * brightness - The inherent brightness
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - The time the step function starts, in MJD.
-      * t1- The time the step function ends, in MJD.
+
+    * brightness - The inherent brightness
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - The time the step function starts, in MJD.
+    * t1- The time the step function ends, in MJD.
 
     Parameters
     ----------
@@ -114,18 +116,19 @@ class StepModel(ConstantSEDModel):
 
 
 class SinWaveModel(SEDModel):
-    """A model that emits a sine wave.
+    """A model that emits a sine wave::
 
-    flux = brightness + amplitude * sin(2 * pi * frequency * (time - t0))
+        flux = brightness + amplitude * sin(2 * pi * frequency * (time - t0))
 
     Parameterized values include:
-      * brightness - The inherent brightness
-      * frequency - The frequence of the sine wave.
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - The start of the sine wave's period. [from BasePhysicalModel]
+
+    * brightness - The inherent brightness
+    * frequency - The frequence of the sine wave.
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - The start of the sine wave's period. [from BasePhysicalModel]
 
     Parameters
     ----------
@@ -180,19 +183,22 @@ class SinWaveModel(SEDModel):
 
 class LinearWavelengthModel(SEDModel):
     """A model that emits flux as a linear function of wavelength
-    (that is constant over time): f(t, w) = scale * w + base.
+    (that is constant over time)::
+     
+        f(t, w) = scale * w + base.
 
     Includes optional minimum and maximum wavelength bounds to test
     extrapolation.
 
     Parameterized values include:
-      * linear_base - The base brightness in nJy.
-      * linear_scale - The slope of the linear function in nJy/Angstrom.
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - No effect for static model. [from BasePhysicalModel]
+
+    * linear_base - The base brightness in nJy.
+    * linear_scale - The slope of the linear function in nJy/Angstrom.
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - No effect for static model. [from BasePhysicalModel]
 
     Attributes
     ----------

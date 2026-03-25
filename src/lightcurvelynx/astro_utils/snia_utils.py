@@ -50,10 +50,12 @@ def num_snia_per_redshift_bin(
     """
     Calculate the number of SNe Ia in each redshift bin based on rates.
 
-    r_v(z) = dN/dz
-    V = comoving volume
-    T = length of survey in years
-    N = int r_v(z)dz * dV * dT
+    Calculated using::
+
+        r_v(z) = dN/dz
+        V = comoving volume
+        T = length of survey in years
+        N = int r_v(z)dz * dV * dT
 
     Parameters
     ----------

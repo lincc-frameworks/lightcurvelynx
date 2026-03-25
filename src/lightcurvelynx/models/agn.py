@@ -70,19 +70,20 @@ class AGN(SEDModel):
     """A model for an AGN.
 
     Parameterized values include:
-      * accretion_rate - The accretion rate (ME_dot) at Eddington luminosity in g/s.
-      * blackhole_accretion_rate - The accretion rate of the black hole in g/s.
-      * blackhole_mass - The black hole mass in solar mass.
-      * edd_ratio - The Eddington ratio.
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * inclination - The inclination of the accretion disk in radians (sampled uniformly
-        between 0 and pi/2).
-      * L_bol - The bolometric luminosity in erg/s.
-      * mag_i - The i band absolute magnitude.
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
+
+    * accretion_rate - The accretion rate (ME_dot) at Eddington luminosity in g/s.
+    * blackhole_accretion_rate - The accretion rate of the black hole in g/s.
+    * blackhole_mass - The black hole mass in solar mass.
+    * edd_ratio - The Eddington ratio.
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * inclination - The inclination of the accretion disk in radians (sampled uniformly
+      between 0 and pi/2).
+    * L_bol - The bolometric luminosity in erg/s.
+    * mag_i - The i band absolute magnitude.
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
 
     Parameters
     ----------

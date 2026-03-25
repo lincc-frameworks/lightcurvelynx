@@ -46,7 +46,7 @@ simulation will be reproducible.
 Can I Use a Random Seed with Parallelization?
 -------------------------------------------------------------------------------
 
-Yes. See the :doc:`parallelization notebook <notebooks/parallelization>` for details.
+Yes. See the :doc:`parallelization notebook <notebooks/parallel_runs>` for details.
 
 
 How Do I Use an External Simulation Package?
@@ -70,7 +70,7 @@ Can I Combine Multiple Surveys in a Single Simulation?
 
 Yes. LightCurveLynx allows you to combine multiple surveys in a single simulation by passing
 in multiple observation tables and corresponding passband groups. See the 
-:doc:`multiple surveys demo notebook <notebooks/multiple_surveys_demo>` for an example of how to do this.
+:doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` for an example of how to do this.
 
 
 Can I Simulate Spectra?

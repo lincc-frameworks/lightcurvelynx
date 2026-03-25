@@ -27,21 +27,23 @@ class BilbyPriorNode(FunctionNode, CiteClass):
     the `seed` argument when initializing the node or by calling the `set_seed` method. However,
     you cannot control the samples from this node via a simulation-wide random number generator.
 
-    References
-    ----------
-    @article{bilby_paper,
-        author = "Ashton, Gregory and others",
-        title = "{BILBY: A user-friendly Bayesian inference library for gravitational-wave astronomy}",
-        eprint = "1811.02042",
-        archivePrefix = "arXiv",
-        primaryClass = "astro-ph.IM",
-        doi = "10.3847/1538-4365/ab06fc",
-        journal = "Astrophys. J. Suppl.",
-        volume = "241",
-        number = "2",
-        pages = "27",
-        year = "2019"
-    }
+    Citations
+    ---------
+    Cite as::
+
+          @article{bilby_paper,
+              author = "Ashton, Gregory and others",
+              title = "{BILBY: A user-friendly Bayesian inference library for gravitational-wave astronomy}",
+              eprint = "1811.02042",
+              archivePrefix = "arXiv",
+              primaryClass = "astro-ph.IM",
+              doi = "10.3847/1538-4365/ab06fc",
+              journal = "Astrophys. J. Suppl.",
+              volume = "241",
+              number = "2",
+              pages = "27",
+              year = "2019"
+          }
     """
 
     def __init__(self, prior, seed=None, **kwargs):
@@ -111,7 +113,8 @@ class BilbyPriorNode(FunctionNode, CiteClass):
 
         Raises
         ------
-        ValueError is func attribute is None.
+        ValueError 
+            if func attribute is None.
         """
         # Sample from the Bilby prior model and extract the parameters from the dictionary.
         param_dict = self.prior.sample(graph_state.num_samples)
