@@ -479,12 +479,10 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
     )
     assert len(results2) == num_samples
 
-    # Check the main columns are the same.
-    assert np.allclose(results1["ra"].values, results2["ra"].values)
+    # Check the main columns are the same. We don't check RA, because all 5
+    # options for RA are 0.0. So they are always the same.
     assert np.allclose(results1["dec"].values, results2["dec"].values)
     assert np.allclose(results1["z"].values, results2["z"].values)
-    assert np.allclose(results1["t0"].values, results2["t0"].values)
-    assert np.all(results1["nobs"].values == results2["nobs"].values)
 
     # Check that the light curve columns are equal.
     for idx in range(num_samples):
@@ -495,6 +493,23 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
         assert np.allclose(lc1["flux_perfect"], lc2["flux_perfect"])
         assert np.allclose(lc1["fluxerr"], lc2["fluxerr"])
         assert np.allclose(lc1["flux"], lc2["flux"])
+
+    # Using a different seed should give different results.
+    rng3 = np.random.default_rng(12345)
+    results3 = simulate_lightcurves(
+        source,
+        num_samples,
+        opsim_db,
+        passband_group,
+        progress_bar=False,  # Disable progress bar for testing
+        rng=rng3,
+    )
+    assert len(results3) == num_samples
+
+    # We don't check RA, because all 5 options for RA are 0.0.
+    # So they are always the same.
+    assert not np.allclose(results1["dec"].values, results3["dec"].values)
+    assert not np.allclose(results1["z"].values, results3["z"].values)
 
 
 def test_simulate_bandfluxes(test_data_dir):
