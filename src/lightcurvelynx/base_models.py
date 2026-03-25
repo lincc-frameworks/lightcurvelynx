@@ -886,9 +886,9 @@ class FunctionNode(ParameterizedNode):
 
     Examples
     --------
-    >>> my_func = TDFunc(random.randint, a=1, b=10)
-    >>> value1 = my_func()      # Sample from default range
-    >>> value2 = my_func(b=20)  # Sample from extended range
+    >>> my_func = TDFunc(random.randint, a=1, b=10)                # doctest: +SKIP
+    >>> value1 = my_func()      # Sample from default range        # doctest: +SKIP
+    >>> value2 = my_func(b=20)  # Sample from extended range       # doctest: +SKIP
 
     Note
     ----
