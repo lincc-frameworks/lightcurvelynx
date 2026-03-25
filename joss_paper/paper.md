@@ -27,7 +27,7 @@ authors:
   - name: Melissa DeLucchi
     orcid: 0000-0002-1074-2900
     affiliation: "1"
-  - name: Katarzyna Kruszy{\'n}ska
+  - name: Katarzyna Kruszyńska
     orcid: 0000-0002-2729-5369
     affiliation: “5”
   - name: Alice Liu
