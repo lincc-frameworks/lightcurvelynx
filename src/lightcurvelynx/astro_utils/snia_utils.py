@@ -1,3 +1,5 @@
+from os import urandom
+
 import astropy.units as u
 import numpy as np
 import scipy.integrate as integrate
@@ -360,11 +362,17 @@ class SNCoordGivenPhysicalSep(FunctionNode):
         Any additional keyword arguments.
     """
 
-    def __init__(self, host_ra, host_dec, physical_sep_kpc, redshift, H0=73.0, Omega_m=0.3, **kwargs):
+    def __init__(self, host_ra, host_dec, physical_sep_kpc, redshift, H0=73.0, Omega_m=0.3, seed=None, **kwargs):
         # Create the cosmology once for this node.
         if not isinstance(H0, float) or not isinstance(Omega_m, float):  # pragma: no cover
             raise ValueError("H0 and Omega_m must be constants.")
         self.cosmo = FlatLambdaCDM(H0=H0, Om0=Omega_m)
+
+        # Get a default random number generator for this object, using the
+        # given seed if one is provided.
+        if seed is None:
+            seed = int.from_bytes(urandom(4), "big")
+        self._rng = np.random.default_rng(seed=seed)
 
         # Call the super class's constructor with the needed information.
         super().__init__(
@@ -399,7 +407,7 @@ class SNCoordGivenPhysicalSep(FunctionNode):
 
         return angular_sep_rad
 
-    def _sn_coord(self, host_ra, host_dec, physical_sep_kpc, redshift):
+    def _sn_coord(self, host_ra, host_dec, physical_sep_kpc, redshift, rng_info=None):
         """
         Function to generate SN coordinates given the host coordinates and angular separation.
 
@@ -413,6 +421,9 @@ class SNCoordGivenPhysicalSep(FunctionNode):
             The physical host-sn separation(s) in kpc.
         redshift : float or numpy.ndarray
             The redshift to convert physical separation to angular separation.
+        rng_info : numpy.random._generator.Generator or None, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator.
 
         Returns
         -------
@@ -422,9 +433,10 @@ class SNCoordGivenPhysicalSep(FunctionNode):
             SN DEC values (in degrees).
         """
 
+        rng = rng_info if rng_info is not None else self._rng
         self.angular_sep_rad = self._host_sn_angular_separation(physical_sep_kpc, redshift)
         center = SkyCoord(host_ra * u.deg, host_dec * u.deg, frame="icrs")
-        rand_pa = 2 * np.pi * np.random.random(center.size) * u.rad  # random position angle
+        rand_pa = 2 * np.pi * rng.random(center.size) * u.rad  # random position angle
 
         sn_coord = center.directional_offset_by(rand_pa, self.angular_sep_rad)
         ra = sn_coord.ra.deg
