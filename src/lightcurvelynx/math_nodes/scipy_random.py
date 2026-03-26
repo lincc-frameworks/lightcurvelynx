@@ -226,7 +226,7 @@ class ScipyRandomDist(FunctionNode):
         This object's random number generator.
     sample_size : tuple
         The shape of the array to generate for each sample. The actual returned value
-        will be (num_samples, *size). If an empty tuple will generate a single value per sample.
+        will be ``(num_samples, *size)``. If an empty tuple will generate a single value per sample.
     params_names : list of str
         The names of the parameters used to create the distribution object.
 
@@ -297,7 +297,8 @@ class ScipyRandomDist(FunctionNode):
 
         Raises
         ------
-        ValueError is func attribute is None.
+        ValueError
+            is func attribute is None.
         """
         # If a random number generator is given use that. Otherwise use the default one.
         rng = rng_info if rng_info is not None else self._rng

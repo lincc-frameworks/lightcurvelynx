@@ -11,17 +11,17 @@ from lightcurvelynx.models.physical_model import SEDModel
 class SALT2JaxModel(SEDModel, CiteClass):
     """A SALT2 model implemented with JAX for it can use auto-differentiation.
 
-    The model is defined in (Guy J., 2007) as:
+    The model is defined in (Guy J., 2007) as::
 
-    flux(time, wave) = x0 * [M0(time, wave) + x1 * M1(time, wave)] * exp(c * CL(wave))
+        flux(time, wave) = x0 * [M0(time, wave) + x1 * M1(time, wave)] * exp(c * CL(wave))
 
-    where x0, x1, and c are given parameters, M0 is the average spectral sequence,
-    M1 is the first compoment to describe variability, and CL is the average color
+    where ``x0``, ``x1``, and ``c`` are given parameters, ``M0`` is the average spectral sequence,
+    ``M1`` is the first compoment to describe variability, and ``CL`` is the average color
     correction law.
 
-    We use the formulation in sncosmo where CL is defined such that:
+    We use the formulation in sncosmo where CL is defined such that::
 
-    flux(time, wave) = x0 * [M0(time, wave) + x1 * M1(time, wave)] * 10 ** (-0.4 * c * CL(wave))
+        flux(time, wave) = x0 * [M0(time, wave) + x1 * M1(time, wave)] * 10 ** (-0.4 * c * CL(wave))
 
     This class is based on the sncosmo implementation at:
     https://github.com/sncosmo/sncosmo/blob/v2.10.1/sncosmo/models.py
@@ -29,15 +29,16 @@ class SALT2JaxModel(SEDModel, CiteClass):
     when auto-differentiation is not needed.
 
     Parameterized values include:
-      * c - The SALT2 c parameter.
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * period - The period of the source, in days.
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
-      * x0 - The SALT2 x0 parameter.
-      * x1 - The SALT2 x1 parameter.
+
+    * c - The SALT2 c parameter.
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * period - The period of the source, in days.
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
+    * x0 - The SALT2 x0 parameter.
+    * x1 - The SALT2 x1 parameter.
 
     References
     ----------

@@ -1,5 +1,8 @@
 import numpy as np
-from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
+from lightcurvelynx.astro_utils.noise_model import (
+    apply_noise,
+    poisson_bandflux_std,
+)
 from numpy.testing import assert_allclose
 
 
@@ -23,6 +26,26 @@ def test_poisson_flux_std_flux():
     )
 
     assert_allclose(flux_err, expected_flux_err, rtol=1e-10)
+
+
+def test_apply_noise():
+    """Test apply_noise function"""
+
+    bandflux = np.array([10.0, 20.0, 30.0, 30.0, 20.0, 10.0])
+    bandflux_err = np.array([0.1, 0.2, 0.3, 0.1, 0.2, 0.3])
+
+    # Use a fixed random seed for reproducibility
+    rng1 = np.random.default_rng(542)
+    noisy_bandflux1 = apply_noise(bandflux, bandflux_err, rng=rng1)
+
+    # The noisy blandflux should be different, but within 5 sigma.
+    assert not np.allclose(noisy_bandflux1, bandflux)
+    assert np.allclose(noisy_bandflux1, bandflux, atol=5 * bandflux_err)
+
+    # Using the same random seed should give the same result
+    rng2 = np.random.default_rng(542)
+    noisy_bandflux2 = apply_noise(bandflux, bandflux_err, rng=rng2)
+    assert np.allclose(noisy_bandflux1, noisy_bandflux2)
 
 
 def test_poisson_flux_std_sky():

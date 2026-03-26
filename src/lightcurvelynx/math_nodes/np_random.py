@@ -18,7 +18,7 @@ class NumpyRandomFunc(FunctionNode):
         This object's random number generator.
     sample_size : tuple
         The shape of the array to generate for each sample. The actual returned value
-        will be (num_samples, *size). If an empty tuple will generate a single value per sample.
+        will be ``(num_samples, *size)``. If an empty tuple will generate a single value per sample.
 
     Parameters
     ----------
@@ -26,13 +26,13 @@ class NumpyRandomFunc(FunctionNode):
         The name of the random function to use.
     size : int or tuple, optional
         The shape of the array to generate for each sample. Actual
-        returned value will be (num_samples, *size).
+        returned value will be ``(num_samples, *size)``.
         Default: None (single values for each sample)
     seed : int, optional
         The seed to use.
 
-    Notes
-    -----
+    Note
+    ----
     Since we need to create a new random number generator for this object
     and use that generator's functions, we cannot pass in the function directly.
     Instead we need to pass in the function's name.
@@ -41,11 +41,11 @@ class NumpyRandomFunc(FunctionNode):
 
     Examples
     --------
-    # Create a uniform random number generator between 100.0 and 150.0
-    func_node = NumpyRandomFunc("uniform", low=100.0, high=150.0)
+    >>> # Create a uniform random number generator between 100.0 and 150.0
+    >>> func_node = NumpyRandomFunc("uniform", low=100.0, high=150.0)
 
-    # Create a normal random number generator with mean=5.0 and std=1.0
-    func_node = NumpyRandomFunc("normal", loc=5.0, scale=1.0)
+    >>> # Create a normal random number generator with mean=5.0 and std=1.0
+    >>> func_node = NumpyRandomFunc("normal", loc=5.0, scale=1.0)
     """
 
     def __init__(self, func_name, size=1, seed=None, **kwargs):
@@ -168,7 +168,7 @@ class NumpyMultivariateNormalFunc(FunctionNode):
         This object's random number generator.
     sample_size : tuple
         The shape of the array to generate for each sample. The actual returned value
-        will be (num_samples, *size). If an empty tuple will generate a single value per sample.
+        will be ``(num_samples, *size)``. If an empty tuple will generate a single value per sample.
 
     Parameters
     ----------
@@ -181,11 +181,11 @@ class NumpyMultivariateNormalFunc(FunctionNode):
 
     Examples
     --------
-    # Create a uniform random number generator between 100.0 and 150.0
-    func_node = NumpyRandomFunc("uniform", low=100.0, high=150.0)
+    >>> # Create a uniform random number generator between 100.0 and 150.0
+    >>> func_node = NumpyRandomFunc("uniform", low=100.0, high=150.0)
 
-    # Create a normal random number generator with mean=5.0 and std=1.0
-    func_node = NumpyRandomFunc("normal", loc=5.0, scale=1.0)
+    >>> # Create a normal random number generator with mean=5.0 and std=1.0
+    >>> func_node = NumpyRandomFunc("normal", loc=5.0, scale=1.0)
     """
 
     def __init__(self, mean, cov, seed=None, **kwargs):

@@ -49,22 +49,20 @@ def poisson_bandflux_std(
     array_like
         Simulated bandflux noise, in the same units as the input bandflux.
 
-    Notes
-    -----
-
+    Note
+    ----
     1. We do not specify units for the input parameters, but they
-    should be consistent with each other.
-
+       should be consistent with each other.
     2. Here we assume that the sky and source photon noises follow
-    Poisson statistics in the limit of large number of photons,
-    e.g. they are both considered to be normal distributed with
-    variance equal to the number of photons. Readout noise is
-    assumed to be Poisson distributed with variance (squared mean)
-    equal to the square of the given value. Dark current is assumed
-    to be Poisson distributed with variance (squared mean) equal
-    to the product of the given value and the exposure time.
-    The output is Poisson standard deviation of the sum of all
-    these noises converted to the flux units.
+       Poisson statistics in the limit of large number of photons,
+       e.g. they are both considered to be normal distributed with
+       variance equal to the number of photons. Readout noise is
+       assumed to be Poisson distributed with variance (squared mean)
+       equal to the square of the given value. Dark current is assumed
+       to be Poisson distributed with variance (squared mean) equal
+       to the product of the given value and the exposure time.
+       The output is Poisson standard deviation of the sum of all
+       these noises converted to the flux units.
     """
     # Get variances, in electrons^2
 

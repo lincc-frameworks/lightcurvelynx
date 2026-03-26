@@ -17,8 +17,8 @@ GAUSS_EFF_AREA2FWHM_SQ = np.pi / (2 * np.log(2))  # ~2.266
 It is roughly 2.266, see
 https://smtn-002.lsst.io/v/OPSIM-1171/index.html.
 
-Notes
------
+Note
+----
 This is derived from two facts for a symmetric 2D Gaussian:
 
 1. FWHM² = 8 * ln(2) * sigma², where sigma is the standard deviation.
@@ -69,6 +69,6 @@ lsst_filter_plot_colors = {
 }
 """The default colors for plotting to match.
 
-We provide values for the filters with and without the "LSST_" prefix.
+We provide values for the filters with and without the ``"LSST_"`` prefix.
 https://community.lsst.org/t/lsst-filter-profiles/1463
 """

@@ -38,11 +38,13 @@ class BagleWrapperModel(BandfluxModel, CiteClass):
     """A wrapper for single bagle models (one model type).
 
     Parameterized values include:
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
+
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
+
     Additional parameterized values are used for specific bagle models.
 
     Note
@@ -182,23 +184,25 @@ class BagleMultiWrapperModel(BandfluxModel, CiteClass):
     """A wrapper for multiple bagle models (multiple model types).
 
     Parameterized values include:
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
+
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
+
     Additional parameterized values are used for specific bagle models.
 
     References
     ----------
-    * Lu et al., “The BAGLE Python Package for Bayesian Analysis of Gravitational Lensing Events”,
+    * Lu et al., "The BAGLE Python Package for Bayesian Analysis of Gravitational Lensing Events",
       AAS Journals, submitted
-    * Bhadra et al., “Modeling Binary Lenses and Sources with the BAGLE Python Package”, AAS Journals,
+    * Bhadra et al., "Modeling Binary Lenses and Sources with the BAGLE Python Package", AAS Journals,
       submitted
-    * Chen et al., “Adjusting Gaussian Process Priors for BAGLE's Gravitational Microlensing Model Fits”,
+    * Chen et al., "Adjusting Gaussian Process Priors for BAGLE's Gravitational Microlensing Model Fits",
       in prep.
 
-    Atttributes
+    Attributes
     -----------
     num_models : int
         The number of models being wrapped.
@@ -211,7 +215,8 @@ class BagleMultiWrapperModel(BandfluxModel, CiteClass):
     models : list of str or class
         The bagle model classes (or their names as strings) to use in the simulation.
     parameter_dicts : dict
-        A list of parameter dictionaries, one per model, each containing.
+        A list of parameter dictionaries, one per model, each containing the parameter names
+        and values for use in the corresponding model.
     filter_idx : dict, optional
         A mapping from filter names to indices expected by the bagle model. If not provided,
         a default mapping for ugrizy filters to [0, 1, 2, 3, 4, 5] will be used.

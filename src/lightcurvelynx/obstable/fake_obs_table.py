@@ -45,14 +45,17 @@ class FakeObsTable(ObsTable):
         The name of the strategy to use to derive any missing table parameters needed to compute the noise.
         This is used if the table does not provide all the necessary parameters for the given noise model.
         Should be one of:
+
         - "given_only" : Use only the parameters already provided in the table and survey values.
         - "five_sigma_depth": Derive approximate noise from only the 5-sigma depth values if available
           (no survey values like PSF, sky background, etc. are used).
         - "exhaustive": Try all available derivation methods to fill in missing parameters.
+
         Default is "given_only" which does not attempt any derivation.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
+
         - survey_name: The name of the survey (default="FAKE_SURVEY").
     """
 

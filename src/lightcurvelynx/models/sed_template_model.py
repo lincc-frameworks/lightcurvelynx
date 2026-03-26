@@ -260,12 +260,13 @@ class SEDTemplateModel(SEDModel):
     the baseline value for that wavelength (0.0 by default).
 
     Parameterized values include:
-      * dec - The object's declination in degrees.
-      * ra - The object's right ascension in degrees.
-      * t0 - The t0 of the zero phase (if applicable), date.
 
-    Notes
-    -----
+    * dec - The object's declination in degrees.
+    * ra - The object's right ascension in degrees.
+    * t0 - The t0 of the zero phase (if applicable), date.
+
+    Note
+    ----
     If you are interested in generating light curves from band-level curves, use
     the LightcurveTemplateModel in src/lightcurvelynx/models/lightcurve_template_model.py
     instead.
@@ -279,9 +280,10 @@ class SEDTemplateModel(SEDModel):
     ----------
     template : numpy.ndarray or SEDTemplate
         The SED template information can be passed as either:
+
         1) a SEDTemplate instance, or
         2) a numpy array of shape (T, 3) array where the first column is phase (in days), the
-        second column is wavelength (in Angstroms), and the third column is the SED value (in nJy).
+           second column is wavelength (in Angstroms), and the third column is the SED value (in nJy).
     sed_data_t0 : float or None, optional
         The reference epoch of the input template. This is the time stamp of the input
         array that will correspond to t0 in the model. This is only required if the template
@@ -383,9 +385,10 @@ class MultiSEDTemplateModel(SEDModel):
     SEDTemplate documentation for details on how each template is handled.
 
     Parameterized values include:
-      * dec - The object's declination in degrees.
-      * ra - The object's right ascension in degrees.
-      * t0 - The t0 of the zero phase (if applicable), date.
+
+    * dec - The object's declination in degrees.
+    * ra - The object's right ascension in degrees.
+    * t0 - The t0 of the zero phase (if applicable), date.
 
     Attributes
     ----------
@@ -458,10 +461,11 @@ class SIMSEDModel(MultiSEDTemplateModel):
     """Generate fluxes from SIMSED-formated data.
 
     Parameterized values include:
-      * dec - The object's declination in degrees.
-      * distance - The object's luminosity distance in pc.
-      * ra - The object's right ascension in degrees.
-      * t0 - The t0 of the zero phase (if applicable), date.
+
+    * dec - The object's declination in degrees.
+    * distance - The object's luminosity distance in pc.
+    * ra - The object's right ascension in degrees.
+    * t0 - The t0 of the zero phase (if applicable), date.
 
     Attributes
     ----------

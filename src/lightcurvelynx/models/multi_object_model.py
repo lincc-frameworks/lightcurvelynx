@@ -21,7 +21,9 @@ class MultiObjectModel(SEDModel):
     While this model supports both BandfluxModels and SED, it inherits from SEDModel
     to pick up some of the helper functions.
 
-    Note: Each object may have its own sampled (RA, dec) position, which are not
+    Note
+    ----
+    Each object may have its own sampled (RA, dec) position, which are not
     required to align.
 
     Attributes
@@ -212,7 +214,9 @@ class AdditiveMultiObjectModel(MultiObjectModel):
     for each model (for unresolved objects).  The observer frame effects are applied
     to the weighted sum of the models.
 
-    Note: Each model may have its own sampled (RA, dec) position, which are not
+    Note
+    ----
+    Each model may have its own sampled (RA, dec) position, which are not
     required to align.
 
     Attributes

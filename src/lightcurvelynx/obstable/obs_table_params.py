@@ -239,6 +239,7 @@ class FullParamDeriver(ParamDeriver):
     """Class to derive all supported parameters from an ObsTable using predefined formulas.
 
     Supported parameters (and their units) include:
+
     - adu_bias: Bias level in ADU
     - dark_current: Dark current in electrons / second / pixel
     - exptime: Exposure time in seconds
@@ -323,7 +324,7 @@ class FullParamDeriver(ParamDeriver):
         self.add_formula(
             parameter="sky_bg_electrons",
             inputs=["skybrightness", "pixel_scale", "zp"],
-            formula=lambda skybrightness, pixel_scale, zp: (mag2flux(skybrightness) * pixel_scale**2 / zp),
+            formula=lambda skybrightness, pixel_scale, zp: mag2flux(skybrightness) * pixel_scale**2 / zp,
         )
         self.add_formula(
             parameter="sky_bg_electrons",
@@ -356,6 +357,7 @@ class FiveSigmaDepthDeriver(ParamDeriver):
     """Class to derive the noise parameters from only the five-sigma depth information.
 
     Supported parameters (and their units) include:
+
     - bandflux_error: The error associated with the computed bandflux.
     - bandflux_ref: The total flux that would be transmitted through the given bandfilter.
     - five_sigma_depth: Five-sigma depth in magnitudes
