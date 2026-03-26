@@ -11,7 +11,6 @@ from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.noise_model import apply_noise
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
-from lightcurvelynx.models.physical_model import BandfluxModel
 from lightcurvelynx.utils.post_process_results import concat_results
 
 logger = logging.getLogger(__name__)
@@ -323,14 +322,6 @@ def _simulate_lightcurves_batch(simulation_info):
     num_surveys = len(obstable)
     if num_surveys != len(passbands):
         raise ValueError("Number of surveys must match number of passbands.")
-
-    # We do not currently support bandflux models with multiple surveys because
-    # a bandflux model is defined relative to a single survey.
-    if num_surveys > 1 and isinstance(model, BandfluxModel):
-        raise ValueError(
-            "Simulating a BandfluxModel with multiple surveys is currently not supported, "
-            "because the bandflux model is defined relative to the filters of a single survey."
-        )
 
     # Create a dictionary for the object level information, including any saved parameters.
     # Some of these are placeholders (e.g. nobs) until they can be filled in during the simulation.
