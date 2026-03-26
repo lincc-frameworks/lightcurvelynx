@@ -89,7 +89,7 @@ class GraphState:
     def __contains__(self, key):
         """Check if the GraphState contains an entry.
 
-        The key can be::
+        The key can be:
 
         1) the name of a node (in which case we return True if the node exists),
         2) the full name of a parameter (in which case we return True if the
@@ -155,7 +155,7 @@ class GraphState:
     def __getitem__(self, key):
         """Access an entry in the GraphState.
 
-        The key can be::
+        The key can be:
 
         1) the name of a node (in which case we return that node's dictionary of
            parameter_name -> value),

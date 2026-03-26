@@ -32,7 +32,7 @@ _opsim_view_radius = 1.75
 """The angular radius of the observation field (in degrees)."""
 
 _opsim_ccd_radius = 0.1574
-"""The approximate angular radius of a single LSST CCD (in degrees). Each CCD is 800*800 arcsec^2.
+"""The approximate angular radius of a single LSST CCD (in degrees). Each CCD is ``800*800 arcsec^2``.
 We approximate the radius as 800 arcsec/ sqrt(2). We overestimate slightly, because this value is
 used in range searches. More exact filtering is done with the detector footprint.
 """
@@ -96,6 +96,7 @@ class OpSim(ObsTable):
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
+
         - dark_current : The dark current for the camera in electrons per second per pixel.
         - ext_coeff: Mapping of filter names to extinction coefficients.
         - pixel_scale: The pixel scale for the camera in arcseconds per pixel.
@@ -356,12 +357,13 @@ def oversample_opsim(
         The start and end times of the observations in MJD.
         None means to use the minimum (maximum) time in
         all the observations found for the given pointing.
-        Time is being samples as np.arange(*time_range, delta_t).
+        Time is being samples as ``np.arange(*time_range, delta_t)``.
     bands : list of str or None, optional
         The list of bands to include in the oversampled table.
         The default is to include all bands found for the given pointing.
     strategy : str, optional
         The strategy to select prototype observations.
+
         - "darkest_sky" selects the observations with the minimal sky brightness
           (maximum "skyBrightness" value) in each band. This is the default.
         - "random" selects the observations randomly. Fixed seed is used.

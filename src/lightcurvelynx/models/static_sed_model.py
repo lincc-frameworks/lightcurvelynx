@@ -13,11 +13,12 @@ class StaticSEDModel(SEDModel):
     the flux from that SED at all time steps.
 
     Parameterized values include:
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - The t0 of the zero phase, date. [from BasePhysicalModel. Not used.]
+
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - The t0 of the zero phase, date. [from BasePhysicalModel. Not used.]
 
     Attributes
     ----------
@@ -205,11 +206,12 @@ class StaticBandfluxModel(BandfluxModel):
     and uses that at all time steps.
 
     Parameterized values include:
-      * dec - The object's declination in degrees. [from PhysicalModel]
-      * distance - The object's luminosity distance in pc. [from PhysicalModel]
-      * ra - The object's right ascension in degrees. [from PhysicalModel]
-      * redshift - The object's redshift. [from PhysicalModel]
-      * t0 - The t0 of the zero phase, date. [from PhysicalModel. Not used.]
+
+    * dec - The object's declination in degrees. [from PhysicalModel]
+    * distance - The object's luminosity distance in pc. [from PhysicalModel]
+    * ra - The object's right ascension in degrees. [from PhysicalModel]
+    * redshift - The object's redshift. [from PhysicalModel]
+    * t0 - The t0 of the zero phase, date. [from PhysicalModel. Not used.]
 
     Attributes
     ----------

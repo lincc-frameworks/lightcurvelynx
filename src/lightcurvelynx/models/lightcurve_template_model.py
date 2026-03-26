@@ -67,11 +67,12 @@ class LightcurveBandData:
     ----------
     lightcurves : dict or numpy.ndarray
         The light curves can be passed as either:
+
         1) a dictionary mapping filter names to a (T, 2) array of the bandfluxes in that filter
-        where the first column is time and the second column is the light curve values, or
+           where the first column is time and the second column is the light curve values, or
         2) a numpy array of shape (T, 3) array where the first column is time (in days), the
-        second column is the light curve values, and the third column is the filter.
-        The light curve values can be either fluxes (in nJy) or AB magnitudes (if magnitudes_in=True).
+           second column is the light curve values, and the third column is the filter.
+           The light curve values can be either fluxes (in nJy) or AB magnitudes (if magnitudes_in=True).
     lc_data_t0 : float
         The reference epoch of the input light curve. The model will be shifted
         to the model's lc_data_t0 when computing fluxes.  For periodic light curves, this either
@@ -409,9 +410,10 @@ class BaseLightcurveBandTemplateModel(BandfluxModel, ABC):
     to generate the SED (the wavelengths must match).
 
     Parameterized values include:
-      * dec - The object's declination in degrees.
-      * ra - The object's right ascension in degrees.
-      * t0 - The t0 of the zero phase (if applicable), date.
+
+    * dec - The object's declination in degrees.
+    * ra - The object's right ascension in degrees.
+    * t0 - The t0 of the zero phase (if applicable), date.
 
     Attributes
     ----------
@@ -528,12 +530,13 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     to generate the SED (the wavelengths must match).
 
     Parameterized values include:
-      * dec - The object's declination in degrees.
-      * ra - The object's right ascension in degrees.
-      * t0 - The t0 of the zero phase (if applicable), date.
 
-    Notes
-    -----
+    * dec - The object's declination in degrees.
+    * ra - The object's right ascension in degrees.
+    * t0 - The t0 of the zero phase (if applicable), date.
+
+    Note
+    ----
     If you are interested in generating SED-level data, use the SEDTemplateModel in
     src/lightcurvelynx/models/sed_template_model.py instead.
 
@@ -552,11 +555,12 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     ----------
     lightcurves : dict or numpy.ndarray
         The light curves can be passed as either:
+
         1) a LightcurveBandData instance,
         2) a dictionary mapping filter names to a (T, 2) array of the bandlfuxes in that filter
-        where the first column is time and the second column is the flux density (in nJy), or
+           where the first column is time and the second column is the flux density (in nJy), or
         3) a numpy array of shape (T, 3) array where the first column is time (in days), the
-        second column is the bandflux (in nJy), and the third column is the filter.
+           second column is the bandflux (in nJy), and the third column is the filter.
     passbands : Passband or PassbandGroup or None
         The passband or passband group to use for defining the light curve. If provided (not None),
         these will be used to create box-shaped SED basis functions for each filter.
@@ -754,9 +758,10 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     to generate the SED (the wavelengths must match).
 
     Parameterized values include:
-      * dec - The object's declination in degrees.
-      * ra - The object's right ascension in degrees.
-      * t0 - The t0 of the zero phase (if applicable), date.
+
+    * dec - The object's declination in degrees.
+    * ra - The object's right ascension in degrees.
+    * t0 - The t0 of the zero phase (if applicable), date.
 
     Attributes
     ----------

@@ -266,7 +266,7 @@ so they may be memory intensive.
 **NOTE**: Not all subpackages work with distributed computation yet. If you get an error about
 not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
 
-The :doc:`parallelization notebook <notebooks/parallelization>` provides an example of how to use
+The :doc:`parallelization notebook <notebooks/parallel_runs>` provides an example of how to use
 LightCurveLynx to run simulations in parallel including using dask and ray.
 
 

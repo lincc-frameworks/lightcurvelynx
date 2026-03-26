@@ -1,9 +1,5 @@
-
-.. lightcurvelynx documentation main file.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
 LightCurveLynx - A fast and nimble package for realistic time-domain light curve simulations
-========================================================================================
+============================================================================================
 
 Time-Domain Forward-Modeling for the Rubin Era
 -------------------------------------------------------------------------------

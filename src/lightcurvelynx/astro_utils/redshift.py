@@ -44,8 +44,8 @@ def obs_to_rest_times_waves(observer_frame_times, observer_frame_wavelengths, re
 def rest_to_obs_flux(flux_density, redshift):
     """Convert rest-frame flux to obs-frame flux.
     The (1+redshift) factor is applied to preserve bolometric flux.
-    The rest-frame flux is defined as F_nu = L_nu / 4*pi*D_L**2,
-    where D_L is the luminosity distance.
+    The rest-frame flux is defined as ``F_nu = L_nu / 4*pi*D_L**2``,
+    where ``D_L`` is the luminosity distance.
 
     Parameters
     ----------

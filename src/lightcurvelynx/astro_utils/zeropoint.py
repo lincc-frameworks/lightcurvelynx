@@ -57,8 +57,8 @@ def magnitude_electron_zeropoint(
     ndarray of float
         AB mags that produces 1 electron.
 
-    Notes
-    -----
+    Note
+    ----
     Typically, zeropoints are defined as the magnitude of a source
     which would produce 1 count in a 1 second exposure -
     here we use *electron* counts, not ADU counts.
@@ -128,19 +128,23 @@ def calculate_zp_from_maglim(
 ):
     """Calculate zero points based on the 5-sigma mag limit.
 
-    snr = flux/fluxerr
-    fluxerr = sqrt(flux + sky*npix*gain + readnoise**2*nexposure*npix + darkcurrent*npix*exptime*nexposure)
-    5 = flux/fluxerr
-    25 = flux**2/(flux + sky*npix*Gain + readnoise**2*nexposure*npix + darkcurrent*npix*exptime*nexposure)
-    flux**2 - 25*flux -25*( sky*npix*Gain
-                            + readnoise**2*nexposure*npix
-                            + darkcurrent*npix*exptime*nexposure)
-                        = 0
-    flux = 12.5 + 0.5*sqrt(625
-                            + 100( sky*npix*Gain
-                            + readnoise**2*nexposure*npix
-                            + darkcurrent*npix*exptime*nexposure) )
-    zp = 2.5*log10(flux) + maglim
+    Calculated according to formulas::
+
+        snr = flux/fluxerr
+        fluxerr = sqrt( flux + sky*npix*gain + readnoise**2*nexposure*npix
+                        + darkcurrent*npix*exptime*nexposure)
+        5 = flux/fluxerr
+        25 = flux**2/( flux + sky*npix*Gain + readnoise**2*nexposure*npix
+                       + darkcurrent*npix*exptime*nexposure)
+        flux**2 - 25*flux -25*( sky*npix*Gain
+                                + readnoise**2*nexposure*npix
+                                + darkcurrent*npix*exptime*nexposure)
+                            = 0
+        flux = 12.5 + 0.5*sqrt(625
+                                + 100( sky*npix*Gain
+                                       + readnoise**2*nexposure*npix
+                                       + darkcurrent*npix*exptime*nexposure) )
+        zp = 2.5*log10(flux) + maglim
 
     Parameters
     ----------

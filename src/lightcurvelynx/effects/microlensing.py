@@ -17,6 +17,7 @@ class Microlensing(EffectModel, CiteClass):
     but they can be in the future.
 
     Values that should be parametrized are:
+
     * lens_mass (M_L)
     * lens_distance (D_L)
     * source_distance (D_S)
@@ -27,9 +28,9 @@ class Microlensing(EffectModel, CiteClass):
     ----------
     * V. Bozza, MNRAS 408 (2010) 2188: general algorithm for binary lensing;
     * V. Bozza, E. Bachelet, F. Bartolic, T. Heintz, A. Hoag, M. Hundertmark, MNRAS 479 (2018) 5157:
-    BinaryMag2 function, Extended-Source-Point-Lens methods;
+      BinaryMag2 function, Extended-Source-Point-Lens methods;
     * V. Bozza, E. Khalouei and E. Bachelet, MNRAS 505 (2021) 126: astrometry, generalized limb darkening,
-    Keplerian orbital motion;
+      Keplerian orbital motion;
     * V. Bozza, v. Saggese, G. Covone, P. Rota & J. Zhang, A&A 694 (2025) 219: multiple lenses.
 
     Attributes

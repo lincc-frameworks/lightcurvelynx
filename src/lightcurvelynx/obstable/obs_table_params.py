@@ -239,6 +239,7 @@ class FullParamDeriver(ParamDeriver):
     """Class to derive all supported parameters from an ObsTable using predefined formulas.
 
     Supported parameters (and their units) include:
+
     - adu_bias: Bias level in ADU
     - dark_current: Dark current in electrons / second / pixel
     - exptime: Exposure time in seconds
@@ -356,6 +357,7 @@ class FiveSigmaDepthDeriver(ParamDeriver):
     """Class to derive the noise parameters from only the five-sigma depth information.
 
     Supported parameters (and their units) include:
+
     - bandflux_error: The error associated with the computed bandflux.
     - bandflux_ref: The total flux that would be transmitted through the given bandfilter.
     - five_sigma_depth: Five-sigma depth in magnitudes

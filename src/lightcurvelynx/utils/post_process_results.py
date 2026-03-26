@@ -174,11 +174,13 @@ def lightcurve_compute_mag(flux, fluxerr):
 def augment_single_lightcurve(results, *, min_snr=0.0, t0=None):
     """Add columns to a single lightcurve DataFrame with additional information
     about the light curve, including:
+
     - SNR = flux / fluxerr
     - detection flag (True if SNR >= min_snr, False otherwise)
     - AB magnitude
     - AB magnitude error = (2.5 / ln(10)) * (fluxerr / flux)
     - relative time = mjd - t0 (if t0 is provided)
+
     None is used for invalid entries, e.g. negative flux or zero flux error.
 
     Parameters
@@ -217,11 +219,13 @@ def augment_single_lightcurve(results, *, min_snr=0.0, t0=None):
 def results_augment_lightcurves(results, *, min_snr=0.0):
     """Add columns to the results DataFrame with additional information
     about each light curve, including:
+
     - SNR = flux / fluxerr
     - detection flag (True if SNR >= min_snr, False otherwise)
     - AB magnitude
     - AB magnitude error = (2.5 / ln(10)) * (fluxerr / flux)
     - relative time = mjd - t0 (if t0 in the results table)
+
     None is used for invalid entries, e.g. negative flux or zero flux error.
 
     The input data frame can either be a single light curve (pandas.DataFrame)
