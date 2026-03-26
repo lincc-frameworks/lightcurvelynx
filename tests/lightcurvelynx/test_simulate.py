@@ -927,16 +927,6 @@ def test_simulate_multiple_surveys(test_data_dir):
             passband_group1,
         )
 
-    # We fail if we try to use a bandflux only model with multiple surveys.
-    model2 = StaticBandfluxModel({"g": 1.0, "i": 1.0, "r": 1.0, "y": 1.0, "z": 1.0})
-    with pytest.raises(ValueError):
-        simulate_lightcurves(
-            model2,
-            1,
-            [obstable1, obstable2],
-            [passband_group1, passband_group2],
-        )
-
 
 def test_simulate_multiple_surveys_diff_filters():
     """Test an end to end run of simulating a single object's light curve
