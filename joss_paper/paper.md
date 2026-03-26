@@ -103,9 +103,14 @@ Survey specific information is encapsulated in subclasses of the `ObsTable`, all
 Parallelization is natively supported using Python's `ProcessPoolExecutor` as well as multi-machine parallelization such as [Dask](https://www.dask.org/) or [Ray](https://docs.ray.io/en/latest/index.html).
 
 
-# Research Impact
+# Research impact statement
 
 The software was verified by simulating populations of Type Ia supernovae under the ZTF survey and comparing the simulated population statistics to actual data [@dai2026]. The software is currently being used for multiple population studies under the proposed Rubin LSST cadence, including simulating RR Lyrae light curves and microlensing events.
+
+
+# Installation and usage
+
+`LightCurveLynx` can be installed with `pip` or through `conda-forge`. See the instructions on our [readthedocs page](https://lightcurvelynx.readthedocs.io/en/latest/). The project's [tutorial notebooks documentation page](https://lightcurvelynx.readthedocs.io/en/latest/notebooks.html) provides a variety of usage examples and technical deep dives.
 
 
 # AI usage disclosure
