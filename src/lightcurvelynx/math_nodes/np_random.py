@@ -18,7 +18,7 @@ class NumpyRandomFunc(FunctionNode):
         This object's random number generator.
     sample_size : tuple
         The shape of the array to generate for each sample. The actual returned value
-        will be (num_samples, size). If an empty tuple will generate a single value per sample.
+        will be ``(num_samples, *size)``. If an empty tuple will generate a single value per sample.
 
     Parameters
     ----------
@@ -26,7 +26,7 @@ class NumpyRandomFunc(FunctionNode):
         The name of the random function to use.
     size : int or tuple, optional
         The shape of the array to generate for each sample. Actual
-        returned value will be (num_samples, size).
+        returned value will be ``(num_samples, *size)``.
         Default: None (single values for each sample)
     seed : int, optional
         The seed to use.
@@ -168,7 +168,7 @@ class NumpyMultivariateNormalFunc(FunctionNode):
         This object's random number generator.
     sample_size : tuple
         The shape of the array to generate for each sample. The actual returned value
-        will be (num_samples, size). If an empty tuple will generate a single value per sample.
+        will be ``(num_samples, *size)``. If an empty tuple will generate a single value per sample.
 
     Parameters
     ----------
