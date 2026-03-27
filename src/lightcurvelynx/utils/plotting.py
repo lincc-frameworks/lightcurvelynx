@@ -7,24 +7,19 @@ import numpy as np
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
 
 
-def _build_colormap(filters):
+def _build_colormap(unique_filters):
     """Construct a colormap for a given set of filters."""
-    filter_list = list(filters)
+    filter_list = list(unique_filters)
     n_filters = len(filter_list)
 
-    if n_filters <= 7:
-        # If we have a small number of filters, we can use the default
-        # matplotlib named colors.
-        colors = "bgrcmyk"
-        colormap = {f: colors[i] for i, f in enumerate(filter_list)}
+    # Use different colormaps depending on the number of filters.
+    if n_filters <= 10:
+        cmap = plt.get_cmap("tab10", 10)
     elif n_filters <= 20:
-        # For 8-20 filters, we can use a qualitative colormap.
-        cmap = plt.get_cmap("tab20", n_filters)
-        colormap = {f: cmap(i) for i, f in enumerate(filter_list)}
+        cmap = plt.get_cmap("tab20", 20)
     else:
-        # If we have a large number of filters, we can use a continuous colormap.
         cmap = plt.get_cmap("turbo", n_filters)
-        colormap = {f: cmap(i) for i, f in enumerate(filter_list)}
+    colormap = {f: cmap(i) for i, f in enumerate(filter_list)}
 
     return colormap
 

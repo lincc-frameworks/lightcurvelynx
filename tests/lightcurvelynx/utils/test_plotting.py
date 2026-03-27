@@ -11,29 +11,13 @@ from lightcurvelynx.utils.plotting import (
 
 def test_build_colormap():
     """Test that we can build a colormap."""
-    # A small color map should use string colors.
-    filters = ["A", "B", "C", "D", "E"]
-    colormap = _build_colormap(filters)
-    assert isinstance(colormap, dict)
-    assert set(colormap.keys()) == set(filters)
-    for color in colormap.values():
-        assert color in ["b", "g", "r", "c", "m", "y", "k"]
-
-    # Larger color maps [8, 20] should use qualitative colors.
-    filters = [f"Filter {i}" for i in range(15)]
-    colormap = _build_colormap(filters)
-    assert isinstance(colormap, dict)
-    assert set(colormap.keys()) == set(filters)
-    for color in colormap.values():
-        assert isinstance(color, tuple) and len(color) == 4  # RGBA color
-
-    # Very large color maps should use continuous colors.
-    filters = [f"Filter {i}" for i in range(25)]
-    colormap = _build_colormap(filters)
-    assert isinstance(colormap, dict)
-    assert set(colormap.keys()) == set(filters)
-    for color in colormap.values():
-        assert isinstance(color, tuple) and len(color) == 4  # RGBA color
+    for n_filters in [5, 10, 20, 50]:
+        filters = [f"Filter {i}" for i in range(n_filters)]
+        colormap = _build_colormap(filters)
+        assert isinstance(colormap, dict)
+        assert set(colormap.keys()) == set(filters)
+        for color in colormap.values():
+            assert isinstance(color, tuple) and len(color) == 4  # RGBA color
 
 
 def test_plot_lightcurves():
