@@ -1,11 +1,101 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from lightcurvelynx.utils.plotting import plot_bandflux_lightcurves, plot_flux_spectrogram, plot_lightcurves
+from lightcurvelynx.utils.plotting import (
+    _build_colormap,
+    plot_bandflux_lightcurves,
+    plot_flux_spectrogram,
+    plot_lightcurves,
+)
+
+
+def test_build_colormap():
+    """Test that we can build a colormap."""
+    # A small color map should use string colors.
+    filters = ["A", "B", "C", "D", "E"]
+    colormap = _build_colormap(filters)
+    assert isinstance(colormap, dict)
+    assert set(colormap.keys()) == set(filters)
+    for color in colormap.values():
+        assert color in ["b", "g", "r", "c", "m", "y", "k"]
+
+    # Larger color maps [8, 20] should use qualitative colors.
+    filters = [f"Filter {i}" for i in range(15)]
+    colormap = _build_colormap(filters)
+    assert isinstance(colormap, dict)
+    assert set(colormap.keys()) == set(filters)
+    for color in colormap.values():
+        assert isinstance(color, tuple) and len(color) == 4  # RGBA color
+
+    # Very large color maps should use continuous colors.
+    filters = [f"Filter {i}" for i in range(25)]
+    colormap = _build_colormap(filters)
+    assert isinstance(colormap, dict)
+    assert set(colormap.keys()) == set(filters)
+    for color in colormap.values():
+        assert isinstance(color, tuple) and len(color) == 4  # RGBA color
 
 
 def test_plot_lightcurves():
     """Test that we can plot light curves."""
+    # Test minimal input
+    fluxes = np.array([1.0, 2.0, 3.0])
+    times = np.array([1.0, 2.0, 3.0])
+    plot_lightcurves(fluxes, times)
+    # ValueError if len(times) != len(fluxes)
+    wrong_times = np.array([1.0, 2.0])
+    with pytest.raises(ValueError):
+        plot_lightcurves(fluxes, wrong_times)
+
+    # ValueError if len(filters) != len(fluxes)
+    wrong_filters = ["none"]
+    with pytest.raises(ValueError):
+        plot_lightcurves(fluxes, times, filters=wrong_filters)
+
+    # ValueError if fluxerrs given and len(fluxerrs) != len(fluxes)
+    wrong_fluxerrs = np.array([0.1, 0.2])
+    with pytest.raises(ValueError):
+        plot_lightcurves(fluxes, times, fluxerrs=wrong_fluxerrs)
+
+    # Test with almost all inputs given:
+    # - fluxerrs (same length as fluxes to pass the ValueError check)
+    # - filters (same length as fluxes to pass the ValueError check)
+    # - title
+    fluxerrs = np.array([0.1, 0.2, 0.3])
+    filters = np.array(["A", "B", "A"])
+    title = "Test Title"
+    plot_lightcurves(fluxes, times, fluxerrs=fluxerrs, filters=filters, title=title)
+
+    # Plot in magnitudes.
+    plot_lightcurves(fluxes, times, fluxerrs=fluxerrs, filters=filters, plot_magnitudes=True)
+
+    # Plot in magnitudes with an underlying model.
+    underlying_model = {
+        "A": np.array([1.5, 2.5, 3.5]),
+        "B": np.array([2.0, 3.0, 4.0]),
+        "times": np.array([1.0, 2.0, 3.0]),
+    }
+    plot_lightcurves(
+        fluxes,
+        times,
+        fluxerrs=fluxerrs,
+        filters=filters,
+        plot_magnitudes=True,
+        underlying_model=underlying_model,
+    )
+
+    # Test with all inputs given:
+    # - ax (matplotlib axes object)
+    # - figure (matplotlib figure object)
+    fig, ax = plt.subplots()
+    plot_lightcurves(fluxes, times, fluxerrs=fluxerrs, filters=filters, ax=ax, figure=fig, title=title)
+
+    # Close all the open figures.
+    plt.close("all")
+
+
+def test_plot_lightcurves_many_filters():
+    """Test that we can plot light curves with many filters."""
     # Test minimal input
     fluxes = np.array([1.0, 2.0, 3.0])
     times = np.array([1.0, 2.0, 3.0])
