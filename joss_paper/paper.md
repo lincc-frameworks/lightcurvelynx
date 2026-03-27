@@ -30,8 +30,8 @@ authors:
   - name: Katarzyna Kruszyńska
     orcid: 0000-0002-2729-5369
     affiliation: "5"
-  - name: Alice Liu
-    orcid: 0009-0009-3199-2627
+  - name: Wanqing Liu
+    orcid: 0009-0008-3199-2627
     affiliation: "1"
   - name: Rachel Mandelbaum
     orcid: 0000-0003-2271-1527
