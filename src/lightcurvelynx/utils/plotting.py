@@ -7,6 +7,23 @@ import numpy as np
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
 
 
+def _build_colormap(unique_filters):
+    """Construct a colormap for a given set of filters."""
+    filter_list = list(unique_filters)
+    n_filters = len(filter_list)
+
+    # Use different colormaps depending on the number of filters.
+    if n_filters <= 10:
+        cmap = plt.get_cmap("tab10", 10)
+    elif n_filters <= 20:
+        cmap = plt.get_cmap("tab20", 20)
+    else:
+        cmap = plt.get_cmap("turbo", n_filters)
+    colormap = {f: cmap(i) for i, f in enumerate(filter_list)}
+
+    return colormap
+
+
 def plot_lightcurves(
     fluxes,
     times,
@@ -104,10 +121,7 @@ def plot_lightcurves(
         raise ValueError(f"Mismatched array sizes for fluxes ({num_pts}) and fluxerrs ({len(fluxerrs)}).")
 
     if colormap is None:
-        colormap = {}
-        colors = "bgrcmyk"
-        for i, f in enumerate(unique_filters):
-            colormap[f] = colors[i]
+        colormap = _build_colormap(unique_filters)
 
     # Plot the data with one line for each filter.
     for filter in unique_filters:
