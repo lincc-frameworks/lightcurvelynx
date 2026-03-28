@@ -120,7 +120,7 @@ All top level design, including control flow and class structure, was designed b
 
 # Acknowledgements
 
-This project is supported by Schmidt Sciences.
+This project is supported by Schmidt Sciences. The authors acknowledge support from the DiRAC Institute in the Department of Astronomy at the University of Washington. The DiRAC Institute is supported through generous gifts from the Charles and Lisa Simonyi Fund for Arts and Sciences, and the Washington Research Foundation.
 
 
 # References
