@@ -99,6 +99,7 @@ to the LightCurveLynx package.
     Adding New Effect Types <notebooks/adding_effects>
     Creating Time Varying Effects <notebooks/time_varying_effects>
     Adding Custom Surveys <notebooks/custom_survey>
+    Creating Custom Function Nodes <notebooks/function_nodes>
 
 
 The following notebooks provide more in-depth examples of how to wrap external packages

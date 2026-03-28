@@ -11,12 +11,13 @@ class PeriodicVariableStar(PeriodicModel, ABC):
     """A model for a periodic variable star.
 
     Parameterized values include:
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * period - The period of the source, in days. [from PeriodicModel]
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
+
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * period - The period of the source, in days. [from PeriodicModel]
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
 
     Attributes
     ----------
@@ -97,18 +98,19 @@ class EclipsingBinaryStar(PeriodicVariableStar):
     No limb darkening, reflection, or other effects are included.
 
     Parameterized values include:
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * inclination - The inclination of the orbit, in degrees.
-      * major_semiaxis - The major semiaxis of the orbit, in AU.
-      * period - The period of the source, in days. [from PeriodicModel]
-      * primary_radius - The radius of the primary star, in solar radii.
-      * primary_temperature - The effective temperature of the primary star, in kelvins.
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * secondary_radius - The radius of the secondary star, in solar radii.
-      * secondary_temperature - The effective temperature of the secondary star, in kelvins.
-      * t0 - The t0 of the zero phase, date. [from PeriodicModel]
+
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * inclination - The inclination of the orbit, in degrees.
+    * major_semiaxis - The major semiaxis of the orbit, in AU.
+    * period - The period of the source, in days. [from PeriodicModel]
+    * primary_radius - The radius of the primary star, in solar radii.
+    * primary_temperature - The effective temperature of the primary star, in kelvins.
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * secondary_radius - The radius of the secondary star, in solar radii.
+    * secondary_temperature - The effective temperature of the secondary star, in kelvins.
+    * t0 - The t0 of the zero phase, date. [from PeriodicModel]
 
     Attributes
     ----------

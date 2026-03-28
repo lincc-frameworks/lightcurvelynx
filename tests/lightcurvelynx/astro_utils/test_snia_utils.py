@@ -138,8 +138,8 @@ def test_sn_coord_given_physical_separation():
         host_ra, host_dec, physical_sep_kpc, redshift, H0=H0, Omega_m=Omega_m, node_label="sncoord"
     )
     state = sncoord.sample_parameters()
-    sn_ra = state["sncoord.ra"][0]
-    sn_dec = state["sncoord.dec"][0]
+    sn_ra = state["sncoord.ra"]
+    sn_dec = state["sncoord.dec"]
     # calculate physical separation from host coord, sn coor, and redshift
     host = SkyCoord(host_ra * u.deg, host_dec * u.deg)
     sn = SkyCoord(sn_ra * u.deg, sn_dec * u.deg)
@@ -153,3 +153,49 @@ def test_sn_coord_given_physical_separation():
     calculated_physical_sep = sep.to(u.rad).value * DA
 
     assert np.isclose(calculated_physical_sep, physical_sep_kpc)
+
+
+def test_sn_coord_given_physical_separation_fixed():
+    """Test that we always get the same sn coor if we fix the position angle."""
+    sncoord = SNCoordGivenPhysicalSep(
+        0.0,  # host_ra
+        0.0,  # host_dec
+        1.0,  # physical_sep_kpc
+        0.5,  # redshift
+        pos_angle=1.0,
+        H0=70.0,
+        Omega_m=0.3,
+        node_label="sncoord_fixed_pa",
+    )
+    state = sncoord.sample_parameters(num_samples=100)
+    assert len(np.unique(state["sncoord_fixed_pa.ra"])) == 1
+    assert len(np.unique(state["sncoord_fixed_pa.dec"])) == 1
+
+
+def test_sn_coord_given_physical_separation_seeded():
+    """Test that we can control the randomness with a seeded random number generator."""
+    sncoord = SNCoordGivenPhysicalSep(
+        0.0,  # host_ra
+        0.0,  # host_dec
+        1.0,  # physical_sep_kpc
+        0.5,  # redshift
+        H0=70.0,
+        Omega_m=0.3,
+        node_label="sncoord_fixed_pa",
+    )
+
+    # Given the same seed, we should get the same results.
+    rng1 = np.random.default_rng(seed=234)
+    state1 = sncoord.sample_parameters(num_samples=1000, rng_info=rng1)
+
+    rng2 = np.random.default_rng(seed=234)
+    state2 = sncoord.sample_parameters(num_samples=1000, rng_info=rng2)
+
+    assert np.allclose(state1["sncoord_fixed_pa.ra"], state2["sncoord_fixed_pa.ra"])
+    assert np.allclose(state1["sncoord_fixed_pa.dec"], state2["sncoord_fixed_pa.dec"])
+
+    # Given a different seed, we should get different results.
+    rng3 = np.random.default_rng(seed=235)
+    state3 = sncoord.sample_parameters(num_samples=1000, rng_info=rng3)
+    assert not np.allclose(state1["sncoord_fixed_pa.ra"], state3["sncoord_fixed_pa.ra"])
+    assert not np.allclose(state1["sncoord_fixed_pa.dec"], state3["sncoord_fixed_pa.dec"])

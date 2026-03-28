@@ -262,6 +262,7 @@ class BicubicAxis:
     with restrictions on acceptable data to match the SALT2 and SALT3 models.
 
     Restrictions include:
+
     - Data must contain at least 3 values.
     - Data must be sorted.
     - Data must be spaced at regular steps.
@@ -331,10 +332,10 @@ class BicubicAxis:
 
     def find_indices(self, query_pts):
         """Finds the first index *before* each of the query values with
-        the n - 1 index in each dimension mapped to n - 2.
+        the n - 1 index in each dimension mapped to n - 2::
 
-        values[idx[i]] <= query_pts[i] < values[idx[i] + 1]
-        for all i where idx[i] > 0 and idx[i] < n - 2.
+            values[idx[i]] <= query_pts[i] < values[idx[i] + 1]
+            for all i where idx[i] > 0 and idx[i] < n - 2.
 
         Parameters
         ----------

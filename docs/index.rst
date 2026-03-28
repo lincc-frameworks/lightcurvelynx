@@ -1,9 +1,5 @@
-
-.. lightcurvelynx documentation main file.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
 LightCurveLynx - A fast and nimble package for realistic time-domain light curve simulations
-========================================================================================
+============================================================================================
 
 Time-Domain Forward-Modeling for the Rubin Era
 -------------------------------------------------------------------------------
@@ -62,8 +58,11 @@ key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *Base
 
 The `full source code <https://github.com/lincc-frameworks/lightcurvelynx>`_ is available on GitHub.
 
+If you are interested in installing from `source <https://github.com/lincc-frameworks/lightcurvelynx>`_,
+or contributing to the package, see the :doc:`contribution guide <contributing>`.
 
-Getting Started
+
+Installation
 -------------------------------------------------------------------------------
 
 You can install LightCurveLynx from PyPI with pip or from conda-forge with conda. We recommend using a dedicated environment.
@@ -97,10 +96,8 @@ You can install LightCurveLynx from PyPI with pip or from conda-forge with conda
 
 Since LightCurveLynx relies on a large number of existing packages, not all of the packages
 are installed in the default configuration. For example the microlensing (`VBMicrolensing`),
-pzflow (`pzflow`), and sncosmo (`sncosmo`) packages are not included by default. If you try to
-import a module that is not installed, LightCurveLynx will raise an `ImportError` with information on which
-packages you need to install. You will need to install these manually. You can also install most
-optional dependencies with:
+pzflow (`pzflow`), and sncosmo (`sncosmo`) packages are not included by default. You can
+install most of the optional depenencies with the "all" extra:
 
 .. tab-set::
    :sync-group: packagemanager
@@ -119,12 +116,17 @@ optional dependencies with:
 
          conda install conda-forge::lightcurvelynx conda-forge::pzflow conda-forge::sncosmo
 
+If you need a package that is not installed as part of the default or all configurations, 
+LightCurveLynx will provide a message with the information on which packages you need to install
+and how to install them.
+
+Example Usage
+-------------------------------------------------------------------------------
+
 See our selection of :doc:`tutorial notebooks <notebooks>` for usage examples.
 We recommend starting with the :doc:`introduction notebook <notebooks/introduction>`
 to get a high level overview.
 
-If you are interested in installing from `source <https://github.com/lincc-frameworks/lightcurvelynx>`_,
-or contributing to the package, see the :doc:`contribution guide <contributing>`.
 
 Running LightCurveLynx in a Jupyter Notebook
 -------------------------------------------------------------------------------

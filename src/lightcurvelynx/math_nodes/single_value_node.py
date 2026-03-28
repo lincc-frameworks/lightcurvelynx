@@ -6,8 +6,8 @@ from lightcurvelynx.base_models import ParameterizedNode
 class SingleVariableNode(ParameterizedNode):
     """A ParameterizedNode holding a single pre-defined variable.
 
-    Notes
-    -----
+    Note
+    ----
     Often used for testing, but can be used to make graph dependencies clearer.
 
     Parameters

@@ -9,13 +9,14 @@ class GaussianGalaxy(SEDModel):
     as the distance from the center increases.
 
     Parameterized values include:
-      * brightness - The inherent brightness at the center of the galaxy.
-      * dec - The object's declination in degrees. [from BasePhysicalModel]
-      * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-      * galaxy_radius_std - The standard deviation of the brightness in degrees.
-      * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-      * redshift - The object's redshift. [from BasePhysicalModel]
-      * t0 - No effect for a GuassianGalaxy. [from BasePhysicalModel]
+
+    * brightness - The inherent brightness at the center of the galaxy.
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * galaxy_radius_std - The standard deviation of the brightness in degrees.
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - No effect for a GuassianGalaxy. [from BasePhysicalModel]
 
     Parameters
     ----------

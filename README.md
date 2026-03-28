@@ -26,8 +26,7 @@ The software package consists of multiple stages:
 3. Effect models (such as dust extinction), and
 4. Survey characteristics (such as cadence, filters, and noise).
 
-For an overview of the package, we recommend starting with introduction notebook 
-(at `notebooks/introduction.ipynb`).
+For an overview of the package, we recommend starting with [introduction notebook](https://lightcurvelynx.readthedocs.io/en/latest/notebooks/introduction.html).
 
 
 ## Installation
@@ -41,6 +40,24 @@ pip install lightcurvelynx
 ```
 conda install conda-forge::lightcurvelynx
 ```
+
+Since LightCurveLynx relies on a large number of existing packages, not all of the packages
+are installed in the default configuration. You can install most of the optional depenencies
+with the "dev" or "all" extras:
+
+```
+pip install 'lightcurvelynx[all]'
+```
+
+If you need a package that is not installed as part of the default or all configurations, 
+LightCurveLynx will provide a message with the information on which packages you need to install
+and how to install them.
+
+
+## Example Usage
+
+The [tutorial notebooks documentation page](https://lightcurvelynx.readthedocs.io/en/latest/notebooks.html)
+provides a variety of usage examples and technical deep dives.
 
 
 ## Dev Guide - Getting Started

@@ -12,22 +12,23 @@ from lightcurvelynx.models.physical_model import SEDModel
 class BayesnModel(SEDModel, CiteClass):
     """A bayesian model for supernova type Ia
 
-    The model is defined in (Mandel et al 2022) as:
+    The model is defined in (Mandel et al 2022) as::
 
-    flux(time, wave) = H_grid * 10 ** (-0.4 * W_grid) * 10 ** (-0.4 * (distmod _ m_abs))
+        flux(time, wave) = H_grid * 10 ** (-0.4 * W_grid) * 10 ** (-0.4 * (distmod _ m_abs))
 
     This class is based on the bayesian implementation at:
     https://github.com/bayesn/bayesn/blob/main/bayesn/bayesn_model.py
 
     Parameterized values include:
-        * ra - The object's right ascension in degrees. [from BasePhysicalModel]
-        * dec - The object's declination in degrees. [from BasePhysicalModel]
-        * redshift - The object's redshift. [from BasePhysicalModel]
-        * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
-        * Amplitude - The fixed normalisation factor for distance modulus. [from Amplitude class]
-        * theta - The bayeSN theta parameter.
-        * Av - The bayeSN Av parameter.
-        * Rv - The bayeSN Rv parameter.
+
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
+    * Amplitude - The fixed normalisation factor for distance modulus. [from Amplitude class]
+    * theta - The bayeSN theta parameter.
+    * Av - The bayeSN Av parameter.
+    * Rv - The bayeSN Rv parameter.
 
     References
     ----------

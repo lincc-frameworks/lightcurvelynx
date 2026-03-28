@@ -23,8 +23,8 @@ def black_body_luminosity_density_per_solid(temperature, radius, wavelengths):
         A length N array of luminosity density values.
         Output is in CGS units of erg/s/Hz/steradian.
 
-    Notes
-    -----
+    Note
+    ----
     lightcurvelynx adopts nJy as the unit of flux density, so the output of this
     function may need to be converted to compatible units,
     e.g. multiply by 10^32.

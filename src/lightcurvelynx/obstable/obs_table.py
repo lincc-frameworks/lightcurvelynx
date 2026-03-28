@@ -380,8 +380,10 @@ class ObsTable:
 
         Raise
         -----
-        FileNotFoundError if the file does not exist.
-        ValueError if unable to load the table.
+        FileNotFoundError
+            if the file does not exist.
+        ValueError
+            if unable to load the table.
         """
         survey_data = read_sqlite_table(filename, table_name=None, sql_query=sql_query)
         return cls(survey_data, **kwargs)
@@ -602,7 +604,8 @@ class ObsTable:
 
         Raise
         -----
-        FileExistsError if the file already exists and overwrite is False.
+        FileExistsError
+            if the file already exists and overwrite is False.
         """
         if_exists = "replace" if overwrite else "fail"
 
@@ -627,7 +630,8 @@ class ObsTable:
 
         Raise
         -----
-        FileExistsError if the file already exists and overwrite is False.
+        FileExistsError
+            if the file already exists and overwrite is False.
         """
         if not overwrite and Path(filename).is_file():
             raise FileExistsError(f"File {filename} already exists.")
@@ -898,7 +902,7 @@ class ObsTable:
         When a flux value exceeds the saturation limit, it is clipped to the limit and flagged as
         saturated. In these cases, the associated flux_error is increased to account for the offset
         introduced by clipping. The new error is computed as the quadrature sum of the original
-        flux_error and the difference between the orginal flux and saturated flux:
+        flux_error and the difference between the orginal flux and saturated flux::
 
             saturated_flux_error = sqrt(flux_error**2 + (flux - saturated_flux)**2)
 
@@ -919,12 +923,13 @@ class ObsTable:
         -------
         tuple of numpy.ndarray
             A tuple with three entries:
+
             - The saturated flux in nJy. A size S x T array where S is the
-                number of samples in the graph state and T is the number of time points.
+              number of samples in the graph state and T is the number of time points.
             - The saturated flux error in nJy. A size S x T array where S is the
-                number of samples in the graph state and T is the number of time points.
+              number of samples in the graph state and T is the number of time points.
             - A boolean array indicating which points are saturated. A size S x T array
-                where S is the number of samples in the graph state and T is the number of time points.
+              where S is the number of samples in the graph state and T is the number of time points.
         """
         if self._saturation_mags is None:
             logger.info("Saturation thresholds not provided. Skipping saturation computation.")
