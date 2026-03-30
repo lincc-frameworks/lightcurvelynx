@@ -70,7 +70,7 @@ def test_sncosmo_models_hsiao_t0() -> None:
     assert np.allclose(fluxes_flam, [67.83696271, 67.98471119, 47.20395186])
 
     # We raise a warning if the time is outside the bounds.
-    with np.testing.assert_warns(UserWarning):
+    with pytest.warns(UserWarning):
         model.evaluate_sed([0.0], [4000.0, 4100.0])
 
 
