@@ -94,11 +94,23 @@ class GoPreauxModel(SEDModel, CiteClass):
         elif np.all([hasattr(model, attr) for attr in ["phase_grid", "wl_grid", "surface"]]):
             # If we have a SurfaceArray object, we transform that into an SEDTemplate object,
             # so we do not need to import gopreaux.
+            sed_values = np.asarray(model.surface)
+            expected_shape = (len(model.phase_grid), len(model.wl_grid))
+            transposed_shape = (len(model.wl_grid), len(model.phase_grid))
+            if sed_values.shape == transposed_shape:
+                sed_values = sed_values.T
+            elif sed_values.shape != expected_shape:
+                raise ValueError(
+                    "SurfaceArray surface shape does not match phase/wavelength grid dimensions. "
+                    f"Expected {expected_shape} (or transposed {transposed_shape}), got {sed_values.shape}."
+                )
+
             self.model = SEDTemplate.from_components(
-                phase_grid=model.phase_grid,
-                wl_grid=model.wl_grid,
-                surface=model.surface,
+                times=model.phase_grid,
+                wavelengths=model.wl_grid,
+                sed_values=sed_values,
             )
+            self._using_sed_template = True
 
             # Check phase and wavelength if given.
             if phases is not None and not np.allclose(model.phase_grid, phases):
@@ -122,10 +134,21 @@ class GoPreauxModel(SEDModel, CiteClass):
         if template_mags is not None:
             if self.phases is None or self.wavelengths is None:
                 raise ValueError("Need to specify phases and wavelengths if using template mags.")
+            template_mags = np.asarray(template_mags)
+            expected_shape = (len(self.phases), len(self.wavelengths))
+            transposed_shape = (len(self.wavelengths), len(self.phases))
+            if template_mags.shape == transposed_shape:
+                template_mags = template_mags.T
+            elif template_mags.shape != expected_shape:
+                raise ValueError(
+                    "template_mags shape does not match phase/wavelength grid dimensions. "
+                    f"Expected {expected_shape} (or transposed {transposed_shape}), "
+                    f"got {template_mags.shape}."
+                )
             self.template_mags = SEDTemplate.from_components(
-                phase_grid=self.phases,
-                wl_grid=self.wavelengths,
-                surface=template_mags,
+                times=self.phases,
+                wavelengths=self.wavelengths,
+                sed_values=template_mags,
             )
         else:
             self.template_mags = None
@@ -185,13 +208,37 @@ class GoPreauxModel(SEDModel, CiteClass):
         flux_density : numpy.ndarray
             A length T x N matrix of observer frame SED values (in nJy).
         """
-        phases = times - self.get_param(graph_state, "t0")
+        phases = np.asarray(times) - self.get_param(graph_state, "t0")
+        wavelengths = np.asarray(wavelengths)
 
         if self._using_sed_template:
-            result_mag = self.template.evaluate_sed(phases, wavelengths)
+            result_mag = self.model.evaluate_sed(phases, wavelengths)
         else:
-            # Evaluate the given model (GaussianProcessRegressor)
-            result_mag, _ = self.model.predict(np.vstack((phases, wavelengths)).T, return_std=False)
+            # Evaluate the given model (GaussianProcessRegressor) on the full phase x wavelength grid.
+            phase_grid, wl_grid = np.meshgrid(phases, wavelengths, indexing="ij")
+            phase_flat = phase_grid.ravel()
+            wl_flat = wl_grid.ravel()
+
+            # Match SNModel conventions: phase is transformed with log(phase + log_transform),
+            # and wavelength with log10(wavelength).
+            if np.any(phase_flat + self.log_transform <= 0):
+                raise ValueError(
+                    "All queried phases must satisfy phase + log_transform > 0 for log-space GP evaluation."
+                )
+            if np.any(wl_flat <= 0):
+                raise ValueError("All queried wavelengths must be > 0 for log10 transform.")
+
+            x = np.column_stack(
+                (
+                    np.log(phase_flat + self.log_transform),
+                    np.log10(wl_flat),
+                )
+            )
+
+            pred = self.model.predict(x, return_std=False)
+            if isinstance(pred, tuple):
+                pred = pred[0]
+            result_mag = np.asarray(pred).reshape(len(phases), len(wavelengths))
 
         # Add on the template magnitudes if we have them.
         if self.template_mags is not None:
