@@ -50,6 +50,10 @@ def test_dedup_coords():
     np.testing.assert_allclose(unique_ra, pts[expected_inds, 0], atol=1e-8)
     np.testing.assert_allclose(unique_dec, pts[expected_inds, 1], atol=1e-8)
 
+    # We fail if the lists are different lengths.
+    with pytest.raises(ValueError):
+        dedup_coords([0, 1], [0])  # Mismatched lengths
+
 
 def test_build_moc_from_coords():
     """Test building a MOC from coordinates."""
