@@ -70,7 +70,7 @@ def dedup_coords(ra, dec, threshold=1e-5):
     """
     ra = np.asarray(ra)
     dec = np.asarray(dec)
-    if len(ra) != len(dec):
+    if np.size(ra) != np.size(dec):
         raise ValueError("RA and Dec arrays must have the same length.")
 
     # Create a KD-tree for efficient nearest neighbor search.
