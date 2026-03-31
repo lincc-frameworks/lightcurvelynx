@@ -2,18 +2,21 @@
 Wrapper classes for models constructed using the gopreaux (Gaussian process Optimized Photometric
 Regression of Extragalactic Archival Ultraviolet-infrared eXplosions) package.
 
-Adapted from: https://github.com/crpellegrino/gopreaux/blob/main/src/caat/SNModel.py
+This model requires that the GoPreaux (caat) package is installed. Currently GoPreaux is not available
+on PyPI, so users will need to install it from source: https://github.com/crpellegrino/gopreaux
+
+There is a version conflict with numpy between GoPreaux and LightCurveLynx, but this does not impact
+the functions we need. Users can install GoPreax first and then install LightCurveLynx (upgrading all
+dependencies). You will still get errors about the version requirements for caat, but they can be ignored.
 """
 import logging
-import pickle
 from pathlib import Path
 
 import numpy as np
-from astropy.io import fits
 from citation_compass import CiteClass
 
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.models.physical_model import SEDModel
-from lightcurvelynx.models.sed_template_model import SEDTemplate
 
 
 class GoPreauxModel(SEDModel, CiteClass):
@@ -36,127 +39,23 @@ class GoPreauxModel(SEDModel, CiteClass):
 
     Attributes
     ----------
-    model : SEDTemplate or GaussianProcessRegressor
-        The model that will be used to generate the SED surface.
-    template_mags: SEDTemplate or None
-        The magnitudes used to normalize the input photometry prior to fitting.
-    phases: np.ndarray, optional
-        The phases used to produce the final SED surface model.
-    wavelengths: np.ndarray, optional
-        The wavelengths used to produce the final SED surface model.
-    log_transform: bool or int or float
-        The value of log_transform used in the fitting, if one was used.
+    model : caat.SNModel
+        The wrapped model that will be used to generate the SED surface.
 
     Parameters
     ----------
-    model : gopreaux.SurfaceArray, SEDTemplate, or GaussianProcessRegressor
-        The model that will be used to generate the SED surface.
-    template_mags: np.ndarray, optional
-        The magnitudes used to normalize the input photometry prior to fitting.
-        Default: None.
-    phases: np.ndarray, optional
-        The phases used to produce the final SED surface model.
-        Default: None.
-    wavelengths: np.ndarray, optional
-        The wavelengths used to produce the final SED surface model.
-        Default: None.
-    log_transform: bool or int or float
-        The value of log_transform used in the fitting, if one was used.
-        Default: False
+    model : caat.SNModel
+        The gopreaux SNModel object that defines the surface to be evaluated.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
 
-    def __init__(
-        self,
-        model,
-        *,
-        template_mags=None,
-        phases=None,
-        wavelengths=None,
-        log_transform=False,
-        **kwargs,
-    ):
+    def __init__(self, model, **kwargs):
+        self.model = model
         super().__init__(**kwargs)
 
-        if isinstance(model, SEDTemplate):
-            self.model = model
-            self._using_sed_template = True
-
-            # Check phase and wavelength if given.
-            if phases is not None and not np.allclose(model.times, phases):
-                raise ValueError("Given phases provided do not match those in the SEDTemplate model.")
-            if wavelengths is not None and not np.allclose(model.wavelengths, wavelengths):
-                raise ValueError("Given wavelengths provided do not match those in the SEDTemplate model.")
-            self.phases = model.times
-            self.wavelengths = model.wavelengths
-
-        elif np.all([hasattr(model, attr) for attr in ["phase_grid", "wl_grid", "surface"]]):
-            # If we have a SurfaceArray object, we transform that into an SEDTemplate object,
-            # so we do not need to import gopreaux.
-            sed_values = np.asarray(model.surface)
-            expected_shape = (len(model.phase_grid), len(model.wl_grid))
-            transposed_shape = (len(model.wl_grid), len(model.phase_grid))
-            if sed_values.shape == transposed_shape:
-                sed_values = sed_values.T
-            elif sed_values.shape != expected_shape:
-                raise ValueError(
-                    "SurfaceArray surface shape does not match phase/wavelength grid dimensions. "
-                    f"Expected {expected_shape} (or transposed {transposed_shape}), got {sed_values.shape}."
-                )
-
-            self.model = SEDTemplate.from_components(
-                times=model.phase_grid,
-                wavelengths=model.wl_grid,
-                sed_values=sed_values,
-            )
-            self._using_sed_template = True
-
-            # Check phase and wavelength if given.
-            if phases is not None and not np.allclose(model.phase_grid, phases):
-                raise ValueError("Given phases provided do not match those in the SurfaceArray model.")
-            if wavelengths is not None and not np.allclose(model.wl_grid, wavelengths):
-                raise ValueError("Given wavelengths provided do not match those in the SurfaceArray model.")
-            self.phases = model.phase_grid
-            self.wavelengths = model.wl_grid
-
-        else:
-            # This is another model type (probably a GaussianProcessRegressor), so we just use it directly.
-            # The user is responsible for unsuring the correct packages have been installed.
-            self.model = model
-            self._using_sed_template = False
-
-            # Use the given phases and wavelengths.
-            self.phases = phases
-            self.wavelengths = wavelengths
-
-        # If we have template mags, we transform that into a SEDTemplate object to support interpolation.
-        if template_mags is not None:
-            if self.phases is None or self.wavelengths is None:
-                raise ValueError("Need to specify phases and wavelengths if using template mags.")
-            template_mags = np.asarray(template_mags)
-            expected_shape = (len(self.phases), len(self.wavelengths))
-            transposed_shape = (len(self.wavelengths), len(self.phases))
-            if template_mags.shape == transposed_shape:
-                template_mags = template_mags.T
-            elif template_mags.shape != expected_shape:
-                raise ValueError(
-                    "template_mags shape does not match phase/wavelength grid dimensions. "
-                    f"Expected {expected_shape} (or transposed {transposed_shape}), "
-                    f"got {template_mags.shape}."
-                )
-            self.template_mags = SEDTemplate.from_components(
-                times=self.phases,
-                wavelengths=self.wavelengths,
-                sed_values=template_mags,
-            )
-        else:
-            self.template_mags = None
-
-        self.log_transform = log_transform
-
     @classmethod
-    def load_from_fits(cls, filename):
+    def load_from_fits(cls, filename, **kwargs):
         """
         Load the data for gopreaux.SNModel model from a .fits file and use it
         to create the GoPreauxModel object.
@@ -165,31 +64,28 @@ class GoPreauxModel(SEDModel, CiteClass):
         ----------
         filename: str, Path
             The complete path to the .fits file.
+        **kwargs: dict, optional
+            Any additional keyword arguments to be passed to the GoPreauxModel constructor.
         """
+        assert isinstance(filename, str | Path), "filename must be a string or Path object."
+
         logging.getLogger(__name__).info(f"Loading gopreaux model from {filename}...")
         filename = Path(filename)
         if not filename.exists():
             raise FileNotFoundError(f"File {filename} does not exist.")
 
-        with fits.open(filename) as hdul:
-            # The first (0th) HDU contains the pickled surface model which could be
-            # a GaussianProcessRegressor or a gopreaux.SurfaceArray.
-            model = pickle.loads(hdul[0].data)
-            log_transform = hdul[0].header["LOG_TRANSFORM"]
+        try:
+            from caat import SNModel
+        except ImportError as err:
+            raise ImportError(
+                "The gopreaux package is required to load GoPreauxModel objects. "
+                "Please install it from source: https://github.com/your-repo/gopreaux"
+            ) from err
 
-            # The second layer should be the magntiude template, and the third and fourth layers
-            # should be the phase and wavelength grids, respectively. The later three layers are optional.
-            template = hdul[1].data if len(hdul) > 1 else None
-            phase_grid = hdul[2].data if len(hdul) > 2 else None
-            wl_grid = hdul[3].data if len(hdul) > 3 else None
-
-        return cls(
-            model=model,
-            template_mags=template,
-            phases=phase_grid,
-            wavelengths=wl_grid,
-            log_transform=log_transform,
-        )
+        # Load the SNModel from the .fits file using gopreaux's constructor, which
+        # can take a path to the fits file.
+        model = SNModel(str(filename))
+        return cls(model, **kwargs)
 
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.
@@ -208,41 +104,24 @@ class GoPreauxModel(SEDModel, CiteClass):
         flux_density : numpy.ndarray
             A length T x N matrix of observer frame SED values (in nJy).
         """
-        phases = np.asarray(times) - self.get_param(graph_state, "t0")
-        wavelengths = np.asarray(wavelengths)
+        num_times = len(times)
+        num_wavelengths = len(wavelengths)
 
-        if self._using_sed_template:
-            result_mag = self.model.evaluate_sed(phases, wavelengths)
-        else:
-            # Evaluate the given model (GaussianProcessRegressor) on the full phase x wavelength grid.
-            phase_grid, wl_grid = np.meshgrid(phases, wavelengths, indexing="ij")
-            phase_flat = phase_grid.ravel()
-            wl_flat = wl_grid.ravel()
+        # Take the single list of times and wavelengths and create a grid of all combinations of them,
+        # into a grid of points on which we will query the model.
+        phases, wavelengths = np.meshgrid(
+            np.asarray(times) - self.get_param(graph_state, "t0"),
+            np.asarray(wavelengths),
+            indexing="ij",
+        )
+        phases = phases.ravel()
+        wavelengths = wavelengths.ravel()
 
-            # Match SNModel conventions: phase is transformed with log(phase + log_transform),
-            # and wavelength with log10(wavelength).
-            if np.any(phase_flat + self.log_transform <= 0):
-                raise ValueError(
-                    "All queried phases must satisfy phase + log_transform > 0 for log-space GP evaluation."
-                )
-            if np.any(wl_flat <= 0):
-                raise ValueError("All queried wavelengths must be > 0 for log10 transform.")
+        # Use the model's built-in predict_photometry_points function to get predictions at the
+        # given phases and wavelengths.
+        _, results_mag, _ = self.model.predict_photometry_points(phases, wavelengths, show=False)
+        results_mag = results_mag.reshape(num_times, num_wavelengths)
 
-            x = np.column_stack(
-                (
-                    np.log(phase_flat + self.log_transform),
-                    np.log10(wl_flat),
-                )
-            )
-
-            pred = self.model.predict(x, return_std=False)
-            if isinstance(pred, tuple):
-                pred = pred[0]
-            result_mag = np.asarray(pred).reshape(len(phases), len(wavelengths))
-
-        # Add on the template magnitudes if we have them.
-        if self.template_mags is not None:
-            template_addition = self.template_mags.evaluate_sed(phases, wavelengths)
-            result_mag += template_addition
-
-        return result_mag
+        # The results are returned in magnitudes relative to the peak. We need to convert them to
+        # flux densities in nJy.
+        return mag2flux(results_mag)
