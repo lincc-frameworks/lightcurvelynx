@@ -115,7 +115,7 @@ The software was verified by simulating populations of Type Ia supernovae under 
 
 # AI usage disclosure
 
-All top level design, including control flow and class structure, was designed by humans. Github copilot (using Claude Sonnet 4) was used during the development of the software for online suggestions and small changes. All code changes, regardless of author, were reviewed by humans. No generative AI tools were used in the writing of this manuscript.
+All top level design, including control flow and class structure, was designed by humans. Github copilot (using Claude Sonnet 4 and auto settings) was used during the development of the software for online suggestions and small changes. All code changes, regardless of author, were reviewed by humans. No generative AI tools were used in the writing of this manuscript.
 
 
 # Acknowledgements
