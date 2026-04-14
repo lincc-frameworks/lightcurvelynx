@@ -7,14 +7,23 @@ from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
 def test_get_download_data_dir_default(monkeypatch):
     """Test that the default download dir follows XDG spec (~/.cache/lightcurvelynx)."""
+    monkeypatch.delenv("LIGHTCURVELYNX_DATA_DIR", raising=False)
     monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
     assert _get_download_data_dir() == Path.home() / ".cache" / "lightcurvelynx"
 
 
 def test_get_download_data_dir_xdg(monkeypatch, tmp_path):
     """Test that XDG_CACHE_HOME is respected."""
+    monkeypatch.delenv("LIGHTCURVELYNX_DATA_DIR", raising=False)
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     assert _get_download_data_dir() == tmp_path / "lightcurvelynx"
+
+
+def test_get_download_data_dir_package_override(monkeypatch, tmp_path):
+    """Test that LIGHTCURVELYNX_DATA_DIR takes precedence over XDG_CACHE_HOME."""
+    monkeypatch.setenv("LIGHTCURVELYNX_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+    assert _get_download_data_dir() == tmp_path
 
 
 def test_download_data_file_if_needed(tmp_path, capsys):
