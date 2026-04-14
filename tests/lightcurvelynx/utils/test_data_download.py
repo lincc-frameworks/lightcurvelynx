@@ -1,6 +1,20 @@
+from pathlib import Path
 from unittest.mock import patch
 
+from lightcurvelynx import _get_download_data_dir
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
+
+
+def test_get_download_data_dir_default(monkeypatch):
+    """Test that the default download dir follows XDG spec (~/.cache/lightcurvelynx)."""
+    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
+    assert _get_download_data_dir() == Path.home() / ".cache" / "lightcurvelynx"
+
+
+def test_get_download_data_dir_xdg(monkeypatch, tmp_path):
+    """Test that XDG_CACHE_HOME is respected."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    assert _get_download_data_dir() == tmp_path / "lightcurvelynx"
 
 
 def test_download_data_file_if_needed(tmp_path, capsys):
