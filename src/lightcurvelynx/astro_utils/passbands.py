@@ -17,7 +17,7 @@ from astropy.io.votable import parse
 from astroquery.svo_fps import SvoFps
 from citation_compass import cite_function
 
-from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
+from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.consts import lsst_filter_plot_colors
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
@@ -300,7 +300,7 @@ class PassbandGroup:
 
         # If we do not have the base table directory, use the default.
         table_dir = (
-            Path(table_dir) if table_dir is not None else Path(_LIGHTCURVELYNX_BASE_DATA_DIR, "passbands")
+            Path(table_dir) if table_dir is not None else Path(_LIGHTCURVELYNX_DOWNLOAD_DATA_DIR, "passbands")
         )
 
         preset = preset.lower()
@@ -881,7 +881,7 @@ class Passband:
         if table_path is None:
             # If no path is given, use the default.
             table_path = Path(
-                _LIGHTCURVELYNX_BASE_DATA_DIR,
+                _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR,
                 "passbands",
                 survey,
                 f"{filter_name}.dat",

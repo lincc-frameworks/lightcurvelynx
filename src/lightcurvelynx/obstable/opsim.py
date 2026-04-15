@@ -5,7 +5,7 @@ from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 import numpy as np
 import pandas as pd
 
-from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
+from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
 from lightcurvelynx.astro_utils.zeropoint import flux_electron_zeropoint
@@ -213,7 +213,7 @@ class OpSim(ObsTable):
             An OpSim object containing the data from the specified URL.
         """
         data_file_name = opsim_url.split("/")[-1]
-        data_path = _LIGHTCURVELYNX_BASE_DATA_DIR / "opsim" / data_file_name
+        data_path = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "opsim" / data_file_name
 
         if not download_data_file_if_needed(data_path, opsim_url, force_download=force_download):
             raise RuntimeError(f"Failed to download opsim data from {opsim_url}.")

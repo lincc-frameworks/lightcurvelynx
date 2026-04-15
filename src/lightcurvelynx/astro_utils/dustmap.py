@@ -19,7 +19,7 @@ import pooch
 from astropy.coordinates import SkyCoord
 from citation_compass import CiteClass
 
-from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
+from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.base_models import FunctionNode
 
 
@@ -215,7 +215,7 @@ class SFDMap(DustEBV):
         Any additional keyword arguments.
     """
 
-    _default_map_dir = _LIGHTCURVELYNX_BASE_DATA_DIR / "dustmaps" / "sfdmap2"
+    _default_map_dir = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "dustmaps" / "sfdmap2"
 
     def __init__(self, data_dir=None, ra=None, dec=None, **kwargs):
         # Pass RA and dec through to DustEBV's init method.
