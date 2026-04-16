@@ -119,7 +119,7 @@ class RomanObsTable(ObsTable):
         "filter": "BANDPASS",
         "ra": "RA",
         "zp": "zp_nJy",
-        "time": "time",
+        "time": "mjd_start",
         "exptime": "EXPOSURE_TIME",
     }
 
@@ -130,6 +130,9 @@ class RomanObsTable(ObsTable):
         "survey_name": "Roman",
         "radius": np.sqrt(_roman_fov / np.pi),
         "zodi_level": _roman_zodi_level_factor,
+    }
+
+    _additional_survey_values = {
         "survey_start_time": 61406.0,  # Jan 1 2027
         "cadence": {
             "PC": 20.0,
@@ -162,12 +165,14 @@ class RomanObsTable(ObsTable):
         super().__init__(self.apt_table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
         # assign time based on https://roman.gsfc.nasa.gov/science/High_Latitude_Time_Domain_Survey.html
 
-        if not self.survey_values["component_start_time"]:
-            self.infer_component_start_time(
-                field_time_offset=self.safe_get_survey_value("field_time_offset"),
-                after_component_delay_time=self.safe_get_survey_value("after_component_delay_time"),
-            )
-        self._assign_time()
+        if "time" not in self._table.columns:
+            self.survey_values.update(self._additional_survey_values)
+            if not self.survey_values["component_start_time"]:
+                self.infer_component_start_time(
+                    field_time_offset=self.safe_get_survey_value("field_time_offset"),
+                    after_component_delay_time=self.safe_get_survey_value("after_component_delay_time"),
+                )
+            self._assign_time()
 
     def update_time(self):
         """
@@ -247,7 +252,8 @@ class RomanObsTable(ObsTable):
         self.apt_table["N_Eff_Pix"] = 0.0
         self.apt_table["zodi_countrate_min"] = 0.0
         self.apt_table["thermal_countrate"] = 0.0
-        self.apt_table["time"] = 0.0
+        if "mjd_start" not in self.apt_table.columns:
+            self.apt_table["time"] = 0.0
 
         for f in np.unique(self.apt_table.BANDPASS):
             if f == "PRISM":
