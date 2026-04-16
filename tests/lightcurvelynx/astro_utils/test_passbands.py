@@ -13,7 +13,6 @@ from astropy import units as u
 from astropy.table import Table
 from lightcurvelynx.astro_utils.passbands import Passband
 from lightcurvelynx.models.sed_template_model import SEDTemplateModel
-from sncosmo import Bandpass
 
 
 def create_lsst_passband(path, filter_name, **kwargs):
@@ -299,7 +298,8 @@ def test_passband_from_file(passbands_dir, tmp_path):
 
 def test_passband_from_sncosmo(passbands_dir):
     """Test the from_sncosmo constructor of the Passband class."""
-    sn_pb = Bandpass(
+    sncosmo = pytest.importorskip("sncosmo")
+    sn_pb = sncosmo.Bandpass(
         np.array([6000, 6005, 6010]),  # wavelengths (A)
         np.array([0.5, 0.6, 0.7]),  # transmissions
     )
@@ -313,7 +313,7 @@ def test_passband_from_sncosmo(passbands_dir):
 
     def _mock_get_bandpass(name):
         """Return a predefined Bandpass object instead of downloading the transmission table."""
-        return Bandpass(np.array([6000, 6005, 6010]), np.array([0.5, 0.6, 0.7]))
+        return sncosmo.Bandpass(np.array([6000, 6005, 6010]), np.array([0.5, 0.6, 0.7]))
 
     # Check that we can load the sncosmo passband from just the filter and survey.
     with patch("sncosmo.get_bandpass", side_effect=_mock_get_bandpass):

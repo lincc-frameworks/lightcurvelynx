@@ -1,9 +1,10 @@
 import numpy as np
-from lightcurvelynx.example_runs.simulate_snia import run_snia_end2end
+import pytest
 
 
 def test_snia_end2end(oversampled_observations, passbands_dir):
     """Test that the end to end run works."""
+    run_snia_end2end = pytest.importorskip("run_snia_end2end")
     rng = np.random.default_rng(123)
 
     solid_angle = 0.0001

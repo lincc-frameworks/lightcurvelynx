@@ -1,8 +1,8 @@
+import importlib
 import logging
 from pathlib import Path
 
 import numpy as np
-import sncosmo
 from astropy import units as u
 from lightcurvelynx.astro_utils.noise_model import apply_noise
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
@@ -101,6 +101,10 @@ def load_and_register_passband(passbands_dir, to_use):
     passbands : PassbandGroup
         The loaded and processed PassbandGroup.
     """
+    if importlib.util.find_spec("sncosmo") is None:  # pragma: no cover
+        raise ImportError("The sncosmo package is required to use the run_snia_end2end. ")
+    import sncosmo
+
     passbands_dir = Path(passbands_dir)
     passband_list = []
     for band in to_use:
@@ -251,6 +255,10 @@ def run_snia_end2end(
     passbands : PassbandGroup
         The passbands used.
     """
+    if importlib.util.find_spec("sncosmo") is None:  # pragma: no cover
+        raise ImportError("The sncosmo package is required to use the run_snia_end2end. ")
+    import sncosmo
+
     if rng_info is None:
         rng_info = np.random.default_rng()
 

@@ -72,7 +72,7 @@ class Microlensing(EffectModel, CiteClass):
             import VBMicrolensing
         except ImportError as err:  # pragma: no cover
             raise ImportError(
-                "VBMicrolensing package is not installed be default. To use the microlensing effect, "
+                "VBMicrolensing package is not installed by default. To use the microlensing effect, "
                 "please install it. For example, you can install it with `pip install VBMicrolensing`."
             ) from err
         self.VBM = VBMicrolensing.VBMicrolensing()

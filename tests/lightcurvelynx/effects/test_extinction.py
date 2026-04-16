@@ -12,6 +12,7 @@ from lightcurvelynx.models.basic_models import ConstantSEDModel
 
 def test_list_dust_extinction_models():
     """List the available models in the dust_extinction package."""
+    pytest.importorskip("dust_extinction")
     model_names = _DustExtinctionWrapper.list_extinction_models()
     assert len(model_names) > 10
     assert "G23" in model_names
@@ -20,6 +21,7 @@ def test_list_dust_extinction_models():
 
 def test_extinction_effect_dust_extinction():
     """Test that we can create a ExtinctionEffects from the dust_extinction package."""
+    pytest.importorskip("dust_extinction")
     for model in ["CCM89", "F99", "G23"]:
         dust_effect = ExtinctionEffect(model, ebv=0.1, r_v=3.1, frame="rest", backend="dust_extinction")
 
@@ -43,6 +45,7 @@ def test_extinction_effect_dust_extinction():
 
 def test_extinction_effect_extinction():
     """Test that we can create a ExtinctionEffects from the extinction package."""
+    pytest.importorskip("dust_extinction")
     for model in ["odonnell94", "calzetti00"]:
         dust_effect = ExtinctionEffect(model, ebv=0.1, r_v=3.1, frame="rest", backend="extinction")
 
@@ -84,6 +87,7 @@ def test_bad_backend():
 
 def test_set_frame():
     """Test that correct frame is set"""
+    pytest.importorskip("dust_extinction")
     ext = ExtinctionEffect("G23", ebv=0.1, r_v=3.1, frame="observer", backend="dust_extinction")
     assert ext.rest_frame is False
 
@@ -93,6 +97,7 @@ def test_set_frame():
 
 def test_pickle_extinction_models(subtests):
     """Test that we can pickle and unpickle extinction effects regardless of backend."""
+    pytest.importorskip("dust_extinction")
     for backend, model in zip(["dust_extinction", "extinction"], ["F99", "fm07"], strict=False):
         with subtests.test(backend=backend, model=model):
             model = ExtinctionEffect(model, r_v=3.1, frame="rest", ebv=0.1, backend=backend)
@@ -124,6 +129,7 @@ def test_constant_extinction(subtests):
     """Test that we can create and sample an ExtinctionEffect object."""
     # Use given ebv values. Usually these would be computed from a dustmap,
     # based on (RA, dec).
+    pytest.importorskip("dust_extinction")
     ebv_node = GivenValueList([0.1, 0.2, 0.3, 0.1, 0.2, 0.3])
     for backend, ext_name in zip(["dust_extinction", "extinction"], ["F99", "fm07"], strict=False):
         with subtests.test(backend=backend, model=ext_name):
@@ -152,6 +158,7 @@ def test_constant_extinction(subtests):
 
 def test_dustmap_chain(subtests):
     """Test that we can chain the dustmap computation and extinction effect."""
+    pytest.importorskip("dust_extinction")
     for backend, ext_name in zip(["dust_extinction", "extinction"], ["F99", "fm07"], strict=False):
         with subtests.test(backend=backend, model=ext_name):
             model = ConstantSEDModel(
