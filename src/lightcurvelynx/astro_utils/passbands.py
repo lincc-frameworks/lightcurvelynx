@@ -934,7 +934,7 @@ class Passband:
                 from sncosmo import get_bandpass
             except ImportError as err:  # pragma: no cover
                 raise ImportError(
-                    "sncosmo package is not installed be default. You can install it with "
+                    "sncosmo package is not installed by default. You can install it with "
                     "`pip install sncosmo` or `conda install conda-forge::sncosmo`."
                 ) from err
             bandpass = get_bandpass(bandpass)

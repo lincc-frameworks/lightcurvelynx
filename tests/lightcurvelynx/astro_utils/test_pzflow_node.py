@@ -10,8 +10,6 @@ from citation_compass import find_in_citations
 from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
 from lightcurvelynx.base_models import FunctionNode, ParameterizedNode
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
-from pzflow import Flow
-from pzflow.bijectors import Reverse
 
 
 class SumNode(ParameterizedNode):
@@ -45,7 +43,8 @@ class SumNode(ParameterizedNode):
 
 def test_pzflow_node_sample():
     """Test that we can sample numbers from a PZFlowNode."""
-    flow = Flow(("x", "y"), Reverse())
+    pzflow = pytest.importorskip("pzflow")
+    flow = pzflow.Flow(("x", "y"), pzflow.bijectors.Reverse())
     pz_node = PZFlowNode(flow, node_label="pznode")
 
     # Sample a bunch of parameters.
@@ -63,7 +62,8 @@ def test_pzflow_node_sample():
 
 def test_pzflow_node_chained():
     """Test that we can sample numbers from a PZFlowNode through another node."""
-    flow = Flow(("a", "b"), Reverse())
+    pzflow = pytest.importorskip("pzflow")
+    flow = pzflow.Flow(("a", "b"), pzflow.bijectors.Reverse())
     pz_node = PZFlowNode(flow, node_label="pznode")
     sum_node = SumNode(value1=pz_node.a, value2=pz_node.b, node_label="sum")
 
@@ -89,6 +89,7 @@ def test_pzflow_node_chained():
 
 def test_pzflow_node_from_file(test_flow_filename):
     """Test that we can load and query a test flow."""
+    pytest.importorskip("pzflow")
     pz_node = PZFlowNode.from_file(test_flow_filename, node_label="loaded_node")
 
     # Sample the pair of parameters defined by this flow (redshift and hostmass).
@@ -100,6 +101,7 @@ def test_pzflow_node_from_file(test_flow_filename):
 
 def test_conditional_pzflow_node(test_conditional_flow_filename):
     """Test that we can load and query a conditional flow."""
+    pytest.importorskip("pzflow")
     redshift_node = NumpyRandomFunc(
         "uniform",
         low=0.05,
@@ -123,6 +125,7 @@ def test_conditional_pzflow_node(test_conditional_flow_filename):
 def test_invalid_conditional_pzflow_node(test_conditional_flow_filename):
     """Test that we raise an error if we try to create a pzflow node from
     a conditional flow, but do not provide the input parameters."""
+    pytest.importorskip("pzflow")
     with pytest.raises(ValueError):
         # redshift is missing.
         _ = PZFlowNode.from_file(test_conditional_flow_filename, node_label="loaded_node")
@@ -130,6 +133,7 @@ def test_invalid_conditional_pzflow_node(test_conditional_flow_filename):
 
 def test_pzflow_node_citation(test_flow_filename):
     """Test that we can recover the citations for pzflow."""
+    pytest.importorskip("pzflow")
     _ = PZFlowNode.from_file(test_flow_filename, node_label="loaded_node")
     citations = find_in_citations("PZFlowNode")
     for citation in citations:
@@ -138,7 +142,8 @@ def test_pzflow_node_citation(test_flow_filename):
 
 def test_pzflow_node_pickle():
     """Test that we can pickle and unpickle a PZFlowNode."""
-    flow = Flow(("x", "y"), Reverse())
+    pzflow = pytest.importorskip("pzflow")
+    flow = pzflow.Flow(("x", "y"), pzflow.bijectors.Reverse())
     pz_node = PZFlowNode(flow, node_label="pznode")
 
     with tempfile.TemporaryDirectory() as tmpdir:

@@ -25,7 +25,7 @@ def test_bayesn_matchness(test_data_dir):
     # sim = model.simulate_spectrum(ts, N, dl=1000 ,del_M=0, z=0.001, mu=0,
     #                               ebv_mw=0, theta=1, AV=1, RV=3, eps=0)
     # l, spec, params = sim
-
+    pytest.importorskip("dust_extinction")
     bayesian_flux = np.array(
         [
             [

@@ -1,10 +1,12 @@
 import numpy as np
+import pytest
 from lightcurvelynx.effects.microlensing import Microlensing
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 
 
 def test_microlensing() -> None:
     """Test that we can apply a basic microlensing effect."""
+    pytest.importorskip("VBMicrolensing")
     num_times = 50
     num_waves = 20
     times = np.arange(num_times, dtype=float)
@@ -35,6 +37,7 @@ def test_microlensing() -> None:
 
 def test_microlensing_bandflux() -> None:
     """Test that we can apply a basic microlensing effect at the bandflux level."""
+    pytest.importorskip("VBMicrolensing")
     num_times = 50
     times = np.arange(num_times, dtype=float)
 
@@ -63,6 +66,7 @@ def test_microlensing_bandflux() -> None:
 
 def test_constant_sed_microlensing() -> None:
     """Test that we can apply microlensing to a ConstantSEDModel."""
+    pytest.importorskip("VBMicrolensing")
     num_times = 50
     microlensing_t0 = 5.0
     times = np.arange(num_times, dtype=float)
@@ -87,6 +91,7 @@ def test_constant_sed_microlensing() -> None:
 
 def test_microlensing_constant_sed_probability() -> None:
     """Test that we can apply a basic microlensing effect with a probability."""
+    pytest.importorskip("VBMicrolensing")
     num_times = 50
     microlensing_t0 = 5.0
     times = np.arange(num_times, dtype=float)
