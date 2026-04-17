@@ -78,11 +78,14 @@ def _assign_survey_component(row, pass_map):
     """
     Assign survey component name based on pass_map.
     """
-    pass_number = row["PASS"]
-    survey_component = "CC"
-    for key in pass_map:
-        survey_component = key if pass_number in pass_map[key] else survey_component
-    return survey_component
+    if pass_map is None:
+        return "NA"
+    else:
+        pass_number = row["PASS"]
+        survey_component = "CC"
+        for key in pass_map:
+            survey_component = key if pass_number in pass_map[key] else survey_component
+        return survey_component
 
 
 class RomanObsTable(ObsTable):
@@ -256,7 +259,7 @@ class RomanObsTable(ObsTable):
             self.apt_table["time"] = 0.0
 
         for f in np.unique(self.apt_table.BANDPASS):
-            if f == "PRISM":
+            if f == "PRISM" or f == "GRISM":
                 continue
             zp_abmag = self.zp_table.loc[self.zp_table.element == f, "ABMag"].values[0]
             self.apt_table.loc[f == self.apt_table.BANDPASS, "zp_abmag"] = zp_abmag
