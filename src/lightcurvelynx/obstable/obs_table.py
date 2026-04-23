@@ -218,6 +218,22 @@ class ObsTable:
             return True
         return False
 
+    def rows_iloc(self, indices):
+        """Access the underlying observation table by row indices.
+        This will return a pandas DataFrame with the selected rows.
+
+        Parameters
+        ----------
+        indices : array_like of int
+            The row indices to select.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A DataFrame containing the selected rows.
+        """
+        return self._table.iloc[indices]
+
     def copy(self):
         """Create a copy of the ObsTable."""
         new_table = self._table.copy()
