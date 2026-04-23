@@ -9,9 +9,9 @@ from astropy.coordinates import SkyCoord
 from cdshealpix import skycoord_to_healpix
 from mocpy import MOC
 
-from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
 from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
+from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 _argus_view_radius = 52.0

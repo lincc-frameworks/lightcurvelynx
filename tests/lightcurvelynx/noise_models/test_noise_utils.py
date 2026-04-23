@@ -1,5 +1,5 @@
 import numpy as np
-from lightcurvelynx.astro_utils.noise_model import (
+from lightcurvelynx.noise_models.noise_utils import (
     apply_noise,
     poisson_bandflux_std,
 )

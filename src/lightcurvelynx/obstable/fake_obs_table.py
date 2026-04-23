@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
+from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.obstable.obs_table_params import ParamDeriver
 

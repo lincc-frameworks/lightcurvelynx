@@ -51,6 +51,8 @@ class ObsTable:
         A dictionary mapping filter names to their saturation thresholds in magnitudes.
         The filters provided must match those in the table. If not provided,
         saturation effects will not be applied.
+    noise_model : FluxNoiseModel, optional
+        The noise model to use for this survey.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This can include
         overrides of any of the survey values.
@@ -62,6 +64,8 @@ class ObsTable:
         as readout noise and dark current.
     filters : np.ndarray
         The unique filters in the survey table (if provided).
+    noise_model : FluxNoiseModel, optional
+        The noise model to use for this survey.
     _table : pandas.core.frame.DataFrame
         The table with all the observation information mapped to standard column names.
     _colmap : dict
@@ -102,6 +106,7 @@ class ObsTable:
         detector_footprint=None,
         wcs=None,
         saturation_mags=None,
+        noise_model=None,
         **kwargs,
     ):
         # Create a copy of the table.
@@ -175,6 +180,9 @@ class ObsTable:
         # Save the saturation thresholds.
         self._saturation_mags = saturation_mags
 
+        # Save the noise model.
+        self.noise_model = noise_model
+
         # Build the kd-tree (or other spatial data structure).
         self._spatial_data = None
         self._build_spatial_data()
@@ -217,12 +225,14 @@ class ObsTable:
         new_colmap = self._colmap.copy()
         new_detector_footprint = self._detector_footprint  # Assuming this is immutable or we want to share it
         new_saturation_mags = self._saturation_mags.copy() if self._saturation_mags is not None else None
+        new_noise_model = self.noise_model  # Assuming this is immutable or we want to share it
 
         return ObsTable(
             new_table,
             colmap=new_colmap,
             detector_footprint=new_detector_footprint,
             saturation_mags=new_saturation_mags,
+            noise_model=new_noise_model,
             **new_survey_values,
         )
 
@@ -1081,6 +1091,8 @@ class ObsTable:
             survey_kwargs["wcs"] = None  # None because we have already converted to DetectorFootprint
         if "saturation_mags" not in survey_kwargs:
             survey_kwargs["saturation_mags"] = self._saturation_mags
+        if "noise_model" not in survey_kwargs:
+            survey_kwargs["noise_model"] = self.noise_model
         for key, value in self.survey_values.items():
             if key not in survey_kwargs:
                 survey_kwargs[key] = value
