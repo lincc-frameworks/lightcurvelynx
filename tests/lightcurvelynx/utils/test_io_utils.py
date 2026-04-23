@@ -13,8 +13,6 @@ from lightcurvelynx.utils.io_utils import (
     write_numpy_data,
     write_results_as_hats,
 )
-from lsdb import read_hats
-from nested_pandas import NestedFrame
 
 
 def test_squash_output(capfd):
@@ -112,6 +110,9 @@ def test_read_write_numpy_data(tmp_path):
 
 def test_read_write_lsdb(tmp_path):
     """Test reading and writing HATS data via LSDB."""
+    lsdb = pytest.importorskip("lsdb")
+    from nested_pandas import NestedFrame
+
     outer_dict = {
         "id": [0, 1, 2],
         "ra": [10.0, 10.0001, 10.0002],
@@ -136,7 +137,7 @@ def test_read_write_lsdb(tmp_path):
     assert out_dir.exists()
 
     # Check that we can read the data back in.
-    loaded_results = read_hats(out_dir).compute()
+    loaded_results = lsdb.read_hats(out_dir).compute()
     assert len(loaded_results) == len(results)
     for i in range(len(results)):
         assert results["ra"].iloc[i] == loaded_results["ra"].iloc[i]

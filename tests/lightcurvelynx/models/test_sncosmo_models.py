@@ -20,6 +20,7 @@ def _fake_nugent_data_path(*args, **kwargs):
 
 def test_sncosmo_models_hsiao() -> None:
     """Test that we can create and evalue a 'hsiao' model."""
+    pytest.importorskip("sncosmo")
     model = SncosmoWrapperModel("hsiao", t0=0.0, amplitude=2.0e10)
     state = model.sample_parameters()
     assert model.get_param(state, "amplitude") == 2.0e10
@@ -47,6 +48,7 @@ def test_sncosmo_models_hsiao() -> None:
 
 def test_sncosmo_models_hsiao_t0() -> None:
     """Test that we can create and evalue a 'hsiao' model with a t0."""
+    pytest.importorskip("sncosmo")
     model = SncosmoWrapperModel("hsiao", t0=55000.0, amplitude=2.0e10)
     state = model.sample_parameters()
     assert model.get_param(state, "amplitude") == 2.0e10
@@ -70,12 +72,13 @@ def test_sncosmo_models_hsiao_t0() -> None:
     assert np.allclose(fluxes_flam, [67.83696271, 67.98471119, 47.20395186])
 
     # We raise a warning if the time is outside the bounds.
-    with np.testing.assert_warns(UserWarning):
+    with pytest.warns(UserWarning):
         model.evaluate_sed([0.0], [4000.0, 4100.0])
 
 
 def test_sncosmo_models_hsiao_extrap_time() -> None:
     """Test that we can extrapolate to times outside the model bounds."""
+    pytest.importorskip("sncosmo")
     time_extrapolation = ExponentialDecay(rate=0.1)
     model = SncosmoWrapperModel(
         "hsiao",
@@ -101,6 +104,7 @@ def test_sncosmo_models_bounds() -> None:
     # Use a massively subsampled version of the 'nugent-sn1a' model (only 3 time steps)
     # that is cached in the test data directory. This is okay because we are only using
     # the model's wavelength bounds.
+    pytest.importorskip("sncosmo")
     with patch("sncosmo.utils.DataMirror.abspath", side_effect=_fake_nugent_data_path):
         model = SncosmoWrapperModel("nugent-sn1a", amplitude=2.0e10, t0=54990.0)
     min_w = model.source.minwave()
@@ -126,6 +130,7 @@ def test_sncosmo_models_linear_extrapolate() -> None:
     # Use a massively subsampled version of the 'nugent-sn1a' model (only 3 time steps)
     # that is cached in the test data directory. This is okay because we are only using
     # the model's wavelength bounds.
+    pytest.importorskip("sncosmo")
     with patch("sncosmo.utils.DataMirror.abspath", side_effect=_fake_nugent_data_path):
         model = SncosmoWrapperModel(
             "nugent-sn1a",
@@ -157,6 +162,7 @@ def test_sncosmo_models_linear_extrapolate() -> None:
 
 def test_sncosmo_models_set() -> None:
     """Test that we can create and evalue a 'hsiao' model and set parameter."""
+    pytest.importorskip("sncosmo")
     model = SncosmoWrapperModel("hsiao", t0=0.0, redshift=0.5)
 
     # sncosmo parameters exist at default values.
@@ -173,6 +179,7 @@ def test_sncosmo_models_set() -> None:
 
 def test_sncosmo_models_chained() -> None:
     """Test that we can create and evalue a 'hsiao' model using randomized parameters."""
+    pytest.importorskip("sncosmo")
     # Generate the amplitude from a uniform distribution, but use a fixed seed so we have
     # reproducible tests.
     model = SncosmoWrapperModel(

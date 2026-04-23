@@ -31,7 +31,13 @@ def black_body_luminosity_density_per_solid(temperature, radius, wavelengths):
     """
     black_body = BlackBody(temperature * u.K)
     # Convert intensity to units compatible with nJy flux density
-    intensity_per_freq = black_body(wavelengths * u.cm).to_value(u.erg / u.s / u.cm**2 / u.Hz / u.steradian)
+    with np.errstate(over="ignore", invalid="ignore", under="ignore"):
+        intensity_per_freq = black_body(wavelengths * u.cm).to_value(
+            u.erg / u.s / u.cm**2 / u.Hz / u.steradian
+        )
+    # In the Wien tail, finite-precision evaluation can overflow in intermediate
+    # expm1 calculations; physically this corresponds to near-zero intensity.
+    intensity_per_freq = np.nan_to_num(intensity_per_freq, nan=0.0, posinf=0.0, neginf=0.0)
     # Integral over solid angle, on surface of sphere
     surface_flux = intensity_per_freq * np.pi
     # Multiply to total area (4pi r^2) and divide by 4pi steradians,

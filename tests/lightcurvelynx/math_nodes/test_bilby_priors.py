@@ -1,17 +1,17 @@
 import numpy as np
 import pytest
-from bilby.core.prior import Cosine, PriorDict, Uniform
 from lightcurvelynx.math_nodes.bilby_priors import BilbyPriorNode
 
 
 def test_bilby_priors_simple():
     """Test that we can generate numbers from a simple Bilby prior."""
+    bilby = pytest.importorskip("bilby.core.prior")
     priors = dict(
-        a=Uniform(0, 5, "a"),
-        b=Uniform(0, 10, "b"),
-        c=Cosine(-2, 2, "c"),
+        a=bilby.Uniform(0, 5, "a"),
+        b=bilby.Uniform(0, 10, "b"),
+        c=bilby.Cosine(-2, 2, "c"),
     )
-    prior_dict = PriorDict(priors)
+    prior_dict = bilby.PriorDict(priors)
     node = BilbyPriorNode(prior=prior_dict, seed=100, node_label="sampler")
     assert "a" in node.outputs
     assert "b" in node.outputs
@@ -43,10 +43,11 @@ def test_bilby_priors_simple():
 
 def test_bilby_priors_single():
     """Test that we can generate numbers from a simple Bilby prior with a single sample."""
+    bilby = pytest.importorskip("bilby.core.prior")
     priors = dict(
-        a=Uniform(0, 5, "a"),
-        b=Uniform(0, 10, "b"),
-        c=Cosine(-2, 2, "c"),
+        a=bilby.Uniform(0, 5, "a"),
+        b=bilby.Uniform(0, 10, "b"),
+        c=bilby.Cosine(-2, 2, "c"),
     )
     # Pass the dictionary in directly to the BilbyPriorNode.
     node = BilbyPriorNode(prior=priors, seed=100, node_label="sampler")
@@ -71,5 +72,6 @@ def test_bilby_priors_single():
 
 def test_bilby_priors_errors():
     """Test that BilbyPriorNode raises errors when given an empty prior model."""
+    pytest.importorskip("bilby.core.prior")
     with pytest.raises(ValueError):
         BilbyPriorNode(prior=dict(), seed=100, node_label="sampler")

@@ -189,6 +189,7 @@ def test_obstable_ra_dec_sampler_extra():
 
 def test_obstable_ra_dec_sampler_from_hats(test_data_dir):
     """Test that we can sample from a HATS catalog on disk."""
+    pytest.importorskip("lsdb")
     outer_dict = {
         "id": [0, 1, 2],
         "ra": [10.0, 10.1, 10.2],
@@ -648,6 +649,7 @@ def test_catalog_ra_dec_sampler_order():
 
 def test_catalog_ra_dec_sampler_from_hats(test_data_dir):
     """Test that we can sample from a HATS catalog on disk."""
+    pytest.importorskip("lsdb")
     outer_dict = {
         "id": [0, 1, 2],
         "ra": [10.0, 10.1, 10.2],
