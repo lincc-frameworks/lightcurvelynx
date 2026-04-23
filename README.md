@@ -49,15 +49,14 @@ with the "dev" or "all" extras:
 pip install 'lightcurvelynx[all]'
 ```
 
-If you need a package that is not installed as part of the default or all configurations, 
-LightCurveLynx will provide a message with the information on which packages you need to install
-and how to install them.
+If you need a package that is not installed as part of the default or all configurations,  LightCurveLynx will provide a message with the information on which packages you need to install and how to install them.
 
 
 ## Example Usage
 
-The [tutorial notebooks documentation page](https://lightcurvelynx.readthedocs.io/en/latest/notebooks.html)
-provides a variety of usage examples and technical deep dives.
+The [tutorial notebooks documentation page](https://lightcurvelynx.readthedocs.io/en/latest/notebooks.html) provides a variety of usage examples and technical deep dives.
+
+If you have questions, check out the [FAQ page](https://lightcurvelynx.readthedocs.io/en/latest/faq.html) or the [getting help page](https://lightcurvelynx.readthedocs.io/en/latest/getting_help.html)
 
 
 ## Dev Guide - Getting Started
@@ -84,6 +83,8 @@ Notes:
    that a set of tests will be run prior to completing a local commit. For more
    information, see the Python Project Template documentation on 
    [pre-commit](https://lincc-ppt.readthedocs.io/en/latest/practices/precommit.html)
+
+If you are interested in contributing directly to the package, see our [contribution guide](https://lightcurvelynx.readthedocs.io/en/latest/contributing.html).
 
 
 ## Advisories

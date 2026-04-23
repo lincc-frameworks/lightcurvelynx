@@ -6,8 +6,9 @@ Time-Domain Forward-Modeling for the Rubin Era
 
 Realistic light curve simulations are essential to many time-domain problems. 
 Simulations are needed to evaluate observing strategy, characterize biases, 
-and test pipelines. LightCurveLynx aims to provide a flexible, scalable, and user-friendly
-time-domain simulation software with realistic effects and survey strategies.
+and test pipelines. LightCurveLynx aims to provide a flexible, scalable, and user-friendly time-domain simulation software with realistic effects and survey strategies.
+
+For an introduction to the package see our recent [LINCC Frameworks Tech Talk on YouTube](https://www.youtube.com/watch?reload=9&v=H0HqXD2iS94).
 
 .. figure:: _static/lightcurvelynx-intro.png
    :class: no-scaled-link
@@ -59,7 +60,7 @@ key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *Base
 The `full source code <https://github.com/lincc-frameworks/lightcurvelynx>`_ is available on GitHub.
 
 If you are interested in installing from `source <https://github.com/lincc-frameworks/lightcurvelynx>`_,
-or contributing to the package, see the :doc:`contribution guide <contributing>`.
+or contributing to the package, see the :doc:`contribution guide <contributing>`. For additional questions, see the :doc:`FAQ page <faq>` or the :doc:`getting help page <getting_help>`.
 
 
 Installation
@@ -184,3 +185,4 @@ This project is supported by Schmidt Sciences.
    Contribution Guide <contributing>
    Citations <citations>
    Frequently Asked Questions <faq>
+   Getting Help <getting_help>
