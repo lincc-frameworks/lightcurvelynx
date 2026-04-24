@@ -5,6 +5,7 @@ from citation_compass import cite_function
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 
@@ -88,6 +89,35 @@ def _assign_survey_component(row, pass_map):
         return survey_component
 
 
+class RomanPoissonFluxNoiseModel(PoissonFluxNoiseModel):
+    """A subclass of PoissonFluxNoiseModel for Roman survey data."""
+
+    def __init__(self):
+        super().__init__()
+
+    def compute_flux_error(self, bandflux, obs_table, indices):
+        """Compute the flux error for the given bandflux and observation parameters."""
+        exptime = obs_table["exptime"].iloc[indices]
+        sky = obs_table.calculate_skynoise(
+            exptime,
+            obs_table.safe_get_survey_value("zodi_level"),
+            obs_table["zodi_countrate_min"].iloc[indices],
+            obs_table["thermal_countrate"].iloc[indices],
+        )
+
+        return poisson_bandflux_std(
+            bandflux,  # nJy
+            total_exposure_time=exptime,  # seconds
+            exposure_count=1,
+            psf_footprint=obs_table["N_Eff_Pix"].iloc[indices],
+            sky=sky,
+            zp=obs_table["zp"].iloc[indices] / exptime,  # (nJy/s * s)^-1
+            readout_noise=obs_table.readnoise_func,  # e-/pixel
+            dark_current=obs_table.safe_get_survey_value("dark_current"),
+            zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),
+        )
+
+
 class RomanObsTable(ObsTable):
     """A subclass for Roman exposure table.
 
@@ -133,6 +163,7 @@ class RomanObsTable(ObsTable):
         "survey_name": "Roman",
         "radius": np.sqrt(_roman_fov / np.pi),
         "zodi_level": _roman_zodi_level_factor,
+        "zp_err_mag": 0.0,
     }
 
     _additional_survey_values = {
@@ -152,7 +183,15 @@ class RomanObsTable(ObsTable):
         "component_start_time": {},
     }
 
-    def __init__(self, table, colmap=None, ma_table_path=None, saturation_mags=None, **kwargs):
+    def __init__(
+        self,
+        table,
+        colmap=None,
+        ma_table_path=None,
+        saturation_mags=None,
+        noise_model=None,
+        **kwargs,
+    ):
         colmap = self._default_colnames if colmap is None else colmap
 
         self.apt_table = table
@@ -165,7 +204,17 @@ class RomanObsTable(ObsTable):
         self.pass_map = hltds_pass_map
         self._append_apt_table()
 
-        super().__init__(self.apt_table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
+        # If noise model is not provided, then set to the Roman default.
+        if noise_model is None:
+            noise_model = RomanPoissonFluxNoiseModel()
+
+        super().__init__(
+            self.apt_table,
+            colmap=colmap,
+            saturation_mags=saturation_mags,
+            noise_model=noise_model,
+            **kwargs,
+        )
         # assign time based on https://roman.gsfc.nasa.gov/science/High_Latitude_Time_Domain_Survey.html
 
         if "time" not in self._table.columns:
@@ -344,37 +393,3 @@ class RomanObsTable(ObsTable):
         sky_variance = exptime * ((zodi_scale * zodi_countrate_min) + thermal_countrate)
 
         return sky_variance
-
-    def bandflux_error_point_source(self, bandflux, index):
-        """Compute observational bandflux error for a point source
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Band bandflux of the point source in nJy.
-        index : array_like of int
-            The index of the observation in the table.
-
-        Returns
-        -------
-        flux_err : array_like of float
-            Simulated bandflux noise in nJy.
-        """
-        observations = self._table.iloc[index].copy()
-        observations["sky"] = self.calculate_skynoise(
-            observations["exptime"],
-            self.safe_get_survey_value("zodi_level"),
-            observations["zodi_countrate_min"],
-            observations["thermal_countrate"],
-        )
-
-        return poisson_bandflux_std(
-            bandflux,  # nJy
-            total_exposure_time=observations["exptime"],
-            exposure_count=1,
-            psf_footprint=observations["N_Eff_Pix"],
-            sky=observations["sky"],
-            zp=observations["zp"] / observations["exptime"],  # (nJy/s * s)^-1
-            readout_noise=self.readnoise_func,  # e-/pixel
-            dark_current=self.safe_get_survey_value("dark_current"),  # e-/second/pixel
-        )
