@@ -5,22 +5,8 @@ from lightcurvelynx.noise_models.base_noise_models import (
     PoissonFluxNoiseModel,
 )
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
+from lightcurvelynx.obstable.dummy_obstables import LookupOnlyObsTable
 from numpy.testing import assert_allclose
-
-
-class DummyObsTable:
-    """A simple dummy class to simulate the ObsTable's get_value_per_row method."""
-
-    def __init__(self, values):
-        self.values = values
-
-    def get_value_per_row(self, key, indices, default=None):
-        """Simulate the ObsTable's get_value_per_row method."""
-        if key in self.values:
-            return np.asarray(self.values[key])[indices]
-        if default is not None:
-            return np.full(len(indices), default)
-        raise KeyError(f"Missing required key: {key}")
 
 
 def test_constant_flux_noise_model_init_raises_for_negative_noise_level():
@@ -74,7 +60,7 @@ def test_poisson_flux_noise_model():
         "dark_current": np.array([0.01, 0.02, 0.03]),
         "zp_err_mag": np.array([0.001, 0.002, 0.003]),
     }
-    obs_table = DummyObsTable(dummy_data)
+    obs_table = LookupOnlyObsTable(dummy_data)
 
     # We fail without an ObsTable, without indices, or with mismatched
     # indices length.
@@ -132,7 +118,7 @@ def test_poisson_flux_noise_model_defaults():
         "read_noise": np.array([4.0, 4.5, 5.0]),
         "dark_current": np.array([0.01, 0.02, 0.03]),
     }
-    obs_table = DummyObsTable(dummy_data)
+    obs_table = LookupOnlyObsTable(dummy_data)
 
     # Compute the expected flux error using the same features that
     # the model will extract from the ObsTable.

@@ -1,7 +1,11 @@
 import numpy as np
 import pandas as pd
 import pytest
-from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
+from lightcurvelynx.obstable.ztf_obstable import (
+    ZTFObsTable,
+    ZTFPoissonFluxNoiseModel,
+    create_random_ztf_obs_data,
+)
 
 
 def test_ztf_obstable_init():
@@ -92,7 +96,14 @@ def test_noise_calculation():
             index=[0],
         )
     )
-    fluxerr_nJy = survey_data.bandflux_error_point_source(flux_nJy, 0)
-    magerr = 1.086 * fluxerr_nJy / flux_nJy
 
+    noise_model = ZTFPoissonFluxNoiseModel()
+    flux, fluxerr_nJy = noise_model.apply_noise(
+        flux_nJy,
+        obs_table=survey_data,
+        indices=[0],
+    )
+    assert not np.any(flux == flux_nJy)
+
+    magerr = 1.086 * fluxerr_nJy / flux_nJy
     np.testing.assert_allclose(magerr, expected_magerr, rtol=0.2)

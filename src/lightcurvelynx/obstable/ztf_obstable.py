@@ -8,6 +8,7 @@ from astropy.time import Time
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim, sky_bg_adu_to_electrons
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 
@@ -32,6 +33,49 @@ According to Masci et al. 2019, calibration error is around between 8 and 25 mil
 https://ui.adsabs.harvard.edu/abs/2019PASP..131a8003M/abstract"""
 
 
+class ZTFPoissonFluxNoiseModel(PoissonFluxNoiseModel):
+    """A subclass of PoissonFluxNoiseModel for ZTF survey data."""
+
+    def __init__(self):
+        super().__init__()
+
+    def compute_flux_error(self, bandflux, obs_table, indices):
+        """Compute the flux error for the given bandflux and observation parameters.
+
+        Parameters
+        ----------
+        bandflux : array_like of float
+            Source bandflux in energy units, e.g. nJy.
+        obs_table : ObsTable
+            Table containing the observation parameters, including all
+            parameters needed to compute the noise.
+        indices : array_like of int
+            Indices of the observations in the ObsTable for which to compute the noise.
+
+        Returns
+        -------
+        flux_err : array_like
+            The standard deviation of the bandflux measurement error, in the
+            same units as the input bandflux.
+        """
+        # By the effective FWHM definition, see
+        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
+        fwhm = obs_table["fwhm"].iloc[indices]
+        footprint = GAUSS_EFF_AREA2FWHM_SQ * fwhm**2  # in pixels
+
+        return poisson_bandflux_std(
+            bandflux,  # nJy
+            total_exposure_time=obs_table["exptime"].iloc[indices],
+            exposure_count=1,
+            psf_footprint=footprint,
+            sky=obs_table["sky"].iloc[indices] * obs_table.safe_get_survey_value("gain"),  # e-/pixel^2
+            zp=obs_table["zp"].iloc[indices],  # nJy
+            readout_noise=obs_table.safe_get_survey_value("read_noise"),  # e-/pixel
+            dark_current=obs_table.safe_get_survey_value("dark_current"),  # e-/second/pixel
+            zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),
+        )
+
+
 class ZTFObsTable(ObsTable):
     """A subclass for ZTF exposure table.
 
@@ -46,6 +90,9 @@ class ZTFObsTable(ObsTable):
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, ZTF-specific defaults will be used.
+    noise_model : NoiseModel, optional
+        The noise model to use for this ObsTable. If not provided, defaults to
+        ZTFPoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -90,7 +137,14 @@ class ZTFObsTable(ObsTable):
         "i": 12.5,
     }
 
-    def __init__(self, table, colmap=None, saturation_mags=None, **kwargs):
+    def __init__(
+        self,
+        table,
+        colmap=None,
+        saturation_mags=None,
+        noise_model=None,
+        **kwargs,
+    ):
         colmap = self._default_colnames if colmap is None else colmap
 
         # Make a copy of the table data with the obsdate converted to the MJD and
@@ -104,7 +158,17 @@ class ZTFObsTable(ObsTable):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
-        super().__init__(table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
+        # If noise model is not provided, then set to the ZTF default.
+        if noise_model is None:
+            noise_model = ZTFPoissonFluxNoiseModel()
+
+        super().__init__(
+            table,
+            colmap=colmap,
+            saturation_mags=saturation_mags,
+            noise_model=noise_model,
+            **kwargs,
+        )
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in ADU to the ObsTable."""
@@ -178,39 +242,6 @@ class ZTFObsTable(ObsTable):
         con.close()
 
         return ZTFObsTable(obstable, colmap=colmap)
-
-    def bandflux_error_point_source(self, bandflux, index):
-        """Compute observational bandflux error for a point source
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Band bandflux of the point source in nJy.
-        index : array_like of int
-            The index of the observation in the table.
-
-        Returns
-        -------
-        flux_err : array_like of float
-            Simulated bandflux noise in nJy.
-        """
-        observations = self._table.iloc[index]
-
-        # By the effective FWHM definition, see
-        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
-        footprint = GAUSS_EFF_AREA2FWHM_SQ * observations["fwhm"] ** 2  # in pixels
-
-        return poisson_bandflux_std(
-            bandflux,  # nJy
-            total_exposure_time=observations["exptime"],
-            exposure_count=1,
-            psf_footprint=footprint,
-            sky=observations["sky"] * self.safe_get_survey_value("gain"),  # e-/pixel^2
-            zp=observations["zp"],  # nJy
-            readout_noise=self.safe_get_survey_value("read_noise"),  # e-/pixel
-            dark_current=self.safe_get_survey_value("dark_current"),  # e-/second/pixel
-            zp_err_mag=self.safe_get_survey_value("zp_err_mag"),
-        )
 
 
 def create_random_ztf_obs_data(num_obs, seed=None):
