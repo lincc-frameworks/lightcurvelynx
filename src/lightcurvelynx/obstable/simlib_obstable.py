@@ -1,12 +1,9 @@
 """A class for storing and working with survey data in simlib format."""
 
-import numpy as np
 from astropy.table import vstack
 from citation_compass import CiteClass, cite_function
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
-from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
-from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 
@@ -44,7 +41,8 @@ class SIMLIBObsTable(ObsTable, CiteClass):
         "dec": "DECL",  # degrees
         "gain": "CCD_GAIN",  # electrons/ADU
         "pixel_scale": "PIXSIZE",  # arcseconds/pixel
-        "fwhm_px": "PSF1",  # pixels
+        "psf_sigma_1": "PSF1",  # pixels
+        "psf_sigma_2": "PSF2",  # pixels
         "filter": "FLT",  # filter name
         "ra": "RA",  # degrees
         "read_noise": "CCD_NOISE",  # electrons/pixel
@@ -196,39 +194,4 @@ class SIMLIBObsTable(ObsTable, CiteClass):
         flux_err : array_like of float
             Simulated bandflux noise in nJy.
         """
-        observations = self._table.iloc[index]
-
-        # By the effective FWHM definition, see
-        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
-        # We need it in pixel^2
-        pixel_scale = self.safe_get_survey_value("pixel_scale")
-        if "fwhm" in observations:
-            seeing = observations["fwhm"].values
-        elif "seeing" in observations:
-            seeing = observations["seeing"].values
-        else:
-            # Use the median seeing per-filter if the seeing is not provided for each observation.
-            seeing = np.zeros(len(observations))
-            for filter, fwhm_arcsec in self._default_psf_fwhm.items():
-                filter_mask = observations["filter"] == filter
-                seeing[filter_mask] = fwhm_arcsec
-        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
-
-        # Get the computed zeropoints in nJy/electron.
-        zp = observations["zp"]
-
-        # Convert skybrightness (mag/arcsec^2) -> nJy/arcsec^2 -> nJy/pixel^2,
-        # then divide by zp (nJy/electron) to get electrons/pixel^2.
-        sky = mag2flux(observations["skybrightness"]) * pixel_scale**2 / zp
-
-        return poisson_bandflux_std(
-            bandflux,
-            total_exposure_time=observations["exptime"],
-            exposure_count=1,
-            psf_footprint=psf_footprint,
-            sky=sky,
-            zp=zp,
-            readout_noise=self.safe_get_survey_value("read_noise"),
-            dark_current=self.safe_get_survey_value("dark_current"),
-            zp_err_mag=0.0,
-        )
+        raise NotImplementedError("bandflux_error_point_source is not yet implemented for SIMLIBObsTable.")
