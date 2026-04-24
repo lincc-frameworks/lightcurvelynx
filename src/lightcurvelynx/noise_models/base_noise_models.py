@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
+
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 
 
@@ -102,9 +103,7 @@ class ConstantFluxNoiseModel(FluxNoiseModel):
             rng = np.random.default_rng()
 
         noisy_bandflux = rng.normal(loc=bandflux, scale=self.noise_level)
-        return noisy_bandflux, np.full_like(
-            bandflux, self.noise_level, dtype=float
-        )
+        return noisy_bandflux, np.full_like(bandflux, self.noise_level, dtype=float)
 
 
 class PoissonFluxNoiseModel(FluxNoiseModel):
