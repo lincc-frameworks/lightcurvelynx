@@ -43,12 +43,12 @@ def test_skymapper_obstable_init():
 
     # We can compute errors.
     clean_flux = mag2flux(np.full(3, 19.0))
-    new_valls, err_vals = obs_table.noise_model.apply_noise(
+    new_vals, err_vals = obs_table.noise_model.apply_noise(
         clean_flux,
         obs_table=obs_table,
         indices=np.array([0, 1, 2]),  # Index values for the first three rows
     )
-    assert not np.any(new_valls == clean_flux)
+    assert not np.any(new_vals == clean_flux)
     assert np.all(err_vals > 0.0)
 
     # We can build a MOC at level 14

@@ -176,10 +176,10 @@ def test_lsst_noise_model_delegation():
     indices = np.array([0, 1, 2])
 
     # We can compute errors.
-    new_valls, err_vals = table.noise_model.apply_noise(
+    new_vals, err_vals = table.noise_model.apply_noise(
         bandflux,
         obs_table=table,
         indices=indices,
     )
-    assert not np.any(new_valls == bandflux)
+    assert not np.any(new_vals == bandflux)
     assert np.all(err_vals > 0.0)

@@ -102,7 +102,9 @@ class ConstantFluxNoiseModel(FluxNoiseModel):
             rng = np.random.default_rng()
 
         noisy_bandflux = rng.normal(loc=bandflux, scale=self.noise_level)
-        return noisy_bandflux, np.full_like(bandflux, self.noise_level)
+        return noisy_bandflux, np.full_like(
+            bandflux, self.noise_level, dtype=float
+        )
 
 
 class PoissonFluxNoiseModel(FluxNoiseModel):
