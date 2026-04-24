@@ -9,6 +9,7 @@ from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.zeropoint import flux_electron_zeropoint
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
@@ -78,6 +79,38 @@ Calculated with syseng_throughputs v1.9
 """
 
 
+class OpSimPoissonFluxNoiseModel(PoissonFluxNoiseModel):
+    """A subclass of PoissonFluxNoiseModel for Rubin OpSim data."""
+
+    def __init__(self):
+        super().__init__()
+
+    def compute_flux_error(self, bandflux, obs_table, indices):
+        """Compute the flux error for the given bandflux and observation parameters."""
+        # By the effective FWHM definition, see
+        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
+        pixel_scale = obs_table.safe_get_survey_value("pixel_scale")
+        seeing = obs_table["seeing"].iloc[indices]
+        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
+        zp = obs_table["zp"].iloc[indices]
+
+        # Table value is in mag/arcsec^2; convert to electrons per pixel^2.
+        sky_njy_angular = mag2flux(obs_table["skybrightness"].iloc[indices])
+        sky = sky_njy_angular * pixel_scale**2 / zp
+
+        return poisson_bandflux_std(
+            bandflux,
+            total_exposure_time=obs_table["exptime"].iloc[indices],
+            exposure_count=obs_table["nexposure"].iloc[indices],
+            psf_footprint=psf_footprint,
+            sky=sky,
+            zp=zp,
+            readout_noise=obs_table.safe_get_survey_value("read_noise"),
+            dark_current=obs_table.safe_get_survey_value("dark_current"),
+            zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),
+        )
+
+
 class OpSim(ObsTable):
     """A wrapper class around the Rubin's simulated data Opsim.
 
@@ -93,6 +126,9 @@ class OpSim(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, OpSim-specific defaults will be
         used.
+    noise_model : NoiseModel, optional
+        The noise model to use for this ObsTable. If not provided, defaults to
+        OpSimPoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -154,6 +190,7 @@ class OpSim(ObsTable):
         table,
         colmap=None,
         saturation_mags=None,
+        noise_model=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -162,7 +199,17 @@ class OpSim(ObsTable):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
-        super().__init__(table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
+        # If noise model is not provided, then set to the OpSim default.
+        if noise_model is None:
+            noise_model = OpSimPoissonFluxNoiseModel()
+
+        super().__init__(
+            table,
+            colmap=colmap,
+            saturation_mags=saturation_mags,
+            noise_model=noise_model,
+            **kwargs,
+        )
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy to the OpSim tables."""
@@ -218,47 +265,6 @@ class OpSim(ObsTable):
         if not download_data_file_if_needed(data_path, opsim_url, force_download=force_download):
             raise RuntimeError(f"Failed to download opsim data from {opsim_url}.")
         return cls.from_db(data_path)
-
-    def bandflux_error_point_source(self, bandflux, index):
-        """Compute observational bandflux error for a point source
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Band bandflux of the point source in nJy.
-        index : array_like of int
-            The index of the observation in the OpSim table.
-
-        Returns
-        -------
-        flux_err : array_like of float
-            Simulated bandflux noise in nJy.
-        """
-        observations = self._table.iloc[index]
-
-        # By the effective FWHM definition, see
-        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
-        # We need it in pixel^2
-        pixel_scale = self.safe_get_survey_value("pixel_scale")
-        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
-        zp = observations["zp"]
-
-        # Table value is in mag/arcsec^2
-        sky_njy_angular = mag2flux(observations["skybrightness"])
-        # We need electrons per pixel^2
-        sky = sky_njy_angular * pixel_scale**2 / zp
-
-        return poisson_bandflux_std(
-            bandflux,
-            total_exposure_time=observations["exptime"],
-            exposure_count=observations["nexposure"],
-            psf_footprint=psf_footprint,
-            sky=sky,
-            zp=zp,
-            readout_noise=self.safe_get_survey_value("read_noise"),
-            dark_current=self.safe_get_survey_value("dark_current"),
-            zp_err_mag=self.safe_get_survey_value("zp_err_mag"),
-        )
 
 
 def create_random_opsim(num_obs, seed=None):

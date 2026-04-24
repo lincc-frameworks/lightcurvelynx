@@ -455,7 +455,8 @@ def _simulate_lightcurves_batch(simulation_info):
                     noise_model = obstable[survey_idx].noise_model
                     bandfluxes, bandfluxes_error = noise_model.apply_noise(
                         bandfluxes_perfect,
-                        obs_index,
+                        obs_table=obstable[survey_idx],
+                        indices=obs_index,
                         rng=rng,
                     )
                 else:
