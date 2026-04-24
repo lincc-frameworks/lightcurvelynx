@@ -55,18 +55,16 @@ class SkyMapperPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
+            Source bandflux in nJy.
         obs_table : ObsTable
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
+            Table containing the observation parameters needed to compute the noise.
         indices : array_like of int
             Indices of the observations in the ObsTable for which to compute the noise.
 
         Returns
         -------
         flux_err : array_like
-            The standard deviation of the bandflux measurement error, in the
-            same units as the input bandflux.
+            The standard deviation of the bandflux measurement error (in nJy)
         """
         observations = obs_table._table.iloc[indices]
 
@@ -75,9 +73,9 @@ class SkyMapperPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         # We need it in pixel^2.
         pixel_scale = obs_table.safe_get_survey_value("pixel_scale")
         if "fwhm" in obs_table.columns:
-            seeing = obs_table["fwhm"].iloc[indices]
+            seeing = obs_table["fwhm"].iloc[indices].to_numpy()
         elif "seeing" in obs_table.columns:
-            seeing = obs_table["seeing"].iloc[indices]
+            seeing = obs_table["seeing"].iloc[indices].to_numpy()
         else:
             # Use the median seeing per-filter if the seeing is not provided for each observation.
             seeing = np.zeros(len(observations))
@@ -87,16 +85,16 @@ class SkyMapperPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
 
         # Get the computed zeropoints in nJy/electron.
-        zp = obs_table["zp"].iloc[indices]
+        zp = obs_table["zp"].iloc[indices].to_numpy()
 
         # Convert skybrightness (mag/arcsec^2) -> nJy/arcsec^2 -> nJy/pixel^2,
         # then divide by zp (nJy/electron) to get electrons/pixel^2.
-        skybrightness = obs_table["skybrightness"].iloc[indices]
+        skybrightness = obs_table["skybrightness"].iloc[indices].to_numpy()
         sky = mag2flux(skybrightness) * pixel_scale**2 / zp
 
         return poisson_bandflux_std(
             bandflux,
-            total_exposure_time=obs_table["exptime"].iloc[indices],
+            total_exposure_time=obs_table["exptime"].iloc[indices].to_numpy(),
             exposure_count=1,
             psf_footprint=psf_footprint,
             sky=sky,

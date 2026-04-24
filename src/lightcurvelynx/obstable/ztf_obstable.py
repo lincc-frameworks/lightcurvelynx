@@ -45,31 +45,33 @@ class ZTFPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
+            Source bandflux in nJy.
         obs_table : ObsTable
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
+            Table containing the observation parameters needed to compute the noise.
         indices : array_like of int
             Indices of the observations in the ObsTable for which to compute the noise.
 
         Returns
         -------
         flux_err : array_like
-            The standard deviation of the bandflux measurement error, in the
-            same units as the input bandflux.
+            The standard deviation of the bandflux measurement error (in nJy)
         """
         # By the effective FWHM definition, see
         # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
         fwhm = obs_table["fwhm"].iloc[indices]
         footprint = GAUSS_EFF_AREA2FWHM_SQ * fwhm**2  # in pixels
 
+        # Compute the sky in e-/pixel^2, the sky column is in ADU/pixel, so we need to multiply
+        # by the gain.
+        sky = obs_table["sky"].iloc[indices].to_numpy() * obs_table.safe_get_survey_value("gain")
+
         return poisson_bandflux_std(
             bandflux,  # nJy
-            total_exposure_time=obs_table["exptime"].iloc[indices],
+            total_exposure_time=obs_table["exptime"].iloc[indices].to_numpy(),  # seconds
             exposure_count=1,
             psf_footprint=footprint,
-            sky=obs_table["sky"].iloc[indices] * obs_table.safe_get_survey_value("gain"),  # e-/pixel^2
-            zp=obs_table["zp"].iloc[indices],  # nJy
+            sky=sky,  # e-/pixel^2
+            zp=obs_table["zp"].iloc[indices].to_numpy(),  # nJy
             readout_noise=obs_table.safe_get_survey_value("read_noise"),  # e-/pixel
             dark_current=obs_table.safe_get_survey_value("dark_current"),  # e-/second/pixel
             zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),

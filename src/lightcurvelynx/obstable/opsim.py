@@ -91,10 +91,9 @@ class OpSimPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
+            Source bandflux in nJy.
         obs_table : ObsTable
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
+            Table containing the observation parameters needed to compute the noise.
         indices : array_like of int
             Indices of the observations in the ObsTable for which to compute the noise.
 
@@ -107,18 +106,18 @@ class OpSimPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         # By the effective FWHM definition, see
         # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
         pixel_scale = obs_table.safe_get_survey_value("pixel_scale")
-        seeing = obs_table["seeing"].iloc[indices]
+        seeing = obs_table["seeing"].iloc[indices].to_numpy()
         psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
-        zp = obs_table["zp"].iloc[indices]
+        zp = obs_table["zp"].iloc[indices].to_numpy()
 
         # Table value is in mag/arcsec^2; convert to electrons per pixel^2.
-        sky_njy_angular = mag2flux(obs_table["skybrightness"].iloc[indices])
+        sky_njy_angular = mag2flux(obs_table["skybrightness"].iloc[indices].to_numpy())
         sky = sky_njy_angular * pixel_scale**2 / zp
 
         return poisson_bandflux_std(
             bandflux,
-            total_exposure_time=obs_table["exptime"].iloc[indices],
-            exposure_count=obs_table["nexposure"].iloc[indices],
+            total_exposure_time=obs_table["exptime"].iloc[indices].to_numpy(),
+            exposure_count=obs_table["nexposure"].iloc[indices].to_numpy(),
             psf_footprint=psf_footprint,
             sky=sky,
             zp=zp,

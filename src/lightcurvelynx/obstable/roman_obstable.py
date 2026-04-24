@@ -101,34 +101,32 @@ class RomanPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
+            Source bandflux in nJy.
         obs_table : ObsTable
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
+            Table containing the observation parameters needed to compute the noise.
         indices : array_like of int
             Indices of the observations in the ObsTable for which to compute the noise.
 
         Returns
         -------
         flux_err : array_like
-            The standard deviation of the bandflux measurement error, in the
-            same units as the input bandflux.
+            The standard deviation of the bandflux measurement error (in nJy)
         """
-        exptime = obs_table["exptime"].iloc[indices]
+        exptime = obs_table["exptime"].iloc[indices].to_numpy()
         sky = obs_table.calculate_skynoise(
             exptime,
             obs_table.safe_get_survey_value("zodi_level"),
-            obs_table["zodi_countrate_min"].iloc[indices],
-            obs_table["thermal_countrate"].iloc[indices],
+            obs_table["zodi_countrate_min"].iloc[indices].to_numpy(),
+            obs_table["thermal_countrate"].iloc[indices].to_numpy(),
         )
 
         return poisson_bandflux_std(
             bandflux,  # nJy
             total_exposure_time=exptime,  # seconds
             exposure_count=1,
-            psf_footprint=obs_table["N_Eff_Pix"].iloc[indices],
+            psf_footprint=obs_table["N_Eff_Pix"].iloc[indices].to_numpy(),
             sky=sky,
-            zp=obs_table["zp"].iloc[indices] / exptime,  # (nJy/s * s)^-1
+            zp=obs_table["zp"].iloc[indices].to_numpy() / exptime,  # (nJy/s * s)^-1
             readout_noise=obs_table.readnoise_func,  # e-/pixel
             dark_current=obs_table.safe_get_survey_value("dark_current"),
             zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),

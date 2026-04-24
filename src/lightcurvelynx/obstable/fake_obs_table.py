@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class FakeObsTableFluxNoiseModel(PoissonFluxNoiseModel):
-    """A subclass of FakeObsTable for Rubin OpSim data."""
+    """A subclass of PoissonFluxNoiseModel for survey data in the FakeObsTable."""
 
     def __init__(self):
         super().__init__()
@@ -22,18 +22,16 @@ class FakeObsTableFluxNoiseModel(PoissonFluxNoiseModel):
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
+            Source bandflux in nJy.
         obs_table : ObsTable
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
+            Table containing the observation parameters needed to compute the noise.
         indices : array_like of int
             Indices of the observations in the ObsTable for which to compute the noise.
 
         Returns
         -------
         flux_err : array_like
-            The standard deviation of the bandflux measurement error, in the
-            same units as the input bandflux.
+            The standard deviation of the bandflux measurement error (in nJy)
         """
         # If we have a bandflux_error in the table (including from constant flux error), use that.
         if "bandflux_error" in obs_table:

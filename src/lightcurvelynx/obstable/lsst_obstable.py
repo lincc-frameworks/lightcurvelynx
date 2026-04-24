@@ -69,32 +69,30 @@ class LSSTPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
+            Source bandflux in nJy.
         obs_table : ObsTable
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
+            Table containing the observation parameters needed to compute the noise.
         indices : array_like of int
             Indices of the observations in the ObsTable for which to compute the noise.
 
         Returns
         -------
         flux_err : array_like
-            The standard deviation of the bandflux measurement error, in the
-            same units as the input bandflux.
+            The standard deviation of the bandflux measurement error (in nJy)
         """
         # By the effective FWHM definition, see
         # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
         pixel_scale = obs_table.safe_get_survey_value("pixel_scale")
-        seeing = obs_table["seeing"].iloc[indices]
+        seeing = obs_table["seeing"].iloc[indices].to_numpy()
         psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
-        zp = obs_table["zp"].iloc[indices]
+        zp = obs_table["zp"].iloc[indices].to_numpy()
 
         # Compute sky background in e- from sky_bg_adu if needed.
         if "sky_bg_e" in obs_table.columns:
-            sky = obs_table["sky_bg_e"].iloc[indices]
+            sky = obs_table["sky_bg_e"].iloc[indices].to_numpy()
         elif "sky_bg_adu" in obs_table.columns:
             gain = obs_table.safe_get_survey_value("gain")
-            sky = obs_table["sky_bg_adu"].iloc[indices] * gain
+            sky = obs_table["sky_bg_adu"].iloc[indices].to_numpy() * gain
         else:
             raise ValueError(
                 "Some value of sky background (electrons or ADU) is required to compute "
@@ -102,7 +100,7 @@ class LSSTPoissonFluxNoiseModel(PoissonFluxNoiseModel):
             )
 
         # If exposure time is not provided, use the default value of 30 seconds for LSST.
-        exptime = obs_table["exptime"].iloc[indices] if "exptime" in obs_table.columns else 30.0
+        exptime = obs_table["exptime"].iloc[indices].to_numpy() if "exptime" in obs_table.columns else 30.0
 
         return poisson_bandflux_std(
             bandflux,
