@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from astropy.coordinates import SkyCoord
 from cdshealpix import skycoord_to_healpix
-from lightcurvelynx.obstable.argus_obstable import ArgusHealpixObsTable
+from lightcurvelynx.obstable.argus_obstable import ArgusHealpixObsTable, ArgusPoissonFluxNoiseModel
 
 
 def _ra_dec_to_healpix(ra, dec, nside=32):
@@ -177,6 +177,7 @@ def test_argus_obstable_noise():
     }
     pdf = pd.DataFrame(values)
     table = ArgusHealpixObsTable(pdf, nside=32)
+    assert isinstance(table.noise_model, ArgusPoissonFluxNoiseModel)
 
     assert "zp" in table
     assert np.all(table["zp"] > 15.0)
@@ -184,6 +185,12 @@ def test_argus_obstable_noise():
     # Check that we can compute the bandflux error for a given bandflux.
     bandfluxes = np.array([1000.0, 500.0, 200.0])
     index = np.array([0, 2, 4])
-    bandflux_err = table.bandflux_error_point_source(bandflux=bandfluxes, index=index)
+    bandflux_noise, bandflux_err = table.noise_model.apply_noise(
+        bandflux=bandfluxes,
+        obs_table=table,
+        indices=index,
+    )
     assert len(bandflux_err) == len(bandfluxes)
+    assert len(bandflux_noise) == len(bandfluxes)
+    assert not np.any(bandflux_noise == bandfluxes)
     assert np.all(bandflux_err > 0.0)
