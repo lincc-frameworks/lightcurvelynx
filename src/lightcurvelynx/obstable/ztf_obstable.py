@@ -58,7 +58,7 @@ class ZTFPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         """
         # By the effective FWHM definition, see
         # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
-        fwhm = obs_table["fwhm"].iloc[indices]
+        fwhm = obs_table["fwhm"].iloc[indices].to_numpy()
         footprint = GAUSS_EFF_AREA2FWHM_SQ * fwhm**2  # in pixels
 
         # Compute the sky in e-/pixel^2, the sky column is in ADU/pixel, so we need to multiply

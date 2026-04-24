@@ -66,8 +66,6 @@ class SkyMapperPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         flux_err : array_like
             The standard deviation of the bandflux measurement error (in nJy)
         """
-        observations = obs_table._table.iloc[indices]
-
         # By the effective FWHM definition, see
         # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
         # We need it in pixel^2.
@@ -78,7 +76,7 @@ class SkyMapperPoissonFluxNoiseModel(PoissonFluxNoiseModel):
             seeing = obs_table["seeing"].iloc[indices].to_numpy()
         else:
             # Use the median seeing per-filter if the seeing is not provided for each observation.
-            seeing = np.zeros(len(observations))
+            seeing = np.zeros(len(indices))
             for filter_name, fwhm_arcsec in obs_table._default_psf_fwhm.items():
                 filter_mask = obs_table["filter"].iloc[indices] == filter_name
                 seeing[filter_mask] = fwhm_arcsec
