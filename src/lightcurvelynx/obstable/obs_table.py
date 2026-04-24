@@ -11,6 +11,7 @@ import astropy.units as u
 import numpy as np
 import pandas as pd
 from astropy.coordinates import Latitude, Longitude
+from astropy.table import Table
 from mocpy import MOC
 from regions import Region
 from scipy.spatial import KDTree
@@ -31,7 +32,7 @@ class ObsTable:
 
     Parameters
     ----------
-    table : dict or pandas.core.frame.DataFrame
+    table : dict, astropy.table.table.Table, or pandas.core.frame.DataFrame
         The table with all the survey information. Metadata can be included in the
         "lightcurvelynx_survey_data" entry of the attributes dictionary.
     colmap : dict, optional
@@ -107,6 +108,8 @@ class ObsTable:
         # Create a copy of the table.
         if isinstance(table, dict):
             self._table = pd.DataFrame(table)
+        elif isinstance(table, Table):
+            self._table = table.to_pandas()
         else:
             self._table = table.copy()
 
