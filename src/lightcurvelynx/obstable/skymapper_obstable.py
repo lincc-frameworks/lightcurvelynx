@@ -50,7 +50,24 @@ class SkyMapperPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         super().__init__()
 
     def compute_flux_error(self, bandflux, obs_table, indices):
-        """Compute the flux error for the given bandflux and observation parameters."""
+        """Compute the flux error for the given bandflux and observation parameters.
+
+        Parameters
+        ----------
+        bandflux : array_like of float
+            Source bandflux in energy units, e.g. nJy.
+        obs_table : ObsTable
+            Table containing the observation parameters, including all
+            parameters needed to compute the noise.
+        indices : array_like of int
+            Indices of the observations in the ObsTable for which to compute the noise.
+
+        Returns
+        -------
+        flux_err : array_like
+            The standard deviation of the bandflux measurement error, in the
+            same units as the input bandflux.
+        """
         observations = obs_table._table.iloc[indices]
 
         # By the effective FWHM definition, see

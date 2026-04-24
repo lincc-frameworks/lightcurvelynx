@@ -16,7 +16,6 @@ from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.scipy_random import SamplePDF
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.models.snia_host import SNIaHost
-from lightcurvelynx.noise_models.noise_utils import apply_noise
 from scipy.interpolate import interp1d
 
 logger = logging.getLogger(__name__)
@@ -206,13 +205,18 @@ def draw_single_random_sn(
     )
     res["flux_fnu"] = flux_nJy
 
-    # Compute the band_flixes over just the given filters.
+    # Compute the band_fluxes over just the given filters.
     bandfluxes_perfect = source.evaluate_bandfluxes(passbands, times, filters, state)
     res["bandfluxes_perfect"] = bandfluxes_perfect
 
-    bandfluxes_error = opsim.bandflux_error_point_source(bandfluxes_perfect, obs_index)
-    res["bandfluxes_error"] = bandfluxes_error
-    res["bandfluxes"] = apply_noise(bandfluxes_perfect, bandfluxes_error, rng=None)
+    new_vals, err_vals = opsim.noise_model.apply_noise(
+        bandfluxes_perfect,
+        obs_table=opsim,
+        indices=obs_index,
+        rng=rng_info,
+    )
+    res["bandfluxes_error"] = err_vals
+    res["bandfluxes"] = new_vals
 
     res["state"] = state
 

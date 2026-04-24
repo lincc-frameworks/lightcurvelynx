@@ -235,6 +235,9 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
             indices=indices,
         )
 
+        # Make sure the array is a numpy array.
+        flux_err = np.asarray(flux_err)
+
         # Generate the actual noisy bandflux measurements.
         if rng is None:
             rng = np.random.default_rng()

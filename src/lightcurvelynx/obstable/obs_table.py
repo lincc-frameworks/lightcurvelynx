@@ -889,23 +889,6 @@ class ObsTable:
             results[col] = self[col][neighbors].to_numpy()
         return results
 
-    def bandflux_error_point_source(self, bandflux, index):
-        """Compute observational bandflux error for a point source.
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Band bandflux of the point source in nJy.
-        index : array_like of int
-            The index of the observation in the ObsTable table.
-
-        Returns
-        -------
-        flux_err : array_like of float
-            Simulated bandflux noise in nJy.
-        """
-        raise NotImplementedError()  # pragma: no cover
-
     def compute_saturation(self, flux, flux_error, index):
         """Apply the saturation limits to a given flux and flux error.
 
