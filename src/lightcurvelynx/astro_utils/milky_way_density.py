@@ -4,6 +4,9 @@ This module provides density models that describe the spatial distribution of
 stars in the Milky Way. These models can be used to generate realistic
 sky positions for simulated stellar populations.
 
+This module is adapted from:
+https://github.com/uiucsn/ztf-dr-vars/blob/master/ch_vars/spatial_distr.py
+
 References
 ----------
 * Juric et al., 2008, ApJ, 673, 864
