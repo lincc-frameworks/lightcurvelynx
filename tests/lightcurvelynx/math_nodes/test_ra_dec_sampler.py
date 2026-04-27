@@ -12,9 +12,11 @@ import pandas as pd
 import pytest
 from astropy.coordinates import Latitude, Longitude, SkyCoord, angular_separation
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
+from lightcurvelynx.astro_utils.milky_way_density import MilkyWayDensityJuric2008
 from lightcurvelynx.math_nodes.ra_dec_sampler import (
     ApproximateMOCSampler,
     CatalogRADECSampler,
+    MilkyWayRADECSampler,
     ObsTableRADECSampler,
     ObsTableUniformRADECSampler,
     UniformRADEC,
@@ -682,3 +684,70 @@ def test_catalog_ra_dec_sampler_from_hats(test_data_dir):
         states = sampler_node.sample_parameters(num_samples=1)
         assert 10.0 <= states["sampler"]["ra"] <= 10.2
         assert -10.1 <= states["sampler"]["dec"] <= -9.9
+
+
+def test_milky_way_ra_dec_sampler_single():
+    """Test that MilkyWayRADECSampler returns a valid single (RA, dec) sample."""
+    # Use a small grid for speed.
+    model = MilkyWayDensityJuric2008(n_grid=64)
+    sampler = MilkyWayRADECSampler(density_model=model, seed=0, node_label="mw")
+
+    (ra, dec) = sampler.generate(num_samples=1)
+
+    assert isinstance(ra, float)
+    assert isinstance(dec, float)
+    assert 0.0 <= ra <= 360.0
+    assert -90.0 <= dec <= 90.0
+
+
+def test_milky_way_ra_dec_sampler_many():
+    """Test that MilkyWayRADECSampler returns valid arrays for many samples."""
+    model = MilkyWayDensityJuric2008(n_grid=64)
+    sampler = MilkyWayRADECSampler(density_model=model, seed=42, node_label="mw")
+
+    num_samples = 500
+    state = sampler.sample_parameters(num_samples=num_samples)
+    all_ra = state["mw"]["ra"]
+    all_dec = state["mw"]["dec"]
+
+    assert len(all_ra) == num_samples
+    assert np.all(all_ra >= 0.0)
+    assert np.all(all_ra <= 360.0)
+    assert len(all_dec) == num_samples
+    assert np.all(all_dec >= -90.0)
+    assert np.all(all_dec <= 90.0)
+
+
+def test_milky_way_ra_dec_sampler_default_model():
+    """Test that MilkyWayRADECSampler uses a default model when none is provided."""
+    sampler = MilkyWayRADECSampler(seed=7, node_label="mw")
+    assert isinstance(sampler.density_model, MilkyWayDensityJuric2008)
+
+    (ra, dec) = sampler.generate(num_samples=1)
+    assert 0.0 <= ra <= 360.0
+    assert -90.0 <= dec <= 90.0
+
+
+def test_milky_way_ra_dec_sampler_invalid_model():
+    """Test that MilkyWayRADECSampler raises TypeError for invalid density models."""
+    with pytest.raises(TypeError):
+        MilkyWayRADECSampler(density_model="not_a_model")
+
+
+def test_milky_way_ra_dec_sampler_galactic_concentration():
+    """Test that Milky Way samples are concentrated near the Galactic plane."""
+    model = MilkyWayDensityJuric2008(n_grid=64)
+    sampler = MilkyWayRADECSampler(density_model=model, seed=123, node_label="mw")
+
+    num_samples = 1000
+    state = sampler.sample_parameters(num_samples=num_samples)
+    all_ra = state["mw"]["ra"]
+    all_dec = state["mw"]["dec"]
+
+    # Convert to Galactic coordinates and check that most samples have low
+    # Galactic latitude (i.e. concentrated near the plane).
+    coords = SkyCoord(ra=all_ra * u.deg, dec=all_dec * u.deg, frame="icrs")
+    gal_b = coords.galactic.b.deg
+    fraction_near_plane = np.sum(np.abs(gal_b) < 30.0) / num_samples
+    # At least 60 % of samples should be within |b| < 30 degrees.
+    assert fraction_near_plane > 0.6
