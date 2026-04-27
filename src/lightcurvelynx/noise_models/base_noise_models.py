@@ -7,11 +7,6 @@ from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 
 class FluxNoiseModel(ABC):
     """An abstract baseclass noise model for simulating bandflux measurements."""
-
-    @abstractmethod
-    def __init__(self):
-        pass
-
     @abstractmethod
     def apply_noise(
         self,
@@ -211,7 +206,6 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
         flux_err = np.asarray(flux_err)
 
         # Generate the actual noisy bandflux measurements.
-        if rng is None:
-            rng = np.random.default_rng()
+        rng = np.random.default_rng(rng)
         noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)
         return noisy_bandflux, flux_err
