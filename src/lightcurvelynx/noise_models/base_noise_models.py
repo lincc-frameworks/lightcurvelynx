@@ -7,6 +7,7 @@ from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 
 class FluxNoiseModel(ABC):
     """An abstract baseclass noise model for simulating bandflux measurements."""
+
     @abstractmethod
     def apply_noise(
         self,
