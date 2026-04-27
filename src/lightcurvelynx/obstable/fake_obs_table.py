@@ -10,7 +10,7 @@ from lightcurvelynx.obstable.obs_table_params import ParamDeriver
 logger = logging.getLogger(__name__)
 
 
-class FakeObsTableFluxNoiseModel(PoissonFluxNoiseModel):
+class FakeObsTablePoissonNoise(PoissonFluxNoiseModel):
     """A subclass of PoissonFluxNoiseModel for survey data in the FakeObsTable."""
 
     def __init__(self):
@@ -94,7 +94,7 @@ class FakeObsTable(ObsTable):
 
         Default is "given_only" which does not attempt any derivation.
     noise_model : NoiseModel, optional
-        The noise model to use for this survey. If not provided, a default FakeObsTableFluxNoiseModel
+        The noise model to use for this survey. If not provided, a default FakeObsTablePoissonNoise
         will be used, which can compute flux errors from the table parameters using the
         poisson_bandflux_std function.
     **kwargs : dict
@@ -136,7 +136,7 @@ class FakeObsTable(ObsTable):
         if noise_model is not None:
             self.noise_model = noise_model
         else:
-            self.noise_model = FakeObsTableFluxNoiseModel()
+            self.noise_model = FakeObsTablePoissonNoise()
 
         # Derive any missing parameters needed for the flux error computation. We always create
         # a new ParamDeriver instance here, because they are stateful.
