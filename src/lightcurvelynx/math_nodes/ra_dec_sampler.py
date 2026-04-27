@@ -782,8 +782,6 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
         The Milky Way stellar density model to use for sampling.  If *None*
         a :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityJuric2008`
         instance with default parameters is created.  Default: None
-    outputs : list of str, optional
-        Output parameter names. Default: ``["ra", "dec"]``
     seed : int or None, optional
         Seed for the internal random number generator. Default: None
     **kwargs : dict, optional
@@ -801,7 +799,7 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
     True
     """
 
-    def __init__(self, density_model=None, outputs=None, seed=None, **kwargs):
+    def __init__(self, density_model=None, seed=None, **kwargs):
         if density_model is None:
             density_model = MilkyWayDensityJuric2008()
         if not isinstance(density_model, MilkyWayDensityBase):
@@ -811,11 +809,10 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
             )
         self.density_model = density_model
 
-        # Use a uniform sampler as the underlying numpy function, but override
-        # compute() so the function itself is never called directly.
-        func_name = "uniform"
-        outputs = ["ra", "dec"]
-        super().__init__(func_name, outputs=outputs, seed=seed, **kwargs)
+        # NumpyRandomFunc requires a func_name for initialisation and to register
+        # outputs. The underlying numpy function is never called directly because
+        # this class overrides compute().
+        super().__init__("uniform", outputs=["ra", "dec"], seed=seed, **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Sample (RA, dec) positions from the Milky Way density model.
