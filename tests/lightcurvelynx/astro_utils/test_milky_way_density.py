@@ -3,7 +3,6 @@
 import numpy as np
 import pytest
 from astropy.coordinates import ICRS
-
 from lightcurvelynx.astro_utils.milky_way_density import (
     MilkyWayDensityBase,
     MilkyWayDensityJuric2008,
@@ -105,12 +104,8 @@ class TestMilkyWayDensityJuric2008:
     def test_sample_galactic_cylindrical_reproducible(self):
         """Test that sampling is reproducible with the same seed."""
         model = MilkyWayDensityJuric2008(n_grid=64)
-        rho1, phi1, z1 = model.sample_galactic_cylindrical(
-            n_samples=20, rng=np.random.default_rng(42)
-        )
-        rho2, phi2, z2 = model.sample_galactic_cylindrical(
-            n_samples=20, rng=np.random.default_rng(42)
-        )
+        rho1, phi1, z1 = model.sample_galactic_cylindrical(n_samples=20, rng=np.random.default_rng(42))
+        rho2, phi2, z2 = model.sample_galactic_cylindrical(n_samples=20, rng=np.random.default_rng(42))
         np.testing.assert_array_equal(rho1, rho2)
         np.testing.assert_array_equal(phi1, phi2)
         np.testing.assert_array_equal(z1, z2)
