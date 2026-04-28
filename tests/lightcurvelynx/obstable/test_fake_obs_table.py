@@ -54,13 +54,16 @@ def test_create_fake_obs_table_consts():
     assert "zp" in ops_data
 
     # We can compute noise.
-    flux_error = ops_data.bandflux_error_point_source(
-        np.array([100.0, 200.0, 300.0, 400.0, 500.0]),  # Fluxes in nJy
-        np.arange(5),  # Indices of the observations
+    fluxes = np.array([100.0, 200.0, 300.0, 400.0, 500.0])  # Fluxes in nJy
+    new_fluxes, flux_error = ops_data.noise_model.apply_noise(
+        fluxes,
+        obs_table=ops_data,
+        indices=np.arange(5),  # Indices of the observations
     )
     assert len(flux_error) == 5
     assert np.all(flux_error > 0)
     assert len(np.unique(flux_error)) > 1  # Not all the same
+    assert not np.any(new_fluxes == fluxes)  # Noisy fluxes should not be the same as input
 
     # If we give psf_footprint, we use that instead of fwhm_px.
     ops_data = FakeObsTable(
@@ -118,14 +121,16 @@ def test_create_fake_obs_table_consts():
     assert ops_data.survey_values["survey_name"] == "MY_SURVEY"
 
     # We can compute noise.
-    flux_error2 = ops_data.bandflux_error_point_source(
-        np.array([100.0, 200.0, 300.0, 400.0, 500.0]),  # Fluxes in nJy
-        np.arange(5),  # Indices of the observations
+    new_fluxes, flux_error2 = ops_data.noise_model.apply_noise(
+        fluxes,
+        obs_table=ops_data,
+        indices=np.arange(5),  # Indices of the observations
     )
     assert len(flux_error2) == 5
     assert np.all(flux_error2 > 0)
     assert len(np.unique(flux_error2)) > 1  # Not all the same
     assert np.any(flux_error2 != flux_error)  # Different from before
+    assert not np.any(new_fluxes == fluxes)  # Noisy fluxes should not be the same as input
 
     # We fail if we use a deriver that cannot compute required parameters.
     with pytest.raises(ValueError):
@@ -174,13 +179,16 @@ def test_create_fake_obs_table_non_consts():
     assert np.allclose(ops_data["zp"], values["zp"])
 
     # We can compute noise.
-    flux_error = ops_data.bandflux_error_point_source(
-        np.array([100.0, 200.0, 300.0, 400.0, 500.0]),  # Fluxes in nJy
-        np.arange(5),  # Indices of the observations
+    fluxes = np.array([100.0, 200.0, 300.0, 400.0, 500.0])  # Fluxes in nJy
+    new_fluxes, flux_error = ops_data.noise_model.apply_noise(
+        fluxes,
+        obs_table=ops_data,
+        indices=np.arange(5),  # Indices of the observations
     )
     assert len(flux_error) == 5
     assert np.all(flux_error > 0)
     assert len(np.unique(flux_error)) > 1  # Not all the same
+    assert not np.any(new_fluxes == fluxes)  # Noisy fluxes should not be the same as input
 
 
 def test_create_fake_obs_table_cols_fail():
@@ -303,5 +311,11 @@ def test_create_fake_obs_table_noise_free():
 
     # Compute the bandflux error for each observation (should all be zero).
     fluxes = np.array([100.0, 200.0, 300.0, 400.0, 500.0])  # Fluxes in nJy
-    flux_error = ops_data.bandflux_error_point_source(fluxes, np.arange(5))
-    assert np.array_equal(flux_error, np.zeros(5))
+    new_flux, flux_error = ops_data.noise_model.apply_noise(
+        fluxes,
+        obs_table=ops_data,
+        indices=np.arange(5),
+    )
+    assert len(flux_error) == 5
+    assert np.all(flux_error == 0.0)
+    assert np.allclose(new_flux, fluxes)

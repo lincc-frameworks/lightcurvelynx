@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
-from lightcurvelynx.obstable.roman_obstable import RomanObsTable
+from lightcurvelynx.obstable.roman_obstable import RomanObsTable, RomanPoissonFluxNoiseModel
 
 
 def make_random_apt_table():
@@ -59,6 +59,7 @@ def test_noise_calculation():
         mat_table_path=_LIGHTCURVELYNX_TEST_DATA_DIR
         / "roman_characterization/roman_wfi_imaging_multiaccum_tables_with_exptime.csv",
     )
+    assert isinstance(roman_obstable.noise_model, RomanPoissonFluxNoiseModel)
 
     roman_obstable.survey_values["zodi_level"] = 2.0
 
@@ -67,7 +68,14 @@ def test_noise_calculation():
 
     flux_nJy = np.power(10.0, -0.4 * (mag - 31.4))
 
-    fluxerr_nJy = roman_obstable.bandflux_error_point_source(flux_nJy, 0)
+    flux_new, fluxerr_nJy = roman_obstable.noise_model.apply_noise(
+        flux_nJy,
+        obs_table=roman_obstable,
+        indices=[0],
+    )
+    assert not np.any(flux_new == flux_nJy)
+    assert np.all(fluxerr_nJy > 0.0)
+
     magerr = 1.086 * fluxerr_nJy / flux_nJy
 
     np.testing.assert_allclose(magerr, expected_magerr, rtol=0.2)

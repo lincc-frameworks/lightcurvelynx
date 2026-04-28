@@ -9,9 +9,10 @@ from astropy.coordinates import SkyCoord
 from cdshealpix import skycoord_to_healpix
 from mocpy import MOC
 
-from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
 from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
+from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 _argus_view_radius = 52.0
@@ -25,6 +26,52 @@ _argus_pixel_scale = 1.0
 """The pixel scale for the Argus survey in arcseconds per pixel:
 https://argus.unc.edu/specifications
 """
+
+
+class ArgusPoissonFluxNoiseModel(PoissonFluxNoiseModel):
+    """A subclass of PoissonFluxNoiseModel for Argus survey data."""
+
+    def __init__(self):
+        super().__init__()
+
+    def compute_flux_error(self, bandflux, obs_table, indices):
+        """Compute the flux error for the given bandflux and observation parameters.
+
+        Parameters
+        ----------
+        bandflux : array_like of float
+            Source bandflux in nJy.
+        obs_table : ObsTable
+            Table containing the observation parameters needed to compute the noise.
+        indices : array_like of int
+            Indices of the observations in the ObsTable for which to compute the noise.
+
+        Returns
+        -------
+        flux_err : array_like
+            The standard deviation of the bandflux measurement error (in nJy)
+        """
+
+        # Compute the PSF footprint in pixels from the seeing and pixel scale.
+        pixel_scale = obs_table.safe_get_survey_value("pixel_scale")
+        seeing = obs_table["seeing"].iloc[indices].to_numpy()
+        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
+
+        # Convert dark current from electrons/pixel/exposure to electrons/pixel/second.
+        exptime = obs_table["exptime"].iloc[indices].to_numpy()
+        dark_current = obs_table["dark_electrons"].iloc[indices].to_numpy() / exptime
+
+        return poisson_bandflux_std(
+            bandflux,
+            total_exposure_time=exptime,
+            exposure_count=1,
+            psf_footprint=psf_footprint,
+            sky=obs_table["sky_electrons"].iloc[indices].to_numpy(),
+            zp=obs_table["zp"].iloc[indices].to_numpy(),
+            readout_noise=obs_table.safe_get_survey_value("read_noise"),
+            dark_current=dark_current,
+            zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),
+        )
 
 
 class ArgusHealpixObsTable(ObsTable):
@@ -45,6 +92,8 @@ class ArgusHealpixObsTable(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, Argus-specific defaults will be
         used.
+    noise_model : NoiseModel, optional
+        The noise model to use for this ObsTable. If not provided, an Argus-specific default will be used.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -75,6 +124,7 @@ class ArgusHealpixObsTable(ObsTable):
         "pixel_scale": _argus_pixel_scale,
         "radius": _argus_view_radius,
         "read_noise": 1.4,  # e-/pixel
+        "zp_err_mag": 0.0,  # Placeholder for now.
         "survey_name": "Argus",
     }
 
@@ -85,6 +135,7 @@ class ArgusHealpixObsTable(ObsTable):
         colmap=None,
         apply_saturation=True,
         saturation_mags=None,
+        noise_model=None,
         nside=None,
         **kwargs,
     ):
@@ -120,11 +171,16 @@ class ArgusHealpixObsTable(ObsTable):
         if "detector_footprint" in kwargs or "wcs" in kwargs:  # pragma: no cover
             raise ValueError("ArgusObsTable does not support detector footprints.")
 
+        # If noise model is not provided, then set to the Argus default.
+        if noise_model is None:
+            noise_model = ArgusPoissonFluxNoiseModel()
+
         super().__init__(
             table=table,
             colmap=colmap,
             apply_saturation=apply_saturation,
             saturation_mags=saturation_mags,
+            noise_model=noise_model,
             **kwargs,
         )
 
@@ -240,44 +296,6 @@ class ArgusHealpixObsTable(ObsTable):
             nexposure=1,
         )
         self._table["zp"] = zp_vals
-
-    def bandflux_error_point_source(self, bandflux, index):
-        """Compute observational bandflux error for a point source
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Band bandflux of the point source in nJy.
-        index : array_like of int
-            The index of the observation in the LSSTObsTable table.
-
-        Returns
-        -------
-        flux_err : array_like of float
-            Simulated bandflux noise in nJy.
-        """
-        observations = self._table.iloc[index]
-
-        # Compute the PSF footprint in pixels from the seeing and pixel scale.
-        pixel_scale = self.safe_get_survey_value("pixel_scale")
-        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
-
-        # Compute the dark current in electrons per pixel per second from the dark current in electrons
-        # per pixel per exposure and the exposure time.
-        exptime = observations["exptime"]
-        dark_current = observations["dark_electrons"] / exptime
-
-        return poisson_bandflux_std(
-            bandflux,
-            total_exposure_time=exptime,
-            exposure_count=1,
-            psf_footprint=psf_footprint,
-            sky=observations["sky_electrons"],
-            zp=observations["zp"],
-            readout_noise=self.safe_get_survey_value("read_noise"),
-            dark_current=dark_current,
-            zp_err_mag=0.0,  # Placeholder for now
-        )
 
     def range_search(self, query_ra, query_dec, *, radius=None, t_min=None, t_max=None):
         """Return the indices of the pointings that fall within the field

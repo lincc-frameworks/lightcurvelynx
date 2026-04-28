@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
-from lightcurvelynx.obstable.skymapper_obstable import SkyMapperObsTable
+from lightcurvelynx.obstable.skymapper_obstable import SkyMapperObsTable, SkyMapperPoissonFluxNoiseModel
 
 
 def test_skymapper_obstable_init():
@@ -24,6 +24,7 @@ def test_skymapper_obstable_init():
     }
     survey_data_table = pd.DataFrame(survey_data)
     obs_table = SkyMapperObsTable(table=survey_data_table, make_detector_footprint=True)
+    assert isinstance(obs_table.noise_model, SkyMapperPoissonFluxNoiseModel)
 
     assert "zp" in obs_table
     assert np.allclose(survey_data["ra_deg"], obs_table["ra"])
@@ -41,10 +42,13 @@ def test_skymapper_obstable_init():
     assert obs_table.uses_footprint()
 
     # We can compute errors.
-    err_vals = obs_table.bandflux_error_point_source(
-        mag2flux(np.full(3, 19.0)),  # Flux values
-        np.array([0, 1, 2]),  # Index values for the first three rows
+    clean_flux = mag2flux(np.full(3, 19.0))
+    new_vals, err_vals = obs_table.noise_model.apply_noise(
+        clean_flux,
+        obs_table=obs_table,
+        indices=np.array([0, 1, 2]),  # Index values for the first three rows
     )
+    assert not np.any(new_vals == clean_flux)
     assert np.all(err_vals > 0.0)
 
     # We can build a MOC at level 14

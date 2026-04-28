@@ -9,6 +9,7 @@ import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.obstable.opsim import (
     OpSim,
+    OpSimPoissonFluxNoiseModel,
     _opsim_extinction_coeff,
     _opsim_zeropoint_per_sec_zenith,
     create_random_opsim,
@@ -30,6 +31,7 @@ def test_create_opsim():
     ops_data = OpSim(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
+    assert isinstance(ops_data.noise_model, OpSimPoissonFluxNoiseModel)
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.2
@@ -524,57 +526,16 @@ def test_opsim_flux_err_point_source(opsim_shorten):
     flux = mag2flux(ops_data["fiveSigmaDepth"])
     expected_flux_err = flux / 5.0
 
-    flux_err = ops_data.bandflux_error_point_source(flux, index=np.arange(len(ops_data)))
+    new_flux, flux_err = ops_data.noise_model.apply_noise(
+        flux,
+        obs_table=ops_data,
+        indices=np.arange(len(ops_data)),
+    )
+    assert not np.any(flux == new_flux)
+    assert np.all(flux_err > 0.0)
 
     # Tolerance is very high, we should investigate why the values are so different.
     np.testing.assert_allclose(flux_err, expected_flux_err, rtol=0.2)
-
-
-def _make_fake_data(times):
-    """Create 9 fake ccd pointings at each timestep using
-    a 3x3 grid centered (like dp1) with grid steps of 0.22 deg.
-
-    Parameters
-    ----------
-    times : `numpy.ndarray`
-        The times of the observations (in MJD).
-    """
-
-    # Create a tile of pointings around a random center at each time
-    # where the center is chosen from a 1 degree by 1 degree box.
-    data = {
-        "expMidptMJD": [],
-        "ra": [],
-        "dec": [],
-        "band": [],
-    }
-    for t in times:
-        pointing_ra = np.random.uniform(150.0, 151.0)
-        pointing_dec = np.random.uniform(-21.0, -20.0)
-        band = np.random.choice(["g", "r", "i"])
-
-        for dra in [-0.22, 0.0, 0.22]:
-            for ddec in [-0.22, 0.0, 0.22]:
-                data["expMidptMJD"].append(t)
-                data["ra"].append(pointing_ra + dra)
-                data["dec"].append(pointing_dec + ddec)
-                data["band"].append(band)
-
-    # Add the other columns with random values.
-    num_samples = len(data["expMidptMJD"])
-    data["ccdVisitId"] = np.arange(num_samples)
-    data["expTime"] = np.full(num_samples, 30.0)  # seconds
-    data["magLim"] = np.random.normal(24.0, 0.5, num_samples)  # mag
-    data["seeing"] = np.random.normal(1.0, 0.2, num_samples)  # arcseconds
-    data["skyBg"] = np.random.normal(1750, 10.0, num_samples)  # adu
-    data["skyNoise"] = np.random.normal(43.0, 1.0, num_samples)  # adu
-    data["skyRotation"] = np.zeros(num_samples)  # degrees
-    data["pixelScale"] = np.full(num_samples, 0.2)  # arcsec/pixel
-    data["xSize"] = np.full(num_samples, 4000)  # pixels
-    data["ySize"] = np.full(num_samples, 4000)  # pixels
-    data["zeroPoint"] = np.random.normal(31.0, 0.2, num_samples)  # mag
-
-    return pd.DataFrame(data)
 
 
 def test_opsim_plot_footprint(opsim_shorten):

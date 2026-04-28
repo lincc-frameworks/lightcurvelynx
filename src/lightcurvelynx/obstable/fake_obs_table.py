@@ -2,11 +2,52 @@ import logging
 
 import numpy as np
 
-from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
+from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.obstable.obs_table_params import ParamDeriver
 
 logger = logging.getLogger(__name__)
+
+
+class FakeObsTablePoissonNoise(PoissonFluxNoiseModel):
+    """A subclass of PoissonFluxNoiseModel for survey data in the FakeObsTable."""
+
+    def __init__(self):
+        super().__init__()
+
+    def compute_flux_error(self, bandflux, obs_table, indices):
+        """Compute the flux error for the given bandflux and observation parameters.
+
+        Parameters
+        ----------
+        bandflux : array_like of float
+            Source bandflux in nJy.
+        obs_table : ObsTable
+            Table containing the observation parameters needed to compute the noise.
+        indices : array_like of int
+            Indices of the observations in the ObsTable for which to compute the noise.
+
+        Returns
+        -------
+        flux_err : array_like
+            The standard deviation of the bandflux measurement error (in nJy)
+        """
+        # If we have a bandflux_error in the table (including from constant flux error), use that.
+        if "bandflux_error" in obs_table:
+            return obs_table.get_value_per_row("bandflux_error", indices=indices)
+
+        # Otherwise compute the flux error using the poisson_bandflux_std noise model.
+        return poisson_bandflux_std(
+            bandflux,
+            total_exposure_time=obs_table.get_value_per_row("exptime", indices=indices),
+            exposure_count=obs_table.get_value_per_row("nexposure", indices=indices),
+            psf_footprint=obs_table.get_value_per_row("psf_footprint", indices=indices),
+            sky=obs_table.get_value_per_row("sky_bg_electrons", indices=indices),
+            zp=obs_table.get_value_per_row("zp", indices=indices),
+            readout_noise=obs_table.safe_get_survey_value("read_noise"),
+            dark_current=obs_table.safe_get_survey_value("dark_current"),
+        )
 
 
 class FakeObsTable(ObsTable):
@@ -52,6 +93,10 @@ class FakeObsTable(ObsTable):
         - "exhaustive": Try all available derivation methods to fill in missing parameters.
 
         Default is "given_only" which does not attempt any derivation.
+    noise_model : NoiseModel, optional
+        The noise model to use for this survey. If not provided, a default FakeObsTablePoissonNoise
+        will be used, which can compute flux errors from the table parameters using the
+        poisson_bandflux_std function.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -78,6 +123,7 @@ class FakeObsTable(ObsTable):
         colmap=None,
         const_flux_error=None,
         noise_strategy="given_only",
+        noise_model=None,
         **kwargs,
     ):
         # Pass along all the survey parameters to the parent class.
@@ -86,6 +132,11 @@ class FakeObsTable(ObsTable):
             colmap=colmap,
             **kwargs,
         )
+
+        if noise_model is not None:
+            self.noise_model = noise_model
+        else:
+            self.noise_model = FakeObsTablePoissonNoise()
 
         # Derive any missing parameters needed for the flux error computation. We always create
         # a new ParamDeriver instance here, because they are stateful.
@@ -130,34 +181,3 @@ class FakeObsTable(ObsTable):
                 f"Insufficient information to compute flux errors or zeropoints using {param_deriver}. "
                 f"Table columns: {column_names}. Survey parameters: {param_names}."
             )
-
-    def bandflux_error_point_source(self, bandflux, index):
-        """Compute observational bandflux error for a point source
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Band bandflux of the point source in nJy.
-        index : array_like of int
-            The index of the observation in the OpSim table.
-
-        Returns
-        -------
-        flux_err : array_like of float
-            Simulated bandflux noise in nJy.
-        """
-        # If we have a bandflux_error in the table (including from constant flux error), use that.
-        if "bandflux_error" in self._table:
-            return self.get_value_per_row("bandflux_error", indices=index)
-
-        # Otherwise compute the flux error using the poisson_bandflux_std noise model.
-        return poisson_bandflux_std(
-            bandflux,
-            total_exposure_time=self.get_value_per_row("exptime", indices=index),
-            exposure_count=self.get_value_per_row("nexposure", indices=index),
-            psf_footprint=self.get_value_per_row("psf_footprint", indices=index),
-            sky=self.get_value_per_row("sky_bg_electrons", indices=index),
-            zp=self.get_value_per_row("zp", indices=index),
-            readout_noise=self.safe_get_survey_value("read_noise"),
-            dark_current=self.safe_get_survey_value("dark_current"),
-        )
