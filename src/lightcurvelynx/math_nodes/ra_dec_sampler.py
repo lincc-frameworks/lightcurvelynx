@@ -757,7 +757,7 @@ class CatalogRADECSampler(ObsTableRADECSampler):
         super().__init__(data, dedup_threshold=dedup_threshold, **kwargs)
 
 
-class MilkyWayRADECSampler(NumpyRandomFunc):
+class MilkyWayCoordSampler(NumpyRandomFunc):
     """A FunctionNode that samples (RA, dec, distance) positions according to a
     Milky Way stellar density model.
 
@@ -790,8 +790,8 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
     Examples
     --------
     >>> import numpy as np
-    >>> from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayRADECSampler
-    >>> sampler = MilkyWayRADECSampler(seed=42, node_label="mw")
+    >>> from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayCoordSampler
+    >>> sampler = MilkyWayCoordSampler(seed=42, node_label="mw")
     >>> (ra, dec, dist) = sampler.generate(num_samples=1)
     >>> 0.0 <= ra <= 360.0
     True
@@ -814,10 +814,15 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
         # NumpyRandomFunc requires a func_name for initialisation and to register
         # outputs. The underlying numpy function is never called directly because
         # this class overrides compute().
-        super().__init__("uniform", outputs=["ra", "dec", "dist"], seed=seed, **kwargs)
+        super().__init__(
+            "uniform",
+            outputs=["ra", "dec", "distance_pc"],
+            seed=seed,
+            **kwargs,
+        )
 
     def compute(self, graph_state, rng_info=None, **kwargs):
-        """Sample (RA, dec) positions from the Milky Way density model.
+        """Sample (RA, dec, distance_pc) positions from the Milky Way density model.
 
         Parameters
         ----------
@@ -832,7 +837,7 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
 
         Returns
         -------
-        results : list of [ra, dec, dist]
+        results : list of [ra, dec, distance_pc]
             A three-element list containing the sampled right ascension, declination,
             and distance values. RA and dec are in degrees, and distance is in parsecs.
             Each element is a float when ``num_samples == 1``, otherwise a numpy array.
@@ -842,14 +847,14 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
         coords = self.density_model.sample_icrs(n_samples=graph_state.num_samples, rng=rng)
         ra = coords.ra.deg
         dec = coords.dec.deg
-        dist = coords.distance.pc
+        distance_pc = coords.distance.pc
 
         # Return scalars for a single sample.
         if graph_state.num_samples == 1:
             ra = float(ra[0])
             dec = float(dec[0])
-            dist = float(dist[0])
+            distance_pc = float(distance_pc[0])
         graph_state.set(self.node_string, "ra", ra)
         graph_state.set(self.node_string, "dec", dec)
-        graph_state.set(self.node_string, "dist", dist)
-        return [ra, dec, dist]
+        graph_state.set(self.node_string, "distance_pc", distance_pc)
+        return [ra, dec, distance_pc]

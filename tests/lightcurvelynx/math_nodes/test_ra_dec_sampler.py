@@ -16,7 +16,7 @@ from lightcurvelynx.astro_utils.milky_way_density import MilkyWayDensityJuric200
 from lightcurvelynx.math_nodes.ra_dec_sampler import (
     ApproximateMOCSampler,
     CatalogRADECSampler,
-    MilkyWayRADECSampler,
+    MilkyWayCoordSampler,
     ObsTableRADECSampler,
     ObsTableUniformRADECSampler,
     UniformRADEC,
@@ -687,31 +687,31 @@ def test_catalog_ra_dec_sampler_from_hats(test_data_dir):
 
 
 def test_milky_way_ra_dec_sampler_single():
-    """Test that MilkyWayRADECSampler returns a valid single (RA, dec) sample."""
+    """Test that MilkyWayCoordSampler returns a valid single (RA, dec) sample."""
     # Use a small grid for speed.
     model = MilkyWayDensityJuric2008(n_grid=64)
-    sampler = MilkyWayRADECSampler(density_model=model, seed=0, node_label="mw")
+    sampler = MilkyWayCoordSampler(density_model=model, seed=0, node_label="mw")
 
-    (ra, dec, dist) = sampler.generate(num_samples=1)
+    (ra, dec, distance_pc) = sampler.generate(num_samples=1)
 
     assert isinstance(ra, float)
     assert isinstance(dec, float)
-    assert isinstance(dist, float)
+    assert isinstance(distance_pc, float)
     assert 0.0 <= ra <= 360.0
     assert -90.0 <= dec <= 90.0
-    assert dist >= 0.0
+    assert distance_pc >= 0.0
 
 
 def test_milky_way_ra_dec_sampler_many():
-    """Test that MilkyWayRADECSampler returns valid arrays for many samples."""
+    """Test that MilkyWayCoordSampler returns valid arrays for many samples."""
     model = MilkyWayDensityJuric2008(n_grid=64)
-    sampler = MilkyWayRADECSampler(density_model=model, seed=42, node_label="mw")
+    sampler = MilkyWayCoordSampler(density_model=model, seed=42, node_label="mw")
 
     num_samples = 500
     state = sampler.sample_parameters(num_samples=num_samples)
     all_ra = state["mw"]["ra"]
     all_dec = state["mw"]["dec"]
-    all_dist = state["mw"]["dist"]
+    all_distance_pc = state["mw"]["distance_pc"]
 
     assert len(all_ra) == num_samples
     assert np.all(all_ra >= 0.0)
@@ -719,31 +719,31 @@ def test_milky_way_ra_dec_sampler_many():
     assert len(all_dec) == num_samples
     assert np.all(all_dec >= -90.0)
     assert np.all(all_dec <= 90.0)
-    assert len(all_dist) == num_samples
-    assert np.all(all_dist >= 0.0)
+    assert len(all_distance_pc) == num_samples
+    assert np.all(all_distance_pc >= 0.0)
 
 
 def test_milky_way_ra_dec_sampler_default_model():
-    """Test that MilkyWayRADECSampler uses a default model when none is provided."""
-    sampler = MilkyWayRADECSampler(seed=7, node_label="mw")
+    """Test that MilkyWayCoordSampler uses a default model when none is provided."""
+    sampler = MilkyWayCoordSampler(seed=7, node_label="mw")
     assert isinstance(sampler.density_model, MilkyWayDensityJuric2008)
 
-    (ra, dec, dist) = sampler.generate(num_samples=1)
+    (ra, dec, distance_pc) = sampler.generate(num_samples=1)
     assert 0.0 <= ra <= 360.0
     assert -90.0 <= dec <= 90.0
-    assert dist >= 0.0
+    assert distance_pc >= 0.0
 
 
 def test_milky_way_ra_dec_sampler_invalid_model():
-    """Test that MilkyWayRADECSampler raises TypeError for invalid density models."""
+    """Test that MilkyWayCoordSampler raises TypeError for invalid density models."""
     with pytest.raises(TypeError):
-        MilkyWayRADECSampler(density_model="not_a_model")
+        MilkyWayCoordSampler(density_model="not_a_model")
 
 
 def test_milky_way_ra_dec_sampler_galactic_concentration():
     """Test that Milky Way samples are concentrated near the Galactic plane."""
     model = MilkyWayDensityJuric2008(n_grid=64)
-    sampler = MilkyWayRADECSampler(density_model=model, seed=123, node_label="mw")
+    sampler = MilkyWayCoordSampler(density_model=model, seed=123, node_label="mw")
 
     num_samples = 1000
     state = sampler.sample_parameters(num_samples=num_samples)
