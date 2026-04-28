@@ -25,10 +25,11 @@ class LookupOnlyObsTable:
 def test_pzflow_noise_model(test_data_dir):
     """Test that the PZFlowNoiseModel correctly computes flux errors
     and applies noise to the bandflux."""
-    rng_for_data = np.random.default_rng(2024)
+    _ = pytest.importorskip("pzflow")
 
     # Create a fake ObsTable with zp (per row) and readnoise (constant) information
     # with a different column name for zp (to test name mapping).
+    rng_for_data = np.random.default_rng(2024)
     num_samples = 20
     dummy_table = {"zp_vals": rng_for_data.normal(loc=25.0, scale=0.5, size=num_samples)}
     dummy_consts = {"readout_noise": 1.0}
