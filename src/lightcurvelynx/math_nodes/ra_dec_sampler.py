@@ -764,7 +764,7 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
     By default this uses the :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityJuric2008`
     model (Juric et al. 2008), but any subclass of
     :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityBase` can be
-    supplied.  Positions are returned in degrees.
+    supplied.  Spherical coordinates are returned in degrees, and the distance is in parsecs.
 
     References
     ----------
