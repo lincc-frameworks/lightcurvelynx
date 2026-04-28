@@ -758,8 +758,8 @@ class CatalogRADECSampler(ObsTableRADECSampler):
 
 
 class MilkyWayRADECSampler(NumpyRandomFunc):
-    """A FunctionNode that samples (RA, dec) positions according to a Milky Way
-    stellar density model.
+    """A FunctionNode that samples (RA, dec, distance) positions according to a
+    Milky Way stellar density model.
 
     By default this uses the :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityJuric2008`
     model (Juric et al. 2008), but any subclass of
@@ -792,10 +792,12 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
     >>> import numpy as np
     >>> from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayRADECSampler
     >>> sampler = MilkyWayRADECSampler(seed=42, node_label="mw")
-    >>> (ra, dec) = sampler.generate(num_samples=1)
+    >>> (ra, dec, dist) = sampler.generate(num_samples=1)
     >>> 0.0 <= ra <= 360.0
     True
     >>> -90.0 <= dec <= 90.0
+    True
+    >>> dist >= 0.0
     True
     """
 
@@ -812,7 +814,7 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
         # NumpyRandomFunc requires a func_name for initialisation and to register
         # outputs. The underlying numpy function is never called directly because
         # this class overrides compute().
-        super().__init__("uniform", outputs=["ra", "dec"], seed=seed, **kwargs)
+        super().__init__("uniform", outputs=["ra", "dec", "dist"], seed=seed, **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Sample (RA, dec) positions from the Milky Way density model.
@@ -830,22 +832,24 @@ class MilkyWayRADECSampler(NumpyRandomFunc):
 
         Returns
         -------
-        results : list of [ra, dec]
-            A two-element list containing the sampled right ascension and
-            declination values in degrees.  Each element is a float when
-            ``num_samples == 1``, otherwise a numpy array.
+        results : list of [ra, dec, dist]
+            A three-element list containing the sampled right ascension, declination,
+            and distance values. RA and dec are in degrees, and distance is in parsecs.
+            Each element is a float when ``num_samples == 1``, otherwise a numpy array.
         """
         rng = rng_info if rng_info is not None else self._rng
 
         coords = self.density_model.sample_icrs(n_samples=graph_state.num_samples, rng=rng)
         ra = coords.ra.deg
         dec = coords.dec.deg
+        dist = coords.distance.pc
 
         # Return scalars for a single sample.
         if graph_state.num_samples == 1:
             ra = float(ra[0])
             dec = float(dec[0])
-
+            dist = float(dist[0])
         graph_state.set(self.node_string, "ra", ra)
         graph_state.set(self.node_string, "dec", dec)
-        return [ra, dec]
+        graph_state.set(self.node_string, "dist", dist)
+        return [ra, dec, dist]

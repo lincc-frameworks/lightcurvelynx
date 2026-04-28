@@ -219,6 +219,26 @@ class MilkyWayDensityJuric2008(MilkyWayDensityBase):
     n_grid : int, optional
         Number of grid points along each axis of the (rho, z) grid.
         Default: 1024
+    sun_rho_kpc : float
+        Galactocentric distance of the Sun. Default: 8 kpc.
+    sun_z_kpc : float
+        Height of the Sun above the Galactic mid-plane. Default: 0.024 kpc.
+    l_thin_kpc : float
+        Scale length of the thin disk in kpc.
+    h_thin_kpc : float
+        Scale height of the thin disk in kpc.
+    dens_thick_to_thin : float
+        Local normalisation of the thick disk relative to the thin disk.
+    l_thick_kpc : float
+        Scale length of the thick disk in kpc.
+    h_thick_kpc : float
+        Scale height of the thick disk in kpc.
+    dens_halo_to_thin : float
+        Local normalisation of the halo relative to the thin disk.
+    ellipticity_halo : float
+        Axis ratio (c/a) of the halo.
+    power_order_halo : float
+        Power-law index of the halo density profile.
     thin_disk_weight : float, optional
         Multiplicative weight applied to the thin disk component. Default: 1.0
     thick_disk_weight : float, optional
@@ -235,18 +255,6 @@ class MilkyWayDensityJuric2008(MilkyWayDensityBase):
     10
     """
 
-    # Juric et al. 2008, Table 10
-    sun_rho_kpc = 8.0
-    sun_z_kpc = 0.024
-    l_thin_kpc = 2.6
-    h_thin_kpc = 0.3
-    dens_thick_to_thin = 0.12
-    l_thick_kpc = 3.6
-    h_thick_kpc = 0.9
-    dens_halo_to_thin = 0.0051
-    ellipticity_halo = 0.64
-    power_order_halo = 2.77
-
     rho_min_kpc = 1.0
     rho_max_kpc = 20.0
     z_min_kpc = -10.0
@@ -254,14 +262,39 @@ class MilkyWayDensityJuric2008(MilkyWayDensityBase):
 
     def __init__(
         self,
+        *,
         n_grid=1024,
         thin_disk_weight=1.0,
         thick_disk_weight=1.0,
         halo_weight=1.0,
+        # Default parameters from Juric et al. 2008, Table 10
+        sun_rho_kpc=8.0,
+        sun_z_kpc=0.024,
+        l_thin_kpc=2.6,
+        h_thin_kpc=0.3,
+        dens_thick_to_thin=0.12,
+        l_thick_kpc=3.6,
+        h_thick_kpc=0.9,
+        dens_halo_to_thin=0.0051,
+        ellipticity_halo=0.64,
+        power_order_halo=2.77,
     ):
         self.thin_disk_weight = thin_disk_weight
         self.thick_disk_weight = thick_disk_weight
         self.halo_weight = halo_weight
+
+        # Store the model parameters as attributes for use in the density evaluation.
+        self.sun_rho_kpc = sun_rho_kpc
+        self.sun_z_kpc = sun_z_kpc
+        self.l_thin_kpc = l_thin_kpc
+        self.h_thin_kpc = h_thin_kpc
+        self.dens_thick_to_thin = dens_thick_to_thin
+        self.l_thick_kpc = l_thick_kpc
+        self.h_thick_kpc = h_thick_kpc
+        self.dens_halo_to_thin = dens_halo_to_thin
+        self.ellipticity_halo = ellipticity_halo
+        self.power_order_halo = power_order_halo
+
         super().__init__(n_grid=n_grid)
 
     def _disk_dens(self, rho, z, scale_length, scale_height):

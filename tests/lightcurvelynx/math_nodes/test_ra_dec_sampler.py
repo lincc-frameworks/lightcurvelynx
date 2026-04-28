@@ -692,12 +692,14 @@ def test_milky_way_ra_dec_sampler_single():
     model = MilkyWayDensityJuric2008(n_grid=64)
     sampler = MilkyWayRADECSampler(density_model=model, seed=0, node_label="mw")
 
-    (ra, dec) = sampler.generate(num_samples=1)
+    (ra, dec, dist) = sampler.generate(num_samples=1)
 
     assert isinstance(ra, float)
     assert isinstance(dec, float)
+    assert isinstance(dist, float)
     assert 0.0 <= ra <= 360.0
     assert -90.0 <= dec <= 90.0
+    assert dist >= 0.0
 
 
 def test_milky_way_ra_dec_sampler_many():
@@ -709,6 +711,7 @@ def test_milky_way_ra_dec_sampler_many():
     state = sampler.sample_parameters(num_samples=num_samples)
     all_ra = state["mw"]["ra"]
     all_dec = state["mw"]["dec"]
+    all_dist = state["mw"]["dist"]
 
     assert len(all_ra) == num_samples
     assert np.all(all_ra >= 0.0)
@@ -716,6 +719,8 @@ def test_milky_way_ra_dec_sampler_many():
     assert len(all_dec) == num_samples
     assert np.all(all_dec >= -90.0)
     assert np.all(all_dec <= 90.0)
+    assert len(all_dist) == num_samples
+    assert np.all(all_dist >= 0.0)
 
 
 def test_milky_way_ra_dec_sampler_default_model():
@@ -723,9 +728,10 @@ def test_milky_way_ra_dec_sampler_default_model():
     sampler = MilkyWayRADECSampler(seed=7, node_label="mw")
     assert isinstance(sampler.density_model, MilkyWayDensityJuric2008)
 
-    (ra, dec) = sampler.generate(num_samples=1)
+    (ra, dec, dist) = sampler.generate(num_samples=1)
     assert 0.0 <= ra <= 360.0
     assert -90.0 <= dec <= 90.0
+    assert dist >= 0.0
 
 
 def test_milky_way_ra_dec_sampler_invalid_model():

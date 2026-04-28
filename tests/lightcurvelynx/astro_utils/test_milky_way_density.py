@@ -41,20 +41,40 @@ class TestMilkyWayDensityJuric2008:
     def test_thin_disk_dens_scalar(self):
         """Test the thin disk density at a scalar position."""
         model = MilkyWayDensityJuric2008(n_grid=64)
-        d = model.thin_disk_dens(model.sun_rho_kpc, 0.0, 0.0)
+        assert model.h_thin_kpc == pytest.approx(0.3)  # Default
+
+        d = model.thin_disk_dens(model.sun_rho_kpc, 0.0, 0.05)
         assert d > 0.0
+
+        # Test that we can override the scale height and it changes the density.
+        model_custom = MilkyWayDensityJuric2008(n_grid=64, h_thin_kpc=0.5)
+        d_custom = model_custom.thin_disk_dens(model.sun_rho_kpc, 0.0, 0.05)
+        assert d_custom != d
 
     def test_thick_disk_dens_scalar(self):
         """Test the thick disk density at a scalar position."""
         model = MilkyWayDensityJuric2008(n_grid=64)
-        d = model.thick_disk_dens(model.sun_rho_kpc, 0.0, 0.0)
+        assert model.h_thick_kpc == pytest.approx(0.9)  # Default
+
+        d = model.thick_disk_dens(model.sun_rho_kpc, 0.0, 0.05)
         assert d > 0.0
+
+        # Test that we can override the scale height and it changes the density.
+        model_custom = MilkyWayDensityJuric2008(n_grid=64, h_thick_kpc=1.5)
+        d_custom = model_custom.thick_disk_dens(model.sun_rho_kpc, 0.0, 0.05)
+        assert d_custom != d
 
     def test_halo_dens_scalar(self):
         """Test the halo density at a scalar position."""
         model = MilkyWayDensityJuric2008(n_grid=64)
-        d = model.halo_dens(model.sun_rho_kpc, 0.0, 0.0)
+        assert model.dens_halo_to_thin == pytest.approx(0.0051)  # Default
+        d = model.halo_dens(model.sun_rho_kpc, 0.05, 0.05)
         assert d > 0.0
+
+        # Test that we can override the scale height and it changes the density.
+        model_custom = MilkyWayDensityJuric2008(n_grid=64, dens_halo_to_thin=10.0)
+        d_custom = model_custom.halo_dens(model.sun_rho_kpc, 0.05, 0.05)
+        assert d_custom != d
 
     def test_dens_array(self):
         """Test that dens accepts and returns arrays."""
