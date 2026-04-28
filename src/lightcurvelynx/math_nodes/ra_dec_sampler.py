@@ -11,6 +11,7 @@ from citation_compass import CiteClass, cite_inline
 from mocpy import MOC
 
 from lightcurvelynx.astro_utils.coordinate_utils import build_moc_from_coords, dedup_coords
+from lightcurvelynx.astro_utils.milky_way_density import MilkyWayDensityBase, MilkyWayDensityJuric2008
 from lightcurvelynx.math_nodes.given_sampler import TableSampler
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.obstable.obs_table import ObsTable
@@ -754,3 +755,106 @@ class CatalogRADECSampler(ObsTableRADECSampler):
         if "radius" not in kwargs or kwargs["radius"] is None:
             kwargs["radius"] = 0.0
         super().__init__(data, dedup_threshold=dedup_threshold, **kwargs)
+
+
+class MilkyWayCoordSampler(NumpyRandomFunc):
+    """A FunctionNode that samples (RA, dec, distance) positions according to a
+    Milky Way stellar density model.
+
+    By default this uses the :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityJuric2008`
+    model (Juric et al. 2008), but any subclass of
+    :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityBase` can be
+    supplied.  Spherical coordinates are returned in degrees, and the distance is in parsecs.
+
+    References
+    ----------
+    * Juric et al., 2008, ApJ, 673, 864
+      https://iopscience.iop.org/article/10.1086/523619/pdf
+
+    Attributes
+    ----------
+    density_model : MilkyWayDensityBase
+        The stellar density model used for sampling.
+
+    Parameters
+    ----------
+    density_model : MilkyWayDensityBase or None, optional
+        The Milky Way stellar density model to use for sampling.  If *None*
+        a :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityJuric2008`
+        instance with default parameters is created.  Default: None
+    seed : int or None, optional
+        Seed for the internal random number generator. Default: None
+    **kwargs : dict, optional
+        Additional keyword arguments passed to the parent class.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayCoordSampler
+    >>> sampler = MilkyWayCoordSampler(seed=42, node_label="mw")
+    >>> (ra, dec, dist) = sampler.generate(num_samples=1)
+    >>> 0.0 <= ra <= 360.0
+    True
+    >>> -90.0 <= dec <= 90.0
+    True
+    >>> dist >= 0.0
+    True
+    """
+
+    def __init__(self, density_model=None, seed=None, **kwargs):
+        if density_model is None:
+            density_model = MilkyWayDensityJuric2008()
+        if not isinstance(density_model, MilkyWayDensityBase):
+            raise TypeError(
+                f"density_model must be an instance of MilkyWayDensityBase, "
+                f"got {type(density_model).__name__}."
+            )
+        self.density_model = density_model
+
+        # NumpyRandomFunc requires a func_name for initialisation and to register
+        # outputs. The underlying numpy function is never called directly because
+        # this class overrides compute().
+        super().__init__(
+            "uniform",
+            outputs=["ra", "dec", "distance_pc"],
+            seed=seed,
+            **kwargs,
+        )
+
+    def compute(self, graph_state, rng_info=None, **kwargs):
+        """Sample (RA, dec, distance_pc) positions from the Milky Way density model.
+
+        Parameters
+        ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values. This object is
+            modified in place as it is sampled.
+        rng_info : numpy.random.Generator, optional
+            A given numpy random number generator to use for this computation.
+            If not provided, the node's internal generator is used.
+        **kwargs : dict, optional
+            Additional function arguments (unused).
+
+        Returns
+        -------
+        results : list of [ra, dec, distance_pc]
+            A three-element list containing the sampled right ascension, declination,
+            and distance values. RA and dec are in degrees, and distance is in parsecs.
+            Each element is a float when ``num_samples == 1``, otherwise a numpy array.
+        """
+        rng = rng_info if rng_info is not None else self._rng
+
+        coords = self.density_model.sample_icrs(n_samples=graph_state.num_samples, rng=rng)
+        ra = coords.ra.deg
+        dec = coords.dec.deg
+        distance_pc = coords.distance.pc
+
+        # Return scalars for a single sample.
+        if graph_state.num_samples == 1:
+            ra = float(ra[0])
+            dec = float(dec[0])
+            distance_pc = float(distance_pc[0])
+        graph_state.set(self.node_string, "ra", ra)
+        graph_state.set(self.node_string, "dec", dec)
+        graph_state.set(self.node_string, "distance_pc", distance_pc)
+        return [ra, dec, distance_pc]

@@ -6,8 +6,9 @@ import numpy as np
 
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
-from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
+from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 LSSTCAM_PIXEL_SCALE = 0.2
@@ -56,6 +57,64 @@ This number will be updated when we have a better estimate from LSST.
 """
 
 
+class LSSTPoissonFluxNoiseModel(PoissonFluxNoiseModel):
+    """A subclass of PoissonFluxNoiseModel for LSST survey data."""
+
+    def __init__(self):
+        super().__init__()
+
+    def compute_flux_error(self, bandflux, obs_table, indices):
+        """Compute the flux error for the given bandflux and observation parameters.
+
+        Parameters
+        ----------
+        bandflux : array_like of float
+            Source bandflux in nJy.
+        obs_table : ObsTable
+            Table containing the observation parameters needed to compute the noise.
+        indices : array_like of int
+            Indices of the observations in the ObsTable for which to compute the noise.
+
+        Returns
+        -------
+        flux_err : array_like
+            The standard deviation of the bandflux measurement error (in nJy)
+        """
+        # By the effective FWHM definition, see
+        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
+        pixel_scale = obs_table.safe_get_survey_value("pixel_scale")
+        seeing = obs_table["seeing"].iloc[indices].to_numpy()
+        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
+        zp = obs_table["zp"].iloc[indices].to_numpy()
+
+        # Compute sky background in e- from sky_bg_adu if needed.
+        if "sky_bg_e" in obs_table.columns:
+            sky = obs_table["sky_bg_e"].iloc[indices].to_numpy()
+        elif "sky_bg_adu" in obs_table.columns:
+            gain = obs_table.safe_get_survey_value("gain")
+            sky = obs_table["sky_bg_adu"].iloc[indices].to_numpy() * gain
+        else:
+            raise ValueError(
+                "Some value of sky background (electrons or ADU) is required to compute "
+                "the sky background noise."
+            )
+
+        # If exposure time is not provided, use the default value of 30 seconds for LSST.
+        exptime = obs_table["exptime"].iloc[indices].to_numpy() if "exptime" in obs_table.columns else 30.0
+
+        return poisson_bandflux_std(
+            bandflux,
+            total_exposure_time=exptime,
+            exposure_count=1,
+            psf_footprint=psf_footprint,
+            sky=sky,
+            zp=zp,
+            readout_noise=obs_table.safe_get_survey_value("read_noise"),
+            dark_current=obs_table.safe_get_survey_value("dark_current"),
+            zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),
+        )
+
+
 class LSSTObsTable(ObsTable):
     """An ObsTable for observations from the Rubin Observatory data releases.
 
@@ -71,6 +130,9 @@ class LSSTObsTable(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, LSST-specific defaults will be
         used.
+    noise_model : NoiseModel, optional
+        The noise model to use for this ObsTable. If not provided, defaults to
+        LSSTPoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -156,6 +218,7 @@ class LSSTObsTable(ObsTable):
         table,
         colmap=None,
         saturation_mags=None,
+        noise_model=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -165,7 +228,17 @@ class LSSTObsTable(ObsTable):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
-        super().__init__(table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
+        # If noise model is not provided, then set to the LSST default.
+        if noise_model is None:
+            noise_model = LSSTPoissonFluxNoiseModel()
+
+        super().__init__(
+            table,
+            colmap=colmap,
+            saturation_mags=saturation_mags,
+            noise_model=noise_model,
+            **kwargs,
+        )
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables."""
@@ -279,53 +352,3 @@ class LSSTObsTable(ObsTable):
         colmap = kwargs.pop("colmap", cls._sv_visits_colmap)
         obstable = cls(table, colmap=colmap, **kwargs)
         return obstable
-
-    def bandflux_error_point_source(self, bandflux, index):
-        """Compute observational bandflux error for a point source
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Band bandflux of the point source in nJy.
-        index : array_like of int
-            The index of the observation in the LSSTObsTable table.
-
-        Returns
-        -------
-        flux_err : array_like of float
-            Simulated bandflux noise in nJy.
-        """
-        observations = self._table.iloc[index]
-
-        # By the effective FWHM definition, see
-        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
-        # We need it in pixel^2
-        pixel_scale = self.safe_get_survey_value("pixel_scale")
-        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
-        zp = observations["zp"]
-
-        # Compute sky background in e- from sky_bg_adu.
-        if "sky_bg_e" in observations:
-            sky = observations["sky_bg_e"]
-        elif "sky_bg_adu" in observations:
-            sky = observations["sky_bg_adu"] * self.safe_get_survey_value("gain")
-        else:
-            raise ValueError(
-                "Some value of sky background (electrons or ADU) is required to compute "
-                "the sky background noise."
-            )
-
-        # If exposure time is not provided, use the default value of 30 seconds for LSST.
-        exptime = 30.0 if "exptime" not in observations.columns else observations["exptime"]
-
-        return poisson_bandflux_std(
-            bandflux,
-            total_exposure_time=exptime,
-            exposure_count=1,
-            psf_footprint=psf_footprint,
-            sky=sky,
-            zp=zp,
-            readout_noise=self.safe_get_survey_value("read_noise"),
-            dark_current=self.safe_get_survey_value("dark_current"),
-            zp_err_mag=self.safe_get_survey_value("zp_err_mag"),
-        )
