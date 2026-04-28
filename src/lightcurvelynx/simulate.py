@@ -473,12 +473,13 @@ def _simulate_lightcurves_batch(simulation_info):
                 nested_dict["is_saturated"].extend(list(saturation_flags))
                 nested_dict["obs_idx"].extend(list(obs_index))
                 for col in obstable_save_cols:
-                    col_data = (
-                        list(obstable[survey_idx][col].values[obs_index])
-                        if col in obstable[survey_idx]
-                        else [None] * nobs
-                    )
-                    nested_dict[col].extend(col_data)
+                    if len(obs_index) > 0:
+                        col_data = (
+                            list(obstable[survey_idx][col].values[obs_index])
+                            if col in obstable[survey_idx]
+                            else [None] * nobs
+                        )
+                        nested_dict[col].extend(col_data)
 
                 # Add the new entries to the light curve's nested index.
                 nested_index.extend([idx] * nobs)
