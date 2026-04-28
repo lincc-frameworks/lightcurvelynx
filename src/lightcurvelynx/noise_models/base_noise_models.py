@@ -40,7 +40,7 @@ class FluxNoiseModel(ABC):
         Returns
         -------
         flux : array_like
-            The updated flux measuements after applying noise, in the same
+            The updated flux measurements after applying noise, in the same
             units as the input bandflux.
         flux_err : array_like
             The bandflux measurement error used for applying noise, in the
@@ -51,14 +51,14 @@ class FluxNoiseModel(ABC):
 
 class ConstantFluxNoiseModel(FluxNoiseModel):
     """A noise model that simulates photon noise for bandflux measurements
-    with a constant noise level. This class is primarily meant for
-    testing purposes.
+    sampled from a normal distribution with a constant standard deviation.
+    This class is primarily meant for testing purposes.
 
     Attributes
     ----------
     noise_level : float
-        The constant noise level to apply to the bandflux measurements, in the
-        same units as the input bandflux.
+        The (constant) standard deviation of the noise to apply to the bandflux
+        measurements, in the same units as the input bandflux.
     """
 
     def __init__(self, noise_level):
@@ -89,7 +89,7 @@ class ConstantFluxNoiseModel(FluxNoiseModel):
         Returns
         -------
         flux : array_like
-            The updated flux measuements after applying noise, in the same
+            The updated flux measurements after applying noise, in the same
             units as the input bandflux.
         flux_err : array_like
             The bandflux measurement error used for applying noise, in the
@@ -104,10 +104,10 @@ class ConstantFluxNoiseModel(FluxNoiseModel):
 
 class PoissonFluxNoiseModel(FluxNoiseModel):
     """A noise model that simulates photon noise for bandflux measurements
-    with a Poisson noise level that are extracted from an ObsTable.
+    with a Poisson noise level that are extracted from values in an ObsTable.
 
     This class is meant to be subclassed for specific ObsTable implementations
-    where the columns vary. Subclass should override the compute_flux_error method.
+    where the columns vary. Subclasses should override the compute_flux_error method.
     """
 
     def __init__(self):
@@ -184,7 +184,7 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
         Returns
         -------
         flux : array_like
-            The updated flux measuements after applying noise, in the same
+            The updated flux measurements after applying noise, in the same
             units as the input bandflux.
         flux_err : array_like
             The bandflux measurement error used for applying noise, in the
