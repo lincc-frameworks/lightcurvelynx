@@ -157,18 +157,42 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         self._input_col_map = input_col_map if input_col_map is not None else {}
         self._normalizer_data = normalizer_data if normalizer_data is not None else {}
 
+    def add_column_mapping(self, flow_input_name, obs_table_col_name):
+        """Add a mapping from a pzflow input parameter name to an ObsTable column name.
+
+        This function is used when the model is created with on data with different
+        column names than the ObsTable on which it will be applied.
+
+        Parameters
+        ----------
+        flow_input_name : str
+            The name of the input parameter for the pzflow model.
+        obs_table_col_name : str
+            The name of the column in the ObsTable that should be used for this parameter.
+        """
+        self._input_col_map[flow_input_name] = obs_table_col_name
+
     @classmethod
-    def from_file(cls, filename):
+    def from_file(cls, filename, *, input_col_map=None):
         """Create a PZFlowNoiseModel from a saved file.
 
         Parameters
         ----------
         filename : str or Path
             The location of the saved flow.
+        input_col_map : dict, optional
+            A dictionary where the keys are the input parameter names for the pzflow
+            model and the values are the names of the columns in the ObsTable that
+            should be used for those parameters. If provided this overrides the input_col_map
+            that was saved with the model.
         """
         with open(filename, "rb") as f:
             noise_model = pickle.load(f)
         assert isinstance(noise_model, PZFlowNoiseModel), "The loaded object is not a PZFlowNoiseModel."
+
+        if input_col_map is not None:
+            noise_model._input_col_map = input_col_map
+
         return noise_model
 
     def apply_noise(
@@ -217,9 +241,9 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
             raise ValueError("Length of indices must match length of bandflux.")
 
         # Get the input parameters for the flow (if there are any).
-        if self.flow.conditional_columns is not None and len(self.flow.conditional_columns) > 0:
+        if self._flow.conditional_columns is not None and len(self._flow.conditional_columns) > 0:
             input_params = {}
-            for col in self.flow.conditional_columns:
+            for col in self._flow.conditional_columns:
                 if col == "bandflux" and bandflux is not None:
                     values = bandflux
                 else:
@@ -242,17 +266,17 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         # Sample from the flow to get the noise parameters.
         rng = np.random.default_rng(rng)
         pzflow_seed = rng.integers(0, 1e9)
-        samples = self.flow.sample(nsamples=1, conditions=input_df, seed=pzflow_seed)
-        flurerr = np.clip(samples[self._output_column].values, a_min=0, a_max=None)
+        samples = self._flow.sample(nsamples=1, conditions=input_df, seed=pzflow_seed)
+        flux_err = np.clip(samples[self._output_column].values, a_min=0, a_max=None)
 
         # If we have normalization data for the output column, denormalize the output.
         if self._normalizer_data.get(self._output_column) is not None:
             normalizer = self._normalizer_data[self._output_column]
-            flurerr = normalizer.denormalize(flurerr)
+            flux_err = normalizer.denormalize(flux_err)
 
         # Apply noise to the input bandflux using the sampled noise parameters.
-        noisy_bandflux = rng.normal(loc=bandflux, scale=flurerr)
-        return noisy_bandflux, flurerr
+        noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)
+        return noisy_bandflux, flux_err
 
     def save_to_file(self, filename):
         """Save the PZFlowNoiseModel to a file.
@@ -272,6 +296,7 @@ def learn_pzflow_noise_model(
     *,
     noise_column=None,
     normalize=True,
+    **kwargs,
 ):
     """Train a pzflow model to predict noise parameters (standard deviation of the noise) for
     bandflux measurements.
@@ -289,6 +314,8 @@ def learn_pzflow_noise_model(
         Whether to normalize the data for training the flow. This can help the
         flow learn the distribution more effectively, especially if the data has
         a large dynamic range or is highly skewed.
+    **kwargs
+        Additional parameters for training the flow.
 
     References
     ----------
@@ -326,7 +353,7 @@ def learn_pzflow_noise_model(
     # Train the actual flow using the normalized data.
     cond_columns = [col for col in local_data.columns if col != noise_column]
     flow = Flow(data_columns=[noise_column], conditional_columns=cond_columns)
-    _ = flow.train(pd.DataFrame(local_data), verbose=False)
+    _ = flow.train(pd.DataFrame(local_data), verbose=False, **kwargs)
 
     return PZFlowNoiseModel(
         flow_obj=flow,
