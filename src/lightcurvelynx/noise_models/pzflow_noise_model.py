@@ -55,14 +55,21 @@ class _ColumnNormalizationData:
                 "Data contains non-positive values, cannot apply log transform for normalization."
             )
 
+        # Take the log of the data (if needed).
         self.log_transform = log_transform
-        self.offset = np.min(data)
-        data = data - self.offset
         if log_transform:
-            data = np.log10(data + 1)
+            data = np.log10(data)
 
-        data_range = np.max(data) - np.min(data)
-        self.scale = data_range if data_range > 0 else 1.0
+        # Compute the scale of the data such that it will have a range of width 1 after normalization.
+        range = np.max(data) - np.min(data)
+        if range <= 0:
+            # Handle the case where all the data is the same.
+            range = 1.0
+        self.scale = 1.0 / range
+        data = data * self.scale
+
+        # Shift the data to lie between 0 and 1 after normalization.
+        self.offset = -np.min(data)
 
     def normalize(self, data):
         """Normalize the data using the specified min, max, and log transform.
@@ -77,11 +84,15 @@ class _ColumnNormalizationData:
         array_like
             The normalized data.
         """
-        data = np.asarray(data) - self.offset
+        data = np.asarray(data)
         if self.log_transform:
-            data = np.log10(data + 1.0)
-        if self.scale is not None:
-            data = data / self.scale
+            if np.any(data <= 0):
+                raise ValueError(
+                    "Data contains non-positive values, cannot apply log transform for normalization."
+                )
+            data = np.log10(data)
+        data = data * self.scale + self.offset
+
         return data
 
     def denormalize(self, data):
@@ -97,10 +108,9 @@ class _ColumnNormalizationData:
         array_like
             The denormalized data.
         """
-        data = data * self.scale
+        data = (data - self.offset) / self.scale
         if self.log_transform:
-            data = 10**data - 1.0
-        data = data + self.offset
+            data = 10**data
         return data
 
 

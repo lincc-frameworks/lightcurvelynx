@@ -28,11 +28,19 @@ def test_column_normalization_data_log_transform():
     data_normalizer = _ColumnNormalizationData(data, log_transform=True)
 
     norm_data = data_normalizer.normalize(data)
-    expected_norm = np.array([0.0, 0.13910616, 0.23075006, 0.29495844, 0.34442793, 0.38467758, 1.0])
+    expected_norm = np.array([0.0, 0.33333333, 0.43367667, 0.49237375, 0.53402, 0.56632333, 1.0])
     assert np.allclose(norm_data, expected_norm)
 
     round_trip_data = data_normalizer.denormalize(norm_data)
     assert np.allclose(round_trip_data, data)
+
+    # We fail if we try to normalize data with non-positive values.
+    with pytest.raises(ValueError, match="Data contains non-positive values"):
+        _ColumnNormalizationData(np.array([-1.0, 1.0, 2.0]), log_transform=True)
+
+    # We fail if we try to create a normalizer from non-positive values.
+    with pytest.raises(ValueError, match="Data contains non-positive values"):
+        _ColumnNormalizationData(np.array([0.0, 1.0, 2.0]), log_transform=True)
 
 
 def test_column_normalization_data_invalid_input():
