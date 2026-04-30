@@ -1,7 +1,56 @@
 import numpy as np
 import pandas as pd
 import pytest
-from lightcurvelynx.noise_models.pzflow_noise_model import PZFlowNoiseModel
+from lightcurvelynx.noise_models.pzflow_noise_model import (
+    PZFlowNoiseModel,
+    _ColumnNormalizationData,
+    learn_pzflow_noise_model,
+)
+
+
+def test_column_normalization_data():
+    """Test that the _ColumnNormalizationData class correctly computes and applies
+    normalization for a given column."""
+    data = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    data_normalizer = _ColumnNormalizationData(data, log_transform=False)
+
+    norm_data = data_normalizer.normalize(data)
+    assert np.allclose(norm_data, [0.0, 0.25, 0.5, 0.75, 1.0])
+
+    round_trip_data = data_normalizer.denormalize(norm_data)
+    assert np.allclose(round_trip_data, data)
+
+
+def test_column_normalization_data_log_transform():
+    """Test that the _ColumnNormalizationData class correctly computes and applies
+    normalization for a given column with log transform."""
+    data = np.array([0.1, 1.0, 2.0, 3.0, 4.0, 5.0, 100.0])
+    data_normalizer = _ColumnNormalizationData(data, log_transform=True)
+
+    norm_data = data_normalizer.normalize(data)
+    expected_norm = np.array([0.0, 0.33333333, 0.43367667, 0.49237375, 0.53402, 0.56632333, 1.0])
+    assert np.allclose(norm_data, expected_norm)
+
+    round_trip_data = data_normalizer.denormalize(norm_data)
+    assert np.allclose(round_trip_data, data)
+
+    # We fail if we try to normalize data with non-positive values.
+    with pytest.raises(ValueError, match="Data contains non-positive values"):
+        _ColumnNormalizationData(np.array([-1.0, 1.0, 2.0]), log_transform=True)
+
+    # We fail if we try to create a normalizer from non-positive values.
+    with pytest.raises(ValueError, match="Data contains non-positive values"):
+        _ColumnNormalizationData(np.array([0.0, 1.0, 2.0]), log_transform=True)
+
+
+def test_column_normalization_data_invalid_input():
+    """Test that the _ColumnNormalizationData class raises errors for invalid input."""
+    with pytest.raises(ValueError, match="Data is empty"):
+        _ColumnNormalizationData(np.array([]), log_transform=False)
+    with pytest.raises(ValueError, match="Data contains only NaN values"):
+        _ColumnNormalizationData(np.array([np.nan, np.nan, np.nan]), log_transform=False)
+    with pytest.raises(ValueError, match="Data contains non-positive values"):
+        _ColumnNormalizationData(np.array([0.0, -1.0, 2.0]), log_transform=True)
 
 
 class LookupOnlyObsTable:
@@ -74,3 +123,27 @@ def test_pzflow_noise_model(test_data_dir):
             obs_table=obs_table,
             indices=np.arange(num_samples - 5),
         )
+
+
+def test_learn_pzflow_noise_model():
+    """Test that we can train a PZFlowNoiseModel on synthetic data and that it can
+    learn to predict the flux errors."""
+    rng = np.random.default_rng(2024)
+    num_training_samples = 10_000
+
+    # The input parameters for the pzflow model will be bandflux and zp.
+    bandflux = rng.normal(loc=500.0, scale=100.0, size=num_training_samples)
+    zp = rng.normal(loc=10.0, scale=0.15, size=num_training_samples)
+
+    # This is the value the pzflow model is trained to predict.
+    flux_err = np.sqrt(bandflux / zp) * zp
+
+    training_data = pd.DataFrame({"bandflux": bandflux, "zp": zp, "flux_err": flux_err})
+    noise_model = learn_pzflow_noise_model(training_data, noise_column="flux_err", normalize=True)
+    assert isinstance(noise_model, PZFlowNoiseModel)
+    assert noise_model._flow is not None
+
+    # Check that we created the normalizers we need.
+    assert isinstance(noise_model._normalizer_data["bandflux"], _ColumnNormalizationData)
+    assert isinstance(noise_model._normalizer_data["zp"], _ColumnNormalizationData)
+    assert isinstance(noise_model._normalizer_data["flux_err"], _ColumnNormalizationData)
