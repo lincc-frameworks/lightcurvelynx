@@ -35,6 +35,16 @@ def test_column_normalization_data_log_transform():
     assert np.allclose(round_trip_data, data)
 
 
+def test_column_normalization_data_invalid_input():
+    """Test that the _ColumnNormalizationData class raises errors for invalid input."""
+    with pytest.raises(ValueError, match="Data is empty"):
+        _ColumnNormalizationData(np.array([]), log_transform=False)
+    with pytest.raises(ValueError, match="Data contains only NaN values"):
+        _ColumnNormalizationData(np.array([np.nan, np.nan, np.nan]), log_transform=False)
+    with pytest.raises(ValueError, match="Data contains non-positive values"):
+        _ColumnNormalizationData(np.array([0.0, -1.0, 2.0]), log_transform=True)
+
+
 class LookupOnlyObsTable:
     """A simple dummy class to simulate the ObsTable's get_value_per_row method."""
 
