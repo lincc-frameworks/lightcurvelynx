@@ -196,11 +196,11 @@ band fluxes directly will not account for all of these factors.
 Running a Full Simulation
 -------------------------------------------------------------------------------
 
-To run a full simulation, users call the ``simulate_lightcurves()`` function, which handles the parameter sampling, matching with ``ObsTable`` positions, the full density simulation (including effects), application of noise, etc. The function takes the model object to simulation, the number of samples to generate, and the survey information (``ObsTable`` and ``PassbandGroup``). It returns a nested pandas DataFrame as described in the  :doc:`Results and Output documentation page <results_and_output>`, which includes both the sampled parameters and the resulting light curves for each simulated object.
+To run a full simulation, users call the ``simulate_lightcurves()`` function, which handles the parameter sampling, matching with ``ObsTable`` positions, the full density simulation (including effects), application of noise, etc. The function takes the model object to simulation, the number of samples to generate, and the survey information (``ObsTable``, ``PassbandGroup``, and ``FluxNoiseModel``). It returns a nested pandas DataFrame as described in the  :doc:`Results and Output documentation page <results_and_output>`, which includes both the sampled parameters and the resulting light curves for each simulated object.
 
 .. code-block:: python
 
-    results = simulate_lightcurves(model, num_samples, obs_table, passband_group)
+    results = simulate_lightcurves(model, num_samples, obs_table, passband_group, noise_model)
 
 The ``simulate_lightcurves()`` function has many additional arguments to allow the user to
 control various aspects of the simulation. These include:
@@ -245,9 +245,7 @@ If the provided random number generator does not use a fixed seed (or no ``rng``
 Simulating from Multiple Surveys
 -------------------------------------------------------------------------------
 
-LightCurveLynx can simulate observations from multiple surveys in a single run by passing a list of
-``ObsTable`` and a list of ``PassbandGroup`` to the ``simulate_lightcurves()`` function.
-The parameter space is sampled once for each simulated object, so the observations in each
+LightCurveLynx can simulate observations from multiple surveys in a single run by passing a list of ``ObsTable``, a list of ``FluxNoiseModel``, and a list of ``PassbandGroup`` to the ``simulate_lightcurves()`` function. The parameter space is sampled once for each simulated object, so the observations in each
 survey are consistent with respect to the parameterization. The times of observation and filters
 used are determined by each survey. And the bandflux is computed using that survey's passbands.
 

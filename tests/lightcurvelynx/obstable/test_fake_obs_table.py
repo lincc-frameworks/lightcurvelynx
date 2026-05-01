@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
-from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
+from lightcurvelynx.obstable.fake_obs_table import FakeObsTable, FakeObsTablePoissonNoise
 
 
 def test_create_fake_obs_table_consts():
@@ -55,7 +55,8 @@ def test_create_fake_obs_table_consts():
 
     # We can compute noise.
     fluxes = np.array([100.0, 200.0, 300.0, 400.0, 500.0])  # Fluxes in nJy
-    new_fluxes, flux_error = ops_data.noise_model.apply_noise(
+    noise_model = FakeObsTablePoissonNoise()
+    new_fluxes, flux_error = noise_model.apply_noise(
         fluxes,
         obs_table=ops_data,
         indices=np.arange(5),  # Indices of the observations
@@ -121,7 +122,8 @@ def test_create_fake_obs_table_consts():
     assert ops_data.survey_values["survey_name"] == "MY_SURVEY"
 
     # We can compute noise.
-    new_fluxes, flux_error2 = ops_data.noise_model.apply_noise(
+    noise_model = FakeObsTablePoissonNoise()
+    new_fluxes, flux_error2 = noise_model.apply_noise(
         fluxes,
         obs_table=ops_data,
         indices=np.arange(5),  # Indices of the observations
@@ -180,7 +182,8 @@ def test_create_fake_obs_table_non_consts():
 
     # We can compute noise.
     fluxes = np.array([100.0, 200.0, 300.0, 400.0, 500.0])  # Fluxes in nJy
-    new_fluxes, flux_error = ops_data.noise_model.apply_noise(
+    noise_model = FakeObsTablePoissonNoise()
+    new_fluxes, flux_error = noise_model.apply_noise(
         fluxes,
         obs_table=ops_data,
         indices=np.arange(5),  # Indices of the observations
@@ -311,7 +314,8 @@ def test_create_fake_obs_table_noise_free():
 
     # Compute the bandflux error for each observation (should all be zero).
     fluxes = np.array([100.0, 200.0, 300.0, 400.0, 500.0])  # Fluxes in nJy
-    new_flux, flux_error = ops_data.noise_model.apply_noise(
+    noise_model = FakeObsTablePoissonNoise()
+    new_flux, flux_error = noise_model.apply_noise(
         fluxes,
         obs_table=ops_data,
         indices=np.arange(5),

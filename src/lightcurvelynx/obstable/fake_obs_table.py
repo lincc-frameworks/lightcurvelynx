@@ -93,10 +93,6 @@ class FakeObsTable(ObsTable):
         - "exhaustive": Try all available derivation methods to fill in missing parameters.
 
         Default is "given_only" which does not attempt any derivation.
-    noise_model : NoiseModel, optional
-        The noise model to use for this survey. If not provided, a default FakeObsTablePoissonNoise
-        will be used, which can compute flux errors from the table parameters using the
-        poisson_bandflux_std function.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -123,7 +119,6 @@ class FakeObsTable(ObsTable):
         colmap=None,
         const_flux_error=None,
         noise_strategy="given_only",
-        noise_model=None,
         **kwargs,
     ):
         # Pass along all the survey parameters to the parent class.
@@ -132,11 +127,6 @@ class FakeObsTable(ObsTable):
             colmap=colmap,
             **kwargs,
         )
-
-        if noise_model is not None:
-            self.noise_model = noise_model
-        else:
-            self.noise_model = FakeObsTablePoissonNoise()
 
         # Derive any missing parameters needed for the flux error computation. We always create
         # a new ParamDeriver instance here, because they are stateful.

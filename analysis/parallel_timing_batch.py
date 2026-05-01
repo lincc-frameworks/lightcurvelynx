@@ -19,7 +19,7 @@ from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.ra_dec_sampler import ApproximateMOCSampler
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
-from lightcurvelynx.obstable.opsim import OpSim
+from lightcurvelynx.obstable.opsim import OpSim, OpSimPoissonFluxNoiseModel
 from lightcurvelynx.simulate import simulate_lightcurves
 from lightcurvelynx.utils.extrapolate import LinearDecay
 
@@ -35,6 +35,7 @@ def run_timing_tests(args):
     # Load the OpSim data and passband group.
     print(f"Loading OpSim data from {args.opsim_file}...")
     ops_data = OpSim.from_db(args.opsim_file)
+    noise_model = OpSimPoissonFluxNoiseModel()
     print(f"Loaded OpSim data with {len(ops_data)} entries.")
 
     t_min, t_max = ops_data.time_bounds()
@@ -83,6 +84,7 @@ def run_timing_tests(args):
                 num_samples=num_samples,
                 obstable=ops_data,
                 passbands=passband_group,
+                noise_model=noise_model,
                 num_jobs=num_threads,
                 obs_time_window_offset=(-100, 400),
                 progress_bar=False,  # Disable progress bar

@@ -59,7 +59,7 @@ def test_noise_calculation():
         mat_table_path=_LIGHTCURVELYNX_TEST_DATA_DIR
         / "roman_characterization/roman_wfi_imaging_multiaccum_tables_with_exptime.csv",
     )
-    assert isinstance(roman_obstable.noise_model, RomanPoissonFluxNoiseModel)
+    noise_model = RomanPoissonFluxNoiseModel()
 
     roman_obstable.survey_values["zodi_level"] = 2.0
 
@@ -68,7 +68,7 @@ def test_noise_calculation():
 
     flux_nJy = np.power(10.0, -0.4 * (mag - 31.4))
 
-    flux_new, fluxerr_nJy = roman_obstable.noise_model.apply_noise(
+    flux_new, fluxerr_nJy = noise_model.apply_noise(
         flux_nJy,
         obs_table=roman_obstable,
         indices=[0],

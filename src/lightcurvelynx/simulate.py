@@ -32,6 +32,8 @@ class SimulationInfo:
     passbands : PassbandGroup, Spectrograph or List of (PassbandGroup, Spectrograph)
         The information for transforming a models SED into a bandflux (PassbandGroup) or
         spectra (Spectrograph).
+    noise_model : FluxNoiseModel or List of FluxNoiseModel
+        The noise model(s) to use for applying noise to the bandfluxes.
     obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
@@ -77,6 +79,7 @@ class SimulationInfo:
         num_samples,
         obstable,
         passbands,
+        noise_model,
         *,
         obstable_save_cols=None,
         param_cols=None,
@@ -94,6 +97,7 @@ class SimulationInfo:
         self.num_samples = num_samples
         self.obstable = obstable
         self.passbands = passbands
+        self.noise_model = noise_model
         self.obs_time_window_offset = obs_time_window_offset
         self.rest_time_window_offset = rest_time_window_offset
         self.apply_saturation = apply_saturation
@@ -181,6 +185,7 @@ class SimulationInfo:
                 num_samples=batch_num_samples,
                 obstable=self.obstable,
                 passbands=self.passbands,
+                noise_model=self.noise_model,
                 obstable_save_cols=self.obstable_save_cols,
                 param_cols=self.param_cols,
                 obs_time_window_offset=self.obs_time_window_offset,
@@ -299,6 +304,7 @@ def _simulate_lightcurves_batch(simulation_info):
     num_samples = simulation_info.num_samples
     obstable = simulation_info.obstable
     passbands = simulation_info.passbands
+    noise_model = simulation_info.noise_model
     obstable_save_cols = simulation_info.obstable_save_cols
     rng = simulation_info.rng
 
@@ -318,9 +324,13 @@ def _simulate_lightcurves_batch(simulation_info):
         obstable = [obstable]
     if not isinstance(passbands, list):
         passbands = [passbands]
+    if not isinstance(noise_model, list):
+        noise_model = [noise_model]
     num_surveys = len(obstable)
     if num_surveys != len(passbands):
         raise ValueError("Number of surveys must match number of passbands.")
+    if len(noise_model) != num_surveys:
+        raise ValueError("Number of noise models must match number of surveys.")
 
     # Create a dictionary for the object level information, including any saved parameters.
     # Some of these are placeholders (e.g. nobs) until they can be filled in during the simulation.
@@ -417,6 +427,7 @@ def _simulate_lightcurves_batch(simulation_info):
             nobs = len(obs_times)
 
             # Split on whether we are evaluating bandfluxes or spectra.
+            current_noise_model = noise_model[survey_idx]
             if isinstance(passbands[survey_idx], Spectrograph):
                 # This is a spectrograph, so we compute the spectra for the spectra column.
                 sg_waves = passbands[survey_idx].waves
@@ -446,8 +457,8 @@ def _simulate_lightcurves_batch(simulation_info):
                     rng_info=rng,
                 )
 
-                noise_model = obstable[survey_idx].noise_model
-                bandfluxes, bandfluxes_error = noise_model.apply_noise(
+                # Apply noise using the given noise model.
+                bandfluxes, bandfluxes_error = current_noise_model.apply_noise(
                     bandfluxes_perfect,
                     obs_table=obstable[survey_idx],
                     indices=obs_index,
@@ -556,6 +567,7 @@ def simulate_lightcurves(
     num_samples,
     obstable,
     passbands,
+    noise_model,
     *,
     obstable_save_cols=None,
     param_cols=None,
@@ -591,6 +603,8 @@ def simulate_lightcurves(
         The ObsTable(s) from which to extract information for the samples.
     passbands : PassbandGroup, Spectrograph, or List of (PassbandGroup, Spectrograph)
         The passbands to use for generating the bandfluxes or spectra.
+    noise_model : FluxNoiseModel or List of FluxNoiseModel
+        The noise model(s) to use for applying noise to the bandfluxes.
     obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
@@ -653,6 +667,7 @@ def simulate_lightcurves(
         num_samples=num_samples,
         obstable=obstable,
         passbands=passbands,
+        noise_model=noise_model,
         rng=rng,
         obs_time_window_offset=obs_time_window_offset,
         rest_time_window_offset=rest_time_window_offset,

@@ -92,8 +92,6 @@ class ArgusHealpixObsTable(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, Argus-specific defaults will be
         used.
-    noise_model : NoiseModel, optional
-        The noise model to use for this ObsTable. If not provided, an Argus-specific default will be used.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -135,7 +133,6 @@ class ArgusHealpixObsTable(ObsTable):
         colmap=None,
         apply_saturation=True,
         saturation_mags=None,
-        noise_model=None,
         nside=None,
         **kwargs,
     ):
@@ -171,16 +168,11 @@ class ArgusHealpixObsTable(ObsTable):
         if "detector_footprint" in kwargs or "wcs" in kwargs:  # pragma: no cover
             raise ValueError("ArgusObsTable does not support detector footprints.")
 
-        # If noise model is not provided, then set to the Argus default.
-        if noise_model is None:
-            noise_model = ArgusPoissonFluxNoiseModel()
-
         super().__init__(
             table=table,
             colmap=colmap,
             apply_saturation=apply_saturation,
             saturation_mags=saturation_mags,
-            noise_model=noise_model,
             **kwargs,
         )
 
