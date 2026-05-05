@@ -42,6 +42,8 @@ The nested light curve DataFrame also contains book keeping information that can
     * ``obs_idx``: The index of the observation in the survey's ``ObsTable``. This allows the user to lookup additional information about the observation from the survey's observation table.
     * ``is_saturated``: A boolean flag indicating whether the observation is saturated.
 
+Note that if the ``output_file_path`` parameter is used, the results are written directly to disk instead of being returned in memory. For details see the `Saving Results` section below.
+
 
 Saved Simulation State
 -------------------------------------------------------------------------------
@@ -132,6 +134,10 @@ access and save light curves individually using the standard Pandas functions su
 .. code-block:: python
 
     results["lightcurve"].iloc[0].to_parquet("lightcurve_0.parquet")
+
+Users can also write results directly to disk instead of keeping them in memory by passing a directory path to the ``simulate_lightcurves()`` function using the ``output_file_path`` parameter. Results will be saved as parquet files. Instead of returning a NestedDataFrame, the function will return a list of file paths to the saved results. 
+
+If the simulation is run in parallel, multiple files are created with a _partN suffix, one for each parallel process. See the :doc:`parallel runs <notebooks/parallel_runs>` notebook for an example of this.
 
 
 Exporting to HATS format
