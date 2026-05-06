@@ -6,6 +6,7 @@ import numpy as np
 
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
@@ -228,10 +229,6 @@ class LSSTObsTable(ObsTable):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
-        # If noise model is not provided, then set to the LSST default.
-        if noise_model is None:
-            noise_model = LSSTPoissonFluxNoiseModel()
-
         super().__init__(
             table,
             colmap=colmap,
@@ -239,6 +236,16 @@ class LSSTObsTable(ObsTable):
             noise_model=noise_model,
             **kwargs,
         )
+
+    @property
+    def default_noise_model(self):
+        """Return the default noise model for this ObsTable."""
+        return LSSTPoissonFluxNoiseModel()
+
+    @property
+    def default_passband_group(self):
+        """Return the default passband group for this ObsTable."""
+        return PassbandGroup.from_preset("LSST")
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables."""

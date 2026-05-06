@@ -130,13 +130,9 @@ class FakeObsTable(ObsTable):
         super().__init__(
             table,
             colmap=colmap,
+            noise_model=noise_model,
             **kwargs,
         )
-
-        if noise_model is not None:
-            self.noise_model = noise_model
-        else:
-            self.noise_model = FakeObsTablePoissonNoise()
 
         # Derive any missing parameters needed for the flux error computation. We always create
         # a new ParamDeriver instance here, because they are stateful.
@@ -181,3 +177,8 @@ class FakeObsTable(ObsTable):
                 f"Insufficient information to compute flux errors or zeropoints using {param_deriver}. "
                 f"Table columns: {column_names}. Survey parameters: {param_names}."
             )
+
+    @property
+    def default_noise_model(self):
+        """Return the default noise model for this ObsTable."""
+        return FakeObsTablePoissonNoise()

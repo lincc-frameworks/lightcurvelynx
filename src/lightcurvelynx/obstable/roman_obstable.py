@@ -5,6 +5,7 @@ from citation_compass import cite_function
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
@@ -240,6 +241,16 @@ class RomanObsTable(ObsTable):
                     after_component_delay_time=self.safe_get_survey_value("after_component_delay_time"),
                 )
             self._assign_time()
+
+    @property
+    def default_noise_model(self):
+        """Return the default noise model for this ObsTable."""
+        return RomanPoissonFluxNoiseModel()
+
+    @property
+    def default_passband_group(self):
+        """Return the default passband group for this ObsTable."""
+        return PassbandGroup.from_preset("roman")
 
     def update_time(self):
         """

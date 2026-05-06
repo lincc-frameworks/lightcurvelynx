@@ -7,6 +7,7 @@ import pandas as pd
 
 from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.astro_utils.zeropoint import flux_electron_zeropoint
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
@@ -215,10 +216,6 @@ class OpSim(ObsTable):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
-        # If noise model is not provided, then set to the OpSim default.
-        if noise_model is None:
-            noise_model = OpSimPoissonFluxNoiseModel()
-
         super().__init__(
             table,
             colmap=colmap,
@@ -226,6 +223,16 @@ class OpSim(ObsTable):
             noise_model=noise_model,
             **kwargs,
         )
+
+    @property
+    def default_noise_model(self):
+        """Return the default noise model for this ObsTable."""
+        return OpSimPoissonFluxNoiseModel()
+
+    @property
+    def default_passband_group(self):
+        """Return the default passband group for this ObsTable."""
+        return PassbandGroup.from_preset("LSST")
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy to the OpSim tables."""

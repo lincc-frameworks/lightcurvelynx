@@ -203,10 +203,6 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
-        # If noise model is not provided, then set to the SkyMapper default.
-        if noise_model is None:
-            noise_model = SkyMapperPoissonFluxNoiseModel()
-
         super().__init__(
             table,
             colmap=colmap,
@@ -225,6 +221,11 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             height_px = self.survey_values.get("ccd_pixel_height")
             detect_fp = DetectorFootprint.from_pixel_rect(width_px, height_px, pixel_scale=pixel_scale)
             self.set_detector_footprint(detect_fp)
+
+    @property
+    def default_noise_model(self):
+        """Return the default noise model for this ObsTable."""
+        return SkyMapperPoissonFluxNoiseModel()
 
     def _assign_zero_points(self):
         """Assign instrumental zero points in nJy (which produces 1 e-) to the SkyMapperObsTable tables."""

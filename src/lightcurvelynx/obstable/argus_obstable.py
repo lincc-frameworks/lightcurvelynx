@@ -171,10 +171,6 @@ class ArgusHealpixObsTable(ObsTable):
         if "detector_footprint" in kwargs or "wcs" in kwargs:  # pragma: no cover
             raise ValueError("ArgusObsTable does not support detector footprints.")
 
-        # If noise model is not provided, then set to the Argus default.
-        if noise_model is None:
-            noise_model = ArgusPoissonFluxNoiseModel()
-
         super().__init__(
             table=table,
             colmap=colmap,
@@ -193,6 +189,11 @@ class ArgusHealpixObsTable(ObsTable):
     def healpix_depth(self):
         """Return the depth of the healpix pixels in the table."""
         return self._healpix_depth
+
+    @property
+    def default_noise_model(self):
+        """Return the default noise model for this ObsTable."""
+        return ArgusPoissonFluxNoiseModel()
 
     def set_detector_footprint(self, detector_footprint, wcs=None):
         """Set the detector footprint, so footprint filtering is done.

@@ -1,6 +1,6 @@
-"""The top-level module for survey related data, such as pointing and noise
-information. ObsTable class is a base class with specific implementations
-for different survey data, such as Rubin and ZTF."""
+"""The top-level module for survey related data, such as pointing and observation conditions.
+ObsTable class is a base class with specific implementations for different survey data,
+such as Rubin and ZTF."""
 
 import logging
 import sqlite3
@@ -26,8 +26,11 @@ logger = logging.getLogger(__name__)
 
 
 class ObsTable:
-    """A wrapper class around the observations table with helper computation functions and
-    cached data for efficiency.
+    """A class that stores a table of information about the observations in a survey,
+    such as pointing and observation conditions. ObsTables are specialized for different
+    surveys and include information about that survey (e.g. default noise parameters,
+    default filter characteristics, etc.). They also include helper functions for common
+    common computations.
 
     Parameters
     ----------
@@ -180,8 +183,8 @@ class ObsTable:
         # Save the saturation thresholds.
         self._saturation_mags = saturation_mags
 
-        # Save the noise model.
-        self.noise_model = noise_model
+        # Save the noise model, using the class's default if no model is provided.
+        self.noise_model = noise_model if noise_model is not None else self.default_noise_model
 
         # Build the kd-tree (or other spatial data structure).
         self._spatial_data = None
@@ -235,6 +238,16 @@ class ObsTable:
             noise_model=new_noise_model,
             **new_survey_values,
         )
+
+    @property
+    def default_noise_model(self):
+        """Return the default noise model for this ObsTable, if it exists."""
+        return None  # No default noise model.
+
+    @property
+    def default_passband_group(self):
+        """Return the default passband group for this ObsTable, if they exist."""
+        return None  # No default passband group.
 
     def head(self, n=5):
         """Return the first n rows of the observation table."""
