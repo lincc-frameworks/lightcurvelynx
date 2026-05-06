@@ -62,7 +62,7 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         parameters. This can not be used if a detect footprint is already provided in the input table.
     noise_model : NoiseModel, optional
         The noise model to use for this ObsTable. If not provided, defaults to
-        SkyMapperPoissonFluxNoiseModel.
+        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -200,11 +200,14 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         # Compute the PSF footprint in pixel^2 if not already provided.
         if "psf_footprint" not in all_cols:
             # Find the seeing information in arcseconds.
-            if "fwhm" in self._table.columns:
+            if "fwhm" in all_cols:
                 seeing = self._table["fwhm"].to_numpy()
-            elif "seeing" in self._table.columns:
+            elif "seeing" in all_cols:
                 seeing = self._table["seeing"].to_numpy()
             else:
+                if "filter" not in all_cols:  # pragma: no cover
+                    raise ValueError("Filter column is required to assign default PSF FWHM values.")
+
                 # Use the median seeing per-filter if the seeing is not provided for each observation.
                 seeing = np.zeros(len(self._table))
                 for filter_name, fwhm_arcsec in self._default_psf_fwhm.items():
@@ -218,7 +221,7 @@ class SkyMapperObsTable(ObsTable, CiteClass):
 
         # Compute the sky background in electrons/pixel^2 if not already provided.
         if "sky_bg_e" not in all_cols:
-            if "skybrightness" not in all_cols or "zp" not in all_cols:
+            if "skybrightness" not in all_cols or "zp" not in all_cols:  # pragma: no cover
                 raise ValueError("skybrightness and zp columns are required to compute the sky background.")
 
             # Convert skybrightness (mag/arcsec^2) -> nJy/arcsec^2 -> nJy/pixel^2,
