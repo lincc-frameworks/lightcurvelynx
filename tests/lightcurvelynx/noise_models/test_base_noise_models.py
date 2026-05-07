@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from lightcurvelynx.noise_models.base_noise_models import (
     ConstantFluxNoiseModel,
+    FiveSigmaDepthNoiseModel,
     PoissonFluxNoiseModel,
 )
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
@@ -187,3 +188,45 @@ def test_poisson_flux_noise_model_missing():
 
     with pytest.raises(ValueError):
         model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+
+def test_five_sigma_depth_noise_model():
+    """Test that the FiveSigmaDepthNoiseModel correctly computes flux errors
+    and applies noise to the bandflux."""
+    model = FiveSigmaDepthNoiseModel()
+    assert set(model.required_values) == {"five_sigma_depth", "bandflux_ref"}
+
+    table_values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+        "five_sigma_depth": 20.0 + np.arange(5),
+    }
+    bandflux_ref = {"g": 3630e6, "r": 3635e6, "i": 3625e6}
+    const_values = {
+        "pixel_scale": 0.2,
+        "bandflux_ref": bandflux_ref,
+    }
+    ops_data = LookupOnlyObsTable(table_values=table_values, const_values=const_values)
+    assert len(ops_data) == 5
+
+    # Create and apply the noise model.
+    noise_model = FiveSigmaDepthNoiseModel()
+    assert noise_model.check_compatibility(ops_data, fail_on_incompatible=True)
+
+    bandflux = np.array([1000.0, 2000.0, 1500.0, 2500.0, 3000.0])
+    rng_for_model = np.random.default_rng(2024)
+    flux, flux_err = noise_model.apply_noise(
+        bandflux,
+        obs_table=ops_data,
+        indices=np.array([0, 1, 2, 3, 4]),
+        rng=rng_for_model,
+    )
+    assert not np.any(bandflux == flux)
+
+    bandflux_ref_arr = np.array([bandflux_ref[filt] for filt in ops_data["filter"]])
+    expected_bandflux_error = (
+        bandflux_ref_arr * np.power(10.0, -0.4 * ops_data["five_sigma_depth"].to_numpy()) / 5.0
+    )
+    assert np.allclose(flux_err, expected_bandflux_error)

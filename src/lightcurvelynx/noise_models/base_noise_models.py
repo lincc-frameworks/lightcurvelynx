@@ -247,3 +247,100 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
         rng = np.random.default_rng(rng)
         noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)
         return noisy_bandflux, flux_err
+
+
+class FiveSigmaDepthNoiseModel(FluxNoiseModel):
+    """A noise model that simulates photon noise from only the five-sigma depth information.
+
+    It requires two pieces of information from the ObsTable:
+    - five_sigma_depth: The five-sigma depth in magnitudes.
+    - bandflux_ref: A reference bandflux in the same units as the input bandflux
+
+    Note
+    ----
+    This noise model is not as accurate as the PoissonFluxNoiseModel, but it can be used when
+    only the five-sigma depth is available in the ObsTable.
+    """
+
+    _required_values = ["five_sigma_depth", "bandflux_ref"]
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def _bandflux_error_from_five_sigma_depth(five_sigma_depth, bandflux_ref):
+        """Derive the bandflux error from the five-sigma depth and bandflux reference.
+
+        Based on redback's bandflux_error_from_limiting_mag()
+        https://github.com/nikhil-sarin/redback
+
+        Parameters
+        ----------
+        five_sigma_depth : float or np.ndarray
+            The five-sigma depth in magnitudes.
+        bandflux_ref : float or np.ndarray
+            The reference bandflux in the same units as the input bandflux.
+
+        Returns
+        -------
+        bandflux_error : float or np.ndarray
+            The error associated with the computed bandflux.
+        """
+        flux_five_sigma = bandflux_ref * np.power(10.0, -0.4 * five_sigma_depth)
+        bandflux_error = flux_five_sigma / 5.0
+        return bandflux_error
+
+    def apply_noise(
+        self,
+        bandflux,
+        *,
+        obs_table=None,
+        indices=None,
+        rng=None,
+        **kwargs,
+    ):
+        """Compute the noise parameters for given observations in
+        an ObsTable and apply noise to the input bandflux.
+
+        Parameters
+        ----------
+        bandflux : array_like of float
+            Source bandflux in energy units, e.g. nJy.
+        obs_table : ObsTable, optional
+            Table containing the observation parameters, including all
+            parameters needed to compute the noise.
+        indices : array_like of int, optional
+            Indices of the observations in the ObsTable to which noise should
+            be applied.
+        rng : np.random.Generator, optional
+            The random number generator to use for applying noise. If None,
+            a default generator will be used.
+        **kwargs
+            Additional parameters for the noise model.
+
+        Returns
+        -------
+        flux : array_like
+            The updated flux measurements after applying noise, in the same
+            units as the input bandflux.
+        flux_err : array_like
+            The bandflux measurement error used for applying noise, in the
+            same units as the input bandflux.
+        """
+        if obs_table is None:
+            raise ValueError("ObsTable must be provided for FiveSigmaDepthNoiseModel.")
+        if indices is None:
+            raise ValueError("Indices must be provided for FiveSigmaDepthNoiseModel.")
+        if len(indices) != len(bandflux):
+            raise ValueError("Length of indices must match length of bandflux.")
+
+        flux_err = self._bandflux_error_from_five_sigma_depth(
+            obs_table.get_value_per_row("five_sigma_depth", indices=indices),
+            obs_table.get_value_per_row("bandflux_ref", indices=indices),
+        )
+        flux_err = np.asarray(flux_err)
+
+        # Generate the actual noisy bandflux measurements.
+        rng = np.random.default_rng(rng)
+        noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)
+        return noisy_bandflux, flux_err
