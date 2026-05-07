@@ -236,15 +236,22 @@ class ArgusHealpixObsTable(ObsTable):
 
         # Compute the zero points in nJy if not already present and if the necessary columns are available.
         if "zp" not in self:
-            # We don't need to check pixel_scale, read_noise, or nexposure because there
-            # are default survey values for those defined in _default_survey_values.
-            zp_deps = ["dark_current", "exptime", "maglim", "seeing", "sky_electrons"]
+            zp_deps = [
+                "dark_current",
+                "exptime",
+                "maglim",
+                "seeing",
+                "sky_electrons",
+                "read_noise",
+                "nexposure",
+                "pixel_scale",
+            ]
             if all(col in self for col in zp_deps):
                 # Compute the full-width at half-maximum of the PSF in pixels from the
                 # seeing (in arcseconds) and the pixel scale (in arcseconds per pixel).
                 fwhm_px = self["seeing"] / self["pixel_scale"]
 
-                # Compute the zero points from the 5-sigma depth (and other parmeters).
+                # Compute the zero points from the 5-sigma depth (and other parameters).
                 zp_vals = calculate_zp_from_maglim(
                     maglim=self["maglim"],
                     sky_bg_electrons=self["sky_electrons"],

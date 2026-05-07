@@ -189,7 +189,7 @@ class OpSim(ObsTable):
             if "zp_mag" in self:
                 zp_values = mag2flux(self._table["zp_mag"])
                 self.add_column("zp", zp_values, overwrite=True)
-            elif "filter" in self and "airmass" in self and "exptime" in self:
+            elif all(key in self for key in ["filter", "airmass", "exptime", "ext_coeff", "zp_per_sec"]):
                 zp_values = flux_electron_zeropoint(
                     ext_coeff=self["ext_coeff"],
                     instr_zp_mag=self["zp_per_sec"],
@@ -200,14 +200,14 @@ class OpSim(ObsTable):
                 self.add_column("zp", zp_values, overwrite=True)
 
         # Derive the PSF footprint in pixels (if needed and we have sufficient information to do so).
-        if "psf_footprint" not in self and "seeing" in self:
+        if "psf_footprint" not in self and "seeing" in self and "pixel_scale" in self:
             # By the effective FWHM definition, see
             # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
             psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (self["seeing"] / self["pixel_scale"]) ** 2
             self.add_column("psf_footprint", psf_footprint, overwrite=True)
 
         # Compute sky background (in e-) from skybrightness (mag per arcsec^2) if needed.
-        if "sky_bg_e" not in self and "skybrightness" in self and "zp" in self:
+        if "sky_bg_e" not in self and "skybrightness" in self and "zp" in self and "pixel_scale" in self:
             # Table value is in mag/arcsec^2; convert to electrons per pixel^2.
             sky_njy_angular = mag2flux(self["skybrightness"])
             sky = sky_njy_angular * self["pixel_scale"] ** 2 / self["zp"]

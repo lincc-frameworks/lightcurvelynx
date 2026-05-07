@@ -136,7 +136,7 @@ class LSSTObsTable(ObsTable):
         "dark_current": _lsstcam_dark_current,
         "exptime": 30.0,  # Default 30 second exposures for LSST
         "gain": _lsstcam_gain,
-        "nexposures": 1,
+        "nexposure": 1,
         "pixel_scale": LSSTCAM_PIXEL_SCALE,
         "radius": _lsstcam_view_radius,
         "read_noise": _lsstcam_readout_noise,
