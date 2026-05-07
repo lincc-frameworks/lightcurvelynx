@@ -7,6 +7,9 @@ from lightcurvelynx.noise_models.pzflow_noise_model import (
     learn_pzflow_noise_model,
 )
 
+# Local helper class.
+from lookup_only_obstable import LookupOnlyObsTable
+
 
 def test_column_normalization_data():
     """Test that the _ColumnNormalizationData class correctly computes and applies
@@ -51,27 +54,6 @@ def test_column_normalization_data_invalid_input():
         _ColumnNormalizationData(np.array([np.nan, np.nan, np.nan]), log_transform=False)
     with pytest.raises(ValueError, match="Data contains non-positive values"):
         _ColumnNormalizationData(np.array([0.0, -1.0, 2.0]), log_transform=True)
-
-
-class LookupOnlyObsTable:
-    """A simple dummy class to simulate the ObsTable's get_value_per_row method."""
-
-    def __init__(self, table_values, const_values=None):
-        self.table_values = pd.DataFrame(table_values)
-        self.const_values = const_values or {}
-
-    def __contains__(self, key):
-        return key in self.table_values.columns or key in self.const_values
-
-    def get_value_per_row(self, key, indices, default=None):
-        """Simulate the ObsTable's get_value_per_row method."""
-        if key in self.table_values.columns:
-            return np.asarray(self.table_values[key])[indices]
-        if key in self.const_values:
-            return np.full(len(indices), self.const_values[key])
-        if default is not None:
-            return np.full(len(indices), default)
-        raise KeyError(f"Missing required key: {key}")
 
 
 def test_pzflow_noise_model(test_data_dir):
