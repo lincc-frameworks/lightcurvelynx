@@ -39,6 +39,7 @@ def test_constant_flux_noise_model_apply_noise_with_seeded_rng_is_deterministic(
     noise_level = 0.5
     bandflux = np.array([1.0, 2.0, 3.0])
     model = ConstantFluxNoiseModel(noise_level=noise_level)
+    assert np.array_equal(model.required_values, [])
 
     rng_for_model = np.random.default_rng(1234)
     flux, flux_err = model.apply_noise(bandflux, rng=rng_for_model)
@@ -66,6 +67,15 @@ def test_poisson_flux_noise_model():
     """Test that the PoissonFluxNoiseModel correctly computes flux errors
     and applies noise to the bandflux."""
     model = PoissonFluxNoiseModel()
+    assert set(model.required_values) == {
+        "exptime",
+        "sky_bg_e",
+        "psf_footprint",
+        "zp",
+        "read_noise",
+        "dark_current",
+    }
+
     bandflux = np.array([100.0, 200.0, 200.0])
     dummy_data = {
         "exptime": np.array([30.0, 35.0, 40.0]),

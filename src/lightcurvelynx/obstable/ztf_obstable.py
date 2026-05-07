@@ -172,8 +172,15 @@ class ZTFObsTable(ObsTable):
             **kwargs,
         )
 
-    def _derive_noise_columns(self):
-        """Assign instrumental zero points in ADU to the ObsTable."""
+    def _derive_noise_columns(self, *, required_columns=None):
+        """Assign instrumental zero points in ADU to the ObsTable.
+
+        Parameters
+        ----------
+        required_columns : list of str, optional
+            A list of column names that should be present after this function is run. If any of
+            these columns are not present after running this function, an error will be raised.
+        """
         cols = self._table.columns.tolist()
         if not ("maglim" in cols and "sky" in cols and "fwhm" in cols and "exptime" in cols):
             raise ValueError(

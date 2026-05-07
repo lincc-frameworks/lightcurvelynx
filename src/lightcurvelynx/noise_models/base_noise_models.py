@@ -11,6 +11,11 @@ class FluxNoiseModel(ABC):
     # A list of column names that must be present in the ObsTable for this noise model to work.
     _required_values = []
 
+    @property
+    def required_values(self):
+        """List of column names that must be present in the ObsTable for this noise model to work."""
+        return self._required_values
+
     @abstractmethod
     def apply_noise(
         self,

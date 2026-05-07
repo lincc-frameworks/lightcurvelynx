@@ -240,8 +240,15 @@ class LSSTObsTable(ObsTable):
             **kwargs,
         )
 
-    def _derive_noise_columns(self):
-        """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables."""
+    def _derive_noise_columns(self, *, required_columns=None):
+        """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables.
+
+        Parameters
+        ----------
+        required_columns : list of str, optional
+            A list of column names that should be present after this function is run. If any of
+            these columns are not present after running this function, an error will be raised.
+        """
         cols = self._table.columns.to_list()
 
         if "zp" in cols:
