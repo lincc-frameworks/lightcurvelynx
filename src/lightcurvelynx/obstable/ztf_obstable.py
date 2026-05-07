@@ -176,6 +176,7 @@ class ZTFObsTable(ObsTable):
         """Derive any missing noise-related columns (e.g. zero points) from the existing columns
         and survey values.
         """
+        # Derive the zero point in nJy (if needed and we have sufficient information to do so).
         cols = self._table.columns.tolist()
         if not ("maglim" in cols and "sky" in cols and "fwhm" in cols and "exptime" in cols):
             raise ValueError(

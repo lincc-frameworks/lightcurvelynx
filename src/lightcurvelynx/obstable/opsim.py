@@ -172,7 +172,6 @@ class OpSim(ObsTable):
         "seeing": "seeingFwhmEff",  # arcseconds
         "skybrightness": "skyBrightness",  # mag per arcsec^2
         "time": "observationStartMJD",  # days
-        "zp": "zp_nJy",  # We add this column to the table
     }
 
     # Default survey values (LSSTCam).
@@ -181,6 +180,7 @@ class OpSim(ObsTable):
         "ccd_pixel_height": 4000,
         "dark_current": _opsim_dark_current,
         "ext_coeff": _opsim_extinction_coeff,
+        "nexposure": 1,
         "pixel_scale": _opsim_pixel_scale,
         "radius": _opsim_view_radius,
         "read_noise": _opsim_readout_noise,
@@ -231,33 +231,35 @@ class OpSim(ObsTable):
         """Derive any missing noise-related columns (e.g. zero points) from the existing columns
         and survey values.
         """
-        cols = self._table.columns.to_list()
+        # Derive the zero point in nJy (if needed and we have sufficient information to do so).
+        if "zp" not in self:
+            # If the zero point column is already present (as a magnitude), we convert it to nJy.
+            if "zp_mag" in self:
+                zp_values = mag2flux(self._table["zp_mag"])
+                self.add_column("zp", zp_values, overwrite=True)
+            elif "filter" in self and "airmass" in self and "exptime" in self:
+                zp_values = flux_electron_zeropoint(
+                    ext_coeff=self["ext_coeff"],
+                    instr_zp_mag=self["zp_per_sec"],
+                    filter=self["filter"],
+                    airmass=self["airmass"],
+                    exptime=self["exptime"],
+                )
+                self.add_column("zp", zp_values, overwrite=True)
 
-        # If the zero point column is already present (as nJy), we are done.
-        if "zp" in cols:
-            return
+        # Derive the PSF footprint in pixels (if needed and we have sufficient information to do so).
+        if "psf_footprint" not in self and "seeing" in self:
+            # By the effective FWHM definition, see
+            # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
+            psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (self["seeing"] / self["pixel_scale"]) ** 2
+            self.add_column("psf_footprint", psf_footprint, overwrite=True)
 
-        # If the zero point column is already present (as a magnitude), we convert it to nJy.
-        if "zp_mag" in cols:
-            zp_values = mag2flux(self._table["zp_mag"])
-            self.add_column("zp", zp_values, overwrite=True)
-            return
-
-        # See if we have the information to derive the zero point.
-        if not ("filter" in cols and "airmass" in cols and "exptime" in cols):
-            raise ValueError(
-                "OpSim does not include the columns needed to derive zero point "
-                "information. Required columns: filter, airmass, and exptime."
-            )
-
-        zp_values = flux_electron_zeropoint(
-            ext_coeff=self.safe_get_survey_value("ext_coeff"),
-            instr_zp_mag=self.safe_get_survey_value("zp_per_sec"),
-            filter=self._table["filter"],
-            airmass=self._table["airmass"],
-            exptime=self._table["exptime"],
-        )
-        self.add_column("zp", zp_values, overwrite=True)
+        # Compute sky background (in e-) from skybrightness (mag per arcsec^2) if needed.
+        if "sky_bg_e" not in self and "skybrightness" in self and "zp" in self:
+            # Table value is in mag/arcsec^2; convert to electrons per pixel^2.
+            sky_njy_angular = mag2flux(self["skybrightness"])
+            sky = sky_njy_angular * self["pixel_scale"] ** 2 / self["zp"]
+            self.add_column("sky_bg_e", sky, overwrite=True)
 
     @classmethod
     def from_url(cls, opsim_url, force_download=False):
