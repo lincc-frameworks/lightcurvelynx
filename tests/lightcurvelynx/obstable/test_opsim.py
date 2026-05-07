@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.opsim import (
     OpSim,
-    OpSimPoissonFluxNoiseModel,
     _opsim_extinction_coeff,
     _opsim_zeropoint_per_sec_zenith,
     create_random_opsim,
@@ -31,7 +31,7 @@ def test_create_opsim():
     ops_data = OpSim(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
-    assert isinstance(ops_data.noise_model, OpSimPoissonFluxNoiseModel)
+    assert isinstance(ops_data.noise_model, PoissonFluxNoiseModel)
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.2

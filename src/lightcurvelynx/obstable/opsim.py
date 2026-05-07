@@ -10,7 +10,6 @@ from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.zeropoint import flux_electron_zeropoint
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
-from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
@@ -79,54 +78,6 @@ Calculated with syseng_throughputs v1.9
 """
 
 
-class OpSimPoissonFluxNoiseModel(PoissonFluxNoiseModel):
-    """A subclass of PoissonFluxNoiseModel for Rubin OpSim data."""
-
-    def __init__(self):
-        super().__init__()
-
-    def compute_flux_error(self, bandflux, obs_table, indices):
-        """Compute the flux error for the given bandflux and observation parameters.
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Source bandflux in nJy.
-        obs_table : ObsTable
-            Table containing the observation parameters needed to compute the noise.
-        indices : array_like of int
-            Indices of the observations in the ObsTable for which to compute the noise.
-
-        Returns
-        -------
-        flux_err : array_like
-            The standard deviation of the bandflux measurement error, in the
-            same units as the input bandflux.
-        """
-        # By the effective FWHM definition, see
-        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
-        pixel_scale = obs_table.safe_get_survey_value("pixel_scale")
-        seeing = obs_table["seeing"].iloc[indices].to_numpy()
-        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
-        zp = obs_table["zp"].iloc[indices].to_numpy()
-
-        # Table value is in mag/arcsec^2; convert to electrons per pixel^2.
-        sky_njy_angular = mag2flux(obs_table["skybrightness"].iloc[indices].to_numpy())
-        sky = sky_njy_angular * pixel_scale**2 / zp
-
-        return poisson_bandflux_std(
-            bandflux,
-            total_exposure_time=obs_table["exptime"].iloc[indices].to_numpy(),
-            exposure_count=obs_table["nexposure"].iloc[indices].to_numpy(),
-            psf_footprint=psf_footprint,
-            sky=sky,
-            zp=zp,
-            readout_noise=obs_table.safe_get_survey_value("read_noise"),
-            dark_current=obs_table.safe_get_survey_value("dark_current"),
-            zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),
-        )
-
-
 class OpSim(ObsTable):
     """A wrapper class around the Rubin's simulated data Opsim.
 
@@ -144,7 +95,7 @@ class OpSim(ObsTable):
         used.
     noise_model : NoiseModel, optional
         The noise model to use for this ObsTable. If not provided, defaults to
-        OpSimPoissonFluxNoiseModel.
+        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -218,7 +169,7 @@ class OpSim(ObsTable):
 
         # If noise model is not provided, then set to the OpSim default.
         if noise_model is None:
-            noise_model = OpSimPoissonFluxNoiseModel()
+            noise_model = PoissonFluxNoiseModel()
 
         super().__init__(
             table,
