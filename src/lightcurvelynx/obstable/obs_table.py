@@ -568,18 +568,12 @@ class ObsTable:
         # Construct the kd-tree.
         self._spatial_data = KDTree(cart_coords)
 
-    def _derive_noise_columns(self, *, required_columns=None):
+    def _derive_noise_columns(self):
         """Derive any missing noise-related columns (e.g. zero points) from the existing columns
         and survey values.
 
         Default implementation does not produce a zeropoint column. Subclasses
         should override this method with a survey specific computation.
-
-        Parameters
-        ----------
-        required_columns : list of str, optional
-            A list of column names that should be present after this function is run. If any of
-            these columns are not present after running this function, an error will be raised.
         """
         pass
 
