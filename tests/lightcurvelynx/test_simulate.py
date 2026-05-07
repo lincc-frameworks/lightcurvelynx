@@ -138,11 +138,10 @@ def test_simulation_info():
         "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
         "filter": np.array(["r", "g", "r", "i", "g"]),
     }
-    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    bandflux_error = {"g": 26.0, "r": 27.0, "i": 28.0}
     ops_data = FakeObsTable(
         values,
-        noise_strategy="exhaustive",
-        zp_per_band=zp_per_band,
+        bandflux_error=bandflux_error,
         fwhm_px=2.0,
         sky_bg_electrons=100.0,
     )
@@ -229,11 +228,10 @@ def test_simulation_info_random_split():
         "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
         "filter": np.array(["r", "g", "r", "i", "g"]),
     }
-    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    bandflux_error = {"g": 26.0, "r": 27.0, "i": 28.0}
     ops_data = FakeObsTable(
         values,
-        noise_strategy="exhaustive",
-        zp_per_band=zp_per_band,
+        bandflux_error=bandflux_error,
         fwhm_px=2.0,
         sky_bg_electrons=100.0,
     )
@@ -1198,8 +1196,7 @@ def test_saturation_mags_initialization(test_data_dir):
                 "filter": ["g", "r"],
             }
         ),
-        noise_strategy="exhaustive",
-        zp_per_band={"g": 26.0, "r": 27.0},
+        bandflux_error={"g": 26.0, "r": 27.0},
         exptime=30.0,
         fwhm_px={"g": 2.5, "r": 3.1},
         nexposure=2,
@@ -1236,12 +1233,11 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
         "filter": np.array(["r", "g", "r", "i", "g"]),
     }
     pdf = pd.DataFrame(obs_table_values)
-    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    bandflux_error = {"g": 26.0, "r": 27.0, "i": 28.0}
 
     ops_data = FakeObsTable(
         pdf,
-        noise_strategy="exhaustive",
-        zp_per_band=zp_per_band,
+        bandflux_error=bandflux_error,
         exptime=60.0,
         fwhm_px={"g": 2.5, "r": 3.1, "i": 1.9},
         nexposure=200,
@@ -1345,7 +1341,7 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
         "filter": np.array(["r", "g", "r", "i", "g"]),
     }
     pdf = pd.DataFrame(obs_table_values)
-    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    bandflux_error = {"g": 26.0, "r": 27.0, "i": 28.0}
 
     # Saturation thresholds are given in magnitudes.
     toy_sat_thresholds = {
@@ -1357,8 +1353,7 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
 
     ops_data = FakeObsTable(
         pdf,
-        noise_strategy="exhaustive",
-        zp_per_band=zp_per_band,
+        bandflux_error=bandflux_error,
         exptime=60.0,
         fwhm_px={"g": 2.5, "r": 3.1, "i": 1.9},
         nexposure=200,

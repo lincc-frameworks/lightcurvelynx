@@ -150,7 +150,7 @@ def test_results_append_obstable_data():
     assert "test_col" not in res1["lightcurve"].nest.columns
 
     # Create two FakeObsTable instances with a test column to add.
-    zp_per_band = {"g": 26.0, "r": 27.0, "i": 28.0}
+    bandflux_error = {"g": 26.0, "r": 27.0, "i": 28.0}
     ops_data_1 = {
         "time": np.array([59000.0, 59001.0, 59001.5, 59002.0, 59003.0]),
         "ra": np.array([10.0, 10.0, 20.0, 10.0, 10.0]),
@@ -160,8 +160,7 @@ def test_results_append_obstable_data():
     }
     ops_table_1 = FakeObsTable(
         pd.DataFrame(ops_data_1),
-        noise_strategy="exhaustive",
-        zp_per_band=zp_per_band,
+        bandflux_error=bandflux_error,
         fwhm_px=2.0,
         sky_bg_electrons=100.0,
     )
@@ -175,8 +174,7 @@ def test_results_append_obstable_data():
     }
     ops_table_2 = FakeObsTable(
         pd.DataFrame(ops_data_2),
-        noise_strategy="exhaustive",
-        zp_per_band=zp_per_band,
+        bandflux_error=bandflux_error,
         fwhm_px=2.0,
         sky_bg_electrons=100.0,
     )

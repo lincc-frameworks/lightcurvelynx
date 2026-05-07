@@ -3,6 +3,7 @@ import pytest
 from lightcurvelynx.noise_models.base_noise_models import (
     ConstantFluxNoiseModel,
     FiveSigmaDepthNoiseModel,
+    GivenNoiseModel,
     PoissonFluxNoiseModel,
 )
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
@@ -188,6 +189,89 @@ def test_poisson_flux_noise_model_missing():
 
     with pytest.raises(ValueError):
         model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+
+def test_given_noise_model():
+    """Test that the GivenNoiseModel correctly reads per-row flux errors
+    from the ObsTable and applies noise to the bandflux."""
+    model = GivenNoiseModel()
+    assert set(model.required_values) == {"bandflux_error"}
+
+    bandflux = np.array([100.0, 200.0, 300.0])
+    dummy_data = {
+        "bandflux_error": np.array([5.0, 10.0, 15.0]),
+    }
+    obs_table = LookupOnlyObsTable(dummy_data)
+
+    # We fail without an ObsTable, without indices, or with mismatched indices length.
+    with pytest.raises(ValueError, match="ObsTable must be provided"):
+        model.apply_noise(bandflux, indices=np.array([0, 1, 2]))
+    with pytest.raises(ValueError, match="Indices must be provided"):
+        model.apply_noise(bandflux, obs_table=obs_table)
+    with pytest.raises(ValueError):
+        model.apply_noise(bandflux, obs_table=obs_table, indices=np.array([0, 1]))
+
+    # Check compatibility.
+    assert model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+    # Verify that noise is applied using per-row errors from the ObsTable.
+    rng_for_model = np.random.default_rng(42)
+    flux, flux_err = model.apply_noise(
+        bandflux,
+        obs_table=obs_table,
+        indices=np.array([0, 1, 2]),
+        rng=rng_for_model,
+    )
+    assert_allclose(flux_err, dummy_data["bandflux_error"])
+
+    rng_for_expected = np.random.default_rng(42)
+    expected_flux = rng_for_expected.normal(loc=bandflux, scale=dummy_data["bandflux_error"])
+    assert_allclose(flux, expected_flux)
+
+
+def test_given_noise_model_per_filter():
+    """Test that the GivenNoiseModel correctly reads per-filter flux errors
+    from the ObsTable and applies noise to the bandflux."""
+    model = GivenNoiseModel()
+    assert set(model.required_values) == {"bandflux_error"}
+
+    # We make bandflux error constant per filter.
+    filters = np.array(["g", "r", "i", "g", "r", "i", "r", "g", "r"])
+    bandflux_error = {"g": 5.0, "r": 10.0, "i": 15.0}
+    obs_table = LookupOnlyObsTable(
+        table_values={"filter": filters},
+        const_values={"bandflux_error": bandflux_error},
+    )
+
+    bandflux = np.full_like(filters, 100.0, dtype=float)
+
+    # We fail without an ObsTable, without indices, or with mismatched indices length.
+    with pytest.raises(ValueError, match="ObsTable must be provided"):
+        model.apply_noise(bandflux, indices=np.array([0, 1, 2]))
+    with pytest.raises(ValueError, match="Indices must be provided"):
+        model.apply_noise(bandflux, obs_table=obs_table)
+    with pytest.raises(ValueError):
+        model.apply_noise(bandflux, obs_table=obs_table, indices=np.array([0, 1]))
+
+    # Check compatibility.
+    assert model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+    # Verify that noise is applied using per-row errors from the ObsTable.
+    rng_for_model = np.random.default_rng(42)
+    flux, flux_err = model.apply_noise(
+        bandflux,
+        obs_table=obs_table,
+        indices=np.arange(len(filters)),
+        rng=rng_for_model,
+    )
+
+    # Check that we pull the correct error for each row.
+    err_arr = np.array([bandflux_error[filt] for filt in filters])
+    assert_allclose(flux_err, err_arr)
+
+    rng_for_expected = np.random.default_rng(42)
+    expected_flux = rng_for_expected.normal(loc=bandflux, scale=err_arr)
+    assert_allclose(flux, expected_flux)
 
 
 def test_five_sigma_depth_noise_model():
