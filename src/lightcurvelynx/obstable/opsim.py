@@ -187,7 +187,7 @@ class OpSim(ObsTable):
         if "zp" not in self:
             # If the zero point column is already present (as a magnitude), we convert it to nJy.
             if "zp_mag" in self:
-                zp_values = mag2flux(self._table["zp_mag"])
+                zp_values = mag2flux(self["zp_mag"])
                 self.add_column("zp", zp_values, overwrite=True)
             elif all(key in self for key in ["filter", "airmass", "exptime", "ext_coeff", "zp_per_sec"]):
                 zp_values = flux_electron_zeropoint(

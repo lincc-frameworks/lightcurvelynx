@@ -241,7 +241,7 @@ class ArgusHealpixObsTable(ObsTable):
                 "exptime",
                 "maglim",
                 "seeing",
-                "sky_electrons",
+                "sky_bg_e",
                 "read_noise",
                 "nexposure",
                 "pixel_scale",
@@ -254,7 +254,7 @@ class ArgusHealpixObsTable(ObsTable):
                 # Compute the zero points from the 5-sigma depth (and other parameters).
                 zp_vals = calculate_zp_from_maglim(
                     maglim=self["maglim"],
-                    sky_bg_electrons=self["sky_electrons"],
+                    sky_bg_electrons=self["sky_bg_e"],
                     fwhm_px=fwhm_px,
                     read_noise=self["read_noise"],
                     dark_current=self["dark_current"],
