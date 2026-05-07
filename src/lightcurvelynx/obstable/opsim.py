@@ -172,6 +172,7 @@ class OpSim(ObsTable):
         "seeing": "seeingFwhmEff",  # arcseconds
         "skybrightness": "skyBrightness",  # mag per arcsec^2
         "time": "observationStartMJD",  # days
+        "zp": "zp_nJy",  # nJy
     }
 
     # Default survey values (LSSTCam).
