@@ -172,7 +172,7 @@ class ZTFObsTable(ObsTable):
             **kwargs,
         )
 
-    def _assign_zero_points(self):
+    def _derive_noise_columns(self):
         """Assign instrumental zero points in ADU to the ObsTable."""
         cols = self._table.columns.tolist()
         if not ("maglim" in cols and "sky" in cols and "fwhm" in cols and "exptime" in cols):

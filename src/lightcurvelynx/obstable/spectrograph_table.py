@@ -54,7 +54,7 @@ class SpectrographObsTable(ObsTable):
 
         super().__init__(table, colmap=colmap, **kwargs)
 
-    def _assign_zero_points(self):
+    def _derive_noise_columns(self):
         """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables."""
         if "zp" in self._table.columns:
             return  # Nothing to do

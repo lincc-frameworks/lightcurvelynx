@@ -168,7 +168,7 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             detect_fp = DetectorFootprint.from_pixel_rect(width_px, height_px, pixel_scale=pixel_scale)
             self.set_detector_footprint(detect_fp)
 
-    def _assign_zero_points(self):
+    def _derive_noise_columns(self):
         """Assign instrumental zero points in nJy (which produces 1 e-) to the SkyMapperObsTable tables."""
         cols = self._table.columns.to_list()
 

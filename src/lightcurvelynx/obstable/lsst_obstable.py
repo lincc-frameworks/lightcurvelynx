@@ -240,7 +240,7 @@ class LSSTObsTable(ObsTable):
             **kwargs,
         )
 
-    def _assign_zero_points(self):
+    def _derive_noise_columns(self):
         """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables."""
         cols = self._table.columns.to_list()
 
