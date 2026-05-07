@@ -73,7 +73,7 @@ class LSSTObsTable(ObsTable):
         used.
     noise_model : NoiseModel, optional
         The noise model to use for this ObsTable. If not provided, defaults to
-        LSSTPoissonFluxNoiseModel.
+        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
