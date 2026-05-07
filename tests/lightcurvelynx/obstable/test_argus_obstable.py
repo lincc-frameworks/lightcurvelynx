@@ -4,7 +4,8 @@ import pandas as pd
 import pytest
 from astropy.coordinates import SkyCoord
 from cdshealpix import skycoord_to_healpix
-from lightcurvelynx.obstable.argus_obstable import ArgusHealpixObsTable, ArgusPoissonFluxNoiseModel
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
+from lightcurvelynx.obstable.argus_obstable import ArgusHealpixObsTable
 
 
 def _ra_dec_to_healpix(ra, dec, nside=32):
@@ -177,7 +178,7 @@ def test_argus_obstable_noise():
     }
     pdf = pd.DataFrame(values)
     table = ArgusHealpixObsTable(pdf, nside=32)
-    assert isinstance(table.noise_model, ArgusPoissonFluxNoiseModel)
+    assert isinstance(table.noise_model, PoissonFluxNoiseModel)
 
     assert "zp" in table
     assert np.all(table["zp"] > 15.0)

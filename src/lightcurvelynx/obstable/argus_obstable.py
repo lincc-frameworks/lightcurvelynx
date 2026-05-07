@@ -12,7 +12,6 @@ from mocpy import MOC
 from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
-from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 _argus_view_radius = 52.0
@@ -26,52 +25,6 @@ _argus_pixel_scale = 1.0
 """The pixel scale for the Argus survey in arcseconds per pixel:
 https://argus.unc.edu/specifications
 """
-
-
-class ArgusPoissonFluxNoiseModel(PoissonFluxNoiseModel):
-    """A subclass of PoissonFluxNoiseModel for Argus survey data."""
-
-    def __init__(self):
-        super().__init__()
-
-    def compute_flux_error(self, bandflux, obs_table, indices):
-        """Compute the flux error for the given bandflux and observation parameters.
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Source bandflux in nJy.
-        obs_table : ObsTable
-            Table containing the observation parameters needed to compute the noise.
-        indices : array_like of int
-            Indices of the observations in the ObsTable for which to compute the noise.
-
-        Returns
-        -------
-        flux_err : array_like
-            The standard deviation of the bandflux measurement error (in nJy)
-        """
-
-        # Compute the PSF footprint in pixels from the seeing and pixel scale.
-        pixel_scale = obs_table.safe_get_survey_value("pixel_scale")
-        seeing = obs_table["seeing"].iloc[indices].to_numpy()
-        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
-
-        # Convert dark current from electrons/pixel/exposure to electrons/pixel/second.
-        exptime = obs_table["exptime"].iloc[indices].to_numpy()
-        dark_current = obs_table["dark_electrons"].iloc[indices].to_numpy() / exptime
-
-        return poisson_bandflux_std(
-            bandflux,
-            total_exposure_time=exptime,
-            exposure_count=1,
-            psf_footprint=psf_footprint,
-            sky=obs_table["sky_electrons"].iloc[indices].to_numpy(),
-            zp=obs_table["zp"].iloc[indices].to_numpy(),
-            readout_noise=obs_table.safe_get_survey_value("read_noise"),
-            dark_current=dark_current,
-            zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),
-        )
 
 
 class ArgusHealpixObsTable(ObsTable):
@@ -114,13 +67,14 @@ class ArgusHealpixObsTable(ObsTable):
         "ra": "ra",  # degrees
         "seeing": "seeing",  # arcseconds
         "skybrightness": "sky_brightness",  # mag/arcsec^2
-        "sky_electrons": "sky_electrons",  # electrons/pixel/exposure
+        "sky_bg_e": "sky_electrons",  # electrons/pixel/exposure
         "time": "epoch",  # MJD
     }
     _default_colnames = _argus_sim_colmap
 
     # Default survey values: https://argus.unc.edu/specifications
     _default_survey_values = {
+        "nexposure": 1,
         "pixel_scale": _argus_pixel_scale,
         "radius": _argus_view_radius,
         "read_noise": 1.4,  # e-/pixel
@@ -173,7 +127,7 @@ class ArgusHealpixObsTable(ObsTable):
 
         # If noise model is not provided, then set to the Argus default.
         if noise_model is None:
-            noise_model = ArgusPoissonFluxNoiseModel()
+            noise_model = PoissonFluxNoiseModel()
 
         super().__init__(
             table=table,
@@ -269,7 +223,8 @@ class ArgusHealpixObsTable(ObsTable):
         return moc
 
     def _derive_noise_columns(self, *, required_columns=None):
-        """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables.
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
 
         Parameters
         ----------
@@ -277,32 +232,52 @@ class ArgusHealpixObsTable(ObsTable):
             A list of column names that should be present after this function is run. If any of
             these columns are not present after running this function, an error will be raised.
         """
-        if "zp" in self._table.columns:
-            return  # Zero points already assigned.
+        required_columns = set(required_columns) if required_columns is not None else set()
 
-        logger = logging.getLogger(__name__)
-        logger.debug("Assigning zero points to the ArgusHealpixObsTable.")
+        # Compute the dark current in electrons/pixel/second.
+        if "dark_current" not in self:
+            if "dark_electrons" in self and "exptime" in self:
+                # Compute the dark current in electrons per pixel per second from the dark current
+                # in electrons per pixel per exposure and the exposure time.
+                dark_current = self["dark_electrons"] / self["exptime"]
+                self.add_column("dark_current", dark_current)
+        elif "dark_current" in required_columns:
+            raise ValueError("dark_current is required but could not be derived from the table.")
 
-        # Compute the full-width at half-maximum of the PSF in pixels from the
-        # seeing (in arcseconds) and the pixel scale (in arcseconds per pixel).
-        fwhm_px = self._table["seeing"].to_numpy() / self.safe_get_survey_value("pixel_scale")
+        # Compute the zero points in nJy if not already present and if the necessary columns are available.
+        if "zp" not in self:
+            # We don't need to check pixel_scale, read_noise, or nexposure because there
+            # are default survey values for those defined in _default_survey_values.
+            zp_deps = ["dark_current", "exptime", "maglim", "seeing", "sky_electrons"]
+            if all(col in self for col in zp_deps):
+                # Compute the full-width at half-maximum of the PSF in pixels from the
+                # seeing (in arcseconds) and the pixel scale (in arcseconds per pixel).
+                fwhm_px = self["seeing"] / self["pixel_scale"]
 
-        # Compute the dark current in electrons per pixel per second from the dark current in electrons
-        # per pixel per exposure and the exposure time.
-        exptime = self._table["exptime"].to_numpy()
-        dark_current = self._table["dark_electrons"].to_numpy() / exptime
+                # Compute the zero points from the 5-sigma depth (and other parmeters).
+                zp_vals = calculate_zp_from_maglim(
+                    maglim=self["maglim"],
+                    sky_bg_electrons=self["sky_electrons"],
+                    fwhm_px=fwhm_px,
+                    read_noise=self["read_noise"],
+                    dark_current=self["dark_current"],
+                    exptime=self["exptime"],
+                    nexposure=self["nexposure"],
+                )
+                self.add_column("zp", zp_vals)
+            elif "zp" in required_columns:
+                raise ValueError(
+                    "zp is required but could not be derived from the table. Missing columns: "
+                    f"{[col for col in zp_deps if col not in self]}"
+                )
 
-        # Compute the zero points from the 5-sigma depth (and other parmeters).
-        zp_vals = calculate_zp_from_maglim(
-            maglim=self._table["maglim"],
-            sky_bg_electrons=self._table["sky_electrons"],
-            fwhm_px=fwhm_px,
-            read_noise=self.safe_get_survey_value("read_noise"),
-            dark_current=dark_current,
-            exptime=exptime,
-            nexposure=1,
-        )
-        self._table["zp"] = zp_vals
+        # Compute the PSF footprint in pixels.
+        if "psf_footprint" not in self:
+            if "seeing" in self:
+                psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (self["seeing"] / self["pixel_scale"]) ** 2
+                self.add_column("psf_footprint", psf_footprint)
+            elif "psf_footprint" in required_columns:
+                raise ValueError("psf_footprint is required but could not be derived from the table.")
 
     def range_search(self, query_ra, query_dec, *, radius=None, t_min=None, t_max=None):
         """Return the indices of the pointings that fall within the field
