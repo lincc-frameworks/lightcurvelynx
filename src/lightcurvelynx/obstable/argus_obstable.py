@@ -222,27 +222,16 @@ class ArgusHealpixObsTable(ObsTable):
         )
         return moc
 
-    def _derive_noise_columns(self, *, required_columns=None):
+    def _derive_noise_columns(self):
         """Derive any missing noise-related columns (e.g. zero points) from the existing columns
         and survey values.
-
-        Parameters
-        ----------
-        required_columns : list of str, optional
-            A list of column names that should be present after this function is run. If any of
-            these columns are not present after running this function, an error will be raised.
         """
-        required_columns = set(required_columns) if required_columns is not None else set()
-
         # Compute the dark current in electrons/pixel/second.
-        if "dark_current" not in self:
-            if "dark_electrons" in self and "exptime" in self:
-                # Compute the dark current in electrons per pixel per second from the dark current
-                # in electrons per pixel per exposure and the exposure time.
-                dark_current = self["dark_electrons"] / self["exptime"]
-                self.add_column("dark_current", dark_current)
-        elif "dark_current" in required_columns:
-            raise ValueError("dark_current is required but could not be derived from the table.")
+        if "dark_current" not in self and "dark_electrons" in self and "exptime" in self:
+            # Compute the dark current in electrons per pixel per second from the dark current
+            # in electrons per pixel per exposure and the exposure time.
+            dark_current = self["dark_electrons"] / self["exptime"]
+            self.add_column("dark_current", dark_current)
 
         # Compute the zero points in nJy if not already present and if the necessary columns are available.
         if "zp" not in self:
@@ -265,19 +254,11 @@ class ArgusHealpixObsTable(ObsTable):
                     nexposure=self["nexposure"],
                 )
                 self.add_column("zp", zp_vals)
-            elif "zp" in required_columns:
-                raise ValueError(
-                    "zp is required but could not be derived from the table. Missing columns: "
-                    f"{[col for col in zp_deps if col not in self]}"
-                )
 
         # Compute the PSF footprint in pixels.
-        if "psf_footprint" not in self:
-            if "seeing" in self:
-                psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (self["seeing"] / self["pixel_scale"]) ** 2
-                self.add_column("psf_footprint", psf_footprint)
-            elif "psf_footprint" in required_columns:
-                raise ValueError("psf_footprint is required but could not be derived from the table.")
+        if "psf_footprint" not in self and "seeing" in self and "pixel_scale" in self:
+            psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (self["seeing"] / self["pixel_scale"]) ** 2
+            self.add_column("psf_footprint", psf_footprint)
 
     def range_search(self, query_ra, query_dec, *, radius=None, t_min=None, t_max=None):
         """Return the indices of the pointings that fall within the field

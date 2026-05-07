@@ -227,14 +227,9 @@ class OpSim(ObsTable):
             **kwargs,
         )
 
-    def _derive_noise_columns(self, *, required_columns=None):
-        """Assign instrumental zero points in nJy to the OpSim tables.
-
-        Parameters
-        ----------
-        required_columns : list of str, optional
-            A list of column names that should be present after this function is run. If any of
-            these columns are not present after running this function, an error will be raised.
+    def _derive_noise_columns(self):
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
         """
         cols = self._table.columns.to_list()
 

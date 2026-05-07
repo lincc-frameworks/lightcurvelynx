@@ -166,18 +166,11 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             detect_fp = DetectorFootprint.from_pixel_rect(width_px, height_px, pixel_scale=pixel_scale)
             self.set_detector_footprint(detect_fp)
 
-    def _derive_noise_columns(self, *, required_columns=None):
-        """Compute the noise columns that are needed for the PoissonFluxNoiseModel.
-        Assign instrumental zero points in nJy (which produces 1 e-) to the SkyMapperObsTable tables.
-
-        Parameters
-        ----------
-        required_columns : list of str, optional
-            A list of column names that should be present after this function is run. If any of
-            these columns are not present after running this function, an error will be raised.
+    def _derive_noise_columns(self):
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
         """
-        required_columns = set() if required_columns is None else set(required_columns)
-
+        # Compute the zero point in nJy if not already provided and if the necessary columns are available.
         if "zp" not in self:
             # If the zero point column is already present (as a magnitude),
             # we convert it to nJy (per electron).
@@ -187,8 +180,6 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             elif "zp_mag_e" in self:
                 zp_values = mag2flux(self["zp_mag_e"])
                 self.add_column("zp", zp_values, overwrite=True)
-            elif "zp" in required_columns:
-                raise ValueError("Not enough information to compute the zero point column.")
 
         # Compute the PSF footprint in pixel^2 if not already provided.
         if "psf_footprint" not in self:
@@ -214,22 +205,17 @@ class SkyMapperObsTable(ObsTable, CiteClass):
                 # https://smtn-002.lsst.io/v/OPSIM-1171/index.html.
                 psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
                 self.add_column("psf_footprint", psf_footprint, overwrite=True)
-            elif "psf_footprint" in required_columns:
-                raise ValueError("Not enough information to compute the PSF footprint column.")
 
         # Compute the sky background in electrons/pixel^2 if not already provided.
-        if "sky_bg_e" not in self:
-            if "skybrightness" in self and "zp" in self and "pixel_scale" in self:
-                pixel_scale = self["pixel_scale"]
+        if "sky_bg_e" not in self and "skybrightness" in self and "zp" in self and "pixel_scale" in self:
+            pixel_scale = self["pixel_scale"]
 
-                # Convert skybrightness (mag/arcsec^2) -> nJy/arcsec^2 -> nJy/pixel^2,
-                # then divide by zp (nJy/electron) to get electrons/pixel^2.
-                skybrightness = self._table["skybrightness"]
-                zp = self._table["zp"]
-                sky = mag2flux(skybrightness) * pixel_scale**2 / zp
-                self.add_column("sky_bg_e", sky, overwrite=True)
-            elif "sky_bg_e" in required_columns:
-                raise ValueError("Not enough information to compute the sky background column.")
+            # Convert skybrightness (mag/arcsec^2) -> nJy/arcsec^2 -> nJy/pixel^2,
+            # then divide by zp (nJy/electron) to get electrons/pixel^2.
+            skybrightness = self["skybrightness"]
+            zp = self["zp"]
+            sky = mag2flux(skybrightness) * pixel_scale**2 / zp
+            self.add_column("sky_bg_e", sky, overwrite=True)
 
     def build_moc(
         self,
