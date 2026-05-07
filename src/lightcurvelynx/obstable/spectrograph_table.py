@@ -2,7 +2,6 @@
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
-import numpy as np
 import pandas as pd
 
 from lightcurvelynx.obstable.obs_table import ObsTable
@@ -54,18 +53,9 @@ class SpectrographObsTable(ObsTable):
 
         super().__init__(table, colmap=colmap, **kwargs)
 
-    def _derive_noise_columns(self, *, required_columns=None):
-        """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables.
-
-        Parameters
-        ----------
-        required_columns : list of str, optional
-            A list of column names that should be present after this function is run. If any of
-            these columns are not present after running this function, an error will be raised.
+    def _derive_noise_columns(self):
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
         """
-        if "zp" in self._table.columns:
-            return  # Nothing to do
-
-        # Add a fake zero point column if we have no information to compute it. This column is not
-        # used for spectrographs.
-        self.add_column("zp", 0.05 * np.ones(len(self._table)), overwrite=True)
+        # We don't currently have any required noise columns for spectrographs.
+        pass
