@@ -58,12 +58,12 @@ class ZTFPoissonFluxNoiseModel(PoissonFluxNoiseModel):
         """
         # By the effective FWHM definition, see
         # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
-        fwhm = obs_table["fwhm"].iloc[indices].to_numpy()
+        fwhm = obs_table["fwhm_px"].iloc[indices].to_numpy()
         footprint = GAUSS_EFF_AREA2FWHM_SQ * fwhm**2  # in pixels
 
         # Compute the sky in e-/pixel^2, the sky column is in ADU/pixel, so we need to multiply
         # by the gain.
-        sky = obs_table["sky"].iloc[indices].to_numpy() * obs_table.safe_get_survey_value("gain")
+        sky = obs_table["sky_adu"].iloc[indices].to_numpy() * obs_table.safe_get_survey_value("gain")
 
         return poisson_bandflux_std(
             bandflux,  # nJy
@@ -94,7 +94,7 @@ class ZTFObsTable(ObsTable):
         provided must match those in the table. If not provided, ZTF-specific defaults will be used.
     noise_model : NoiseModel, optional
         The noise model to use for this ObsTable. If not provided, defaults to
-        ZTFPoissonFluxNoiseModel.
+        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -109,20 +109,21 @@ class ZTFObsTable(ObsTable):
     # Default column names for the ZTF survey data.
     _default_colnames = {
         "maglim": "maglim",
-        "sky": "scibckgnd",
-        "fwhm": "fwhm",
+        "sky_adu": "scibckgnd",
+        "fwhm_px": "fwhm",
         "dec": "dec",
         "exptime": "exptime",
         "filter": "filter",
         "ra": "ra",
         "time": "obsmjd",
-        "zp": "zp_nJy",  # We add this column to the table
+        "zp": "zp_nJy",
     }
 
     # Default survey values.
     _default_survey_values = {
         "dark_current": _ztfcam_dark_current,
         "gain": _ztfcam_ccd_gain,
+        "nexposure": 1,
         "pixel_scale": ZTFCAM_PIXEL_SCALE,
         "radius": _ztfcam_view_radius,
         "read_noise": _ztfcam_readout_noise,
@@ -172,40 +173,40 @@ class ZTFObsTable(ObsTable):
             **kwargs,
         )
 
-    def _derive_noise_columns(self, *, required_columns=None):
-        """Assign instrumental zero points in ADU to the ObsTable.
-
-        Parameters
-        ----------
-        required_columns : list of str, optional
-            A list of column names that should be present after this function is run. If any of
-            these columns are not present after running this function, an error will be raised.
+    def _derive_noise_columns(self):
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
         """
-        cols = self._table.columns.tolist()
-        if not ("maglim" in cols and "sky" in cols and "fwhm" in cols and "exptime" in cols):
-            raise ValueError(
-                "ObsTable does not include the columns needed to derive zero point "
-                "information. Required columns: maglim, sky, fwhm and exptime."
-            )
-
         # replace invalid values in table
         self._table = self._table.replace("", np.nan)
-        self._table = self._table.dropna(subset=["fwhm"])
+        self._table = self._table.dropna(subset=["fwhm_px"])
 
-        # Compute the sky background in electrons/pixel. The sky column is in ADU/pixel,
-        # so we need to multiply by the gain.
-        sky_bg_electrons = sky_bg_adu_to_electrons(self._table["sky"], _ztfcam_ccd_gain)
-        zp_values = calculate_zp_from_maglim(
-            maglim=self._table["maglim"],
-            sky_bg_electrons=sky_bg_electrons,
-            fwhm_px=self._table["fwhm"],
-            read_noise=_ztfcam_readout_noise,
-            dark_current=_ztfcam_dark_current,
-            exptime=self._table["exptime"],
-            nexposure=1,
-        )
-        zp_nJy = mag2flux(zp_values)
-        self.add_column("zp", zp_nJy, overwrite=True)
+        # Compute the sky background in electrons/pixel if not already present.
+        if "sky_bg_e" not in self and "sky_adu" in self and "gain" in self:
+            # Compute the sky background in electrons/pixel. The sky column is in ADU/pixel,
+            # so we need to multiply by the gain.
+            sky_bg_electrons = sky_bg_adu_to_electrons(self["sky_adu"], self["gain"])
+            self.add_column("sky_bg_e", sky_bg_electrons, overwrite=True)
+
+        # Compute the psf footprint in pixels.
+        if "psf_footprint" not in self and "fwhm_px" in self:
+            # By the effective FWHM definition, see https://smtn-002.lsst.io/v/OPSIM-1171/index.html
+            psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * self["fwhm_px"] ** 2  # in pixels
+            self.add_column("psf_footprint", psf_footprint, overwrite=True)
+
+        # Compute the zero points in nJy if not already present and if the necessary columns are available.
+        if "zp" not in self and all(col in self for col in ["maglim", "sky_bg_e", "fwhm_px", "exptime"]):
+            zp_values = calculate_zp_from_maglim(
+                maglim=self["maglim"],
+                sky_bg_electrons=self["sky_bg_e"],
+                fwhm_px=self["fwhm_px"],
+                read_noise=self["read_noise"],
+                dark_current=self["dark_current"],
+                exptime=self["exptime"],
+                nexposure=self["nexposure"],
+            )
+            zp_nJy = mag2flux(zp_values)
+            self.add_column("zp", zp_nJy, overwrite=True)
 
     @classmethod
     def from_db(cls, filename, sql_query="SELECT * from exposures", colmap=None):
