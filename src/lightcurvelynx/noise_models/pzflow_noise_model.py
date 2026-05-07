@@ -166,6 +166,7 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         # Save the meta data.
         self._input_col_map = input_col_map if input_col_map is not None else {}
         self._normalizer_data = normalizer_data if normalizer_data is not None else {}
+        self._update_required_values()
 
     def add_column_mapping(self, flow_input_name, obs_table_col_name):
         """Add a mapping from a pzflow input parameter name to an ObsTable column name.
@@ -182,6 +183,16 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         """
         self._input_col_map[flow_input_name] = obs_table_col_name
 
+    def _update_required_values(self):
+        """Update the list of required values based on the current input_col_map."""
+        self._required_values = []
+        for col in self._flow.conditional_columns:
+            if col == "bandflux":
+                # Bandflux is a special case because it is passed directly to apply_noise.
+                continue
+            colname = self._input_col_map.get(col, col)
+            self._required_values.append(colname)
+
     @classmethod
     def from_file(cls, filename, *, input_col_map=None):
         """Create a PZFlowNoiseModel from a saved file.
@@ -196,12 +207,17 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
             should be used for those parameters. If provided this overrides the input_col_map
             that was saved with the model.
         """
+        # We are loading the entire model object (not just the flow) so that we can keep
+        # the normalization data and other meta data together with the flow.
         with open(filename, "rb") as f:
             noise_model = pickle.load(f)
         assert isinstance(noise_model, PZFlowNoiseModel), "The loaded object is not a PZFlowNoiseModel."
 
+        # Since we can pass in a different input_col_map when loading the model, we need to update
+        # the required values.
         if input_col_map is not None:
             noise_model._input_col_map = input_col_map
+        noise_model._update_required_values()
 
         return noise_model
 
