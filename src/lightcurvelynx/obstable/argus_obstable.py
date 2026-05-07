@@ -268,8 +268,15 @@ class ArgusHealpixObsTable(ObsTable):
         )
         return moc
 
-    def _assign_zero_points(self):
-        """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables."""
+    def _derive_noise_columns(self, *, required_columns=None):
+        """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables.
+
+        Parameters
+        ----------
+        required_columns : list of str, optional
+            A list of column names that should be present after this function is run. If any of
+            these columns are not present after running this function, an error will be raised.
+        """
         if "zp" in self._table.columns:
             return  # Zero points already assigned.
 

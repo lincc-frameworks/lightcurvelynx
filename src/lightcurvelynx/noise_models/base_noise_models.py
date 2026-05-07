@@ -8,6 +8,14 @@ from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 class FluxNoiseModel(ABC):
     """An abstract baseclass noise model for simulating bandflux measurements."""
 
+    # A list of column names that must be present in the ObsTable for this noise model to work.
+    _required_values = []
+
+    @property
+    def required_values(self):
+        """List of column names that must be present in the ObsTable for this noise model to work."""
+        return self._required_values
+
     @abstractmethod
     def apply_noise(
         self,
@@ -47,6 +55,32 @@ class FluxNoiseModel(ABC):
             same units as the input bandflux.
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def check_compatibility(self, obs_table, fail_on_incompatible=False):
+        """Check if the noise model is compatible with the given ObsTable.
+
+        Parameters
+        ----------
+        obs_table : ObsTable
+            The observation table to check for compatibility.
+        fail_on_incompatible : bool, optional
+            If True, raise a ValueError if the noise model is not compatible with the ObsTable.
+            If False, simply return False in that case. Default is False.
+
+        Returns
+        -------
+        bool
+            True if the noise model is compatible with the ObsTable, False otherwise.
+        """
+        missing_columns = [col for col in self._required_values if col not in obs_table]
+        if missing_columns:
+            if fail_on_incompatible:
+                raise ValueError(
+                    f"Noise model {self.__class__.__name__} is not compatible with the given ObsTable. "
+                    f"Missing required columns: {missing_columns}"
+                )
+            return False
+        return True
 
 
 class ConstantFluxNoiseModel(FluxNoiseModel):
@@ -109,6 +143,9 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
     This class is meant to be subclassed for specific ObsTable implementations
     where the columns vary. Subclasses should override the compute_flux_error method.
     """
+
+    # Note that both nexposure and zp_err_mag can fall back to default values.
+    _required_values = ["exptime", "sky_bg_e", "psf_footprint", "zp", "read_noise", "dark_current"]
 
     def __init__(self):
         pass

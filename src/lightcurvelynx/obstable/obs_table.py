@@ -173,9 +173,8 @@ class ObsTable:
 
         self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
 
-        # If we are not given zero point data, try to derive it from the other columns.
-        if "zp" not in self:
-            self._assign_zero_points()
+        # Derive any additional noise columns the survey might need.
+        self._derive_noise_columns()
 
         # Save the saturation thresholds.
         self._saturation_mags = saturation_mags
@@ -569,11 +568,18 @@ class ObsTable:
         # Construct the kd-tree.
         self._spatial_data = KDTree(cart_coords)
 
-    def _assign_zero_points(self):
-        """Assign instrumental zero points in nJy to the data table.
+    def _derive_noise_columns(self, *, required_columns=None):
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
 
         Default implementation does not produce a zeropoint column. Subclasses
         should override this method with a survey specific computation.
+
+        Parameters
+        ----------
+        required_columns : list of str, optional
+            A list of column names that should be present after this function is run. If any of
+            these columns are not present after running this function, an error will be raised.
         """
         pass
 

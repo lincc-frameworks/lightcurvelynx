@@ -71,7 +71,7 @@ _opsim_zeropoint_per_sec_zenith = {
 """The zeropoints for the LSST filters at zenith
 
 This is magnitude that produces 1 electron in a 1 second exposure,
-see _assign_zero_points() docs for more details.
+see _derive_noise_columns() docs for more details.
 
 Values are from
 https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
@@ -227,9 +227,20 @@ class OpSim(ObsTable):
             **kwargs,
         )
 
-    def _assign_zero_points(self):
-        """Assign instrumental zero points in nJy to the OpSim tables."""
+    def _derive_noise_columns(self, *, required_columns=None):
+        """Assign instrumental zero points in nJy to the OpSim tables.
+
+        Parameters
+        ----------
+        required_columns : list of str, optional
+            A list of column names that should be present after this function is run. If any of
+            these columns are not present after running this function, an error will be raised.
+        """
         cols = self._table.columns.to_list()
+
+        # If the zero point column is already present (as nJy), we are done.
+        if "zp" in cols:
+            return
 
         # If the zero point column is already present (as a magnitude), we convert it to nJy.
         if "zp_mag" in cols:
