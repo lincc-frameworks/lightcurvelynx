@@ -61,6 +61,11 @@ affiliations:
     index: 8
 date: 16 March 2026
 bibliography: paper.bib
+
+# Optional fields if submitting to a AAS journal too, see this blog post:
+# https://blog.joss.theoj.org/2018/12/a-new-collaboration-with-aas-publishing
+aas-doi: 10.3847/xxxxx
+aas-journal: Astrophysical Journal
 ---
 
 # Summary
