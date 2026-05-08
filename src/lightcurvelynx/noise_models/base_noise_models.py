@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 
 
@@ -314,9 +315,8 @@ class GivenNoiseModel(FluxNoiseModel):
 class FiveSigmaDepthNoiseModel(FluxNoiseModel):
     """A noise model that simulates photon noise from only the five-sigma depth information.
 
-    It requires two pieces of information from the ObsTable:
-    - five_sigma_depth: The five-sigma depth in magnitudes.
-    - bandflux_ref: A reference bandflux in the same units as the input bandflux
+    This noise model uses the following values from the ObsTable:
+    - five_sigma_depth: The five-sigma depth in AB magnitudes.
 
     Note
     ----
@@ -324,7 +324,7 @@ class FiveSigmaDepthNoiseModel(FluxNoiseModel):
     only the five-sigma depth is available in the ObsTable.
     """
 
-    _required_values = ["five_sigma_depth", "bandflux_ref"]
+    _required_values = ["five_sigma_depth"]
 
     def __init__(self):
         pass
@@ -373,10 +373,10 @@ class FiveSigmaDepthNoiseModel(FluxNoiseModel):
         if len(indices) != len(bandflux):
             raise ValueError("Length of indices must match length of bandflux.")
 
+        # Compute the standard deviation of the noise from the five-sigma depth information.
+        # This uses five_sigma_depth in AB magnitudes, so we convert it to bandflux in nJy first.
         five_sigma_depth = obs_table.get_value_per_row("five_sigma_depth", indices=indices)
-        bandflux_ref = obs_table.get_value_per_row("bandflux_ref", indices=indices)
-        flux_five_sigma = bandflux_ref * np.power(10.0, -0.4 * five_sigma_depth)
-        flux_err = flux_five_sigma / 5.0
+        flux_err = mag2flux(five_sigma_depth) / 5.0
 
         # Generate the actual noisy bandflux measurements.
         rng = np.random.default_rng(rng)
