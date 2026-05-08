@@ -1,3 +1,15 @@
+"""Noise models are used to simulate the noise in bandflux measurements for a given set
+of observations in an ObsTable. They extract information about the instrument and observing
+conditions from the ObsTable and then apply noise to the input bandflux measurements.
+
+Each noise model uses a given set of parameters with given units from the ObsTable.
+Users adding new observation parameters should derive the necessary parameters in the
+necessary units in the ObsTable's `_derive_noise_columns` method.
+
+Alternatively users can create new noise models that use different input parameter/unit
+combinations.
+"""
+
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -140,8 +152,17 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
     """A noise model that simulates photon noise for bandflux measurements
     with a Poisson noise level that are extracted from values in an ObsTable.
 
-    This class is meant to be subclassed for specific ObsTable implementations
-    where the columns vary. Subclasses should override the compute_flux_error method.
+    This noise model uses the following values from the ObsTable:
+    - dark_current: Mean dark current (electrons per pixel per second).
+    - exptime: The total exposure time for the observation (seconds).
+    - nexposure: The number of exposures (optional, default is 1).
+    - psf_footprint: Point spread function effective area (pixel^2).
+    - read_noise: Standard deviation of the readout electrons per pixel per exposure.
+    - sky_bg_e: Sky background (electrons / pixel^2).
+    - zp: The photometric zero point (nJy / electron).
+    - zp_err_mag: The uncertainty in the photometric zero point in magnitudes (optional, default is 0.0).
+    Users should ensure that the necessary parameters (in the correct units) are derived in
+    the ObsTable's `_derive_noise_columns` method.
     """
 
     # Note that both nexposure and zp_err_mag can fall back to default values.
@@ -251,7 +272,11 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
 
 class GivenNoiseModel(FluxNoiseModel):
     """A noise model that simulates photon noise for bandflux measurements with a
-    given (per-row) noise level."""
+    given (per-row) noise level.
+
+    This noise model uses the following values from the ObsTable:
+    - bandflux_error: The standard deviation of the noise to apply to the bandflux measurements (nJy).
+    """
 
     _required_values = ["bandflux_error"]
 
