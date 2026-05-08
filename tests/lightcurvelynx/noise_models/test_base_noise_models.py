@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.noise_models.base_noise_models import (
     ConstantFluxNoiseModel,
     FiveSigmaDepthNoiseModel,
@@ -278,7 +279,7 @@ def test_five_sigma_depth_noise_model():
     """Test that the FiveSigmaDepthNoiseModel correctly computes flux errors
     and applies noise to the bandflux."""
     model = FiveSigmaDepthNoiseModel()
-    assert set(model.required_values) == {"five_sigma_depth", "bandflux_ref"}
+    assert set(model.required_values) == {"five_sigma_depth"}
 
     table_values = {
         "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
@@ -287,12 +288,7 @@ def test_five_sigma_depth_noise_model():
         "filter": np.array(["r", "g", "r", "i", "g"]),
         "five_sigma_depth": 20.0 + np.arange(5),
     }
-    bandflux_ref = {"g": 3630e6, "r": 3635e6, "i": 3625e6}
-    const_values = {
-        "pixel_scale": 0.2,
-        "bandflux_ref": bandflux_ref,
-    }
-    ops_data = LookupOnlyObsTable(table_values=table_values, const_values=const_values)
+    ops_data = LookupOnlyObsTable(table_values=table_values)
     assert len(ops_data) == 5
 
     # Create and apply the noise model.
@@ -309,8 +305,5 @@ def test_five_sigma_depth_noise_model():
     )
     assert not np.any(bandflux == flux)
 
-    bandflux_ref_arr = np.array([bandflux_ref[filt] for filt in ops_data["filter"]])
-    expected_bandflux_error = (
-        bandflux_ref_arr * np.power(10.0, -0.4 * ops_data["five_sigma_depth"].to_numpy()) / 5.0
-    )
+    expected_bandflux_error = mag2flux(ops_data["five_sigma_depth"].to_numpy()) / 5.0
     assert np.allclose(flux_err, expected_bandflux_error)
