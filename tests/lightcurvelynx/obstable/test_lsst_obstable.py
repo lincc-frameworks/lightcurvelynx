@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 import pytest
-from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable, LSSTPoissonFluxNoiseModel
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
+from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable
 
 
 def test_create_lsst_obstable():
@@ -17,7 +18,7 @@ def test_create_lsst_obstable():
     ops_data = LSSTObsTable(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
-    assert isinstance(ops_data.noise_model, LSSTPoissonFluxNoiseModel)
+    assert isinstance(ops_data.noise_model, PoissonFluxNoiseModel)
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.022
@@ -46,19 +47,6 @@ def test_create_lsst_obstable():
 
     # Without a filters column we cannot access the filters.
     assert len(ops_data.filters) == 0
-
-
-def test_create_lsst_obstable_override_fail():
-    """Test that we fail if we do not have the information needed to create the zeropoints."""
-    values = {
-        "expMidptMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
-        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
-        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "filter": np.array(["r", "g", "r", "i", "g"]),
-    }
-
-    with pytest.raises(ValueError):
-        _ = LSSTObsTable(values, ext_coeff=None)
 
 
 def _make_fake_data(times):

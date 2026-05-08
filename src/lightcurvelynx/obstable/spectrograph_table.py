@@ -2,7 +2,6 @@
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
-import numpy as np
 import pandas as pd
 
 from lightcurvelynx.obstable.obs_table import ObsTable
@@ -69,11 +68,9 @@ class SpectrographObsTable(ObsTable):
         # Spectrographs do not have a well-defined passband group, so we return None here.
         return None
 
-    def _assign_zero_points(self):
-        """Assign instrumental zero points in nJy (which produces 1 e-) to the LSSTObsTable tables."""
-        if "zp" in self._table.columns:
-            return  # Nothing to do
-
-        # Add a fake zero point column if we have no information to compute it. This column is not
-        # used for spectrographs.
-        self.add_column("zp", 0.05 * np.ones(len(self._table)), overwrite=True)
+    def _derive_noise_columns(self):
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
+        """
+        # We don't currently have any required noise columns for spectrographs.
+        pass

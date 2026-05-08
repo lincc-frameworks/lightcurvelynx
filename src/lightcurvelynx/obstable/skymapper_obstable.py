@@ -10,7 +10,6 @@ from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
-from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 SKYMAPPER_PIXEL_SCALE = 0.497
@@ -43,66 +42,6 @@ SkyMapper team.
 """
 
 
-class SkyMapperPoissonFluxNoiseModel(PoissonFluxNoiseModel):
-    """A subclass of PoissonFluxNoiseModel for SkyMapper survey data."""
-
-    def __init__(self):
-        super().__init__()
-
-    def compute_flux_error(self, bandflux, obs_table, indices):
-        """Compute the flux error for the given bandflux and observation parameters.
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Source bandflux in nJy.
-        obs_table : ObsTable
-            Table containing the observation parameters needed to compute the noise.
-        indices : array_like of int
-            Indices of the observations in the ObsTable for which to compute the noise.
-
-        Returns
-        -------
-        flux_err : array_like
-            The standard deviation of the bandflux measurement error (in nJy)
-        """
-        # By the effective FWHM definition, see
-        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
-        # We need it in pixel^2.
-        pixel_scale = obs_table.safe_get_survey_value("pixel_scale")
-        if "fwhm" in obs_table.columns:
-            seeing = obs_table["fwhm"].iloc[indices].to_numpy()
-        elif "seeing" in obs_table.columns:
-            seeing = obs_table["seeing"].iloc[indices].to_numpy()
-        else:
-            # Use the median seeing per-filter if the seeing is not provided for each observation.
-            seeing = np.zeros(len(indices))
-            for filter_name, fwhm_arcsec in obs_table._default_psf_fwhm.items():
-                filter_mask = obs_table["filter"].iloc[indices] == filter_name
-                seeing[filter_mask] = fwhm_arcsec
-        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
-
-        # Get the computed zeropoints in nJy/electron.
-        zp = obs_table["zp"].iloc[indices].to_numpy()
-
-        # Convert skybrightness (mag/arcsec^2) -> nJy/arcsec^2 -> nJy/pixel^2,
-        # then divide by zp (nJy/electron) to get electrons/pixel^2.
-        skybrightness = obs_table["skybrightness"].iloc[indices].to_numpy()
-        sky = mag2flux(skybrightness) * pixel_scale**2 / zp
-
-        return poisson_bandflux_std(
-            bandflux,
-            total_exposure_time=obs_table["exptime"].iloc[indices].to_numpy(),
-            exposure_count=1,
-            psf_footprint=psf_footprint,
-            sky=sky,
-            zp=zp,
-            readout_noise=obs_table.safe_get_survey_value("read_noise"),
-            dark_current=obs_table.safe_get_survey_value("dark_current"),
-            zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),
-        )
-
-
 class SkyMapperObsTable(ObsTable, CiteClass):
     """An ObsTable for observations from the SkyMapper survey.
 
@@ -123,7 +62,7 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         parameters. This can not be used if a detect footprint is already provided in the input table.
     noise_model : NoiseModel, optional
         The noise model to use for this ObsTable. If not provided, defaults to
-        SkyMapperPoissonFluxNoiseModel.
+        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -157,6 +96,7 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         "ccd_pixel_height": 4096,  # Detector height in pixels
         "dark_current": _skymapper_dark_current,
         "gain": _skymapper_gain,
+        "nexposure": 1,  # Default single exposure per observation.
         "pixel_scale": SKYMAPPER_PIXEL_SCALE,
         "radius": _skymapper_ccd_radius,
         "read_noise": _skymapper_readout_noise,
@@ -225,27 +165,58 @@ class SkyMapperObsTable(ObsTable, CiteClass):
     @property
     def default_noise_model(self):
         """Return the default noise model for this ObsTable."""
-        return SkyMapperPoissonFluxNoiseModel()
+        return PoissonFluxNoiseModel()
 
-    def _assign_zero_points(self):
-        """Assign instrumental zero points in nJy (which produces 1 e-) to the SkyMapperObsTable tables."""
-        cols = self._table.columns.to_list()
+    def _derive_noise_columns(self):
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
+        """
+        # Compute the zero point in nJy if not already provided and if the necessary columns are available.
+        if "zp" not in self:
+            # If the zero point column is already present (as a magnitude),
+            # we convert it to nJy (per electron).
+            if "zp_mag_adu" in self and "gain" in self:
+                zp_values = mag2flux(self["zp_mag_adu"]) / self["gain"]
+                self.add_column("zp", zp_values, overwrite=True)
+            elif "zp_mag_e" in self:
+                zp_values = mag2flux(self["zp_mag_e"])
+                self.add_column("zp", zp_values, overwrite=True)
 
-        if "zp" in cols:
-            return  # Nothing to do
+        # Compute the PSF footprint in pixel^2 if not already provided.
+        if "psf_footprint" not in self:
+            seeing = None
 
-        # If the zero point column is already present (as a magnitude),
-        # we convert it to nJy (per electron).
-        if "zp_mag_adu" in cols:
-            zp_values = mag2flux(self._table["zp_mag_adu"]) / self.safe_get_survey_value("gain")
-            self.add_column("zp", zp_values, overwrite=True)
-            return
-        if "zp_mag_e" in cols:
-            zp_values = mag2flux(self._table["zp_mag_e"])
-            self.add_column("zp", zp_values, overwrite=True)
-            return
+            # Find the seeing information in arcseconds.
+            if "fwhm" in self:
+                seeing = self["fwhm"]
+            elif "seeing" in self:
+                seeing = self["seeing"]
+            elif "filter" in self._table.columns and self._default_psf_fwhm is not None:
+                # Use the median seeing per-filter if the seeing is not provided for each observation.
+                seeing = np.zeros(len(self._table))
+                for filter_name, fwhm_arcsec in self._default_psf_fwhm.items():
+                    filter_mask = self._table["filter"] == filter_name
+                    seeing[filter_mask] = fwhm_arcsec
 
-        raise ValueError("Not enough information to compute the zero points.")
+            # If we have the seeing and pixel scale, we can compute the PSF footprint.
+            if seeing is not None and "pixel_scale" in self:
+                pixel_scale = self["pixel_scale"]
+
+                # Compute the PSF footprint in pixel^2 using the effective FWHM definition, see
+                # https://smtn-002.lsst.io/v/OPSIM-1171/index.html.
+                psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
+                self.add_column("psf_footprint", psf_footprint, overwrite=True)
+
+        # Compute the sky background in electrons/pixel^2 if not already provided.
+        if "sky_bg_e" not in self and "skybrightness" in self and "zp" in self and "pixel_scale" in self:
+            pixel_scale = self["pixel_scale"]
+
+            # Convert skybrightness (mag/arcsec^2) -> nJy/arcsec^2 -> nJy/pixel^2,
+            # then divide by zp (nJy/electron) to get electrons/pixel^2.
+            skybrightness = self["skybrightness"]
+            zp = self["zp"]
+            sky = mag2flux(skybrightness) * pixel_scale**2 / zp
+            self.add_column("sky_bg_e", sky, overwrite=True)
 
     def build_moc(
         self,
