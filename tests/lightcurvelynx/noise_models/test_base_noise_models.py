@@ -2,28 +2,15 @@ import numpy as np
 import pytest
 from lightcurvelynx.noise_models.base_noise_models import (
     ConstantFluxNoiseModel,
+    FiveSigmaDepthNoiseModel,
+    GivenNoiseModel,
     PoissonFluxNoiseModel,
 )
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
+
+# Local helper class.
+from lookup_only_obstable import LookupOnlyObsTable
 from numpy.testing import assert_allclose
-
-
-class LookupOnlyObsTable:
-    """A simple dummy class to simulate the ObsTable's get_value_per_row method."""
-
-    def __init__(self, values):
-        self.values = values
-
-    def __contains__(self, key):
-        return key in self.values
-
-    def get_value_per_row(self, key, indices, default=None):
-        """Simulate the ObsTable's get_value_per_row method."""
-        if key in self.values:
-            return np.asarray(self.values[key])[indices]
-        if default is not None:
-            return np.full(len(indices), default)
-        raise KeyError(f"Missing required key: {key}")
 
 
 def test_constant_flux_noise_model_init_raises_for_negative_noise_level():
@@ -202,3 +189,128 @@ def test_poisson_flux_noise_model_missing():
 
     with pytest.raises(ValueError):
         model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+
+def test_given_noise_model():
+    """Test that the GivenNoiseModel correctly reads per-row flux errors
+    from the ObsTable and applies noise to the bandflux."""
+    model = GivenNoiseModel()
+    assert set(model.required_values) == {"bandflux_error"}
+
+    bandflux = np.array([100.0, 200.0, 300.0])
+    dummy_data = {
+        "bandflux_error": np.array([5.0, 10.0, 15.0]),
+    }
+    obs_table = LookupOnlyObsTable(dummy_data)
+
+    # We fail without an ObsTable, without indices, or with mismatched indices length.
+    with pytest.raises(ValueError, match="ObsTable must be provided"):
+        model.apply_noise(bandflux, indices=np.array([0, 1, 2]))
+    with pytest.raises(ValueError, match="Indices must be provided"):
+        model.apply_noise(bandflux, obs_table=obs_table)
+    with pytest.raises(ValueError):
+        model.apply_noise(bandflux, obs_table=obs_table, indices=np.array([0, 1]))
+
+    # Check compatibility.
+    assert model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+    # Verify that noise is applied using per-row errors from the ObsTable.
+    rng_for_model = np.random.default_rng(42)
+    flux, flux_err = model.apply_noise(
+        bandflux,
+        obs_table=obs_table,
+        indices=np.array([0, 1, 2]),
+        rng=rng_for_model,
+    )
+    assert_allclose(flux_err, dummy_data["bandflux_error"])
+
+    rng_for_expected = np.random.default_rng(42)
+    expected_flux = rng_for_expected.normal(loc=bandflux, scale=dummy_data["bandflux_error"])
+    assert_allclose(flux, expected_flux)
+
+
+def test_given_noise_model_per_filter():
+    """Test that the GivenNoiseModel correctly reads per-filter flux errors
+    from the ObsTable and applies noise to the bandflux."""
+    model = GivenNoiseModel()
+    assert set(model.required_values) == {"bandflux_error"}
+
+    # We make bandflux error constant per filter.
+    filters = np.array(["g", "r", "i", "g", "r", "i", "r", "g", "r"])
+    bandflux_error = {"g": 5.0, "r": 10.0, "i": 15.0}
+    obs_table = LookupOnlyObsTable(
+        table_values={"filter": filters},
+        const_values={"bandflux_error": bandflux_error},
+    )
+
+    bandflux = np.full_like(filters, 100.0, dtype=float)
+
+    # We fail without an ObsTable, without indices, or with mismatched indices length.
+    with pytest.raises(ValueError, match="ObsTable must be provided"):
+        model.apply_noise(bandflux, indices=np.array([0, 1, 2]))
+    with pytest.raises(ValueError, match="Indices must be provided"):
+        model.apply_noise(bandflux, obs_table=obs_table)
+    with pytest.raises(ValueError):
+        model.apply_noise(bandflux, obs_table=obs_table, indices=np.array([0, 1]))
+
+    # Check compatibility.
+    assert model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+    # Verify that noise is applied using per-row errors from the ObsTable.
+    rng_for_model = np.random.default_rng(42)
+    flux, flux_err = model.apply_noise(
+        bandflux,
+        obs_table=obs_table,
+        indices=np.arange(len(filters)),
+        rng=rng_for_model,
+    )
+
+    # Check that we pull the correct error for each row.
+    err_arr = np.array([bandflux_error[filt] for filt in filters])
+    assert_allclose(flux_err, err_arr)
+
+    rng_for_expected = np.random.default_rng(42)
+    expected_flux = rng_for_expected.normal(loc=bandflux, scale=err_arr)
+    assert_allclose(flux, expected_flux)
+
+
+def test_five_sigma_depth_noise_model():
+    """Test that the FiveSigmaDepthNoiseModel correctly computes flux errors
+    and applies noise to the bandflux."""
+    model = FiveSigmaDepthNoiseModel()
+    assert set(model.required_values) == {"five_sigma_depth", "bandflux_ref"}
+
+    table_values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+        "five_sigma_depth": 20.0 + np.arange(5),
+    }
+    bandflux_ref = {"g": 3630e6, "r": 3635e6, "i": 3625e6}
+    const_values = {
+        "pixel_scale": 0.2,
+        "bandflux_ref": bandflux_ref,
+    }
+    ops_data = LookupOnlyObsTable(table_values=table_values, const_values=const_values)
+    assert len(ops_data) == 5
+
+    # Create and apply the noise model.
+    noise_model = FiveSigmaDepthNoiseModel()
+    assert noise_model.check_compatibility(ops_data, fail_on_incompatible=True)
+
+    bandflux = np.array([1000.0, 2000.0, 1500.0, 2500.0, 3000.0])
+    rng_for_model = np.random.default_rng(2024)
+    flux, flux_err = noise_model.apply_noise(
+        bandflux,
+        obs_table=ops_data,
+        indices=np.array([0, 1, 2, 3, 4]),
+        rng=rng_for_model,
+    )
+    assert not np.any(bandflux == flux)
+
+    bandflux_ref_arr = np.array([bandflux_ref[filt] for filt in ops_data["filter"]])
+    expected_bandflux_error = (
+        bandflux_ref_arr * np.power(10.0, -0.4 * ops_data["five_sigma_depth"].to_numpy()) / 5.0
+    )
+    assert np.allclose(flux_err, expected_bandflux_error)
