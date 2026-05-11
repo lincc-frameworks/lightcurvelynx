@@ -68,6 +68,11 @@ def dedup_coords(ra, dec, threshold=1e-5):
     unique_indices: numpy.ndarray
         Indices of the unique coordinates in the original arrays.
     """
+    ra = np.asarray(ra)
+    dec = np.asarray(dec)
+    if np.size(ra) != np.size(dec):
+        raise ValueError("RA and Dec arrays must have the same length.")
+
     # Create a KD-tree for efficient nearest neighbor search.
     x, y, z = ra_dec_to_cartesian(ra, dec)
     cart_coords = np.array([x, y, z]).T

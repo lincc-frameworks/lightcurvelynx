@@ -1,6 +1,33 @@
 Frequently Asked Questions
 ========================================================================================
 
+Where Does LightCurveLynx Store Downloaded Data?
+-------------------------------------------------------------------------------
+
+LightCurveLynx downloads data files (e.g., OpSim tables, passbands, dust maps) on demand
+and caches them so they do not need to be re-downloaded on subsequent runs. The cache
+location is resolved in the following priority order:
+
+1. The ``LIGHTCURVELYNX_DATA_DIR`` environment variable, if set.
+2. ``$XDG_CACHE_HOME/lightcurvelynx``, if ``XDG_CACHE_HOME`` is set.
+3. ``~/.cache/lightcurvelynx`` (default).
+
+To redirect the cache to a custom location — for example on an HPC system where the
+home directory is read-only or quota-limited — set the environment variable before
+running your code:
+
+.. code-block:: bash
+
+    export LIGHTCURVELYNX_DATA_DIR=/path/to/your/cache
+
+or inline in Python before importing LightCurveLynx:
+
+.. code-block:: python
+
+    import os
+    os.environ["LIGHTCURVELYNX_DATA_DIR"] = "/path/to/your/cache"
+
+
 How Can I See More Detailed Output During Simulation?
 -------------------------------------------------------------------------------
 

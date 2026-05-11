@@ -65,11 +65,11 @@ class PZFlowNode(FunctionNode, CiteClass):
             from pzflow import Flow
         except ImportError as err:  # pragma: no cover
             raise ImportError(
-                "pzflow package is not installed be default. You can install it with "
+                "pzflow package is not installed by default. You can install it with "
                 "`pip install pzflow` or `conda install conda-forge::pzflow`."
             ) from err
 
-        flow_to_use = Flow(file=filename)
+        flow_to_use = Flow.from_file(filename)
         return PZFlowNode(flow_to_use, node_label=node_label, **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):

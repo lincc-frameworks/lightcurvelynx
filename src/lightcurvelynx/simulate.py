@@ -9,7 +9,6 @@ import pandas as pd
 from nested_pandas import NestedFrame
 from tqdm import tqdm
 
-from lightcurvelynx.astro_utils.noise_model import apply_noise
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.utils.post_process_results import concat_results
 
@@ -446,10 +445,14 @@ def _simulate_lightcurves_batch(simulation_info):
                     state,
                     rng_info=rng,
                 )
-                bandfluxes_error = obstable[survey_idx].bandflux_error_point_source(
-                    bandfluxes_perfect, obs_index
+
+                noise_model = obstable[survey_idx].noise_model
+                bandfluxes, bandfluxes_error = noise_model.apply_noise(
+                    bandfluxes_perfect,
+                    obs_table=obstable[survey_idx],
+                    indices=obs_index,
+                    rng=rng,
                 )
-                bandfluxes = apply_noise(bandfluxes_perfect, bandfluxes_error, rng=rng)
 
                 # Apply saturation thresholds from the ObsTable if they are requested.
                 if simulation_info.apply_saturation:
@@ -470,12 +473,13 @@ def _simulate_lightcurves_batch(simulation_info):
                 nested_dict["is_saturated"].extend(list(saturation_flags))
                 nested_dict["obs_idx"].extend(list(obs_index))
                 for col in obstable_save_cols:
-                    col_data = (
-                        list(obstable[survey_idx][col].values[obs_index])
-                        if col in obstable[survey_idx]
-                        else [None] * nobs
-                    )
-                    nested_dict[col].extend(col_data)
+                    if len(obs_index) > 0:
+                        col_data = (
+                            list(obstable[survey_idx][col].values[obs_index])
+                            if col in obstable[survey_idx]
+                            else [None] * nobs
+                        )
+                        nested_dict[col].extend(col_data)
 
                 # Add the new entries to the light curve's nested index.
                 nested_index.extend([idx] * nobs)

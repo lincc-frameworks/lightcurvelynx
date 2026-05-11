@@ -6,7 +6,6 @@ from citation_compass import find_in_citations
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.redback_models import RedbackWrapperModel
 from lightcurvelynx.utils.extrapolate import ConstantPadding
-from sncosmo.models import TimeSeriesSource
 
 
 class ToySNModel:
@@ -178,12 +177,13 @@ def test_redback_models_chained_toy() -> None:
 
 def _toy_redback_function(times, param1=None, param2=None, output_format=None, **kwargs):
     """A no-op function that mimics the signature of a redback model function."""
+    sncosmo = pytest.importorskip("sncosmo")
     assert output_format == "sncosmo_source"
 
     # The model is only defined on times -5.0 to 10.0 and wavelengths 4000 to 8000 A.
     eval_phase = np.arange(-5.0, 10.0, 1.0)
     eval_waves = np.arange(4000.0, 8000.0, 1000.0)
-    source = TimeSeriesSource(
+    source = sncosmo.models.TimeSeriesSource(
         eval_phase,
         eval_waves,
         np.zeros((len(eval_phase), len(eval_waves))),  # flux is not important

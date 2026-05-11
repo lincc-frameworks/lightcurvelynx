@@ -37,6 +37,7 @@ features and models of the LightCurveLynx package.
     Detector Footprints <notebooks/detector_footprint>
     Parallel Runs <notebooks/parallel_runs>
     Setting Saturation Limits <notebooks/saturation>
+    Using Learned PZFlow Noise Models <notebooks/pre_executed/pzflow_noise_models>
 
 
 Citations

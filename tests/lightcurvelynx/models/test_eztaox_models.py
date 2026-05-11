@@ -2,22 +2,13 @@ import numpy as np
 import pytest
 from lightcurvelynx.models.eztaox_models import EzTaoXWrapperModel
 
-# We need to check if eztaox is installed before running the tests that depend on it
-try:
-    import eztaox.kernels.quasisep as ekq
 
-    has_eztaox = True
-except ImportError:
-    ekq = None
-    has_eztaox = False
-
-
-@pytest.mark.skipif(not has_eztaox, reason="eztaox is not installed")
 def test_eztaox_wrapper_model():
     """
     Test creating a simple EzTaoXWrapperModel and evaluating it at some
     times and wavelengths.
     """
+    ekq = pytest.importorskip("eztaox.kernels.quasisep")
     kernel = ekq.Exp(scale=2.2, sigma=0.02)
 
     source = EzTaoXWrapperModel(
@@ -76,12 +67,12 @@ def test_eztaox_wrapper_model():
         )
 
 
-@pytest.mark.skipif(not has_eztaox, reason="eztaox is not installed")
 def test_eztaox_wrapper_model_complex():
     """
     Test creating a simple EzTaoXWrapperModel with lag and non-zero mean, then
     evaluate it at some times and wavelengths
     """
+    ekq = pytest.importorskip("eztaox.kernels.quasisep")
     kernel = ekq.Exp(scale=2.2, sigma=0.02)
 
     source = EzTaoXWrapperModel(
@@ -158,11 +149,11 @@ def test_eztaox_wrapper_model_complex():
         )
 
 
-@pytest.mark.skipif(not has_eztaox, reason="eztaox is not installed")
 def test_eztaox_wrapper_model_seed():
     """
     Test creating a simple EzTaoXWrapperModel with a given seed.
     """
+    ekq = pytest.importorskip("eztaox.kernels.quasisep")
     kernel = ekq.Exp(scale=2.2, sigma=0.02)
     times = np.array([0.0, 1.0, 2.0, 3.0])
     filters = np.array(["g", "r", "g", "i"])

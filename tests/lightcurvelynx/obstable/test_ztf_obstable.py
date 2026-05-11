@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import pytest
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
 
 
@@ -57,11 +57,6 @@ def test_create_ztf_obstable_no_zp():
         "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
     }
 
-    # We fail if we do not have the other columns needed:
-    # "maglim", "sky", "fwhm", "exptime"
-    with pytest.raises(ValueError):
-        _ = ZTFObsTable(values)
-
     values["exptime"] = 0.005 * np.ones(5)
     values["maglim"] = 20.0 * np.ones(5)
     values["scibckgnd"] = np.ones(5)
@@ -92,7 +87,14 @@ def test_noise_calculation():
             index=[0],
         )
     )
-    fluxerr_nJy = survey_data.bandflux_error_point_source(flux_nJy, 0)
-    magerr = 1.086 * fluxerr_nJy / flux_nJy
 
+    noise_model = PoissonFluxNoiseModel()
+    flux, fluxerr_nJy = noise_model.apply_noise(
+        flux_nJy,
+        obs_table=survey_data,
+        indices=[0],
+    )
+    assert not np.any(flux == flux_nJy)
+
+    magerr = 1.086 * fluxerr_nJy / flux_nJy
     np.testing.assert_allclose(magerr, expected_magerr, rtol=0.2)

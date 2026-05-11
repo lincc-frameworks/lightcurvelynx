@@ -5,11 +5,11 @@ from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 import numpy as np
 import pandas as pd
 
-from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
+from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
-from lightcurvelynx.astro_utils.noise_model import poisson_bandflux_std
 from lightcurvelynx.astro_utils.zeropoint import flux_electron_zeropoint
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
@@ -70,7 +70,7 @@ _opsim_zeropoint_per_sec_zenith = {
 """The zeropoints for the LSST filters at zenith
 
 This is magnitude that produces 1 electron in a 1 second exposure,
-see _assign_zero_points() docs for more details.
+see _derive_noise_columns() docs for more details.
 
 Values are from
 https://community.lsst.org/t/release-of-v3-4-simulations/8548/12
@@ -93,6 +93,9 @@ class OpSim(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, OpSim-specific defaults will be
         used.
+    noise_model : NoiseModel, optional
+        The noise model to use for this ObsTable. If not provided, defaults to
+        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -120,7 +123,7 @@ class OpSim(ObsTable):
         "seeing": "seeingFwhmEff",  # arcseconds
         "skybrightness": "skyBrightness",  # mag per arcsec^2
         "time": "observationStartMJD",  # days
-        "zp": "zp_nJy",  # We add this column to the table
+        "zp": "zp_nJy",  # nJy
     }
 
     # Default survey values (LSSTCam).
@@ -129,6 +132,7 @@ class OpSim(ObsTable):
         "ccd_pixel_height": 4000,
         "dark_current": _opsim_dark_current,
         "ext_coeff": _opsim_extinction_coeff,
+        "nexposure": 1,
         "pixel_scale": _opsim_pixel_scale,
         "radius": _opsim_view_radius,
         "read_noise": _opsim_readout_noise,
@@ -154,6 +158,7 @@ class OpSim(ObsTable):
         table,
         colmap=None,
         saturation_mags=None,
+        noise_model=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -162,33 +167,51 @@ class OpSim(ObsTable):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
-        super().__init__(table, colmap=colmap, saturation_mags=saturation_mags, **kwargs)
+        # If noise model is not provided, then set to the OpSim default.
+        if noise_model is None:
+            noise_model = PoissonFluxNoiseModel()
 
-    def _assign_zero_points(self):
-        """Assign instrumental zero points in nJy to the OpSim tables."""
-        cols = self._table.columns.to_list()
-
-        # If the zero point column is already present (as a magnitude), we convert it to nJy.
-        if "zp_mag" in cols:
-            zp_values = mag2flux(self._table["zp_mag"])
-            self.add_column("zp", zp_values, overwrite=True)
-            return
-
-        # See if we have the information to derive the zero point.
-        if not ("filter" in cols and "airmass" in cols and "exptime" in cols):
-            raise ValueError(
-                "OpSim does not include the columns needed to derive zero point "
-                "information. Required columns: filter, airmass, and exptime."
-            )
-
-        zp_values = flux_electron_zeropoint(
-            ext_coeff=self.safe_get_survey_value("ext_coeff"),
-            instr_zp_mag=self.safe_get_survey_value("zp_per_sec"),
-            filter=self._table["filter"],
-            airmass=self._table["airmass"],
-            exptime=self._table["exptime"],
+        super().__init__(
+            table,
+            colmap=colmap,
+            saturation_mags=saturation_mags,
+            noise_model=noise_model,
+            **kwargs,
         )
-        self.add_column("zp", zp_values, overwrite=True)
+
+    def _derive_noise_columns(self):
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
+        """
+        # Derive the zero point in nJy (if needed and we have sufficient information to do so).
+        if "zp" not in self:
+            # If the zero point column is already present (as a magnitude), we convert it to nJy.
+            if "zp_mag" in self:
+                zp_values = mag2flux(self["zp_mag"])
+                self.add_column("zp", zp_values, overwrite=True)
+            elif all(key in self for key in ["filter", "airmass", "exptime", "ext_coeff", "zp_per_sec"]):
+                zp_values = flux_electron_zeropoint(
+                    ext_coeff=self["ext_coeff"],
+                    instr_zp_mag=self["zp_per_sec"],
+                    filter=self["filter"],
+                    airmass=self["airmass"],
+                    exptime=self["exptime"],
+                )
+                self.add_column("zp", zp_values, overwrite=True)
+
+        # Derive the PSF footprint in pixels (if needed and we have sufficient information to do so).
+        if "psf_footprint" not in self and "seeing" in self and "pixel_scale" in self:
+            # By the effective FWHM definition, see
+            # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
+            psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (self["seeing"] / self["pixel_scale"]) ** 2
+            self.add_column("psf_footprint", psf_footprint, overwrite=True)
+
+        # Compute sky background (in e-) from skybrightness (mag per arcsec^2) if needed.
+        if "sky_bg_e" not in self and "skybrightness" in self and "zp" in self and "pixel_scale" in self:
+            # Table value is in mag/arcsec^2; convert to electrons per pixel^2.
+            sky_njy_angular = mag2flux(self["skybrightness"])
+            sky = sky_njy_angular * self["pixel_scale"] ** 2 / self["zp"]
+            self.add_column("sky_bg_e", sky, overwrite=True)
 
     @classmethod
     def from_url(cls, opsim_url, force_download=False):
@@ -213,52 +236,11 @@ class OpSim(ObsTable):
             An OpSim object containing the data from the specified URL.
         """
         data_file_name = opsim_url.split("/")[-1]
-        data_path = _LIGHTCURVELYNX_BASE_DATA_DIR / "opsim" / data_file_name
+        data_path = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "opsim" / data_file_name
 
         if not download_data_file_if_needed(data_path, opsim_url, force_download=force_download):
             raise RuntimeError(f"Failed to download opsim data from {opsim_url}.")
         return cls.from_db(data_path)
-
-    def bandflux_error_point_source(self, bandflux, index):
-        """Compute observational bandflux error for a point source
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Band bandflux of the point source in nJy.
-        index : array_like of int
-            The index of the observation in the OpSim table.
-
-        Returns
-        -------
-        flux_err : array_like of float
-            Simulated bandflux noise in nJy.
-        """
-        observations = self._table.iloc[index]
-
-        # By the effective FWHM definition, see
-        # https://smtn-002.lsst.io/v/OPSIM-1171/index.html
-        # We need it in pixel^2
-        pixel_scale = self.safe_get_survey_value("pixel_scale")
-        psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (observations["seeing"] / pixel_scale) ** 2
-        zp = observations["zp"]
-
-        # Table value is in mag/arcsec^2
-        sky_njy_angular = mag2flux(observations["skybrightness"])
-        # We need electrons per pixel^2
-        sky = sky_njy_angular * pixel_scale**2 / zp
-
-        return poisson_bandflux_std(
-            bandflux,
-            total_exposure_time=observations["exptime"],
-            exposure_count=observations["nexposure"],
-            psf_footprint=psf_footprint,
-            sky=sky,
-            zp=zp,
-            readout_noise=self.safe_get_survey_value("read_noise"),
-            dark_current=self.safe_get_survey_value("dark_current"),
-            zp_err_mag=self.safe_get_survey_value("zp_err_mag"),
-        )
 
 
 def create_random_opsim(num_obs, seed=None):

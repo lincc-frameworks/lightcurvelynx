@@ -10,7 +10,6 @@ from astropy import units as u
 from astropy.table import Table
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.models.sed_template_model import SEDTemplateModel
-from sncosmo import Bandpass
 
 
 def create_lsst_passband_group(passbands_dir, delta_wave=5.0, trim_quantile=None):
@@ -233,6 +232,7 @@ def test_passband_group_init(tmp_path, passbands_dir):
 
 def test_passband_group_ztf_preset(passbands_dir):
     """Test that we can load a PassbandGroup using the ZTF preset."""
+    pytest.importorskip("sncosmo")
     pbg = PassbandGroup.from_preset(
         preset="ZTF",
         table_dir=passbands_dir,
@@ -435,10 +435,11 @@ def test_passband_load_subset_passbands(tmp_path):
 
 def test_passband_ztf_preset():
     """Test that we can load the ZTF passbands."""
+    sncosmo = pytest.importorskip("sncosmo")
 
     def _mock_get_bandpass(name):
         """Return a predefined Bandpass object instead of downloading the transmission table."""
-        return Bandpass(np.array([6000, 6005, 6010]), np.array([0.5, 0.6, 0.7]))
+        return sncosmo.Bandpass(np.array([6000, 6005, 6010]), np.array([0.5, 0.6, 0.7]))
 
     # Mock the get_bandpass portion of the download method
     with patch("sncosmo.get_bandpass", side_effect=_mock_get_bandpass):

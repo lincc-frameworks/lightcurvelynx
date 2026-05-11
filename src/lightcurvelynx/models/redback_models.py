@@ -103,7 +103,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
                 import redback
             except ImportError as err:  # pragma: no cover
                 raise ImportError(
-                    "redback package is not installed be default. To use the RedbackWrapperModel, "
+                    "redback package is not installed by default. To use the RedbackWrapperModel, "
                     "please install redback. For example, you can install it with "
                     "`pip install redback`."
                 ) from err

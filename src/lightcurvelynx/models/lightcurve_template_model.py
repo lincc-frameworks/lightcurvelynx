@@ -141,6 +141,9 @@ class LightcurveBandData:
             if magnitudes_in:
                 lc[:, 1] = mag2flux(lc[:, 1])
 
+            # Persist potential shape/value updates back to the stored lightcurve.
+            self.lightcurves[filter] = lc
+
         # Store the minimum and maximum times for each light curve. This is done after
         # validating periodicity in case we needed to adjust the light curve start times.
         if periodic:
@@ -247,8 +250,8 @@ class LightcurveBandData:
         if filters is None:
             filters = filter_cols
         else:
-            to_keep = set(filter_cols) & set(filters)
-            filters = list(to_keep)
+            # Keep caller-provided filter order while selecting only available columns.
+            filters = [filter_name for filter_name in filters if filter_name in filter_cols]
         if len(filters) == 0:
             raise ValueError("Light curves table must have at least one filter column.")
 

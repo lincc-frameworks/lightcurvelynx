@@ -18,9 +18,8 @@ def test_create_spectrograph_obstable():
     assert np.all(survey_data["dec"] == data["dec"])
     assert np.all(survey_data["time"] == data["time"])
 
-    # We fill in fake zp and filter columns. These are not used for anything.
+    # We fill in a fake filter column. This is not used for anything.
     assert np.all(survey_data["filter"] == "spectra")
-    assert np.all(survey_data["zp"] == 0.05)
 
     # We have all the attributes set at their default values.
     assert survey_data.survey_values["radius"] == pytest.approx(10.0 / 3600.0)

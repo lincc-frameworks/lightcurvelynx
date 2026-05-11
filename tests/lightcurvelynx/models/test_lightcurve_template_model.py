@@ -97,6 +97,30 @@ def test_create_lightcurve_band_data_from_dict() -> None:
         _ = LightcurveBandData(lightcurves, lc_data_t0=None)
 
 
+def test_create_lightcurve_band_data_from_dict_with_error_column_persists_updates() -> None:
+    """Regression test: when dict lightcurves include an error column, the normalized
+    2-column representation must be written back to the stored arrays.
+    """
+    times = np.array([1.0, 2.0, 3.0])
+    mags = np.array([20.0, 21.0, 22.0])
+    errs = np.array([0.1, 0.1, 0.1])
+    lightcurves = {
+        "u": np.column_stack((times, mags, errs)),
+    }
+
+    lc_data = LightcurveBandData(
+        lightcurves,
+        lc_data_t0=1.0,
+        magnitudes_in=True,
+        baseline={"u": 25.0},
+    )
+
+    # The internal lightcurve must be 2 columns with transformed values persisted.
+    assert lc_data.lightcurves["u"].shape == (3, 2)
+    assert np.allclose(lc_data.lightcurves["u"][:, 0], np.array([0.0, 1.0, 2.0]))
+    assert np.allclose(lc_data.lightcurves["u"][:, 1], mag2flux(mags))
+
+
 def test_create_lightcurve_band_data_periodic_from_dict() -> None:
     """Test that we can create a periodic LightcurveBandData object from a dict."""
     times = np.linspace(3, 13, 20)

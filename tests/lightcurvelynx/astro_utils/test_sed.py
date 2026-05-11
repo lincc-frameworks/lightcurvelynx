@@ -112,6 +112,7 @@ def test_sed_from_synphot() -> None:
     """Test that we can create a SED from a synphot model."""
     # Create a dummy model with 4 samples of SEDs [10.0, 20.0, 30.0, 40.0] in nJy.
     # Since synphot uses PHOTLAM, we preconvert and provide in that unit.
+    pytest.importorskip("synphot")
     sp_model = DummySynphotModel(
         waveset=np.array([1000.0, 2000.0, 3000.0, 4000.0]),
         fluxset=np.array([1.50919018e-08, 1.50919018e-08, 1.50919018e-08, 1.50919018e-08]),

@@ -1,10 +1,9 @@
+import importlib
 import logging
 from pathlib import Path
 
 import numpy as np
-import sncosmo
 from astropy import units as u
-from lightcurvelynx.astro_utils.noise_model import apply_noise
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.astro_utils.snia_utils import (
     DistModFromRedshift,
@@ -101,6 +100,10 @@ def load_and_register_passband(passbands_dir, to_use):
     passbands : PassbandGroup
         The loaded and processed PassbandGroup.
     """
+    if importlib.util.find_spec("sncosmo") is None:  # pragma: no cover
+        raise ImportError("The sncosmo package is required to use the run_snia_end2end. ")
+    import sncosmo
+
     passbands_dir = Path(passbands_dir)
     passband_list = []
     for band in to_use:
@@ -202,13 +205,18 @@ def draw_single_random_sn(
     )
     res["flux_fnu"] = flux_nJy
 
-    # Compute the band_flixes over just the given filters.
+    # Compute the band_fluxes over just the given filters.
     bandfluxes_perfect = source.evaluate_bandfluxes(passbands, times, filters, state)
     res["bandfluxes_perfect"] = bandfluxes_perfect
 
-    bandfluxes_error = opsim.bandflux_error_point_source(bandfluxes_perfect, obs_index)
-    res["bandfluxes_error"] = bandfluxes_error
-    res["bandfluxes"] = apply_noise(bandfluxes_perfect, bandfluxes_error, rng=None)
+    new_vals, err_vals = opsim.noise_model.apply_noise(
+        bandfluxes_perfect,
+        obs_table=opsim,
+        indices=obs_index,
+        rng=rng_info,
+    )
+    res["bandfluxes_error"] = err_vals
+    res["bandfluxes"] = new_vals
 
     res["state"] = state
 
@@ -251,6 +259,10 @@ def run_snia_end2end(
     passbands : PassbandGroup
         The passbands used.
     """
+    if importlib.util.find_spec("sncosmo") is None:  # pragma: no cover
+        raise ImportError("The sncosmo package is required to use the run_snia_end2end. ")
+    import sncosmo
+
     if rng_info is None:
         rng_info = np.random.default_rng()
 
