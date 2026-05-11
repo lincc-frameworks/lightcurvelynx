@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
-from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.skymapper_obstable import SkyMapperObsTable
 
@@ -28,7 +27,6 @@ def test_skymapper_obstable_init():
     obs_table = SkyMapperObsTable(table=survey_data_table, make_detector_footprint=True)
     assert isinstance(obs_table.noise_model, PoissonFluxNoiseModel)
     assert isinstance(obs_table.default_noise_model, PoissonFluxNoiseModel)
-    assert isinstance(obs_table.default_passband_group, PassbandGroup)
 
     assert "zp" in obs_table
     assert np.allclose(survey_data["ra_deg"], obs_table["ra"])

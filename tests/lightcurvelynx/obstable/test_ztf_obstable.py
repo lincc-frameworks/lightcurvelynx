@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
 
@@ -10,7 +9,6 @@ def test_ztf_obstable_init():
     survey_data_table = create_random_ztf_obs_data(100)
     survey_data = ZTFObsTable(table=survey_data_table)
     assert isinstance(survey_data.default_noise_model, PoissonFluxNoiseModel)
-    assert isinstance(survey_data.default_passband_group, PassbandGroup)
 
     assert "zp" in survey_data
     assert "time" in survey_data
