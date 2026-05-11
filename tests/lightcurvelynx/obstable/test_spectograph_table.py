@@ -14,6 +14,9 @@ def test_create_spectrograph_obstable():
     survey_data_table = pd.DataFrame(data)
     survey_data = SpectrographObsTable(table=survey_data_table)
 
+    assert survey_data.default_noise_model is None
+    assert survey_data.default_passband_group is None
+
     assert np.all(survey_data["ra"] == data["ra"])
     assert np.all(survey_data["dec"] == data["dec"])
     assert np.all(survey_data["time"] == data["time"])

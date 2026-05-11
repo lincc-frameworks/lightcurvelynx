@@ -39,6 +39,10 @@ def test_create_argus_obstable():
     assert ops_data.healpix_nside == 32
     assert ops_data.healpix_depth == 5
 
+    # The ArgusHealpixObsTable should have a default PoissonFluxNoiseModel and no default passband group.
+    assert isinstance(ops_data.default_noise_model, PoissonFluxNoiseModel)
+    assert ops_data.default_passband_group is None
+
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["pixel_scale"] == 1.0
     assert ops_data.survey_values["radius"] == 52.0

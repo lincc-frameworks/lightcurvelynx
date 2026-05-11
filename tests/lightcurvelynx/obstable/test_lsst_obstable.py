@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable
 
@@ -19,6 +20,8 @@ def test_create_lsst_obstable():
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
     assert isinstance(ops_data.noise_model, PoissonFluxNoiseModel)
+    assert isinstance(ops_data.default_noise_model, PoissonFluxNoiseModel)
+    assert isinstance(ops_data.default_passband_group, PassbandGroup)
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.022

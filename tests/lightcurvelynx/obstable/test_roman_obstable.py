@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
+from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.obstable.roman_obstable import RomanObsTable, RomanPoissonFluxNoiseModel
 
 
@@ -28,6 +29,10 @@ def test_roman_obstable_init():
     """Test initializing RomanObsTable."""
     apt_table = make_random_apt_table()
     roman_obstable = RomanObsTable(apt_table)
+
+    # Roman uses a custom noise model because it needs to do more calculations.
+    assert isinstance(roman_obstable.default_noise_model, RomanPoissonFluxNoiseModel)
+    assert isinstance(roman_obstable.default_passband_group, PassbandGroup)
 
     assert {"zp", "N_Eff_Pix", "zodi_countrate_min", "thermal_countrate"}.issubset(roman_obstable.columns)
 
