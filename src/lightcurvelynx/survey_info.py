@@ -13,6 +13,8 @@ Key components of the SurveyInfo class include:
 
 import logging
 
+import numpy as np
+
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.obstable.obs_table import ObsTable
 
@@ -70,6 +72,6 @@ class SurveyInfo:
         if self.passbands is None:
             raise ValueError("PassbandGroup cannot be None.")
         elif not isinstance(self.passbands, Spectrograph):
-            for filter_name in self.obstable.filters:
+            for filter_name in np.unique(self.obstable["filter"]):
                 if filter_name not in self.passbands:
                     raise ValueError(f"Filter '{filter_name}' in ObsTable is not present in PassbandGroup.")
