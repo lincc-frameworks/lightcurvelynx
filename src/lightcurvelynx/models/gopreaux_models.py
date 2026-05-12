@@ -54,6 +54,7 @@ class GoPreauxModel(SEDModel, CiteClass):
     """
 
     def __init__(self, model, intrinsic_brightness, **kwargs):
+        super().__init__(**kwargs)
         self.model = model
         self.add_parameter(
             "brightness",
@@ -64,7 +65,70 @@ class GoPreauxModel(SEDModel, CiteClass):
             ),
             **kwargs,
         )
-        super().__init__(**kwargs)
+
+    def minwave(self, **kwargs):
+        """Get the minimum supported wavelength of the model.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        minwave : float or None
+            The minimum wavelength of the model (in angstroms) or None
+            if the model does not have a defined minimum wavelength.
+        """
+        return self.model.min_wl
+
+    def maxwave(self, **kwargs):
+        """Get the maximum supported wavelength of the model.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        maximum : float or None
+            The maximum wavelength of the model (in angstroms) or None
+            if the model does not have a defined maximum wavelength.
+        """
+        return self.model.max_wl
+
+    def minphase(self, **kwargs):
+        """Get the minimum supported phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        return self.model.min_phase
+
+    def maxphase(self, **kwargs):
+        """Get the maximum supported phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        maximum : float or None
+            The maximum phase of the model (in days) or None
+            if the model does not have a defined maximum phase.
+        """
+        return self.model.max_phase
 
     @classmethod
     def load_from_fits(cls, filename, intrinsic_brightness, **kwargs):
