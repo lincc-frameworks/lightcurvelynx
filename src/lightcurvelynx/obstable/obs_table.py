@@ -689,8 +689,9 @@ class ObsTable:
             mask = np.full((len(self._table),), False)
             mask[rows] = True
 
-        # Filter the rows in-place and build a new spatial data structure.
-        self._table = self._table[mask]
+        # Filter the rows. Build a new spatial data structure and list of filters.
+        self._table = self._table[mask].reset_index(drop=True)
+        self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
         self._spatial_data = None
         self._build_spatial_data()
 
