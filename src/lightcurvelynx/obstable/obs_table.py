@@ -891,7 +891,7 @@ class ObsTable:
             # by using the class accessor (__getitem__), instead of the table one.
             if col not in self:
                 raise KeyError(f"Unrecognized column name {col}")
-            results[col] = self[col][neighbors].to_numpy()
+            results[col] = self[col].iloc[neighbors].to_numpy()
         return results
 
     def compute_saturation(self, flux, flux_error, index):

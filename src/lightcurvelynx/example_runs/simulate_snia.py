@@ -179,17 +179,17 @@ def draw_single_random_sn(
     obs_index = np.array(opsim.range_search(ra, dec, radius=1.75))
 
     # Update obs_index to only include observations within SN lifespan
-    phase_obs = opsim["time"][obs_index] - t0
+    phase_obs = opsim["time"].iloc[obs_index] - t0
     obs_index = obs_index[(phase_obs > -20 * (1.0 + z)) & (phase_obs < 50 * (1.0 + z))]
 
     # Extract the timing and filter information for those observations, changing the
     # match band names in passbands object.
-    times = opsim["time"][obs_index].to_numpy()
+    times = opsim["time"].iloc[obs_index].to_numpy()
     if len(times) == 0:
         logger.warning(f"No overlap time in opsim for (ra,dec)=({ra:.2f},{dec:.2f})")
     res["times"] = times
 
-    filters = opsim["filter"][obs_index].to_numpy(str)
+    filters = opsim["filter"].iloc[obs_index].to_numpy(str)
     filters = np.char.add("LSST_", filters)
     res["filters"] = filters
 

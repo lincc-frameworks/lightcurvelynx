@@ -167,7 +167,7 @@ class ArgusHealpixObsTable(ObsTable):
         """Construct a mapping of healpix id to row number from the ObsTable."""
         if self._healpix_nside is None:
             if "nside" in self._table.columns:
-                self._healpix_nside = self._table["nside"][0]
+                self._healpix_nside = self._table["nside"].iloc[0]
             else:
                 raise ValueError(
                     "nside must be provided for ArgusHealpixObsTable construction or "
@@ -316,10 +316,10 @@ class ArgusHealpixObsTable(ObsTable):
                 # Apply time filtering if specified.
                 if t_min is not None or t_max is not None:
                     if t_min is not None:
-                        times = self._table["time"][row_inds].to_numpy()
+                        times = self._table["time"].iloc[row_inds].to_numpy()
                         row_inds = row_inds[times >= t_min]
                     if t_max is not None:
-                        times = self._table["time"][row_inds].to_numpy()
+                        times = self._table["time"].iloc[row_inds].to_numpy()
                         row_inds = row_inds[times <= t_max]
 
                 inds.append(row_inds)
