@@ -289,7 +289,7 @@ class LSSTObsTable(ObsTable):
             An LSSTObsTable object containing the data from the science validation visits table.
         """
         # Remove the rows with NaNs in sky_bg_median or zero_point_median.
-        table = table.dropna(subset=["sky_bg_median", "zero_point_median"])
+        table = table.dropna(subset=["sky_bg_median", "zero_point_median"]).reset_index(drop=True)
 
         # Set the radius as the view (not CCD) radius because we do not have
         # per-CCD information.
