@@ -495,13 +495,23 @@ def test_obs_table_range_search():
 
     # Test that we fail if bad query arrays are provided.
     with pytest.raises(ValueError):
+        # Nones.
         _ = ops_data.range_search(None, None, radius=0.5)
     with pytest.raises(ValueError):
+        # Mismatched sizes.
         _ = ops_data.range_search([1.0, 2.3], 4.5, radius=0.5)
     with pytest.raises(ValueError):
+        # Mismatched sizes.
         _ = ops_data.range_search([1.0, 2.3], [4.5, 6.7, 8.9], radius=0.5)
     with pytest.raises(ValueError):
+        # A None in a list.
         _ = ops_data.range_search([1.0, 2.3], [4.5, None], radius=0.5)
+    with pytest.raises(ValueError):
+        # Arrays of lists.
+        _ = ops_data.is_observed([[1.0, 2.3], [1.0, 2.3]], [[4.5, 6.7], [8.9, 10.11]], radius=0.5)
+    with pytest.raises(ValueError):
+        # Can't convert to float.
+        _ = ops_data.range_search(["not_a_number", 2.0], [4.5, 6.7], radius=0.5)
 
 
 def test_obs_table_get_observations():
