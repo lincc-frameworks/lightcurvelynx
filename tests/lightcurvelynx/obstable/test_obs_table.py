@@ -323,6 +323,7 @@ def test_obs_table_filter_rows():
     assert np.allclose(ops_data["ra"], 15.0 * (expected_times + 1.0))
     assert np.allclose(ops_data["dec"], -1.0 * expected_times)
     assert np.all(ops_data["filter"] == "r")
+    assert set(ops_data.filters) == set(["r"])
 
     # Check that the indices have been reset and that get_value_per_row() works with the new indices.
     assert np.array_equal(ops_data._table.index, np.arange(len(ops_data)))
