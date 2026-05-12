@@ -80,7 +80,9 @@ class GoPreauxModel(SEDModel, CiteClass):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
-        return self.model.min_wl
+        # Add a small epsilon to the minimum wavelength to avoid issues with querying
+        # the model at exactly the minimum wavelength.
+        return self.model.min_wl + 1e-6
 
     def maxwave(self, **kwargs):
         """Get the maximum supported wavelength of the model.
@@ -96,7 +98,9 @@ class GoPreauxModel(SEDModel, CiteClass):
             The maximum wavelength of the model (in angstroms) or None
             if the model does not have a defined maximum wavelength.
         """
-        return self.model.max_wl
+        # Subtract a small epsilon to the maximum wavelength to avoid issues with querying
+        # the model at exactly the maximum wavelength.
+        return self.model.max_wl - 1e-6
 
     def minphase(self, **kwargs):
         """Get the minimum supported phase of the model in days.
@@ -112,7 +116,9 @@ class GoPreauxModel(SEDModel, CiteClass):
             The minimum phase of the model (in days) or None
             if the model does not have a defined minimum phase.
         """
-        return self.model.min_phase
+        # Add a small epsilon to the minimum phase to avoid issues with querying
+        # the model at exactly the minimum phase.
+        return self.model.min_phase + 1e-6
 
     def maxphase(self, **kwargs):
         """Get the maximum supported phase of the model in days.
@@ -128,7 +134,9 @@ class GoPreauxModel(SEDModel, CiteClass):
             The maximum phase of the model (in days) or None
             if the model does not have a defined maximum phase.
         """
-        return self.model.max_phase
+        # Subtract a small epsilon to the maximum phase to avoid issues with querying
+        # the model at exactly the maximum phase.
+        return self.model.max_phase - 1e-6
 
     @classmethod
     def load_from_fits(cls, filename, intrinsic_brightness, **kwargs):
@@ -183,9 +191,11 @@ class GoPreauxModel(SEDModel, CiteClass):
         flux_density : numpy.ndarray
             A length T x N matrix of observer frame SED values (in nJy).
         """
+        # We check against the model's internal bounds for phase, which may be slightly different
+        # than this object's minphase and maxphase.
         times = np.asarray(times)
         t0 = self.get_param(graph_state, "t0")
-        if (np.min(times - t0) < self.minphase()) or (np.max(times - t0) > self.maxphase()):
+        if (np.min(times - t0) < self.model.min_phase) or (np.max(times - t0) > self.model.max_phase):
             raise ValueError(
                 f"Times need to be within the bounds of the model: [{self.minphase() + t0}, "
                 f"{self.maxphase() + t0}] MJD or a time extrapolation method must be provided "
@@ -193,8 +203,10 @@ class GoPreauxModel(SEDModel, CiteClass):
             )
         num_times = len(times)
 
+        # We check against the model's internal bounds for wavelength, which may be slightly different
+        # than this object's minwave and maxwave.
         wavelengths = np.asarray(wavelengths)
-        if (np.min(wavelengths) < self.minwave()) or (np.max(wavelengths) > self.maxwave()):
+        if (np.min(wavelengths) < self.model.min_wl) or (np.max(wavelengths) > self.model.max_wl):
             raise ValueError(
                 f"Wavelengths need to be within the bounds of the model: [{self.minwave()}, "
                 f"{self.maxwave()}] angstroms or a wavelength extrapolation method must be "
