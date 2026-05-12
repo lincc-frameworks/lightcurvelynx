@@ -435,7 +435,6 @@ def _simulate_lightcurves_batch(simulation_info):
                     rng_info=rng,
                 )
 
-                noise_model = obstable[survey_idx].noise_model
                 noise_model = simulation_info.survey_info[survey_idx].noise_model
                 if noise_model is None:
                     bandfluxes = np.copy(bandfluxes_perfect)
