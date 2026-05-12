@@ -46,16 +46,28 @@ class GoPreauxModel(SEDModel, CiteClass):
     ----------
     model : caat.SNModel
         The gopreaux SNModel object that defines the surface to be evaluated.
+    intrinsic_brightness : Parameter
+        The intrinsic brightness of the supernova at its peak and the wavelength closest
+        to the V-band (in magnitudes).
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
 
-    def __init__(self, model, **kwargs):
+    def __init__(self, model, intrinsic_brightness, **kwargs):
         self.model = model
+        self.add_parameter(
+            "brightness",
+            intrinsic_brightness,
+            description=(
+                "The intrinsic brightness of the supernova at its peak and the wavelength closest"
+                " to the V-band (in magnitudes).",
+            ),
+            **kwargs,
+        )
         super().__init__(**kwargs)
 
     @classmethod
-    def load_from_fits(cls, filename, **kwargs):
+    def load_from_fits(cls, filename, intrinsic_brightness, **kwargs):
         """
         Load the data for gopreaux.SNModel model from a .fits file and use it
         to create the GoPreauxModel object.
@@ -64,6 +76,9 @@ class GoPreauxModel(SEDModel, CiteClass):
         ----------
         filename: str, Path
             The complete path to the .fits file.
+        intrinsic_brightness: float
+            The intrinsic brightness of the supernova at its peak and the wavelength closest
+            to the V-band (in magnitudes).
         **kwargs: dict, optional
             Any additional keyword arguments to be passed to the GoPreauxModel constructor.
         """
@@ -85,7 +100,7 @@ class GoPreauxModel(SEDModel, CiteClass):
         # Load the SNModel from the .fits file using gopreaux's constructor, which
         # can take a path to the fits file.
         model = SNModel(str(filename))
-        return cls(model, **kwargs)
+        return cls(model, intrinsic_brightness, **kwargs)
 
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.
@@ -119,9 +134,9 @@ class GoPreauxModel(SEDModel, CiteClass):
 
         # Use the model's built-in predict_photometry_points function to get predictions at the
         # given phases and wavelengths.
-        _, results_mag, _ = self.model.predict_photometry_points(phases, wavelengths, show=False)
-        results_mag = results_mag.reshape(num_times, num_wavelengths)
+        _, rel_mag, _ = self.model.predict_photometry_points(phases, wavelengths, show=False)
+        rel_mag = rel_mag.reshape(num_times, num_wavelengths)
 
-        # The results are returned in magnitudes relative to the peak. We need to convert them to
-        # flux densities in nJy.
-        return mag2flux(results_mag)
+        # The results are returned in magnitudes relative to the peak and the wavelength
+        # closest to the V-band. We need to convert them to flux densities in nJy.
+        return mag2flux(rel_mag + self.get_param(graph_state, "brightness"))
