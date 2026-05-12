@@ -6,7 +6,7 @@ from lightcurvelynx.survey_info import SurveyInfo
 
 
 def test_create_survey_info(passbands_dir):
-    """Test that we can create a SurveyInfo object with explictly
+    """Test that we can create a SurveyInfo object with explicitly
     specified and default parameters."""
     # Create fake passbands and noise model to use. Use the data in the test
     # data directory for the passbands, so we do not need to download it.

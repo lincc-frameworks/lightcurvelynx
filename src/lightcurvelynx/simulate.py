@@ -91,6 +91,8 @@ class SimulationInfo:
     ):
         self.model = model
         self.num_samples = num_samples
+        if not isinstance(survey_info, list):
+            survey_info = [survey_info]
         self.survey_info = survey_info
         self.obs_time_window_offset = obs_time_window_offset
         self.rest_time_window_offset = rest_time_window_offset
@@ -646,7 +648,10 @@ def simulate_lightcurves(
     # Raise a meaningful deprecation warning if the user tries to use the passbands argument,
     # which should now be included in the survey_info.
     if passbands is not None:
-        warnings.warn("The passbands argument is deprecated and will be removed from future versions.")
+        warnings.warn(
+            "The passbands argument is deprecated and will be removed from future versions.",
+            category=FutureWarning,
+        )
         if not isinstance(passbands, list):
             passbands = [passbands]
 
@@ -655,7 +660,17 @@ def simulate_lightcurves(
         survey_info = [survey_info]
     for idx, obj in enumerate(survey_info):
         if isinstance(obj, ObsTable):
-            passband = None if passbands is None else passbands[idx]
+            # If we are given a passband use it. Otherwise fall back to the default.
+            if passbands is not None:
+                if idx >= len(passbands):
+                    raise ValueError(
+                        f"Not enough passbands provided for the number of ObsTables. "
+                        f"Expected at least {idx + 1} passbands, but got {len(passbands)}."
+                    )
+                passband = passbands[idx]
+            else:
+                passband = None
+
             survey_info[idx] = SurveyInfo(obstable=obj, passbands=passband)
         elif not isinstance(obj, SurveyInfo):
             raise ValueError(

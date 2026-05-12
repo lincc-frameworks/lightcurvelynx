@@ -30,7 +30,7 @@ class ObsTable:
     such as pointing and observation conditions. ObsTables are specialized for different
     surveys and include information about that survey (e.g. default noise parameters,
     default filter characteristics, etc.). They also include helper functions for common
-    common computations.
+    computations.
 
     Parameters
     ----------

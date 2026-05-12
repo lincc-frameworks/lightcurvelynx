@@ -3,12 +3,13 @@ where the survey was pointing, instrument characteristics, and bandpass informat
 a data class that is used to keep the pieces of information together.
 
 Key components of the SurveyInfo class include:
-- `ObsTable`: A table that contains the observation information, such as pointing coordinates,
+- `obstable`: An `ObsTable` object that contains the observation information, such as pointing coordinates,
   time of observation, and other relevant metadata. This also contains instrument information,
   such as the detector footprint and pixel scale.
-- `Bandpass`: A class that contains the information about the bandpass of the instrument,
-  including the wavelength range and the transmission curve.
-- `NoiseModel`: A computation class for calculating the noise from characteristics of the survey.
+- `passbands`: A `PassbandGroup` object that contains the information about the bandpass of the instrument,
+  including the wavelength range and the transmission curve, or a `Spectrograph` object for spectroscopic
+  surveys. This is optional and will use a default if not provided.
+- `noise_model`: A computation class for calculating the noise from characteristics of the survey.
 """
 
 import logging
@@ -70,7 +71,7 @@ class SurveyInfo:
             self.noise_model.check_compatibility(self.obstable, fail_on_incompatible=True)
 
         if self.passbands is None:
-            raise ValueError("PassbandGroup cannot be None.")
+            raise ValueError("passbands cannot be None.")
         elif not isinstance(self.passbands, Spectrograph):
             for filter_name in np.unique(self.obstable["filter"]):
                 if filter_name not in self.passbands:
