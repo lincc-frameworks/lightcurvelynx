@@ -43,4 +43,6 @@ Glossary
 
 **Spectrograph**: A spectrograph is an instrument that measures the flux density of a source as a function of wavelength.
 
+**SurveyInfo**: The ``SurveyInfo`` object contains all of the information about the survey(s) being simulated, including the observation information (``ObsTable``), passbands (``PassbandGroup``), and noise model for each survey.
+
 **Wavelength**: Photon wavelength, in angstroms.

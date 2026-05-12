@@ -18,8 +18,6 @@ class SpectrographObsTable(ObsTable):
         A mapping of standard column names to a list of possible names in the input table.
         Each value in the dictionary can be a string or a list of strings.
         Defaults to the Rubin CCDVisit column names, stored in _default_colnames.
-    noise_model : lightcurvelynx.noise_models.base_noise_models.BaseNoiseModel
-        The noise model to use for this ObsTable. If None, a default noise model will be used.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor.
     """
@@ -39,7 +37,6 @@ class SpectrographObsTable(ObsTable):
         self,
         table,
         colmap=None,
-        noise_model=None,
         **kwargs,
     ):
         # If the input table is a dictionary, convert it to a DataFrame.
@@ -54,7 +51,7 @@ class SpectrographObsTable(ObsTable):
         ):
             table["filter"] = "spectra"  # Name does not actually matter.
 
-        super().__init__(table, colmap=colmap, noise_model=noise_model, **kwargs)
+        super().__init__(table, colmap=colmap, **kwargs)
 
     @property
     def default_noise_model(self):

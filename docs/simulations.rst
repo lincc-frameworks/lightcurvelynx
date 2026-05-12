@@ -21,13 +21,9 @@ step includes the following components:
 * A mathematical model that defines the properties of the time-domain light source, which can
   also include a host-galaxy model, and is used to generate the noise-free light curves (given
   the sampled parameters).
-* ``ObsTable`` contains the survey information such as survey strategy and observing
-  conditions. It is used to specify the observing times and bands. For more information
-  see the :doc:`survey data documentation page <survey_data>`.
+* ``SurveyInfo`` contains the survey information such as survey strategy, observing conditions, instrument characteristics, filter characteristics, and noise model. It is a wrapper around other specific data structures such as ``ObsTable`` and ``PassbandGroup``.
 * A set of predefined effects, such as dust extinction and detector noise, are applied to
   the noise-free light curves to produce realistic light curves.
-* The ``PassbandGroup`` contains the filter information of the telescope and is used
-  to calculate the fluxes in each band.
 
 To perform a simulation that includes different populations of objects, the user would run the core
 simulate function multiple times--once for each population. The results can then be concatenated together

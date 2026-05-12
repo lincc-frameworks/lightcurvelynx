@@ -182,7 +182,6 @@ def test_argus_obstable_noise():
     }
     pdf = pd.DataFrame(values)
     table = ArgusHealpixObsTable(pdf, nside=32)
-    assert isinstance(table.noise_model, PoissonFluxNoiseModel)
 
     assert "zp" in table
     assert np.all(table["zp"] > 15.0)
@@ -190,7 +189,7 @@ def test_argus_obstable_noise():
     # Check that we can compute the bandflux error for a given bandflux.
     bandfluxes = np.array([1000.0, 500.0, 200.0])
     index = np.array([0, 2, 4])
-    bandflux_noise, bandflux_err = table.noise_model.apply_noise(
+    bandflux_noise, bandflux_err = table.default_noise_model.apply_noise(
         bandflux=bandfluxes,
         obs_table=table,
         indices=index,

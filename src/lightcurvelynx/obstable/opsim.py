@@ -32,12 +32,6 @@ The value is from https://smtn-002.lsst.io/v/OPSIM-1171/index.html
 _opsim_view_radius = 1.75
 """The angular radius of the observation field (in degrees)."""
 
-_opsim_ccd_radius = 0.1574
-"""The approximate angular radius of a single LSST CCD (in degrees). Each CCD is ``800*800 arcsec^2``.
-We approximate the radius as 800 arcsec/ sqrt(2). We overestimate slightly, because this value is
-used in range searches. More exact filtering is done with the detector footprint.
-"""
-
 _opsim_zp_err_mag = 1.0e-4
 """The zero point error in magnitude.
 
@@ -94,9 +88,6 @@ class OpSim(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, OpSim-specific defaults will be
         used.
-    noise_model : NoiseModel, optional
-        The noise model to use for this ObsTable. If not provided, defaults to
-        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -159,7 +150,6 @@ class OpSim(ObsTable):
         table,
         colmap=None,
         saturation_mags=None,
-        noise_model=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -172,7 +162,6 @@ class OpSim(ObsTable):
             table,
             colmap=colmap,
             saturation_mags=saturation_mags,
-            noise_model=noise_model,
             **kwargs,
         )
 

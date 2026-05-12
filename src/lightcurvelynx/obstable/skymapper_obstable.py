@@ -61,9 +61,6 @@ class SkyMapperObsTable(ObsTable, CiteClass):
     make_detector_footprint : bool, optional
         If True, the detector footprint will be created based on the xSize and ySize survey
         parameters. This can not be used if a detect footprint is already provided in the input table.
-    noise_model : NoiseModel, optional
-        The noise model to use for this ObsTable. If not provided, defaults to
-        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -135,7 +132,6 @@ class SkyMapperObsTable(ObsTable, CiteClass):
         colmap=None,
         saturation_mags=None,
         make_detector_footprint=False,
-        noise_model=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -148,7 +144,6 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             table,
             colmap=colmap,
             saturation_mags=saturation_mags,
-            noise_model=noise_model,
             **kwargs,
         )
 

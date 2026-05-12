@@ -31,7 +31,6 @@ def test_create_opsim():
     ops_data = OpSim(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
-    assert isinstance(ops_data.noise_model, PoissonFluxNoiseModel)
     assert isinstance(ops_data.default_noise_model, PoissonFluxNoiseModel)
 
     # We have all the attributes set at their default values.
@@ -507,7 +506,9 @@ def test_opsim_flux_err_point_source(opsim_shorten):
     flux = mag2flux(ops_data["fiveSigmaDepth"])
     expected_flux_err = flux / 5.0
 
-    new_flux, flux_err = ops_data.noise_model.apply_noise(
+    noise_model = ops_data.default_noise_model
+    assert isinstance(noise_model, PoissonFluxNoiseModel)
+    new_flux, flux_err = noise_model.apply_noise(
         flux,
         obs_table=ops_data,
         indices=np.arange(len(ops_data)),

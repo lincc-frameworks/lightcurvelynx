@@ -47,9 +47,6 @@ class ZTFObsTable(ObsTable):
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, ZTF-specific defaults will be used.
-    noise_model : NoiseModel, optional
-        The noise model to use for this ObsTable. If not provided, defaults to
-        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -100,7 +97,6 @@ class ZTFObsTable(ObsTable):
         table,
         colmap=None,
         saturation_mags=None,
-        noise_model=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -120,7 +116,6 @@ class ZTFObsTable(ObsTable):
             table,
             colmap=colmap,
             saturation_mags=saturation_mags,
-            noise_model=noise_model,
             **kwargs,
         )
 

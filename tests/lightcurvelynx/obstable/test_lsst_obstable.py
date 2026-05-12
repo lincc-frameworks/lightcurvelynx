@@ -18,7 +18,6 @@ def test_create_lsst_obstable():
     ops_data = LSSTObsTable(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
-    assert isinstance(ops_data.noise_model, PoissonFluxNoiseModel)
     assert isinstance(ops_data.default_noise_model, PoissonFluxNoiseModel)
 
     # We have all the attributes set at their default values.
@@ -165,7 +164,9 @@ def test_lsst_noise_model_delegation():
     indices = np.array([0, 1, 2])
 
     # We can compute errors.
-    new_vals, err_vals = table.noise_model.apply_noise(
+    noise_model = table.default_noise_model
+    assert isinstance(noise_model, PoissonFluxNoiseModel)
+    new_vals, err_vals = noise_model.apply_noise(
         bandflux,
         obs_table=table,
         indices=indices,

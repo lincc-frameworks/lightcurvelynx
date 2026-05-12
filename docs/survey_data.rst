@@ -8,6 +8,12 @@ instruments and surveys are generally derived from published values and data rel
 for specific details). However, **users should always carefully validate the science outputs for their use case.**
 
 
+SurveyInfo
+-------------------------------------------------------------------------------
+
+The ``SurveyInfo`` class is a data wrapper that holds all of the information needed to simulate a survey, including the pointing information (``ObsTable``), passbands (``PassbandGroup``), and noise model for each survey.
+
+
 ObsTable
 -------------------------------------------------------------------------------
 

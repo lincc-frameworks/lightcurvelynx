@@ -2,6 +2,7 @@
 
 import concurrent.futures
 import logging
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +11,8 @@ from nested_pandas import NestedFrame
 from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
+from lightcurvelynx.obstable.obs_table import ObsTable
+from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.post_process_results import concat_results
 
 logger = logging.getLogger(__name__)
@@ -27,11 +30,8 @@ class SimulationInfo:
         will be randomly sampled with each draw.
     num_samples : int
         The number of samples.
-    obstable : ObsTable or List of ObsTable
-        The ObsTable(s) from which to extract information for the samples.
-    passbands : PassbandGroup, Spectrograph or List of (PassbandGroup, Spectrograph)
-        The information for transforming a models SED into a bandflux (PassbandGroup) or
-        spectra (Spectrograph).
+    survey_info : List of SurveyInfo
+        The SurveyInfo objects from which to extract information for the samples.
     obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
@@ -75,8 +75,7 @@ class SimulationInfo:
         self,
         model,
         num_samples,
-        obstable,
-        passbands,
+        survey_info,
         *,
         obstable_save_cols=None,
         param_cols=None,
@@ -92,8 +91,7 @@ class SimulationInfo:
     ):
         self.model = model
         self.num_samples = num_samples
-        self.obstable = obstable
-        self.passbands = passbands
+        self.survey_info = survey_info
         self.obs_time_window_offset = obs_time_window_offset
         self.rest_time_window_offset = rest_time_window_offset
         self.apply_saturation = apply_saturation
@@ -179,8 +177,7 @@ class SimulationInfo:
             batch_info = SimulationInfo(
                 model=self.model,
                 num_samples=batch_num_samples,
-                obstable=self.obstable,
-                passbands=self.passbands,
+                survey_info=self.survey_info,
                 obstable_save_cols=self.obstable_save_cols,
                 param_cols=self.param_cols,
                 obs_time_window_offset=self.obs_time_window_offset,
@@ -297,10 +294,11 @@ def _simulate_lightcurves_batch(simulation_info):
     # (so we have shorter names).
     model = simulation_info.model
     num_samples = simulation_info.num_samples
-    obstable = simulation_info.obstable
-    passbands = simulation_info.passbands
+    obstable = [info.obstable for info in simulation_info.survey_info]
+    passbands = [info.passbands for info in simulation_info.survey_info]
     obstable_save_cols = simulation_info.obstable_save_cols
     rng = simulation_info.rng
+    num_surveys = len(obstable)
 
     # Sample the parameter space of this model. We do this once for all surveys, so the
     # object use the same parameters across all observations.
@@ -312,15 +310,6 @@ def _simulate_lightcurves_batch(simulation_info):
         rng_info=rng,
         sample_offset=sample_offset,
     )
-
-    # If we are given information for a single survey, make it into a list.
-    if not isinstance(obstable, list):
-        obstable = [obstable]
-    if not isinstance(passbands, list):
-        passbands = [passbands]
-    num_surveys = len(obstable)
-    if num_surveys != len(passbands):
-        raise ValueError("Number of surveys must match number of passbands.")
 
     # Create a dictionary for the object level information, including any saved parameters.
     # Some of these are placeholders (e.g. nobs) until they can be filled in during the simulation.
@@ -447,12 +436,17 @@ def _simulate_lightcurves_batch(simulation_info):
                 )
 
                 noise_model = obstable[survey_idx].noise_model
-                bandfluxes, bandfluxes_error = noise_model.apply_noise(
-                    bandfluxes_perfect,
-                    obs_table=obstable[survey_idx],
-                    indices=obs_index,
-                    rng=rng,
-                )
+                noise_model = simulation_info.survey_info[survey_idx].noise_model
+                if noise_model is None:
+                    bandfluxes = np.copy(bandfluxes_perfect)
+                    bandfluxes_error = np.zeros_like(bandfluxes_perfect)
+                else:
+                    bandfluxes, bandfluxes_error = noise_model.apply_noise(
+                        bandfluxes_perfect,
+                        obs_table=obstable[survey_idx],
+                        indices=obs_index,
+                        rng=rng,
+                    )
 
                 # Apply saturation thresholds from the ObsTable if they are requested.
                 if simulation_info.apply_saturation:
@@ -554,8 +548,8 @@ def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000):
 def simulate_lightcurves(
     model,
     num_samples,
-    obstable,
-    passbands,
+    survey_info,
+    passbands=None,
     *,
     obstable_save_cols=None,
     param_cols=None,
@@ -587,10 +581,13 @@ def simulate_lightcurves(
         to the result columns.
     num_samples : int
         The number of samples.
-    obstable : ObsTable or List of ObsTable
-        The ObsTable(s) from which to extract information for the samples.
-    passbands : PassbandGroup, Spectrograph, or List of (PassbandGroup, Spectrograph)
-        The passbands to use for generating the bandfluxes or spectra.
+    survey_info : SurveyInfo, ObsTable, List of SurveyInfo, or List of ObsTable
+        The SurveyInfo object(s) from which to extract information for the samples. If ObsTables
+        are passed instead, they will be converted to SurveyInfo objects internally using
+        the default passband group and noise model information.
+    passbands : PassbandGroup, Spectrograph or List of (PassbandGroup, Spectrograph), optional
+        This is unused and just provided for API backwards compatibility. It will be removed
+        in a future version.
     obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
@@ -647,12 +644,31 @@ def simulate_lightcurves(
         output_file_path = Path(output_file_path)
         output_file_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Raise a meaningful deprecation warning if the user tries to use the passbands argument,
+    # which should now be included in the survey_info.
+    if passbands is not None:
+        warnings.warn("The passbands argument is deprecated and will be removed from future versions.")
+        if not isinstance(passbands, list):
+            passbands = [passbands]
+
+    # Preprocess the survey_info to convert it into a list of SurveyInfo objects if needed.
+    if not isinstance(survey_info, list):
+        survey_info = [survey_info]
+    for idx, obj in enumerate(survey_info):
+        if isinstance(obj, ObsTable):
+            passband = None if passbands is None else passbands[idx]
+            survey_info[idx] = SurveyInfo(obstable=obj, passbands=passband)
+        elif not isinstance(obj, SurveyInfo):
+            raise ValueError(
+                f"Invalid object in survey_info list at index {idx}. "
+                f"Expected ObsTable or SurveyInfo, but got {type(obj)}."
+            )
+
     # Create the simulation info wrapper.
     simulation_info = SimulationInfo(
         model=model,
         num_samples=num_samples,
-        obstable=obstable,
-        passbands=passbands,
+        survey_info=survey_info,
         rng=rng,
         obs_time_window_offset=obs_time_window_offset,
         rest_time_window_offset=rest_time_window_offset,
