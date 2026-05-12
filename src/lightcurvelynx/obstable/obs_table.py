@@ -307,9 +307,9 @@ class ObsTable:
 
         # Prioritize columns that are in the table.
         if key in self._table.columns:
-            return self._table[key][indices].to_numpy()
+            return self._table[key].iloc[indices].to_numpy()
         if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
-            return self._table[self._inv_colmap[key]][indices].to_numpy()
+            return self._table[self._inv_colmap[key]].iloc[indices].to_numpy()
 
         # Otherwise fall back to the survey values if they are defined.
         value = self.survey_values.get(key, None)
@@ -324,7 +324,7 @@ class ObsTable:
             for fil, val in value.items():
                 if fil not in self.filters:
                     raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{fil}'")
-                result[self._table["filter"][indices] == fil] = val
+                result[self._table["filter"].iloc[indices] == fil] = val
             return result
         raise TypeError(f"Unsupported type for '{key}': {type(value)}")
 
@@ -891,7 +891,7 @@ class ObsTable:
             # by using the class accessor (__getitem__), instead of the table one.
             if col not in self:
                 raise KeyError(f"Unrecognized column name {col}")
-            results[col] = self[col][neighbors].to_numpy()
+            results[col] = self[col].iloc[neighbors].to_numpy()
         return results
 
     def compute_saturation(self, flux, flux_error, index):
