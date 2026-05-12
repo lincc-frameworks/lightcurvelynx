@@ -129,8 +129,9 @@ def test_simulation_info():
     # Create a completely fake passband group and obstable for testing.
     pb_group = PassbandGroup(
         [
-            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "a"),
-            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "b"),
+            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "r"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "g"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "i"),
         ]
     )
 
@@ -223,8 +224,9 @@ def test_simulation_info_random_split():
     # Create a completely fake passband group and obstable for testing.
     pb_group = PassbandGroup(
         [
-            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "a"),
-            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "b"),
+            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "r"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "g"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "i"),
         ]
     )
 

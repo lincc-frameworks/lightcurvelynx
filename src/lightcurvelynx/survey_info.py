@@ -13,6 +13,7 @@ Key components of the SurveyInfo class include:
 
 import logging
 
+from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 
@@ -58,3 +59,17 @@ class SurveyInfo:
             logger.info(f"Using default noise model for ObsTable type {obstable_type}")
             self.noise_model = obstable.default_noise_model
         self.name = name
+
+        self._validate()
+
+    def _validate(self):
+        """Check that the attributes of the SurveyInfo instance are mutually consistent and valid."""
+        if self.noise_model is not None:
+            self.noise_model.check_compatibility(self.obstable, fail_on_incompatible=True)
+
+        if self.passbands is None:
+            raise ValueError("PassbandGroup cannot be None.")
+        elif not isinstance(self.passbands, Spectrograph):
+            for filter_name in self.obstable.filters:
+                if filter_name not in self.passbands:
+                    raise ValueError(f"Filter '{filter_name}' in ObsTable is not present in PassbandGroup.")
