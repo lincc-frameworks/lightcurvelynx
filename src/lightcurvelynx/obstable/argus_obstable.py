@@ -106,9 +106,9 @@ class ArgusHealpixObsTable(ObsTable):
         # The table uses the healpix IDs as the index. We bring this into its own column for easier access
         # and reset the indices.
         if "healpix" in table.columns:
-            table = table.reset_index()  # Just reset the index if healpix is already a column.
+            table.reset_index(inplace=True)  # Just reset the index if healpix is already a column.
         elif table.index.name in ["healpix_id", "healpix"]:
-            table = table.reset_index().rename(columns={table.index.name: "healpix"})
+            table = table.rename(columns={table.index.name: "healpix"}).reset_index()
         else:
             raise ValueError(
                 "The input table must have healpix IDs as the index or in a column named 'healpix'."

@@ -324,6 +324,10 @@ def test_obs_table_filter_rows():
     assert np.allclose(ops_data["dec"], -1.0 * expected_times)
     assert np.all(ops_data["filter"] == "r")
 
+    # Check that the indices have been reset and that get_value_per_row() works with the new indices.
+    assert np.array_equal(ops_data._table.index, np.arange(len(ops_data)))
+    assert np.allclose(ops_data.get_value_per_row("time"), expected_times)
+
     # Check that the size of the internal KD-tree has changed (again).
     assert ops_data._spatial_data.n == 4
 

@@ -691,6 +691,7 @@ class ObsTable:
 
         # Filter the rows in-place and build a new spatial data structure.
         self._table = self._table[mask]
+        self._table.reset_index(drop=True, inplace=True)  # Reset the indices after filtering
         self._spatial_data = None
         self._build_spatial_data()
 
