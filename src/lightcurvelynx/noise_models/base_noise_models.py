@@ -1,7 +1,20 @@
+"""Noise models are used to simulate the noise in bandflux measurements for a given set
+of observations in an ObsTable. They extract information about the instrument and observing
+conditions from the ObsTable and then apply noise to the input bandflux measurements.
+
+Each noise model uses a given set of parameters with given units from the ObsTable.
+Users adding new observation parameters should derive the necessary parameters in the
+necessary units in the ObsTable's `_derive_noise_columns` method.
+
+Alternatively users can create new noise models that use different input parameter/unit
+combinations.
+"""
+
 from abc import ABC, abstractmethod
 
 import numpy as np
 
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 
 
@@ -140,8 +153,17 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
     """A noise model that simulates photon noise for bandflux measurements
     with a Poisson noise level that are extracted from values in an ObsTable.
 
-    This class is meant to be subclassed for specific ObsTable implementations
-    where the columns vary. Subclasses should override the compute_flux_error method.
+    This noise model uses the following values from the ObsTable:
+    - dark_current: Mean dark current (electrons per pixel per second).
+    - exptime: The total exposure time for the observation (seconds).
+    - nexposure: The number of exposures (optional, default is 1).
+    - psf_footprint: Point spread function effective area (pixel^2).
+    - read_noise: Standard deviation of the readout electrons per pixel per exposure.
+    - sky_bg_e: Sky background (electrons / pixel^2).
+    - zp: The photometric zero point (nJy / electron).
+    - zp_err_mag: The uncertainty in the photometric zero point in magnitudes (optional, default is 0.0).
+    Users should ensure that the necessary parameters (in the correct units) are derived in
+    the ObsTable's `_derive_noise_columns` method.
     """
 
     # Note that both nexposure and zp_err_mag can fall back to default values.
@@ -251,7 +273,11 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
 
 class GivenNoiseModel(FluxNoiseModel):
     """A noise model that simulates photon noise for bandflux measurements with a
-    given (per-row) noise level."""
+    given (per-row) noise level.
+
+    This noise model uses the following values from the ObsTable:
+    - bandflux_error: The standard deviation of the noise to apply to the bandflux measurements (nJy).
+    """
 
     _required_values = ["bandflux_error"]
 
@@ -314,9 +340,8 @@ class GivenNoiseModel(FluxNoiseModel):
 class FiveSigmaDepthNoiseModel(FluxNoiseModel):
     """A noise model that simulates photon noise from only the five-sigma depth information.
 
-    It requires two pieces of information from the ObsTable:
-    - five_sigma_depth: The five-sigma depth in magnitudes.
-    - bandflux_ref: A reference bandflux in the same units as the input bandflux
+    This noise model uses the following values from the ObsTable:
+    - five_sigma_depth: The five-sigma depth in AB magnitudes.
 
     Note
     ----
@@ -324,7 +349,7 @@ class FiveSigmaDepthNoiseModel(FluxNoiseModel):
     only the five-sigma depth is available in the ObsTable.
     """
 
-    _required_values = ["five_sigma_depth", "bandflux_ref"]
+    _required_values = ["five_sigma_depth"]
 
     def __init__(self):
         pass
@@ -373,10 +398,10 @@ class FiveSigmaDepthNoiseModel(FluxNoiseModel):
         if len(indices) != len(bandflux):
             raise ValueError("Length of indices must match length of bandflux.")
 
+        # Compute the standard deviation of the noise from the five-sigma depth information.
+        # This uses five_sigma_depth in AB magnitudes, so we convert it to bandflux in nJy first.
         five_sigma_depth = obs_table.get_value_per_row("five_sigma_depth", indices=indices)
-        bandflux_ref = obs_table.get_value_per_row("bandflux_ref", indices=indices)
-        flux_five_sigma = bandflux_ref * np.power(10.0, -0.4 * five_sigma_depth)
-        flux_err = flux_five_sigma / 5.0
+        flux_err = mag2flux(five_sigma_depth) / 5.0
 
         # Generate the actual noisy bandflux measurements.
         rng = np.random.default_rng(rng)
