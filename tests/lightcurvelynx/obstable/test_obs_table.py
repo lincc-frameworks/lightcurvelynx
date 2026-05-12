@@ -323,6 +323,11 @@ def test_obs_table_filter_rows():
     assert np.allclose(ops_data["ra"], 15.0 * (expected_times + 1.0))
     assert np.allclose(ops_data["dec"], -1.0 * expected_times)
     assert np.all(ops_data["filter"] == "r")
+    assert set(ops_data.filters) == set(["r"])
+
+    # Check that the indices have been reset and that get_value_per_row() works with the new indices.
+    assert np.array_equal(ops_data._table.index, np.arange(len(ops_data)))
+    assert np.allclose(ops_data.get_value_per_row("time"), expected_times)
 
     # Check that the size of the internal KD-tree has changed (again).
     assert ops_data._spatial_data.n == 4
@@ -490,13 +495,23 @@ def test_obs_table_range_search():
 
     # Test that we fail if bad query arrays are provided.
     with pytest.raises(ValueError):
+        # Nones.
         _ = ops_data.range_search(None, None, radius=0.5)
     with pytest.raises(ValueError):
+        # Mismatched sizes.
         _ = ops_data.range_search([1.0, 2.3], 4.5, radius=0.5)
     with pytest.raises(ValueError):
+        # Mismatched sizes.
         _ = ops_data.range_search([1.0, 2.3], [4.5, 6.7, 8.9], radius=0.5)
     with pytest.raises(ValueError):
+        # A None in a list.
         _ = ops_data.range_search([1.0, 2.3], [4.5, None], radius=0.5)
+    with pytest.raises(ValueError):
+        # Arrays of lists.
+        _ = ops_data.is_observed([[1.0, 2.3], [1.0, 2.3]], [[4.5, 6.7], [8.9, 10.11]], radius=0.5)
+    with pytest.raises(ValueError):
+        # Can't convert to float.
+        _ = ops_data.range_search(["not_a_number", 2.0], [4.5, 6.7], radius=0.5)
 
 
 def test_obs_table_get_observations():

@@ -689,8 +689,9 @@ class ObsTable:
             mask = np.full((len(self._table),), False)
             mask[rows] = True
 
-        # Filter the rows in-place and build a new spatial data structure.
-        self._table = self._table[mask]
+        # Filter the rows. Build a new spatial data structure and list of filters.
+        self._table = self._table[mask].reset_index(drop=True)
+        self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
         self._spatial_data = None
         self._build_spatial_data()
 
@@ -771,17 +772,21 @@ class ObsTable:
 
         # If the points are scalars, make them into length 1 arrays.
         is_scalar = np.isscalar(query_ra) and np.isscalar(query_dec)
-        query_ra = np.atleast_1d(query_ra)
-        query_dec = np.atleast_1d(query_dec)
+        try:
+            query_ra = np.atleast_1d(query_ra).astype(float)
+            query_dec = np.atleast_1d(query_dec).astype(float)
+        except ValueError as err:
+            raise ValueError("Query RA and Dec must be convertible to float.") from err
 
-        # Confirm the query RA and Dec have the same length.
+        # Confirm the query RA and Dec are each 1-d and have the same length.
+        if query_ra.ndim != 1 or query_dec.ndim != 1:
+            raise ValueError("Query RA and Dec must be 1-dimensional arrays.")
         if len(query_ra) != len(query_dec):
             raise ValueError("Query RA and Dec must have the same length.")
 
-        # Check that there are no None values in the query. We use == to do
-        # an element-wise comparison.
-        if np.any(query_ra == None) or np.any(query_dec == None):  # noqa: E711
-            raise ValueError("Query RA and dec cannot contain None.")
+        # Check that there are no NaN values in the query (Nones are converted to NaN above).
+        if np.any(np.isnan(query_ra)) or np.any(np.isnan(query_dec)):
+            raise ValueError("Query RA and Dec cannot contain NaN.")
 
         # Transform the query point(s) to 3-d Cartesian coordinate(s).
         x, y, z = ra_dec_to_cartesian(query_ra, query_dec)
