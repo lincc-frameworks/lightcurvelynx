@@ -173,7 +173,7 @@ class GoPreauxModel(SEDModel, CiteClass):
         ----------
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
-        wavelengths : numpy.ndarray, optional
+        wavelengths : numpy.ndarray
             A length N array of observer frame wavelengths (in angstroms).
         graph_state : GraphState
             An object mapping graph parameters to their values.
@@ -183,22 +183,38 @@ class GoPreauxModel(SEDModel, CiteClass):
         flux_density : numpy.ndarray
             A length T x N matrix of observer frame SED values (in nJy).
         """
+        times = np.asarray(times)
+        t0 = self.get_param(graph_state, "t0")
+        if (np.min(times - t0) < self.minphase()) or (np.max(times - t0) > self.maxphase()):
+            raise ValueError(
+                f"Times need to be within the bounds of the model: [{self.minphase() + t0}, "
+                f"{self.maxphase() + t0}] MJD or a time extrapolation method must be provided "
+                "during model creation using the 'time_extrapolation' parameter."
+            )
         num_times = len(times)
+
+        wavelengths = np.asarray(wavelengths)
+        if (np.min(wavelengths) < self.minwave()) or (np.max(wavelengths) > self.maxwave()):
+            raise ValueError(
+                f"Wavelengths need to be within the bounds of the model: [{self.minwave()}, "
+                f"{self.maxwave()}] angstroms or a wavelength extrapolation method must be "
+                "provided during model creation using the 'wave_extrapolation' parameter."
+            )
         num_wavelengths = len(wavelengths)
 
         # Take the single list of times and wavelengths and create a grid of all combinations of them,
         # into a grid of points on which we will query the model.
-        phases, wavelengths = np.meshgrid(
-            np.asarray(times) - self.get_param(graph_state, "t0"),
-            np.asarray(wavelengths),
-            indexing="ij",
-        )
+        phases, wavelengths = np.meshgrid(times - t0, wavelengths, indexing="ij")
         phases = phases.ravel()
         wavelengths = wavelengths.ravel()
 
         # Use the model's built-in predict_photometry_points function to get predictions at the
         # given phases and wavelengths.
-        _, rel_mag, _ = self.model.predict_photometry_points(phases, wavelengths, show=False)
+        _, rel_mag, _ = self.model.predict_photometry_points(
+            wavelengths=wavelengths,
+            phases=phases,
+            show=False,
+        )
         rel_mag = rel_mag.reshape(num_times, num_wavelengths)
 
         # The results are returned in magnitudes relative to the peak and the wavelength
