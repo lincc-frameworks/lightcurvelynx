@@ -9,6 +9,7 @@ There is a version conflict with numpy between GoPreaux and LightCurveLynx, but 
 the functions we need. Users can install GoPreax first and then install LightCurveLynx (upgrading all
 dependencies). You will still get errors about the version requirements for caat, but they can be ignored.
 """
+
 import logging
 from pathlib import Path
 
@@ -82,7 +83,7 @@ class GoPreauxModel(SEDModel, CiteClass):
         """
         # Add a small epsilon to the minimum wavelength to avoid issues with querying
         # the model at exactly the minimum wavelength.
-        return self.model.min_wl + 1e-6
+        return self.model.min_wl + 1e-10
 
     def maxwave(self, **kwargs):
         """Get the maximum supported wavelength of the model.
@@ -100,7 +101,7 @@ class GoPreauxModel(SEDModel, CiteClass):
         """
         # Subtract a small epsilon to the maximum wavelength to avoid issues with querying
         # the model at exactly the maximum wavelength.
-        return self.model.max_wl - 1e-6
+        return self.model.max_wl - 1e-10
 
     def minphase(self, **kwargs):
         """Get the minimum supported phase of the model in days.
@@ -118,7 +119,7 @@ class GoPreauxModel(SEDModel, CiteClass):
         """
         # Add a small epsilon to the minimum phase to avoid issues with querying
         # the model at exactly the minimum phase.
-        return self.model.min_phase + 1e-6
+        return self.model.min_phase + 1e-10
 
     def maxphase(self, **kwargs):
         """Get the maximum supported phase of the model in days.
@@ -136,7 +137,7 @@ class GoPreauxModel(SEDModel, CiteClass):
         """
         # Subtract a small epsilon to the maximum phase to avoid issues with querying
         # the model at exactly the maximum phase.
-        return self.model.max_phase - 1e-6
+        return self.model.max_phase - 1e-10
 
     @classmethod
     def load_from_fits(cls, filename, intrinsic_brightness, **kwargs):
@@ -195,6 +196,7 @@ class GoPreauxModel(SEDModel, CiteClass):
         # than this object's minphase and maxphase.
         times = np.asarray(times)
         t0 = self.get_param(graph_state, "t0")
+
         if (np.min(times - t0) < self.model.min_phase) or (np.max(times - t0) > self.model.max_phase):
             raise ValueError(
                 f"Times need to be within the bounds of the model: [{self.minphase() + t0}, "
