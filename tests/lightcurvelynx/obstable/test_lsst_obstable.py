@@ -4,6 +4,8 @@ import pytest
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable
 
+_expected_gain = 1.595
+
 
 def test_create_lsst_obstable():
     """Create a minimal LSSTObsTable object and perform basic queries."""
@@ -22,7 +24,7 @@ def test_create_lsst_obstable():
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.022
-    assert ops_data.survey_values["gain"] == 1.595
+    assert ops_data.survey_values["gain"] == _expected_gain
     assert ops_data.survey_values["pixel_scale"] == 0.2
     assert ops_data.survey_values["radius"] == 1.75
     assert ops_data.survey_values["read_noise"] == 5.82
@@ -171,3 +173,49 @@ def test_lsst_noise_model_delegation():
     )
     assert not np.any(new_vals == bandflux)
     assert np.all(err_vals > 0.0)
+
+
+def test_reading_lsst_obstable_from_ccdvisits(test_data_dir):
+    """Test that we can read an LSSTObsTable a CCDVisits parquet."""
+    pdf = pd.read_parquet(test_data_dir / "fake_dp1_ccdvisit.parquet")
+    total_obs = len(pdf)
+    assert "zeroPoint" in pdf.columns
+
+    # The derived columns are not in the original table.
+    assert "psf_footprint" not in pdf.columns
+    assert "sky_bg_e" not in pdf.columns
+
+    obs_table = LSSTObsTable.from_ccdvisit_table(pdf)
+    assert total_obs == len(obs_table)
+    assert set(obs_table.filters) == {"g", "i", "r", "u", "y", "z"}
+
+    # Check that we have the expected columns.
+    assert "time" in obs_table
+    assert "ra" in obs_table
+    assert "dec" in obs_table
+    assert "filter" in obs_table
+    assert "zp" in obs_table
+    assert "maglim" in obs_table
+    assert "seeing" in obs_table
+    assert "radius" in obs_table
+
+    # Check the derived columns
+    assert "psf_footprint" in obs_table
+    assert np.all(obs_table["psf_footprint"] > 0.0)
+
+    assert "sky_bg_e" in obs_table
+    assert np.all(obs_table["sky_bg_e"] > 0.0)
+    assert np.allclose(obs_table["sky_bg_e"], obs_table["sky_bg_adu"] * _expected_gain)
+
+    # Check that we have everything we need to derive the PoissonFluxNoiseModel.
+    noise_model = PoissonFluxNoiseModel()
+    assert noise_model.check_compatibility(obs_table)
+
+    # Check that we can search the table for observations at a given location.
+    # Over half of the observations in the fake data set are near (ra=50, dec=-35)
+    inds = obs_table.range_search(50.0, -35.0, radius=3.0)
+    assert total_obs / 2.0 < len(inds) < 8.0 * total_obs / 10.0
+
+    # If we at time bounds, we can restrict a lot further.
+    inds2 = obs_table.range_search(50.0, -35.0, radius=3.0, t_min=60610.0, t_max=60611.0)
+    assert len(inds2) < 0.2 * len(inds)
