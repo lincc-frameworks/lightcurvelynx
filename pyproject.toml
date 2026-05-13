@@ -65,6 +65,7 @@ all = [
     "bilby",  # Used for Bayesian inference
     "dust_extinction",
     "extinction>=0.4.7",  # Needed by sncosmo
+    "eztaox",
     "jax",
     "lsdb",  # Used to read and write LSDB catalogs
     "networkx",  # Used for graph visualization
