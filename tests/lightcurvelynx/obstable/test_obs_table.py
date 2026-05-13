@@ -413,6 +413,66 @@ def test_obs_table_filter_rows():
         _ = ops_data.filter_rows(bad_mask)
 
 
+def test_get_value_per_row_uses_positional_indices_for_table_columns():
+    """Test that get_value_per_row() treats indices as row positions for table columns."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
+        "ra": np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]),
+        "dec": np.array([-1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0, -8.0]),
+        "zp": np.ones(8),
+        "other": [0, 1, 1, 0, 0, 1, 1, 1],
+        "filter": np.array(["r", "g", "i", "r", "g", "i", "r", "g"]),
+        "renamed": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
+    }
+    value_map = {"r": 0.1, "g": 0.2, "i": 0.3}
+    ops_data = ObsTable(
+        values,
+        filter_mapped_values=value_map,  # dictionary based constant
+        colmap={"flux": "renamed"},  # column name mapping
+    )
+
+    # Check get values per row with positional indices for a table
+    # column and a renamed column.
+    assert np.allclose(
+        ops_data.get_value_per_row("dec", indices=np.array([0, 2, 4])),
+        [-1.0, -3.0, -5.0],
+    )
+    assert np.allclose(
+        ops_data.get_value_per_row("renamed", indices=np.array([0, 2, 4])),
+        [0.0, 2.0, 4.0],
+    )
+
+    # Check values that map through filter using a dictionary.
+    assert np.allclose(
+        ops_data.get_value_per_row(
+            "filter_mapped_values",
+            indices=np.array([0, 2, 4]),
+        ),
+        [0.1, 0.3, 0.2],
+    )
+
+    # Filter based on the "other" column.
+    ops_data = ops_data.filter_rows(ops_data["other"] == 1)
+    assert len(ops_data) == 5
+
+    # Check that we get the correct "new" values after filtering.
+    assert np.allclose(
+        ops_data.get_value_per_row("dec", indices=np.array([0, 2, 4])),
+        [-2.0, -6.0, -8.0],
+    )
+    assert np.allclose(
+        ops_data.get_value_per_row("renamed", indices=np.array([0, 2, 4])),
+        [1.0, 5.0, 7.0],
+    )
+    assert np.allclose(
+        ops_data.get_value_per_row(
+            "filter_mapped_values",
+            indices=np.array([0, 2, 4]),
+        ),
+        [0.2, 0.3, 0.2],
+    )
+
+
 def test_read_small_obs_table(opsim_small):
     """Read in a small ObsTable file from the testing data directory."""
     colmap = {
@@ -591,7 +651,7 @@ def test_obs_table_range_search():
 
 def test_obs_table_get_observations():
     """Test that we can extract the time, ra, and dec from an obs table data frame."""
-    # Create a fake obs table data frame with just time, RA, and dec.
+    # Create fake ObsTable data.
     values = {
         "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
         "ra": np.array([15.0, 15.0, 15.01, 15.0, 25.0, 24.99, 60.0, 5.0]),
@@ -632,6 +692,35 @@ def test_obs_table_get_observations():
     # Test we fail with an unrecognized column name.
     with pytest.raises(KeyError):
         _ = ops_data.get_observations(15.0, 10.0, radius=0.5, cols=["time", "custom_col"])
+
+
+def test_get_observations_filtered():
+    """Test the get_observations() method with a table that has been filtered."""
+    # Create fake ObsTable data.
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+        "ra": np.array([15.0, 15.0, 15.01, 15.0, 25.0, 24.99, 60.0, 5.0, 30.0, 35.0]),
+        "dec": np.array([-10.0, 10.0, 10.01, 9.99, 10.0, 9.99, -5.0, -1.0, 0.0, 5.0]),
+        "zp": np.ones(10),
+        "filters": np.array(["r", "r", "g", "r", "g", "g", "r", "g", "r", "g"]),
+        "airmass_data": np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+    }
+    ops_data = ObsTable(values, colmap={"airmass_data": "airmass"})
+
+    # Filter to just the "r" observations. This should force the
+    # ObsTable to rebuild all the internal data structures.
+    ops_data = ops_data.filter_rows(ops_data["filters"] == "r")
+    assert len(ops_data) == 5
+
+    # Test basic queries (all columns).
+    obs = ops_data.get_observations(15.0, 10.0, radius=0.5)
+    assert np.allclose(obs["time"], [1.0, 3.0])  # 2.0 was filtered by r
+
+    obs = ops_data.get_observations(25.0, 10.0, radius=0.5)
+    assert len(obs["time"]) == 0  # 4.0 and 5.0 were filtered by r
+
+    obs = ops_data.get_observations(30.0, 0.0, radius=0.1)
+    assert np.allclose(obs["time"], [8.0])
 
 
 def test_obs_table_range_search_detector_footprint():
