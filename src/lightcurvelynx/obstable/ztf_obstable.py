@@ -136,6 +136,7 @@ class ZTFObsTable(ObsTable):
         # replace invalid values in table
         self._table = self._table.replace("", np.nan)
         self._table = self._table.dropna(subset=["fwhm_px"])
+        self._table = self._table.reset_index(drop=True)
 
         # Compute the sky background in electrons/pixel if not already present.
         if "sky_bg_e" not in self and "sky_adu" in self and "gain" in self:

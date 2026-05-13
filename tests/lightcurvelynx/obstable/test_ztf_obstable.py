@@ -51,21 +51,40 @@ def test_create_ztf_obstable_no_zp():
         "2020-01-03 12:00:00.000",
         "2020-01-04 12:00:00.000",
         "2020-01-05 12:00:00.000",
+        "2020-01-06 12:00:00.000",
+        "2020-01-07 12:00:00.000",
+        "2020-01-08 12:00:00.000",
     ]
     values = {
         "obsdate": dates,
-        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
-        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0, 45.0, 30.0, 15.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0, 25.0]),
+        "filter": np.array(["r", "g", "r", "g", "i", "g", "r", "g"]),
     }
 
-    values["exptime"] = 0.005 * np.ones(5)
-    values["maglim"] = 20.0 * np.ones(5)
-    values["scibckgnd"] = np.ones(5)
-    values["fwhm"] = 2.3 * np.ones(5)
-    survey_data = ZTFObsTable(values)
+    values["exptime"] = 0.005 * np.ones(8)
+    values["maglim"] = 20.0 * np.ones(8)
+    values["scibckgnd"] = np.ones(8)
+    values["fwhm"] = 2.3 * np.ones(8)
 
+    # Make one of the fwhm values invalid to test that it gets dropped.
+    values["fwhm"][4] = np.nan
+
+    survey_data = ZTFObsTable(values)
+    assert len(survey_data) == 7  # One dropped value due to invalid fwhm.
+
+    # We derived the zeropoint column.
     assert "zp" in survey_data
     assert np.all(survey_data["zp"] >= 0.0)
+
+    # The indexing, filter list, and size of the spatial data structure are all
+    # correct after dropping the invalid value.
+    assert np.allclose(
+        survey_data.get_value_per_row("ra", indices=[0, 1, 2, 3, 4, 6]),
+        np.array([15.0, 30.0, 15.0, 0.0, 45.0, 15.0]),
+    )
+    assert set(survey_data.filters) == {"g", "r"}
+    assert survey_data._spatial_data.n == 7
 
 
 def test_noise_calculation():

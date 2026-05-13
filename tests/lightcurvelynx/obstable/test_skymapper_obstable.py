@@ -28,6 +28,7 @@ def test_skymapper_obstable_init():
     assert isinstance(obs_table.default_noise_model, PoissonFluxNoiseModel)
 
     assert "zp" in obs_table
+    assert "psf_footprint" in obs_table
     assert np.allclose(survey_data["ra_deg"], obs_table["ra"])
     assert np.allclose(survey_data["dec_deg"], obs_table["dec"])
     assert np.allclose(survey_data["mjd_midpt"], obs_table["time"])
@@ -56,3 +57,40 @@ def test_skymapper_obstable_init():
     # We can build a MOC at level 14
     moc = obs_table.build_moc(max_depth=14)
     assert moc.flatten().size == 5
+
+
+def test_skymapper_obstable_init_alt():
+    """Test initializing SkyMapperObsTable with alternative parameters."""
+    survey_data = {
+        "image_id": [20180101162801, 20171215114730, 20171222125008, 20171222142830, 20171223140648],
+        "ccd": [25, 32, 29, 32, 29],
+        "ra_deg": [314.32684, 310.79913, 311.33861, 312.05752, 310.9527],
+        "dec_deg": [-86.77332, -88.21006, -88.16419, -88.24684, -88.18184],
+        "pa_deg": [300.0, 180.0, 90.0, 180.0, 90.0],
+        "filter": ["r", "g", "g", "r", "v"],
+        "mjd_midpt": [58119.6863, 58102.4915, 58109.5351, 58109.6033, 58110.5882],
+        "exp_time": [30.0, 30.0, 30.0, 30.0, 30.0],
+        "zp_mag_e": [26.979, 27.103, 27.176, 27.054, 24.444],
+        "sb_mag": [17.894, 21.522, 21.506, 20.941, 22.176],
+        "seeing": [2.77, 3.62, 3.34, 2.94, 3.89],
+        "elong": [1.109, 1.121, 1.081, 1.07, 1.077],
+    }
+    survey_data_table = pd.DataFrame(survey_data)
+    obs_table = SkyMapperObsTable(table=survey_data_table, make_detector_footprint=False)
+
+    # We compute zero point from the zp_mag_e column.
+    assert "zp" in obs_table
+    assert np.allclose(obs_table["zp"], mag2flux(survey_data_table["zp_mag_e"]))
+
+    # We can derive psf_footprint from the seeing column.
+    assert "psf_footprint" in obs_table
+    assert np.all(obs_table["psf_footprint"] > 0.0)
+
+    # Replace the seeing column with the default per-filter mapping. The two reds and
+    # two greens should be close to each other.
+    survey_data_table = survey_data_table.drop(columns=["seeing"])
+    obs_table2 = SkyMapperObsTable(table=survey_data_table, make_detector_footprint=False)
+    assert "psf_footprint" in obs_table2
+    assert np.all(obs_table2["psf_footprint"] > 0.0)
+    assert np.isclose(obs_table2["psf_footprint"][0], obs_table2["psf_footprint"][3])  # Both reds
+    assert np.isclose(obs_table2["psf_footprint"][1], obs_table2["psf_footprint"][2])  # Both greens
