@@ -182,9 +182,8 @@ class ObsTable:
         # Save the noise model.
         self.noise_model = noise_model
 
-        # Build the kd-tree (or other spatial data structure).
-        self._spatial_data = None
-        self._build_spatial_data()
+        # Update all of the cached data.
+        self._update_cached_data()
 
         # Create the footprint if one is provided.
         if detector_footprint is not None:
@@ -321,10 +320,10 @@ class ObsTable:
         if isinstance(value, dict):
             # Map the values for each filter to the rows in the table.
             result = np.zeros(len(indices), dtype=float)
-            for fil, val in value.items():
-                if fil not in self.filters:
-                    raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{fil}'")
-                result[self._table["filter"].iloc[indices] == fil] = val
+            for filt in self.filters:
+                if filt not in value:
+                    raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{filt}'")
+                result[self._table["filter"].iloc[indices] == filt] = value[filt]
             return result
         raise TypeError(f"Unsupported type for '{key}': {type(value)}")
 
@@ -559,6 +558,21 @@ class ObsTable:
         fig, ax = plot_moc(moc, fig=fig, ax=ax, **kwargs)
         return fig, ax
 
+    def _update_cached_data(self):
+        """Update any cached data based on the current table and survey values.
+        This can be used any time the underlying table is updated, such as when rows
+        are filtered.
+        """
+        # Reset the index column if it exists.
+        self._table = self._table.reset_index(drop=True)
+
+        # Rebuild the list of filters.
+        self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
+
+        # Build the kd-tree (or other spatial data structure).
+        self._spatial_data = None
+        self._build_spatial_data()
+
     def _build_spatial_data(self):
         """Construct the KD-tree from the ObsTable."""
         # Convert the pointings to Cartesian coordinates on a unit sphere.
@@ -689,11 +703,9 @@ class ObsTable:
             mask = np.full((len(self._table),), False)
             mask[rows] = True
 
-        # Filter the rows. Build a new spatial data structure and list of filters.
-        self._table = self._table[mask].reset_index(drop=True)
-        self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
-        self._spatial_data = None
-        self._build_spatial_data()
+        # Filter the rows. Update all of the cached data.
+        self._table = self._table[mask]
+        self._update_cached_data()
 
         return self
 

@@ -36,6 +36,12 @@ def test_create_obs_table():
     assert ops_data.survey_values["zp_per_sec"] is None
     assert ops_data.survey_values["survey_name"] == "Unknown"
 
+    # We can use get item to access rows and survey values.
+    assert np.allclose(ops_data["ra"], values["ra"])
+    assert ops_data["survey_name"] == "Unknown"
+    with pytest.raises(KeyError):
+        _ = ops_data["non_existent_column"]
+
     # Check that we can extract the time bounds.
     t_min, t_max = ops_data.time_bounds()
     assert t_min == 0.0
@@ -149,6 +155,10 @@ def test_create_obs_table_override():
     ops_data2.radius = 5.0
     assert ops_data2.survey_values["radius"] == 5.0
 
+    # If we try to set a bad radius value, we get an error.
+    with pytest.raises(ValueError):
+        ops_data2.radius = -1.0
+
 
 def test_create_obs_table_custom_names():
     """Create a minimal ObsTable object from alternate column names."""
@@ -220,6 +230,71 @@ def test_obs_table_copy():
     ops_data_copy._table["ra"] += 10.0
     assert np.allclose(ops_data_copy["ra"], values["ra"] + 10.0)
     assert np.allclose(ops_data["ra"], values["ra"])
+
+
+def test_get_value_per_row():
+    """Test that we can override the default obs table values."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0, 45.0, 30.0, 15.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0, 25.0]),
+        "renamed": np.array([5.0, 4.0, 3.0, 2.0, 1.0, 0.0, -1.0, -2.0]),
+        "zp": np.ones(8),
+        "filter": np.array(["r", "g", "r", "i", "g", "r", "i", "g"]),
+    }
+    ops_data = ObsTable(
+        values,
+        dark_current=0.1,
+        ext_coeff={"u": 0.1, "g": 0.2, "r": 0.3, "i": 0.4, "z": 0.5, "y": 0.6},
+        pixel_scale=0.1,
+        radius=1.0,
+        read_noise=None,
+        other_value="STRING",
+        zp_per_sec={"u": 25.0, "g": 26.0, "r": 27.0, "i": 28.0, "z": 29.0, "y": 30.0},
+        bad_mapping={"a": 1.0, "b": 2.0, "r": 3.0},
+        colmap={"custom_col": "renamed"},
+    )
+
+    # We can get the value per row for a column (including renamed ones).
+    assert np.allclose(ops_data.get_value_per_row("ra"), values["ra"])
+    assert np.allclose(ops_data.get_value_per_row("dec"), values["dec"])
+    assert np.allclose(ops_data.get_value_per_row("custom_col"), values["renamed"])
+
+    # We can provide indices.
+    inds = [0, 2, 4, 6]
+    assert np.allclose(ops_data.get_value_per_row("ra", indices=inds), values["ra"][inds])
+    assert np.allclose(
+        ops_data.get_value_per_row("custom_col", indices=inds),
+        values["renamed"][inds],
+    )
+
+    # We can get a constant from the survey values.
+    assert np.allclose(ops_data.get_value_per_row("dark_current"), np.full(len(ops_data), 0.1))
+    assert np.allclose(
+        ops_data.get_value_per_row("dark_current", indices=inds),
+        np.full(len(inds), 0.1),
+    )
+
+    # If we look up a dictionary, map the values using the filter column.
+    assert np.allclose(
+        ops_data.get_value_per_row("ext_coeff"), np.array([0.3, 0.2, 0.3, 0.4, 0.2, 0.3, 0.4, 0.2])
+    )
+    assert np.allclose(
+        ops_data.get_value_per_row("ext_coeff", indices=inds),
+        np.array([0.3, 0.2, 0.3, 0.4, 0.2, 0.3, 0.4, 0.2])[inds],
+    )
+
+    # We fail if we have a dictionary that doesn't have all the needed filters.
+    with pytest.raises(ValueError):
+        _ = ops_data.get_value_per_row("bad_mapping")
+
+    # If we look up a value that isn't there we return either None of the given default.
+    assert all(ops_data.get_value_per_row("non_existent_col") == None)  # noqa: E711
+    assert all(ops_data.get_value_per_row("non_existent_col", default=5.0) == 5.0)
+
+    # We don't know how to handle strings.
+    with pytest.raises(TypeError):
+        _ = ops_data.get_value_per_row("other_value")
 
 
 def test_obs_table_add_columns():

@@ -134,17 +134,31 @@ def test_lsst_obstable_from_ccdvisit():
 def test_lsst_obstable_from_sv_visits():
     """Test that we can read an LSSTObsTable from the SV visits table."""
     values = {
-        "exp_midpt_mjd": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
-        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
-        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "sky_bg_median": np.ones(5),
-        "zero_point_median": 25.0 * np.ones(5),
+        "exp_midpt_mjd": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0, 15.0, 30.0, 15.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0, 25.0]),
+        "sky_bg_median": np.ones(8),
+        "zero_point_median": 25.0 * np.ones(8),
+        "filter": np.array(["a", "b", "c", "d", "e", "f", "g", "h"]),
     }
     pdf = pd.DataFrame(values)
 
+    # Make one of the sky_bg_median and one of the zero_point_median values NaN
+    # to test that we can handle missing data.
+    pdf.loc[2, "sky_bg_median"] = np.nan
+    pdf.loc[4, "zero_point_median"] = np.nan
+
     ops_data = LSSTObsTable.from_sv_visits_table(pdf)
-    assert len(ops_data) == 5
+    assert len(ops_data) == 6
     assert ops_data.radius == pytest.approx(1.75)
+
+    # Check that we updated the indices and filters correctly.
+    assert np.allclose(
+        ops_data.get_value_per_row("time", indices=[0, 1, 2, 3, 5]),
+        [0.0, 1.0, 3.0, 5.0, 7.0],
+    )
+    assert set(ops_data.filters) == set(["a", "b", "d", "f", "g", "h"])
+    assert ops_data._spatial_data.n == 6
 
 
 def test_lsst_noise_model_delegation():
