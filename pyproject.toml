@@ -44,6 +44,7 @@ dev = [
     "bilby",  # Used for Bayesian inference
     "dust_extinction",
     "extinction>=0.4.7",
+    "eztaox",
     "fsspec[http]",  # Read OpSim file from the web with utils/make_opsim_shorten.py
     "jupyter", # Clears output from Jupyter notebooks
     "jax",
