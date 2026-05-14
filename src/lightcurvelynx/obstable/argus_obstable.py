@@ -11,7 +11,6 @@ from mocpy import MOC
 
 from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
-from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 _argus_view_radius = 52.0
@@ -139,11 +138,6 @@ class ArgusHealpixObsTable(ObsTable):
     def healpix_depth(self):
         """Return the depth of the healpix pixels in the table."""
         return self._healpix_depth
-
-    @property
-    def default_noise_model(self):
-        """Return the default noise model for this ObsTable."""
-        return PoissonFluxNoiseModel()
 
     def set_detector_footprint(self, detector_footprint, wcs=None):
         """Set the detector footprint, so footprint filtering is done.

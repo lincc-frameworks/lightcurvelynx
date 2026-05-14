@@ -16,8 +16,13 @@ import logging
 
 import numpy as np
 
+from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.obs_table import ObsTable
+from lightcurvelynx.obstable.roman_obstable import RomanPoissonFluxNoiseModel
+
+logger = logging.getLogger(__name__)
 
 
 class SurveyInfo:
@@ -33,37 +38,86 @@ class SurveyInfo:
     passbands : PassbandGroup, optional
         A class that contains the information about the bandpass of the instrument for each filter,
         including the wavelength range and the transmission curve. This is unused for spectroscopic surveys.
-    noise_model : NoiseModel
+    noise_model : NoiseModel, optional
         A computation class for calculating the noise from characteristics of the survey.
-    name : str
-        The name of the survey.
+    survey_name : str, optional
+        The name of the survey, which is used to determine the default passbands and noise model
+        if they are not provided. You can use "None" for no defaults (for testing).
+        If not provided, it will be inferred from the `obstable`.
+    validate : bool, optional
+        Whether to validate the SurveyInfo instance after initialization. This should be True
+        for most runs, but can be set to False for testing.
     """
 
-    def __init__(self, obstable, *, passbands=None, noise_model=None, name=""):
-        logger = logging.getLogger(__name__)
-
+    def __init__(
+        self,
+        obstable,
+        *,
+        passbands=None,
+        noise_model=None,
+        survey_name=None,
+        validate=True,
+    ):
         if obstable is None or not isinstance(obstable, ObsTable):
             raise ValueError("obstable must be an instance of ObsTable.")
         self.obstable = obstable
         obstable_type = obstable.__class__.__name__
         logger.info(f"Initialized SurveyInfo with ObsTable type {obstable_type}.")
 
-        # Set the passband group, using the default if not provided
-        if passbands is not None:
-            self.passbands = passbands
+        # Save the survey name, passband group, and noise model, using defaults for
+        # anything that is not provided.
+        if survey_name is not None:
+            survey_name = survey_name.lower()
+        elif "survey_name" in obstable.survey_values:
+            survey_name = obstable.survey_values["survey_name"].lower()
         else:
-            logger.info(f"Using default passband group for ObsTable type {obstable_type}")
-            self.passbands = obstable.default_passband_group
+            survey_name = "unknown"
+        self.survey_name = survey_name
+        self.noise_model = noise_model if noise_model is not None else self._load_default_noise_model()
+        self.passbands = passbands if passbands is not None else self._load_default_passbands()
 
-        # Set the noise model, using the default if not provided
-        if noise_model is not None:
-            self.noise_model = noise_model
+        # Validate the SurveyInfo instance to ensure that the provided and default
+        # values are mutually consistent and valid.
+        if validate and self.survey_name != "none":
+            self._validate()
+
+    def _load_default_noise_model(self):
+        """Load the default noise model for the given survey."""
+        logger.info(f"Loading default noise model for survey {self.survey_name}")
+        if self.survey_name in ["argus", "lsst", "skymapper", "ztf"]:
+            return PoissonFluxNoiseModel()
+        elif self.survey_name == "roman":
+            return RomanPoissonFluxNoiseModel()
+        elif self.survey_name == "spectrograph":
+            return None  # We don't currently have a default noise model for spectrographs.
+        elif self.survey_name == "none":
+            return None
         else:
-            logger.info(f"Using default noise model for ObsTable type {obstable_type}")
-            self.noise_model = obstable.default_noise_model
-        self.name = name
+            raise ValueError(
+                f"Survey '{self.survey_name}' does not have a default noise model defined. "
+                "Please provide a noise model when initializing the SurveyInfo instance."
+            )
 
-        self._validate()
+    def _load_default_passbands(self):
+        """Load the default passbands for the given survey."""
+        logger.info(f"Loading default passbands for survey {self.survey_name}")
+        if self.survey_name == "lsst":
+            return PassbandGroup.from_preset("LSST")
+        elif self.survey_name == "roman":
+            return PassbandGroup.from_preset("roman")
+        elif self.survey_name == "skymapper":
+            return PassbandGroup.from_svo("SkyMapper/SkyMapper")
+        elif self.survey_name == "spectrograph":
+            return None  # No passband group for spectrographs.
+        elif self.survey_name == "ztf":
+            return PassbandGroup.from_preset("ztf")
+        elif self.survey_name == "none":
+            return None
+        else:
+            raise ValueError(
+                f"Survey '{self.survey_name}' does not have a default passband group defined. "
+                "Please provide a passband group when initializing the SurveyInfo instance."
+            )
 
     def _validate(self):
         """Check that the attributes of the SurveyInfo instance are mutually consistent and valid."""

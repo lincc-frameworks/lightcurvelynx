@@ -30,6 +30,7 @@ class SpectrographObsTable(ObsTable):
     # By default there are no survey values.
     _default_survey_values = {
         "radius": 10.0 / 3600.0,  # degrees, corresponds to a 10 arcsec radius
+        "survey_name": "spectrograph",
     }
 
     # Class constants for the column names.
@@ -52,18 +53,6 @@ class SpectrographObsTable(ObsTable):
             table["filter"] = "spectra"  # Name does not actually matter.
 
         super().__init__(table, colmap=colmap, **kwargs)
-
-    @property
-    def default_noise_model(self):
-        """Return the default noise model for this ObsTable."""
-        # Spectrograph noise models are not currently implemented, so we return None here.
-        return None
-
-    @property
-    def default_passband_group(self):
-        """Return the default passband group for this ObsTable."""
-        # Spectrographs do not have a well-defined passband group, so we return None here.
-        return None
 
     def _derive_noise_columns(self):
         """Derive any missing noise-related columns (e.g. zero points) from the existing columns

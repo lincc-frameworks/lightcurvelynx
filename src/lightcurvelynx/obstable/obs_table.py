@@ -227,16 +227,6 @@ class ObsTable:
             **new_survey_values,
         )
 
-    @property
-    def default_noise_model(self):
-        """Return the default noise model for this ObsTable, if it exists."""
-        return None  # No default noise model.
-
-    @property
-    def default_passband_group(self):
-        """Return the default passband group for this ObsTable, if they exist."""
-        return None  # No default passband group.
-
     def head(self, n=5):
         """Return the first n rows of the observation table."""
         return self._table.head(n)

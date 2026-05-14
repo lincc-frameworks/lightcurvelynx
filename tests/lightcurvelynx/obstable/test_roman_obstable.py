@@ -29,9 +29,6 @@ def test_roman_obstable_init():
     apt_table = make_random_apt_table()
     roman_obstable = RomanObsTable(apt_table)
 
-    # Roman uses a custom noise model because it needs to do more calculations.
-    assert isinstance(roman_obstable.default_noise_model, RomanPoissonFluxNoiseModel)
-
     assert {"zp", "N_Eff_Pix", "zodi_countrate_min", "thermal_countrate"}.issubset(roman_obstable.columns)
 
 
@@ -62,9 +59,7 @@ def test_noise_calculation():
         mat_table_path=_LIGHTCURVELYNX_TEST_DATA_DIR
         / "roman_characterization/roman_wfi_imaging_multiaccum_tables_with_exptime.csv",
     )
-    noise_model = roman_obstable.default_noise_model
-    assert isinstance(noise_model, RomanPoissonFluxNoiseModel)
-
+    noise_model = RomanPoissonFluxNoiseModel()
     roman_obstable.survey_values["zodi_level"] = 2.0
 
     mag = np.array([24.5])

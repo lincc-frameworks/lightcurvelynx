@@ -39,10 +39,6 @@ def test_create_argus_obstable():
     assert ops_data.healpix_nside == 32
     assert ops_data.healpix_depth == 5
 
-    # The ArgusHealpixObsTable should have a default PoissonFluxNoiseModel and no default passband group.
-    assert isinstance(ops_data.default_noise_model, PoissonFluxNoiseModel)
-    assert ops_data.default_passband_group is None
-
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["pixel_scale"] == 1.0
     assert ops_data.survey_values["radius"] == 52.0
@@ -234,7 +230,8 @@ def test_argus_obstable_noise():
     # Check that we can compute the bandflux error for a given bandflux.
     bandfluxes = np.array([1000.0, 500.0, 200.0])
     index = np.array([0, 2, 4])
-    bandflux_noise, bandflux_err = table.default_noise_model.apply_noise(
+    noise_model = PoissonFluxNoiseModel()
+    bandflux_noise, bandflux_err = noise_model.apply_noise(
         bandflux=bandfluxes,
         obs_table=table,
         indices=index,

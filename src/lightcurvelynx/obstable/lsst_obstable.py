@@ -6,9 +6,7 @@ import numpy as np
 
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
-from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
-from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 LSSTCAM_PIXEL_SCALE = 0.2
@@ -174,16 +172,6 @@ class LSSTObsTable(ObsTable):
             saturation_mags=saturation_mags,
             **kwargs,
         )
-
-    @property
-    def default_noise_model(self):
-        """Return the default noise model for this ObsTable."""
-        return PoissonFluxNoiseModel()
-
-    @property
-    def default_passband_group(self):
-        """Return the default passband group for this ObsTable."""
-        return PassbandGroup.from_preset("LSST")
 
     def _derive_noise_columns(self):
         """Derive any missing noise-related columns (e.g. zero points) from the existing columns

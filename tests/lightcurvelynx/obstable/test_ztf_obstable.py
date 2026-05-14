@@ -8,7 +8,6 @@ def test_ztf_obstable_init():
     """Test initializing ZTFObsTable."""
     survey_data_table = create_random_ztf_obs_data(100)
     survey_data = ZTFObsTable(table=survey_data_table)
-    assert isinstance(survey_data.default_noise_model, PoissonFluxNoiseModel)
 
     assert "zp" in survey_data
     assert "time" in survey_data

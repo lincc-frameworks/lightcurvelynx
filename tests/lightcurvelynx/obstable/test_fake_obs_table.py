@@ -22,10 +22,6 @@ def test_create_fake_obs_table_consts():
     )
     assert len(ops_data) == 5
 
-    # The FakeObsTable should have no default noise model or passband group.
-    assert ops_data.default_noise_model is None
-    assert ops_data.default_passband_group is None
-
     # We use the defaults when we do not provide values in the table. Not all of these
     # will be added as columns, but we can still retrieve an array of values.
     assert np.allclose(ops_data["ra"], values["ra"])

@@ -1207,7 +1207,7 @@ def test_saturation_mags_initialization(test_data_dir):
         radius=100.0,
         read_noise=5.0,
         sky_bg_electrons={"g": 150.0, "r": 140.0},
-        survey_name="MY_SURVEY",
+        survey_name="none",
     )
     assert fake_obs._saturation_mags is None
 
@@ -1248,7 +1248,7 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
         radius=100.0,
         read_noise=5.0,
         sky_bg_electrons={"g": 150.0, "r": 140.0, "i": 155.0},
-        survey_name="MY_SURVEY",
+        survey_name="none",
     )
     assert ops_data._saturation_mags is None
 
@@ -1365,7 +1365,7 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
         radius=100.0,
         read_noise=5.0,
         sky_bg_electrons={"g": 150.0, "r": 140.0, "i": 155.0},
-        survey_name="MY_SURVEY",
+        survey_name="none",
         saturation_mags=toy_sat_thresholds,
     )
 
