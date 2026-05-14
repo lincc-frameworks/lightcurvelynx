@@ -585,7 +585,8 @@ def simulate_lightcurves(
     survey_info : SurveyInfo, ObsTable, List of SurveyInfo, or List of ObsTable
         The SurveyInfo object(s) from which to extract information for the samples. If ObsTables
         are passed instead, they will be converted to SurveyInfo objects internally using
-        the default passband group and noise model information.
+        the default passband group and noise model information. This functionality is provided for
+        API backwards compatibility and will be removed in a future version.
     passbands : PassbandGroup, Spectrograph or List of (PassbandGroup, Spectrograph), optional
         This is unused and just provided for API backwards compatibility. It will be removed
         in a future version.
@@ -660,6 +661,12 @@ def simulate_lightcurves(
         survey_info = [survey_info]
     for idx, obj in enumerate(survey_info):
         if isinstance(obj, ObsTable):
+            warnings.warn(
+                "Passing ObsTable objects directly in survey_info is deprecated and will be removed "
+                "in future versions. Please use SurveyInfo objects instead.",
+                category=FutureWarning,
+            )
+
             # If we are given a passband use it. Otherwise fall back to the default.
             if passbands is not None:
                 if idx >= len(passbands):
