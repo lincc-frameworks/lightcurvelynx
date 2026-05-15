@@ -2,7 +2,6 @@ import numpy as np
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.noise_models.base_noise_models import ConstantFluxNoiseModel, PoissonFluxNoiseModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
-from lightcurvelynx.obstable.roman_obstable import RomanPoissonFluxNoiseModel
 from lightcurvelynx.survey_info import SurveyInfo
 
 
@@ -61,7 +60,7 @@ def test_create_survey_info(passbands_dir):
         SurveyInfo(obstable=ops_data, passbands=pb_group, noise_model=PoissonFluxNoiseModel())
 
 
-def test_create_survey_info_defaults():
+def test_create_survey_info_defaults(passbands_dir):
     """Test that we access the correct defaults when giving a survey name."""
     # Create a FakeObsTable with a survey name in the survey values.
     values = {
@@ -72,33 +71,31 @@ def test_create_survey_info_defaults():
     }
     ops_data = FakeObsTable(values)
 
-    # LSST survey (LSSTObsTable and OpSim).
-    survey_info = SurveyInfo(obstable=ops_data, survey_name="LSST", validate=False)
+    # We only test a few of the surveys because we don't want to force a download of
+    # of the passbands for all of the surveys just for testing.
+
+    # LSST survey (LSSTObsTable and OpSim) loaded from the test data directory.
+    survey_info = SurveyInfo(
+        obstable=ops_data,
+        survey_name="LSST",
+        validate=False,
+        table_dir=passbands_dir,
+    )
     assert isinstance(survey_info.noise_model, PoissonFluxNoiseModel)
     for passband in survey_info.passbands:
         assert passband.survey == "LSST"
-
-    # Roman survey (RomanObsTable).
-    survey_info = SurveyInfo(obstable=ops_data, survey_name="Roman", validate=False)
-    assert isinstance(survey_info.noise_model, RomanPoissonFluxNoiseModel)
-    for passband in survey_info.passbands:
-        assert passband.survey == "Roman"
 
     # Spectrograph survey (SpectrographObsTable).
     survey_info = SurveyInfo(obstable=ops_data, survey_name="Spectrograph", validate=False)
     assert survey_info.noise_model is None
     assert survey_info.passbands is None
 
-    # ZTF survey (ZTFObsTable).
+    # ZTF survey (ZTFObsTable) loaded from sncosmo.
     survey_info = SurveyInfo(obstable=ops_data, survey_name="ZTF", validate=False)
     assert isinstance(survey_info.noise_model, PoissonFluxNoiseModel)
     for passband in survey_info.passbands:
         assert passband.survey == "ZTF"
 
-    # We don't test Argus because it does not have a default passband group.
-    # We don't test SkyMapper because the passbands are from SVO and we don't want
-    # to rely on that for testing.
-
-    # Test a non-existant survey name, which should fail because there are no defaults.
+    # Test a non-existent survey name, which should fail because there are no defaults.
     with np.testing.assert_raises(ValueError):
         SurveyInfo(obstable=ops_data, survey_name="NonExistentSurvey", validate=False)

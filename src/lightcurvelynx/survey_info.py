@@ -47,6 +47,9 @@ class SurveyInfo:
     validate : bool, optional
         Whether to validate the SurveyInfo instance after initialization. This should be True
         for most runs, but can be set to False for testing.
+    **kwargs : dict
+        Additional keyword arguments that can be used for the default loading of noise models
+        and passbands.
     """
 
     def __init__(
@@ -57,6 +60,7 @@ class SurveyInfo:
         noise_model=None,
         survey_name=None,
         validate=True,
+        **kwargs,
     ):
         if obstable is None or not isinstance(obstable, ObsTable):
             raise ValueError("obstable must be an instance of ObsTable.")
@@ -81,7 +85,7 @@ class SurveyInfo:
         if validate and self.survey_name != "none":
             self._validate()
 
-    def _load_default_noise_model(self):
+    def _load_default_noise_model(self, **kwargs):
         """Load the default noise model for the given survey."""
         logger.info(f"Loading default noise model for survey {self.survey_name}")
         if self.survey_name in ["argus", "lsst", "skymapper", "ztf"]:
@@ -98,19 +102,19 @@ class SurveyInfo:
                 "Please provide a noise model when initializing the SurveyInfo instance."
             )
 
-    def _load_default_passbands(self):
+    def _load_default_passbands(self, **kwargs):
         """Load the default passbands for the given survey."""
         logger.info(f"Loading default passbands for survey {self.survey_name}")
         if self.survey_name == "lsst":
-            return PassbandGroup.from_preset("LSST")
+            return PassbandGroup.from_preset("LSST", **kwargs)
         elif self.survey_name == "roman":
-            return PassbandGroup.from_preset("roman")
+            return PassbandGroup.from_preset("roman", **kwargs)
         elif self.survey_name == "skymapper":
-            return PassbandGroup.from_svo("SkyMapper/SkyMapper")
+            return PassbandGroup.from_svo("SkyMapper/SkyMapper", **kwargs)
         elif self.survey_name == "spectrograph":
             return None  # No passband group for spectrographs.
         elif self.survey_name == "ztf":
-            return PassbandGroup.from_preset("ztf")
+            return PassbandGroup.from_preset("ztf", **kwargs)
         elif self.survey_name == "none":
             return None
         else:

@@ -679,7 +679,13 @@ def simulate_lightcurves(
                 passband = None
 
             survey_info[idx] = SurveyInfo(obstable=obj, passbands=passband)
-        elif not isinstance(obj, SurveyInfo):
+        elif isinstance(obj, SurveyInfo):
+            if passbands is not None:
+                raise ValueError(
+                    "Cannot provide passbands argument when survey_info already contains SurveyInfo objects. "
+                    "Please include the passbands in the SurveyInfo objects instead."
+                )
+        else:
             raise ValueError(
                 f"Invalid object in survey_info list at index {idx}. "
                 f"Expected ObsTable or SurveyInfo, but got {type(obj)}."
