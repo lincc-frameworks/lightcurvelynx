@@ -533,6 +533,10 @@ def test_create_random_opsim():
     opsim = create_random_opsim(1000)
     assert len(opsim) == 1000
 
+    # We fail if we try to create an opsim with a non-positive number of rows.
+    with pytest.raises(ValueError):
+        _ = create_random_opsim(0)
+
 
 def test_oversample_opsim(opsim_shorten):
     """Test that we can oversample an OpSim file."""
