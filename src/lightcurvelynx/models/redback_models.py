@@ -251,7 +251,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         except Exception as err:  # pragma: no cover
             raise RuntimeError(
                 "Error calling the redback model function. This is often due to invalid parameter values"
-                "or time/wavelength values outside the model's bounds."
+                "or time/wavelength values outside the model's bounds. Original error message: " + str(err)
             ) from err
 
         # Save the computed RedbackTimeSeriesSource and the bounds.
