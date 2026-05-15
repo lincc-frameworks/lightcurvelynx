@@ -236,11 +236,17 @@ class RedbackWrapperModel(SEDModel, CiteClass):
 
         # Call the source function to get the RedbackTimeSeriesSource object.
         # We create this object with each call, because it depends on the parameters (fn_args).
-        rb_result = self.source(
-            shifted_times,
-            output_format="sncosmo_source",
-            **fn_args,
-        )
+        try:
+            rb_result = self.source(
+                shifted_times,
+                output_format="sncosmo_source",
+                **fn_args,
+            )
+        except Exception as err:  # pragma: no cover
+            raise RuntimeError(
+                "Error calling the redback model function. This is often due to invalid parameter values"
+                "or time/wavelength values outside the model's bounds."
+            ) from err
 
         # Save the computed RedbackTimeSeriesSource and the bounds.
         self._cached_data["minwave"] = rb_result.minwave()
