@@ -8,7 +8,13 @@ from lightcurvelynx.utils.extrapolate import LastValue
 # Since we cannot pip install gopreaux, we create a fake model that
 # simulates its functionality for testing purposes.
 class _FakeGoPreauxModel:
-    """A fake model that simulates the interface of a gopreaux SNModel for testing purposes."""
+    """A fake model that simulates the interface of a gopreaux SNModel for testing purposes.
+
+    This model simulates a simple Gaussian-shaped light curve in both wavelength and time,
+    with a peak at 5500 angstroms and phase=0. The brightness is returned in magnitudes
+    relative to the peak, where a delta of 1.0 indicates an increase in brightness by 1.0 magnitude
+    (i.e., a decrease in magnitude).
+    """
 
     @property
     def min_wl(self):
@@ -57,11 +63,12 @@ class _FakeGoPreauxModel:
             raise ValueError("Phases out of bounds.")
         time_scale = np.exp(-0.5 * (phases / 10.0) ** 2)
 
-        # Total scale is the product of the wavelength and time dependence, scaled to be
-        # between -3 and 2 magnitudes. Since this is magnitudes we need to negate it
-        # (the peak has the lowest magnitude).
+        # Total scale is the product of the wavelength and time dependence, scaled to be between
+        # -3 and 2 magnitudes. The sign of this delta corresponds to the change in brightness,
+        # so a positive delta indicates an increase in brightness (decrease in magnitude) and a
+        # negative delta corresponds to a decrease in brightness (increase in magnitude).
         total_scale = wave_scale * time_scale
-        total_scale = -(total_scale / np.max(total_scale)) * 5.0 + 2.0
+        total_scale = (total_scale / np.max(total_scale)) * 5.0 - 3.0
 
         return None, total_scale, None
 

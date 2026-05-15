@@ -26,6 +26,8 @@ class GoPreauxModel(SEDModel, CiteClass):
     eXplosions) package.
 
     Parameterized values include:
+      * brightness - The intrinsic brightness of the supernova at its peak and the wavelength closest
+        to the V-band (in magnitudes). [specific to GoPreauxModel]
       * dec - The object's declination in degrees. [from BasePhysicalModel]
       * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
       * ra - The object's right ascension in degrees. [from BasePhysicalModel]
@@ -231,6 +233,11 @@ class GoPreauxModel(SEDModel, CiteClass):
         )
         rel_mag = rel_mag.reshape(num_times, num_wavelengths)
 
-        # The results are returned in magnitudes relative to the peak and the wavelength
-        # closest to the V-band. We need to convert them to flux densities in nJy.
-        return mag2flux(rel_mag + self.get_param(graph_state, "brightness"))
+        # The results are returned in the delta magntiude (relative to the peak and the
+        # wavelength closest to the V-band) where a delta of 1.0 indicates an increase
+        # in brightness (and thus a decrease in magnitude) by 1.0. So we need to *subtract*
+        # these changes from the intrinsic brightness.
+        total_mag = self.get_param(graph_state, "brightness") - rel_mag
+
+        # Convert from magnitudes to fluxes in nJyand return the result.
+        return mag2flux(total_mag)
