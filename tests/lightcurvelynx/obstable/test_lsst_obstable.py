@@ -1,7 +1,10 @@
 import numpy as np
 import pandas as pd
 import pytest
-from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable, LSSTPoissonFluxNoiseModel
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
+from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable
+
+_expected_gain = 1.595
 
 
 def test_create_lsst_obstable():
@@ -17,11 +20,11 @@ def test_create_lsst_obstable():
     ops_data = LSSTObsTable(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
-    assert isinstance(ops_data.noise_model, LSSTPoissonFluxNoiseModel)
+    assert isinstance(ops_data.noise_model, PoissonFluxNoiseModel)
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.022
-    assert ops_data.survey_values["gain"] == 1.595
+    assert ops_data.survey_values["gain"] == _expected_gain
     assert ops_data.survey_values["pixel_scale"] == 0.2
     assert ops_data.survey_values["radius"] == 1.75
     assert ops_data.survey_values["read_noise"] == 5.82
@@ -46,19 +49,6 @@ def test_create_lsst_obstable():
 
     # Without a filters column we cannot access the filters.
     assert len(ops_data.filters) == 0
-
-
-def test_create_lsst_obstable_override_fail():
-    """Test that we fail if we do not have the information needed to create the zeropoints."""
-    values = {
-        "expMidptMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
-        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
-        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "filter": np.array(["r", "g", "r", "i", "g"]),
-    }
-
-    with pytest.raises(ValueError):
-        _ = LSSTObsTable(values, ext_coeff=None)
 
 
 def _make_fake_data(times):
@@ -146,17 +136,31 @@ def test_lsst_obstable_from_ccdvisit():
 def test_lsst_obstable_from_sv_visits():
     """Test that we can read an LSSTObsTable from the SV visits table."""
     values = {
-        "exp_midpt_mjd": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
-        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
-        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "sky_bg_median": np.ones(5),
-        "zero_point_median": 25.0 * np.ones(5),
+        "exp_midpt_mjd": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0, 15.0, 30.0, 15.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0, 25.0]),
+        "sky_bg_median": np.ones(8),
+        "zero_point_median": 25.0 * np.ones(8),
+        "filter": np.array(["a", "b", "c", "d", "e", "f", "g", "h"]),
     }
     pdf = pd.DataFrame(values)
 
+    # Make one of the sky_bg_median and one of the zero_point_median values NaN
+    # to test that we can handle missing data.
+    pdf.loc[2, "sky_bg_median"] = np.nan
+    pdf.loc[4, "zero_point_median"] = np.nan
+
     ops_data = LSSTObsTable.from_sv_visits_table(pdf)
-    assert len(ops_data) == 5
+    assert len(ops_data) == 6
     assert ops_data.radius == pytest.approx(1.75)
+
+    # Check that we updated the indices and filters correctly.
+    assert np.allclose(
+        ops_data.get_value_per_row("time", indices=[0, 1, 2, 3, 5]),
+        [0.0, 1.0, 3.0, 5.0, 7.0],
+    )
+    assert set(ops_data.filters) == set(["a", "b", "d", "f", "g", "h"])
+    assert ops_data._spatial_data.n == 6
 
 
 def test_lsst_noise_model_delegation():
@@ -183,3 +187,48 @@ def test_lsst_noise_model_delegation():
     )
     assert not np.any(new_vals == bandflux)
     assert np.all(err_vals > 0.0)
+
+
+def test_reading_lsst_obstable_from_ccdvisits(test_data_dir):
+    """Test that we can read an LSSTObsTable a CCDVisits parquet."""
+    pdf = pd.read_parquet(test_data_dir / "dp1_ccdvisit_subsampled.parquet")
+    total_obs = len(pdf)
+    assert "zeroPoint" in pdf.columns
+
+    # The derived columns are not in the original table.
+    assert "psf_footprint" not in pdf.columns
+    assert "sky_bg_e" not in pdf.columns
+
+    obs_table = LSSTObsTable.from_ccdvisit_table(pdf)
+    assert total_obs == len(obs_table)
+    assert set(obs_table.filters) == {"g", "i", "r", "u", "y", "z"}
+
+    # Check that we have the expected columns.
+    assert "time" in obs_table
+    assert "ra" in obs_table
+    assert "dec" in obs_table
+    assert "filter" in obs_table
+    assert "zp" in obs_table
+    assert "maglim" in obs_table
+    assert "seeing" in obs_table
+    assert "radius" in obs_table
+
+    # Check the derived columns
+    assert "psf_footprint" in obs_table
+
+    assert "sky_bg_e" in obs_table
+    assert np.all(obs_table["sky_bg_e"] > 0.0)
+    assert np.allclose(obs_table["sky_bg_e"], obs_table["sky_bg_adu"] * _expected_gain)
+
+    # Check that we have everything we need to derive the PoissonFluxNoiseModel.
+    noise_model = PoissonFluxNoiseModel()
+    assert noise_model.check_compatibility(obs_table)
+
+    # Check that we can search the table for observations at a given location.
+    # Over half of the observations in the fake data set are near (ra=53, dec=-28)
+    inds = obs_table.range_search(53.0, -28.0, radius=3.0)
+    assert total_obs / 2.0 < len(inds) < 8.0 * total_obs / 10.0
+
+    # If we at time bounds, we can restrict a lot further.
+    inds2 = obs_table.range_search(53.0, -28.0, radius=3.0, t_min=60610.0, t_max=60611.0)
+    assert len(inds2) < 0.2 * len(inds)

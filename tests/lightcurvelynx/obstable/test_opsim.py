@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.opsim import (
     OpSim,
-    OpSimPoissonFluxNoiseModel,
     _opsim_extinction_coeff,
     _opsim_zeropoint_per_sec_zenith,
     create_random_opsim,
@@ -24,14 +24,14 @@ def test_create_opsim():
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "zp_nJy": np.ones(5),
+        "zp": np.ones(5),
     }
     pdf = pd.DataFrame(values)
 
     ops_data = OpSim(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
-    assert isinstance(ops_data.noise_model, OpSimPoissonFluxNoiseModel)
+    assert isinstance(ops_data.noise_model, PoissonFluxNoiseModel)
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.2
@@ -87,7 +87,7 @@ def test_create_opsim_override():
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "zp_nJy": np.ones(5),
+        "zp": np.ones(5),
         "filter": np.array(["r", "g", "r", "i", "g"]),
     }
     ops_data = OpSim(
@@ -119,26 +119,13 @@ def test_create_opsim_override():
     assert set(ops_data.filters) == {"r", "g", "i"}
 
 
-def test_create_opsim_override_fail():
-    """Test that we fail if we do not have the information needed to create the zeropoints."""
-    values = {
-        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
-        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
-        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "filter": np.array(["r", "g", "r", "i", "g"]),
-    }
-
-    with pytest.raises(ValueError):
-        _ = OpSim(values, ext_coeff=None)
-
-
 def test_create_opsim_saturation():
     """Test that we can control whether saturation mags are stored."""
     values = {
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "zp_nJy": np.ones(5),
+        "zp": np.ones(5),
     }
     pdf = pd.DataFrame(values)
 
@@ -153,21 +140,14 @@ def test_create_opsim_no_zp():
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "z"]),
+        "airmass": 0.01 * np.ones(5),
+        "visitExposureTime": 0.1 * np.ones(5),
     }
-
-    # We fail if we do not have the other columns needed: filter, airmass, exptime.
-    with pytest.raises(ValueError):
-        _ = OpSim(values)
-
-    values["filter"] = np.array(["r", "g", "r", "i", "z"])
-    values["airmass"] = 0.01 * np.ones(5)
-    values["visitExposureTime"] = 0.1 * np.ones(5)
     opsim = OpSim(values)
 
     assert "zp" in opsim
-    assert "zp_nJy" in opsim
     assert np.all(opsim["zp"] >= 0.0)
-    assert np.all(opsim["zp_nJy"] >= 0.0)
 
 
 def test_create_opsim_custom_names():
@@ -195,7 +175,7 @@ def test_opsim_add_columns():
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "zp_nJy": np.ones(5),
+        "zp": np.ones(5),
     }
     pdf = pd.DataFrame(values)
 
@@ -243,7 +223,7 @@ def test_opsim_filter_rows():
         "observationStartMJD": times,
         "fieldRA": 15.0 * (times + 1.0),
         "fieldDec": -1.0 * times,
-        "zp_nJy": np.ones(10),
+        "zp": np.ones(10),
         "filter": np.tile(["r", "g"], 5),
     }
     ops_data = OpSim(values)
@@ -300,7 +280,7 @@ def test_write_read_opsim_db():
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "zp_nJy": np.ones(5),
+        "zp": np.ones(5),
     }
     ops_data = OpSim(pd.DataFrame(values))
 
@@ -338,7 +318,7 @@ def test_write_read_opsim_parquet():
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "zp_nJy": np.ones(5),
+        "zp": np.ones(5),
     }
     pdf = pd.DataFrame(values)
     pdf.attrs["lightcurvelynx_survey_data"] = {"pixel_scale": 0.001}
@@ -380,7 +360,7 @@ def test_opsim_range_search():
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
         "fieldRA": np.array([15.0, 15.0, 15.01, 15.0, 25.0, 24.99, 60.0, 5.0]),
         "fieldDec": np.array([-10.0, 10.0, 10.01, 9.99, 10.0, 9.99, -5.0, -1.0]),
-        "zp_nJy": np.ones(8),
+        "zp": np.ones(8),
     }
     ops_data = OpSim(values)
 
@@ -450,7 +430,7 @@ def test_opsim_get_observations():
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
         "fieldRA": np.array([15.0, 15.0, 15.01, 15.0, 25.0, 24.99, 60.0, 5.0]),
         "fieldDec": np.array([-10.0, 10.0, 10.01, 9.99, 10.0, 9.99, -5.0, -1.0]),
-        "zp_nJy": np.ones(8),
+        "zp": np.ones(8),
     }
     ops_data = OpSim(values)
 
@@ -492,7 +472,7 @@ def test_create_opsim_resample():
         "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
         "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
         "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
-        "zp_nJy": np.ones(5),
+        "zp": np.ones(5),
         "filter": np.array(["r", "g", "r", "i", "g"]),
     }
     ops_data = OpSim(values)
@@ -552,6 +532,10 @@ def test_create_random_opsim():
     """Test that we can create a complete random OpSim."""
     opsim = create_random_opsim(1000)
     assert len(opsim) == 1000
+
+    # We fail if we try to create an opsim with a non-positive number of rows.
+    with pytest.raises(ValueError):
+        _ = create_random_opsim(0)
 
 
 def test_oversample_opsim(opsim_shorten):

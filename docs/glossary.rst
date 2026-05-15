@@ -13,6 +13,8 @@ Glossary
 
 **GraphState**: The ``GraphState`` object is an internal book keeping object that tracks the values of parameters during the simulation. It is implemented as nested dictionaries where the outer dictionary maps the name of the generating node to a dictionary of that node's parameters. The inner dictionary maps a parameter name to its values.
 
+**MOC**: A Multi-Order Coverage map (MOC) is a data structure for efficiently representing a spatial region on a sphere. See the `MOC IVOA note <https://www.ivoa.net/documents/MOC/>`_ for more details.
+
 **Model**: Model is used to refer to any physical phenomena that produces flux. All models are implemented as subclasses of the ``SEDModel`` or ``BandfluxModel`` classes. Also called a *physical model*.
 
 **Node**: Nodes are the Python objects within the simulation that generate or use parameters. A node might represent a physical object that we are simulating, such as a Type Ia supernova with input parameters x0, x1, and c, or it might represent the statistical distributions for parameters, such as a Gaussian distribution for sampling an object's  redshift (z). It is easiest to think of nodes as machines for generating portions of the simulation data. Nodes are implemented as subclasses of the ``ParameterizedNode`` class.

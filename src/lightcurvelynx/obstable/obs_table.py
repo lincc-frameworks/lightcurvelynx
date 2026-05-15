@@ -173,9 +173,8 @@ class ObsTable:
 
         self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
 
-        # If we are not given zero point data, try to derive it from the other columns.
-        if "zp" not in self:
-            self._assign_zero_points()
+        # Derive any additional noise columns the survey might need.
+        self._derive_noise_columns()
 
         # Save the saturation thresholds.
         self._saturation_mags = saturation_mags
@@ -183,9 +182,8 @@ class ObsTable:
         # Save the noise model.
         self.noise_model = noise_model
 
-        # Build the kd-tree (or other spatial data structure).
-        self._spatial_data = None
-        self._build_spatial_data()
+        # Update all of the cached data.
+        self._update_cached_data()
 
         # Create the footprint if one is provided.
         if detector_footprint is not None:
@@ -308,9 +306,9 @@ class ObsTable:
 
         # Prioritize columns that are in the table.
         if key in self._table.columns:
-            return self._table[key][indices].to_numpy()
+            return self._table[key].iloc[indices].to_numpy()
         if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
-            return self._table[self._inv_colmap[key]][indices].to_numpy()
+            return self._table[self._inv_colmap[key]].iloc[indices].to_numpy()
 
         # Otherwise fall back to the survey values if they are defined.
         value = self.survey_values.get(key, None)
@@ -322,10 +320,10 @@ class ObsTable:
         if isinstance(value, dict):
             # Map the values for each filter to the rows in the table.
             result = np.zeros(len(indices), dtype=float)
-            for fil, val in value.items():
-                if fil not in self.filters:
-                    raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{fil}'")
-                result[self._table["filter"][indices] == fil] = val
+            for filt in self.filters:
+                if filt not in value:
+                    raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{filt}'")
+                result[self._table["filter"].iloc[indices] == filt] = value[filt]
             return result
         raise TypeError(f"Unsupported type for '{key}': {type(value)}")
 
@@ -560,6 +558,21 @@ class ObsTable:
         fig, ax = plot_moc(moc, fig=fig, ax=ax, **kwargs)
         return fig, ax
 
+    def _update_cached_data(self):
+        """Update any cached data based on the current table and survey values.
+        This can be used any time the underlying table is updated, such as when rows
+        are filtered.
+        """
+        # Reset the index column if it exists.
+        self._table = self._table.reset_index(drop=True)
+
+        # Rebuild the list of filters.
+        self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
+
+        # Build the kd-tree (or other spatial data structure).
+        self._spatial_data = None
+        self._build_spatial_data()
+
     def _build_spatial_data(self):
         """Construct the KD-tree from the ObsTable."""
         # Convert the pointings to Cartesian coordinates on a unit sphere.
@@ -569,8 +582,9 @@ class ObsTable:
         # Construct the kd-tree.
         self._spatial_data = KDTree(cart_coords)
 
-    def _assign_zero_points(self):
-        """Assign instrumental zero points in nJy to the data table.
+    def _derive_noise_columns(self):
+        """Derive any missing noise-related columns (e.g. zero points) from the existing columns
+        and survey values.
 
         Default implementation does not produce a zeropoint column. Subclasses
         should override this method with a survey specific computation.
@@ -689,10 +703,9 @@ class ObsTable:
             mask = np.full((len(self._table),), False)
             mask[rows] = True
 
-        # Filter the rows in-place and build a new spatial data structure.
+        # Filter the rows. Update all of the cached data.
         self._table = self._table[mask]
-        self._spatial_data = None
-        self._build_spatial_data()
+        self._update_cached_data()
 
         return self
 
@@ -771,17 +784,21 @@ class ObsTable:
 
         # If the points are scalars, make them into length 1 arrays.
         is_scalar = np.isscalar(query_ra) and np.isscalar(query_dec)
-        query_ra = np.atleast_1d(query_ra)
-        query_dec = np.atleast_1d(query_dec)
+        try:
+            query_ra = np.atleast_1d(query_ra).astype(float)
+            query_dec = np.atleast_1d(query_dec).astype(float)
+        except ValueError as err:
+            raise ValueError("Query RA and Dec must be convertible to float.") from err
 
-        # Confirm the query RA and Dec have the same length.
+        # Confirm the query RA and Dec are each 1-d and have the same length.
+        if query_ra.ndim != 1 or query_dec.ndim != 1:
+            raise ValueError("Query RA and Dec must be 1-dimensional arrays.")
         if len(query_ra) != len(query_dec):
             raise ValueError("Query RA and Dec must have the same length.")
 
-        # Check that there are no None values in the query. We use == to do
-        # an element-wise comparison.
-        if np.any(query_ra == None) or np.any(query_dec == None):  # noqa: E711
-            raise ValueError("Query RA and dec cannot contain None.")
+        # Check that there are no NaN values in the query (Nones are converted to NaN above).
+        if np.any(np.isnan(query_ra)) or np.any(np.isnan(query_dec)):
+            raise ValueError("Query RA and Dec cannot contain NaN.")
 
         # Transform the query point(s) to 3-d Cartesian coordinate(s).
         x, y, z = ra_dec_to_cartesian(query_ra, query_dec)
@@ -886,7 +903,7 @@ class ObsTable:
             # by using the class accessor (__getitem__), instead of the table one.
             if col not in self:
                 raise KeyError(f"Unrecognized column name {col}")
-            results[col] = self[col][neighbors].to_numpy()
+            results[col] = self[col].iloc[neighbors].to_numpy()
         return results
 
     def compute_saturation(self, flux, flux_error, index):
