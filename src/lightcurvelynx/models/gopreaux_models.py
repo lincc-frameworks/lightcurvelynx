@@ -6,7 +6,7 @@ This model requires that the GoPreaux (caat) package is installed. Currently GoP
 on PyPI, so users will need to install it from source: https://github.com/crpellegrino/gopreaux
 
 There is a version conflict with numpy between GoPreaux and LightCurveLynx, but this does not impact
-the functions we need. Users can install GoPreax first and then install LightCurveLynx (upgrading all
+the functions we need. Users can install GoPreaux first and then install LightCurveLynx (upgrading all
 dependencies). You will still get errors about the version requirements for caat, but they can be ignored.
 """
 
@@ -151,13 +151,15 @@ class GoPreauxModel(SEDModel, CiteClass):
         ----------
         filename: str, Path
             The complete path to the .fits file.
-        intrinsic_brightness: float
+        intrinsic_brightness: Parameter or callable or float
             The intrinsic brightness of the supernova at its peak and the wavelength closest
-            to the V-band (in magnitudes).
+            to the V-band (in magnitudes). This may be provided as a fixed scalar value
+            or as a parameterized/sampled node accepted by the constructor.
         **kwargs: dict, optional
             Any additional keyword arguments to be passed to the GoPreauxModel constructor.
         """
-        assert isinstance(filename, str | Path), "filename must be a string or Path object."
+        if not isinstance(filename, (str, Path)):
+            raise TypeError("filename must be a string or Path object.")
 
         logging.getLogger(__name__).info(f"Loading gopreaux model from {filename}...")
         filename = Path(filename)
@@ -169,7 +171,7 @@ class GoPreauxModel(SEDModel, CiteClass):
         except ImportError as err:
             raise ImportError(
                 "The gopreaux package is required to load GoPreauxModel objects. "
-                "Please install it from source: https://github.com/your-repo/gopreaux"
+                "Please install it from source: https://github.com/crpellegrino/gopreaux"
             ) from err
 
         # Load the SNModel from the .fits file using gopreaux's constructor, which
@@ -233,11 +235,11 @@ class GoPreauxModel(SEDModel, CiteClass):
         )
         rel_mag = rel_mag.reshape(num_times, num_wavelengths)
 
-        # The results are returned in the delta magntiude (relative to the peak and the
+        # The results are returned in the delta magnitude (relative to the peak and the
         # wavelength closest to the V-band) where a delta of 1.0 indicates an increase
         # in brightness (and thus a decrease in magnitude) by 1.0. So we need to *subtract*
         # these changes from the intrinsic brightness.
         total_mag = self.get_param(graph_state, "brightness") - rel_mag
 
-        # Convert from magnitudes to fluxes in nJyand return the result.
+        # Convert from magnitudes to fluxes in nJy and return the result.
         return mag2flux(total_mag)
