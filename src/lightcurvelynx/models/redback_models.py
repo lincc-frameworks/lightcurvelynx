@@ -50,6 +50,12 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         A dictionary of parameter setters to pass to the source function.
     **kwargs : dict, optional
         Any additional keyword arguments.
+
+    Note
+    ----
+    You can automatically extract the priors for a model (in the correct format)
+    using redback's `get_priors()` function and passing the name of the model
+    as the `model` argument: `priors = get_priors(model="one_component_kilonova_model")`
     """
 
     # A class variable for the units so we are not computing them each time.
