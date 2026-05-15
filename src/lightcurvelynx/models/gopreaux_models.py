@@ -158,7 +158,7 @@ class GoPreauxModel(SEDModel, CiteClass):
         **kwargs: dict, optional
             Any additional keyword arguments to be passed to the GoPreauxModel constructor.
         """
-        if not isinstance(filename, (str, Path)):
+        if not isinstance(filename, str | Path):
             raise TypeError("filename must be a string or Path object.")
 
         logging.getLogger(__name__).info(f"Loading gopreaux model from {filename}...")
