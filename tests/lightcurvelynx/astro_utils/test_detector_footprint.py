@@ -57,6 +57,10 @@ def test_rotate_to_center():
     assert np.allclose(lon_t, tests[:, 5], atol=1e-3)
     assert np.allclose(lat_t, tests[:, 6], atol=1e-3)
 
+    # The method fails if we include a NaN in the rotation array.
+    with pytest.raises(ValueError):
+        DetectorFootprint.rotate_to_center(1.0, 1.0, 0.0, 0.0, rotation=np.nan)
+
 
 def test_create_detector_footprint():
     """Test creating a DetectorFootprint."""
@@ -218,6 +222,10 @@ def test_rectangular_pixel_footprint():
     # Test a 45 degree rotation.
     assert not fp.contains(0.7, -0.7, 0, 0.0, rotation=0.0)
     assert fp.contains(0.7, -0.7, 0, 0.0, rotation=45.0)
+
+    # We fail is a NaN is passed in for rotation.
+    with pytest.raises(ValueError):
+        fp.contains(90.5, -10.25, 90.0, -10.0, rotation=np.nan)
 
     # Try some points around the rectangles border when the rectangle is
     # is centered at different locations to ensure we scale RA correctly.

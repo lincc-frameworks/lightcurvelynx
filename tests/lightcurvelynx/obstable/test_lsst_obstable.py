@@ -133,6 +133,14 @@ def test_lsst_obstable_from_ccdvisit():
     )
     assert obs_table_with_footprint._detector_footprint is not None
 
+    # We filter out any of the noise columns with NaN.
+    ccd_visit_table.loc[5, "seeing"] = np.nan
+    ccd_visit_table.loc[7, "zeroPoint"] = np.nan
+    ccd_visit_table.loc[9, "skyBg"] = np.nan
+    ccd_visit_table.loc[11, "pixelScale"] = np.nan
+    obs_table_with_nan = LSSTObsTable.from_ccdvisit_table(ccd_visit_table)
+    assert len(obs_table_with_nan) == 176
+
 
 def test_lsst_obstable_from_sv_visits():
     """Test that we can read an LSSTObsTable from the SV visits table."""

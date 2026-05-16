@@ -192,6 +192,32 @@ def test_poisson_flux_noise_model_missing():
         model.check_compatibility(obs_table, fail_on_incompatible=True)
 
 
+def test_poisson_flux_noise_model_nans():
+    """Test that the PoissonFluxNoiseModel fails the compatibility check when
+    required columns contain NaNs.
+    """
+    model = PoissonFluxNoiseModel()
+    dummy_data = {
+        "exptime": np.array([30.0, 35.0, 40.0]),
+        "nexposure": np.array([1, 2, 1]),
+        "sky_bg_e": np.array([100.0, 110.0, 120.0]),
+        "psf_footprint": np.array([2.0, 2.5, 3.0]),
+        "zp": np.array([25.0, 26.0, 27.0]),
+        "read_noise": np.array([4.0, 4.5, 5.0]),
+        "dark_current": np.array([0.01, 0.02, 0.03]),
+        "zp_err_mag": np.array([0.001, 0.002, 0.003]),
+    }
+    obs_table = LookupOnlyObsTable(dummy_data)
+    assert model.check_compatibility(obs_table)
+
+    # Introduce a NaN into a required column.
+    dummy_data["exptime"][0] = np.nan
+    obs_table = LookupOnlyObsTable(dummy_data)
+    assert not model.check_compatibility(obs_table)
+    with pytest.raises(ValueError, match="contains invalid values"):
+        model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+
 @pytest.mark.parametrize("invalid_value", [np.nan, np.inf, -np.inf])
 def test_check_compatibility_rejects_non_finite_numeric_required_values(invalid_value):
     """Required numeric values must be finite for compatibility checks."""
@@ -318,3 +344,24 @@ def test_five_sigma_depth_noise_model():
 
     expected_bandflux_error = mag2flux(ops_data["five_sigma_depth"].to_numpy()) / 5.0
     assert np.allclose(flux_err, expected_bandflux_error)
+
+
+def test_five_sigma_depth_noise_model_nans():
+    """Test that the FiveSigmaDepthNoiseModel correctly fails compatibility checks
+    when the five_sigma_depth column contains NaNs."""
+    model = FiveSigmaDepthNoiseModel()
+    assert set(model.required_values) == {"five_sigma_depth"}
+
+    table_values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+        "five_sigma_depth": np.array([20.0, 21.0, np.nan, 23.0, 24.0]),
+    }
+    ops_data = LookupOnlyObsTable(table_values=table_values)
+    assert len(ops_data) == 5
+
+    # Create and apply the noise model.
+    noise_model = FiveSigmaDepthNoiseModel()
+    assert not noise_model.check_compatibility(ops_data)
