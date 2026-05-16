@@ -247,9 +247,12 @@ class LSSTObsTable(ObsTable):
         cols = table.columns.to_list()
         logger.debug(f"Loading LSSTObsTable from CCDVisit table with {len(table)} rows and columns: {cols}")
 
-        # Drop rows with NaNs in the noise information.
+        # Drop rows with NaNs in the noise information. Not all rows are required, so we only
+        # drop rows that exist.
         noise_cols = ["pixelScale", "seeing", "skyBg", "zeroPoint"]
-        table = table.dropna(subset=noise_cols).reset_index(drop=True)
+        for col in noise_cols:
+            if col in cols and table[col].isna().any():
+                table = table.dropna(subset=[col]).reset_index(drop=True)
         logger.debug(f"Dropped rows with NaNs in critical columns. Remaining rows: {len(table)}")
 
         # Try to derive the viewing radius if we have the information to do so.
