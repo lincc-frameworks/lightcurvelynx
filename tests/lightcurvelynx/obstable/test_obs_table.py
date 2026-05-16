@@ -207,6 +207,22 @@ def test_create_obs_table_custom_names():
         _ = ObsTable(values, colmap=colmap)
 
 
+def test_create_obs_table_nans():
+    """Create a minimal ObsTable and confirm that rows with NaN values in the
+    required columns are filtered from the table."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, np.nan, 4.0, 5.0, 6.0, 7.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0, np.nan, 30.0, 15.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, np.nan, 25.0]),
+        "zp": np.ones(8),
+        "opt_col": np.full(8, np.nan),
+    }
+    ops_data = ObsTable(values)
+    assert len(ops_data) == 5
+    assert len(ops_data.columns) == 5
+    assert np.allclose(ops_data["time"], [0.0, 1.0, 2.0, 4.0, 7.0])
+
+
 def test_obs_table_copy():
     """Test that we can create a copy of an ObsTable object."""
     values = {

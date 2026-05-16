@@ -223,7 +223,7 @@ def test_reading_lsst_obstable_from_ccdvisits(test_data_dir):
 
     # Check that we have everything we need to derive the PoissonFluxNoiseModel.
     noise_model = PoissonFluxNoiseModel()
-    assert noise_model.check_compatibility(obs_table)
+    assert noise_model.check_compatibility(obs_table, fail_on_incompatible=True)
 
     # Check that we can search the table for observations at a given location.
     # Over half of the observations in the fake data set are near (ra=53, dec=-28)
@@ -267,7 +267,7 @@ def test_reading_lsst_obstable_from_sv(test_data_dir):
 
     # Check that we have everything we need to derive the PoissonFluxNoiseModel.
     noise_model = PoissonFluxNoiseModel()
-    assert noise_model.check_compatibility(obs_table)
+    assert noise_model.check_compatibility(obs_table, fail_on_incompatible=True)
 
     # Check that we can search the table for observations at a given location.
     # We should have between 10% and 20% of the observations near (ra=225, dec=-38).

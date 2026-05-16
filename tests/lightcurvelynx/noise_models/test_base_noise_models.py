@@ -192,6 +192,17 @@ def test_poisson_flux_noise_model_missing():
         model.check_compatibility(obs_table, fail_on_incompatible=True)
 
 
+@pytest.mark.parametrize("invalid_value", [np.nan, np.inf, -np.inf])
+def test_check_compatibility_rejects_non_finite_numeric_required_values(invalid_value):
+    """Required numeric values must be finite for compatibility checks."""
+    model = GivenNoiseModel()
+    obs_table = LookupOnlyObsTable({"bandflux_error": np.array([1.0, invalid_value, 3.0])})
+
+    assert not model.check_compatibility(obs_table)
+    with pytest.raises(ValueError, match="contains invalid values"):
+        model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+
 def test_given_noise_model():
     """Test that the GivenNoiseModel correctly reads per-row flux errors
     from the ObsTable and applies noise to the bandflux."""

@@ -93,6 +93,15 @@ class FluxNoiseModel(ABC):
                     f"Missing required columns: {missing_columns}"
                 )
             return False
+
+        # Check if the required columns have valid data for each row.
+        for col in self._required_values:
+            values = obs_table.get_value_per_row(col)
+            if np.issubdtype(values.dtype, np.number) and not np.isfinite(values).all():
+                if fail_on_incompatible:
+                    raise ValueError(f"Found invalid values in column '{col}'")
+                return False
+
         return True
 
 
