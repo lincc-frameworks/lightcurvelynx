@@ -245,7 +245,7 @@ class LSSTObsTable(ObsTable):
         """
         table = table.copy()
         cols = table.columns.to_list()
-        logger.debug(f"Loading LSSTObsTable from CCDVisit table with {len(table)} rows columns: {cols}")
+        logger.debug(f"Loading LSSTObsTable from CCDVisit table with {len(table)} rows and columns: {cols}")
 
         # Drop rows with NaNs in the noise information.
         noise_cols = ["pixelScale", "seeing", "skyBg", "zeroPoint"]
