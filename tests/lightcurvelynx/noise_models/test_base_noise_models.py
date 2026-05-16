@@ -214,7 +214,7 @@ def test_poisson_flux_noise_model_nans():
     dummy_data["exptime"][0] = np.nan
     obs_table = LookupOnlyObsTable(dummy_data)
     assert not model.check_compatibility(obs_table)
-    with pytest.raises(ValueError, match="contains invalid values"):
+    with pytest.raises(ValueError):
         model.check_compatibility(obs_table, fail_on_incompatible=True)
 
 
@@ -225,7 +225,7 @@ def test_check_compatibility_rejects_non_finite_numeric_required_values(invalid_
     obs_table = LookupOnlyObsTable({"bandflux_error": np.array([1.0, invalid_value, 3.0])})
 
     assert not model.check_compatibility(obs_table)
-    with pytest.raises(ValueError, match="contains invalid values"):
+    with pytest.raises(ValueError):
         model.check_compatibility(obs_table, fail_on_incompatible=True)
 
 

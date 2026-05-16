@@ -161,8 +161,6 @@ class DetectorFootprint:
         """
         if rotation is None:
             rotation = np.zeros_like(ra)
-        elif np.any(np.isnan(rotation)):
-            raise ValueError("NaN value found in rotation array.")
 
         target = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
         origin = SkyCoord(ra=center_ra * u.deg, dec=center_dec * u.deg, frame="icrs")

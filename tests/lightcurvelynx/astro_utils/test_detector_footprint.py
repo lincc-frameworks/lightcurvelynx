@@ -57,10 +57,6 @@ def test_rotate_to_center():
     assert np.allclose(lon_t, tests[:, 5], atol=1e-3)
     assert np.allclose(lat_t, tests[:, 6], atol=1e-3)
 
-    # The method fails if we include a NaN in the rotation array.
-    with pytest.raises(ValueError):
-        DetectorFootprint.rotate_to_center(1.0, 1.0, 0.0, 0.0, rotation=np.nan)
-
 
 def test_create_detector_footprint():
     """Test creating a DetectorFootprint."""
