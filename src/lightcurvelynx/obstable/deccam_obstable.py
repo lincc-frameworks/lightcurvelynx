@@ -112,8 +112,16 @@ class DECamObsTable(ObsTable):
             table = table.dropna(subset=decat_cols)
             logger.debug(f"After filtering, {len(table)} rows remain.")
 
-        # Add some columns we need for noise.
-        table.rename(columns={"secz": "airmass", "sky": "sky_bg_mag"}, inplace=True)
+        # Add some columns we need for noise. The DECAT survey has columns for:
+        # - exptime: the exposure time in seconds
+        # - secz: the airmass of the observation
+        # - psf: the seeing in arcseconds
+        # - sky: the sky background expressed in magnitudes from a dark sky
+        # - cloud: a measure of cloudiness in magnitudes
+        # - teff: the effective exposure time, which is a ratio of the actual exposure time
+        #   to the expected exposure time under good conditions. A value of 1.0 indicates
+        #   that the observations have the depth expected for typical good observing conditions
+        #   with the given exposure time.
 
         # Compute the psf_footprint from the psf column, which is seeing in arcseconds.
         pixel_scale = kwargs.get("pixel_scale", cls._default_survey_values["pixel_scale"])
