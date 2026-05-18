@@ -219,6 +219,10 @@ def test_rectangular_pixel_footprint():
     assert not fp.contains(0.7, -0.7, 0, 0.0, rotation=0.0)
     assert fp.contains(0.7, -0.7, 0, 0.0, rotation=45.0)
 
+    # We fail if a NaN is passed in for rotation.
+    with pytest.raises(ValueError):
+        fp.contains(90.5, -10.25, 90.0, -10.0, rotation=np.nan)
+
     # Try some points around the rectangles border when the rectangle is
     # is centered at different locations to ensure we scale RA correctly.
     for c_ra, c_dec in [(45.0, 20), (60.0, -30.0), (20.0, 60.0), (-30.0, -75.0)]:

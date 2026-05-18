@@ -2,6 +2,8 @@
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
+import logging
+
 import numpy as np
 
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
@@ -54,6 +56,8 @@ _lsst_zp_err_mag = 1.0e-4
 We choose a very conservative noise flooring of 1e-4 mag.
 This number will be updated when we have a better estimate from LSST.
 """
+
+logger = logging.getLogger(__name__)
 
 
 class LSSTObsTable(ObsTable):
@@ -241,11 +245,24 @@ class LSSTObsTable(ObsTable):
         """
         table = table.copy()
         cols = table.columns.to_list()
+        logger.debug(f"Loading LSSTObsTable from CCDVisit table with {len(table)} rows and columns: {cols}")
+
+        # Drop rows with NaNs in the noise information. Not all rows are required, so we only
+        # drop rows that exist.
+        noise_cols = ["pixelScale", "seeing", "skyBg", "zeroPoint"]
+        for col in noise_cols:
+            if col in cols and table[col].isna().any():
+                table = table.dropna(subset=[col]).reset_index(drop=True)
+        logger.debug(f"Dropped rows with NaNs in critical columns. Remaining rows: {len(table)}")
 
         # Try to derive the viewing radius if we have the information to do so.
-        if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
+        if "xSize" in cols and "ySize" in cols and "pixelScale" in cols:
             radius_px = np.sqrt((table["xSize"] / 2) ** 2 + (table["ySize"] / 2) ** 2)
-            table["radius"] = (radius_px * table["pixel_scale"]) / 3600.0  # arcsec to degrees
+            table["radius"] = (radius_px * table["pixelScale"]) / 3600.0  # arcsec to degrees
+
+            # Overwrite any rows that had invalid values with the default radius value.
+            if np.any(~np.isfinite(table["radius"])):
+                table.loc[~np.isfinite(table["radius"]), "radius"] = _lsstcam_ccd_radius
         elif "radius" not in kwargs:
             # Use a single approximate average ccd radius.
             kwargs["radius"] = _lsstcam_ccd_radius
