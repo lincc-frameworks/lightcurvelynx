@@ -50,6 +50,12 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         A dictionary of parameter setters to pass to the source function.
     **kwargs : dict, optional
         Any additional keyword arguments.
+
+    Note
+    ----
+    You can automatically extract the priors for a model (in the correct format)
+    using redback's `get_priors()` function and passing the name of the model
+    as the `model` argument: `priors = get_priors(model="one_component_kilonova_model")`
     """
 
     # A class variable for the units so we are not computing them each time.
@@ -236,11 +242,17 @@ class RedbackWrapperModel(SEDModel, CiteClass):
 
         # Call the source function to get the RedbackTimeSeriesSource object.
         # We create this object with each call, because it depends on the parameters (fn_args).
-        rb_result = self.source(
-            shifted_times,
-            output_format="sncosmo_source",
-            **fn_args,
-        )
+        try:
+            rb_result = self.source(
+                shifted_times,
+                output_format="sncosmo_source",
+                **fn_args,
+            )
+        except Exception as err:  # pragma: no cover
+            raise RuntimeError(
+                "Error calling the redback model function. This is often due to invalid parameter values"
+                "or time/wavelength values outside the model's bounds. Original error message: " + str(err)
+            ) from err
 
         # Save the computed RedbackTimeSeriesSource and the bounds.
         self._cached_data["minwave"] = rb_result.minwave()

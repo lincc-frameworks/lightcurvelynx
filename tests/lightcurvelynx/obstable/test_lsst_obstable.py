@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable
+from lightcurvelynx.utils.io_utils import read_sqlite_table
 
 _expected_gain = 1.595
 
@@ -227,8 +228,52 @@ def test_reading_lsst_obstable_from_ccdvisits(test_data_dir):
     # Check that we can search the table for observations at a given location.
     # Over half of the observations in the fake data set are near (ra=53, dec=-28)
     inds = obs_table.range_search(53.0, -28.0, radius=3.0)
-    assert total_obs / 2.0 < len(inds) < 8.0 * total_obs / 10.0
+    assert 0.5 * total_obs < len(inds) < 0.8 * total_obs
 
     # If we at time bounds, we can restrict a lot further.
     inds2 = obs_table.range_search(53.0, -28.0, radius=3.0, t_min=60610.0, t_max=60611.0)
     assert len(inds2) < 0.2 * len(inds)
+
+
+def test_reading_lsst_obstable_from_sv(test_data_dir):
+    """Test that we can read an LSSTObsTable a SV database."""
+    table = read_sqlite_table(
+        test_data_dir / "sv_db_subsampled.db",
+        sql_query="SELECT * FROM observations",
+    )
+    total_obs = len(table)
+    assert "zero_point_median" in table.columns
+
+    # The derived columns are not in the original table.
+    assert "psf_footprint" not in table.columns
+    assert "sky_bg_e" not in table.columns
+
+    obs_table = LSSTObsTable.from_sv_visits_table(table)
+    assert total_obs == len(obs_table)
+    assert set(obs_table.filters) == {"g", "i", "r", "u", "y", "z"}
+
+    # Check that we have the expected columns.
+    assert "time" in obs_table
+    assert "ra" in obs_table
+    assert "dec" in obs_table
+    assert "filter" in obs_table
+    assert "zp" in obs_table
+    assert "maglim" in obs_table
+    assert "seeing" in obs_table
+    assert "radius" in obs_table
+
+    # Check the derived columns
+    assert "psf_footprint" in obs_table
+
+    # Check that we have everything we need to derive the PoissonFluxNoiseModel.
+    noise_model = PoissonFluxNoiseModel()
+    assert noise_model.check_compatibility(obs_table)
+
+    # Check that we can search the table for observations at a given location.
+    # We should have between 10% and 20% of the observations near (ra=225, dec=-38).
+    inds = obs_table.range_search(225.0, -38.0, radius=3.0)
+    assert 0.1 * total_obs < len(inds) < 0.2 * total_obs
+
+    # If we at time bounds, we can restrict a lot further.
+    inds2 = obs_table.range_search(225.0, -38.0, radius=3.0, t_min=60855.0, t_max=60860.0)
+    assert len(inds2) < 0.5 * len(inds)
