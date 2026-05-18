@@ -132,6 +132,14 @@ def test_lsst_obstable_from_ccdvisit():
     )
     assert obs_table_with_footprint._detector_footprint is not None
 
+    # We filter out any of the noise columns with NaN.
+    ccd_visit_table.loc[5, "seeing"] = np.nan
+    ccd_visit_table.loc[7, "zeroPoint"] = np.nan
+    ccd_visit_table.loc[9, "skyBg"] = np.nan
+    ccd_visit_table.loc[11, "pixelScale"] = np.nan
+    obs_table_with_nan = LSSTObsTable.from_ccdvisit_table(ccd_visit_table)
+    assert len(obs_table_with_nan) == 176
+
 
 def test_lsst_obstable_from_sv_visits():
     """Test that we can read an LSSTObsTable from the SV visits table."""
@@ -223,7 +231,7 @@ def test_reading_lsst_obstable_from_ccdvisits(test_data_dir):
 
     # Check that we have everything we need to derive the PoissonFluxNoiseModel.
     noise_model = PoissonFluxNoiseModel()
-    assert noise_model.check_compatibility(obs_table)
+    assert noise_model.check_compatibility(obs_table, fail_on_incompatible=True)
 
     # Check that we can search the table for observations at a given location.
     # Over half of the observations in the fake data set are near (ra=53, dec=-28)
@@ -267,7 +275,7 @@ def test_reading_lsst_obstable_from_sv(test_data_dir):
 
     # Check that we have everything we need to derive the PoissonFluxNoiseModel.
     noise_model = PoissonFluxNoiseModel()
-    assert noise_model.check_compatibility(obs_table)
+    assert noise_model.check_compatibility(obs_table, fail_on_incompatible=True)
 
     # Check that we can search the table for observations at a given location.
     # We should have between 10% and 20% of the observations near (ra=225, dec=-38).
