@@ -3,6 +3,7 @@
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
 import logging
+import warnings
 
 import numpy as np
 
@@ -242,6 +243,10 @@ class LSSTObsTable(ObsTable):
         noise_cols = ["pixelScale", "seeing", "skyBg", "zeroPoint"]
         for col in noise_cols:
             if col in cols and table[col].isna().any():
+                warnings.warn(
+                    f"Found NaN values in critical column '{col}'. "
+                    "Dropping rows with NaN values in this column."
+                )
                 table = table.dropna(subset=[col]).reset_index(drop=True)
         logger.debug(f"Dropped rows with NaNs in critical columns. Remaining rows: {len(table)}")
 
@@ -252,6 +257,10 @@ class LSSTObsTable(ObsTable):
 
             # Overwrite any rows that had invalid values with the default radius value.
             if np.any(~np.isfinite(table["radius"])):
+                warnings.warn(
+                    "Found invalid values in 'radius' column. "
+                    "Overwriting these values with the default radius."
+                )
                 table.loc[~np.isfinite(table["radius"]), "radius"] = _lsstcam_ccd_radius
         elif "radius" not in kwargs:
             # Use a single approximate average ccd radius.
@@ -296,7 +305,12 @@ class LSSTObsTable(ObsTable):
             An LSSTObsTable object containing the data from the science validation visits table.
         """
         # Remove the rows with NaNs in sky_bg_median or zero_point_median.
-        table = table.dropna(subset=["sky_bg_median", "zero_point_median"]).reset_index(drop=True)
+        if np.any(table["sky_bg_median"].isna()) or np.any(table["zero_point_median"].isna()):
+            warnings.warn(
+                "Found NaN values in critical columns ['sky_bg_median', 'zero_point_median']. "
+                "Dropping rows with NaN values in these columns."
+            )
+            table = table.dropna(subset=["sky_bg_median", "zero_point_median"]).reset_index(drop=True)
 
         # Set the radius as the view (not CCD) radius because we do not have
         # per-CCD information.

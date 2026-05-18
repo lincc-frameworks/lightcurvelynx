@@ -132,12 +132,13 @@ def test_lsst_obstable_from_ccdvisit():
     )
     assert obs_table_with_footprint._detector_footprint is not None
 
-    # We filter out any of the noise columns with NaN.
+    # We filter out any of the noise columns with NaN and display a warning.
     ccd_visit_table.loc[5, "seeing"] = np.nan
     ccd_visit_table.loc[7, "zeroPoint"] = np.nan
     ccd_visit_table.loc[9, "skyBg"] = np.nan
     ccd_visit_table.loc[11, "pixelScale"] = np.nan
-    obs_table_with_nan = LSSTObsTable.from_ccdvisit_table(ccd_visit_table)
+    with pytest.warns(UserWarning):
+        obs_table_with_nan = LSSTObsTable.from_ccdvisit_table(ccd_visit_table)
     assert len(obs_table_with_nan) == 176
 
 
@@ -158,7 +159,8 @@ def test_lsst_obstable_from_sv_visits():
     pdf.loc[2, "sky_bg_median"] = np.nan
     pdf.loc[4, "zero_point_median"] = np.nan
 
-    ops_data = LSSTObsTable.from_sv_visits_table(pdf)
+    with pytest.warns(UserWarning):
+        ops_data = LSSTObsTable.from_sv_visits_table(pdf)
     assert len(ops_data) == 6
     assert ops_data.radius == pytest.approx(1.75)
 
