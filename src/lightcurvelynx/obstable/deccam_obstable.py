@@ -1,5 +1,6 @@
 import logging
 
+from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 logger = logging.getLogger(__name__)
@@ -112,9 +113,11 @@ class DECamObsTable(ObsTable):
             logger.debug(f"After filtering, {len(table)} rows remain.")
 
         # Add some columns we need for noise.
-        table.rename(columns={"secz": "airmass"}, inplace=True)
+        table.rename(columns={"secz": "airmass", "sky": "sky_bg_mag"}, inplace=True)
 
-        # Compute the psf_footprint.
+        # Compute the psf_footprint from the psf column, which is seeing in arcseconds.
+        pixel_scale = kwargs.get("pixel_scale", cls._default_survey_values["pixel_scale"])
+        table["psf_footprint"] = GAUSS_EFF_AREA2FWHM_SQ * (table["psf"] / pixel_scale) ** 2
 
         # Compute the zero point.
 
