@@ -217,7 +217,8 @@ def test_create_obs_table_nans():
         "zp": np.ones(8),
         "opt_col": np.full(8, np.nan),
     }
-    ops_data = ObsTable(values)
+    with pytest.warns(UserWarning):
+        ops_data = ObsTable(values)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 5
     assert np.allclose(ops_data["time"], [0.0, 1.0, 2.0, 4.0, 7.0])
