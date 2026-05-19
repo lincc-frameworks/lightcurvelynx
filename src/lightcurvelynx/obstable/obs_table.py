@@ -153,10 +153,17 @@ class ObsTable:
                 self._inv_colmap[value] = key
         self._table.rename(columns=name_map, inplace=True)
 
-        # Check that we have the required columns.
+        # Check that we have the required columns and filter out any NaNs.
         for col in self._required_columns:
             if col not in self._table.columns:
                 raise KeyError(f"Missing required column: {col}")
+
+            if self._table[col].isna().any():
+                warnings.warn(
+                    f"Found NaN values in required column '{col}'. "
+                    "Dropping rows with NaN values in this column."
+                )
+                self._table = self._table.dropna(subset=[col]).reset_index(drop=True)
         logger.debug(f"ObsTable initialized with columns: {self._table.columns.tolist()}")
 
         # Save the survey values, with table metadata and keyword arguments overwriting the defaults.

@@ -135,7 +135,9 @@ def test_redback_models_fail_toy() -> None:
     state = model.sample_parameters()
     times = np.array([1.0, 5.0, 6.5, 10.0])
     waves_ang = np.array([1000.0, 2000.0])
-    with pytest.raises(TypeError):
+
+    # We fail with a missing parameter error since "width" is required by the model function.
+    with pytest.raises(RuntimeError):
         _ = model.evaluate_sed(times, waves_ang, graph_state=state)
 
     # Fail if we give it the same parameter in two different ways (repeat redshift).
