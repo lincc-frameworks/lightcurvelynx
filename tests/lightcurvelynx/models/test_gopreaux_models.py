@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.gopreaux_models import GoPreauxModel
 from lightcurvelynx.utils.extrapolate import LastValue
@@ -83,13 +82,13 @@ def test_gopreaux_model():
     fake_model = _FakeGoPreauxModel()
 
     # Sample the brightness randomly from 15 to 18 mag.
-    brightness_sampler = NumpyRandomFunc("uniform", low=mag2flux(18), high=mag2flux(15))
+    magnitude_sampler = NumpyRandomFunc("uniform", low=15, high=18)
 
     # Create the GoPreauxModel using the fake model and brightness sampler.
     t_start = 64350.0
     model = GoPreauxModel(
         fake_model,
-        peak_flux5500=brightness_sampler,
+        peak_mag5500=magnitude_sampler,
         # Standard attributes for all physical objects, set all to constants
         # for this example.
         ra=45.0,
@@ -143,13 +142,13 @@ def test_gopreaux_model_extrapolate():
     fake_model = _FakeGoPreauxModel()
 
     # Sample the brightness randomly from 15 to 18 mag.
-    brightness_sampler = NumpyRandomFunc("uniform", low=mag2flux(18), high=mag2flux(15))
+    magnitude_sampler = NumpyRandomFunc("uniform", low=15, high=18)
 
     # Create the GoPreauxModel using the fake model and brightness sampler.
     t_start = 64350.0
     model = GoPreauxModel(
         fake_model,
-        peak_flux5500=brightness_sampler,
+        peak_mag5500=magnitude_sampler,
         # Standard attributes for all physical objects, set all to constants
         # for this example.
         ra=45.0,
