@@ -333,6 +333,11 @@ def test_simulate_lightcurves(test_data_dir):
         # Check that we extract one of the parameters.
         assert results["source_brightness"][idx] == given_brightness[idx]
 
+    # We can access a specific params as a dict or the entire thing as a StructArray.
+    assert "params" in results
+    assert isinstance(results["params"][0], dict)
+    assert len(results["params"].struct.field("source.brightness")) == 5
+
     # Check that we can safely write the results to a file.
     with tempfile.TemporaryDirectory() as tmpdir:
         filename = Path(tmpdir) / "test_simulate.parquet"

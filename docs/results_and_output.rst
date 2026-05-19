@@ -48,11 +48,9 @@ Note that if the ``output_file_path`` parameter is used, the results are written
 Saved Simulation State
 -------------------------------------------------------------------------------
 
-Each row of the results table also contains a raw copy of the parameters used to simulate that object
-(in the ``params`` column), allowing the user to lookup the object's information. The parameters are stored as
-a dictionary using a structure based on the ``GraphState`` object. Each key consists of a combination of the
-node name and the parameter name (separated by a dot). For example, the parameter ``c`` from the node ``salt2``
-would be stored under the key ``salt2.c``.
+The results table also contains a copy of the parameters used to simulate each object (in the ``params`` column) as a PyArrow StructArray. This allows users to easily lookup the parameters for a given object and use them for post analysis. Each entry in the StructArray corresponds to a parameter and is stored as a key-value pair. The key consists of the node name and parameter name (separated by a dot), and the value is the parameter value.
+
+For example, the parameter ``c`` from the node ``salt2`` would be stored under the key ``salt2.c``.
 
 .. code-block:: python
 
@@ -70,9 +68,23 @@ Users can rebuild the original ``GraphState`` object from the parameters using t
 
     state = GraphState.from_list(results["params"].values)
 
-Alternatively users can extract a specific parameter and append it as its own column in the results
-table using the ``results_append_param_as_col()`` function in utils/post_process_results. If we want to extract
-the ``c`` parameter from the node ``salt2``, we can do the following:
+Users can also extract a dictionary of parameters for a specific row (`index`) using:
+
+.. code-block:: python
+
+    results["params"][index]
+
+Or extract all values for a specific parameter across the entire results table using:
+
+.. code-block:: python
+
+    results["params"].struct.field("salt2.c")
+
+
+Adding Parameters as Columns
+--------------------------------------------------------------------------------
+
+If users want to include specific parameters as separate columns in the results table, they can extract a specific parameter and append it as its own column using the ``results_append_param_as_col()`` function in utils/post_process_results. If we want to extract the ``c`` parameter from the node ``salt2``, we can do the following:
 
 .. code-block:: python
 
