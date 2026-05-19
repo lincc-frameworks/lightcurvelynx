@@ -26,7 +26,7 @@ class GoPreauxModel(SEDModel, CiteClass):
     eXplosions) package.
 
     Parameterized values include:
-      * brightness - The intrinsic brightness of the supernova at its peak and the wavelength closest
+      * peak_flux5500 - Rest-frame spectral flux density, in nJy, at zero phase and 5500 angstroms.
         to the V-band (in magnitudes). [specific to GoPreauxModel]
       * dec - The object's declination in degrees. [from BasePhysicalModel]
       * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
