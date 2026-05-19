@@ -327,7 +327,6 @@ def _simulate_lightcurves_batch(simulation_info):
         "nobs": [0] * num_samples,
         "t0": np.atleast_1d(model.get_param(sample_states, "t0")).tolist(),
         "z": np.atleast_1d(model.get_param(sample_states, "redshift")).tolist(),
-        "params": [state.to_dict() for state in sample_states],
     }
     if simulation_info.param_cols is not None:
         for col in simulation_info.param_cols:
@@ -499,6 +498,10 @@ def _simulate_lightcurves_batch(simulation_info):
     results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
     results = results.join_nested(nested_frame, "lightcurve")
+
+    # Add the parameters as a pyarrow column.
+    params_array = sample_states.to_pyarrow_struct_array()
+    results["params"] = pd.Series(params_array, dtype=pd.ArrowDtype(params_array.type))
 
     # Add in the spectra (if any were sampled).
     if len(spectra_index) > 0:
