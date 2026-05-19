@@ -28,6 +28,7 @@ dependencies = [
     "numpy>=2.0",
     "pandas",
     "pooch",
+    "pyarrow",
     "PyYAML>=6.0",
     "regions",
     "scipy",

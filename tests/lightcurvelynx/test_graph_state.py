@@ -3,6 +3,7 @@ import matplotlib
 matplotlib.use("Agg")  # Suppress the plots
 
 import numpy as np
+import pyarrow as pa
 import pytest
 from astropy.table import Table
 from lightcurvelynx.graph_state import DependencyGraph, GraphState, transpose_dict_of_list
@@ -141,6 +142,57 @@ def test_create_single_graph_state_from_flattened_dict():
 
     # We can access a list of all the parameter names.
     assert state.get_all_params_names() == ["a.v1", "a.v2", "b.v1", "c.v3", "c.v2"]
+
+
+def test_create_single_graph_state_from_pyarrow_struct_array():
+    """Test that we can create a single GraphState from a PyArrow StructArray."""
+    values = [[1.0], [2.0], [3.0], [4.0], [5.0]]
+    names = ["a.v1", "b.v1", "c.v3", "a.v2", "c.v2"]
+    struct_array = pa.StructArray.from_arrays(values, names)
+
+    state = GraphState.from_pyarrow_struct_array(struct_array, num_samples=1)
+
+    assert len(state) == 5
+    assert state.num_samples == 1
+    assert state["a"]["v1"] == 1.0
+    assert state["b"]["v1"] == 2.0
+    assert state["c"]["v3"] == 3.0
+    assert state["a"]["v2"] == 4.0
+    assert state["c"]["v2"] == 5.0
+
+    # We can access a list of all the parameter names.
+    assert state.get_all_params_names() == ["a.v1", "a.v2", "b.v1", "c.v3", "c.v2"]
+
+    # We fail with malformed names.
+    malformed_struct_array = pa.StructArray.from_arrays(
+        values,
+        ["a.v1", "b.v1", "c.v3", "a.v2", "c.v2.v3"],
+    )
+    with pytest.raises(ValueError):
+        _ = GraphState.from_pyarrow_struct_array(malformed_struct_array, num_samples=1)
+
+
+def test_create_multi_graph_state_from_pyarrow_struct_array():
+    """Test that we can create a multi-sample GraphState from a PyArrow StructArray."""
+    values = [
+        [1.0, 2.0, 3.0],
+        [2.0, 3.0, 4.0],
+        [3.0, 4.0, 5.0],
+        [4.0, 5.0, 6.0],
+        [5.0, 6.0, 7.0],
+    ]
+    names = ["a.v1", "b.v1", "c.v3", "a.v2", "c.v2"]
+    struct_array = pa.StructArray.from_arrays(values, names)
+
+    state = GraphState.from_pyarrow_struct_array(struct_array, num_samples=3)
+
+    assert len(state) == 5
+    assert state.num_samples == 3
+    assert np.allclose(state["a"]["v1"], [1.0, 2.0, 3.0])
+    assert np.allclose(state["b"]["v1"], [2.0, 3.0, 4.0])
+    assert np.allclose(state["c"]["v3"], [3.0, 4.0, 5.0])
+    assert np.allclose(state["a"]["v2"], [4.0, 5.0, 6.0])
+    assert np.allclose(state["c"]["v2"], [5.0, 6.0, 7.0])
 
 
 def test_create_multiple_graph_state_from_nested_dict():
@@ -645,6 +697,39 @@ def test_graph_state_to_table():
         result[GraphState.extended_param_name("b", "v1")].data,
         [6.0, 7.0, 8.0],
     )
+
+
+def test_graph_state_to_pyarrow_struct_array():
+    """Test that we can create a PyArrow StructArray from a GraphState."""
+    state = GraphState(num_samples=3)
+    state.set("a", "v1", [1.0, 2.0, 3.0])
+    state.set("a", "v2", [3.0, 4.0, 5.0])
+    state.set("b", "v1", [6.0, 7.0, 8.0])
+
+    result = state.to_pyarrow_struct_array()
+    np.testing.assert_allclose(
+        result.field(GraphState.extended_param_name("a", "v1")).to_numpy(),
+        [1.0, 2.0, 3.0],
+    )
+    np.testing.assert_allclose(
+        result.field(GraphState.extended_param_name("a", "v2")).to_numpy(),
+        [3.0, 4.0, 5.0],
+    )
+    np.testing.assert_allclose(
+        result.field(GraphState.extended_param_name("b", "v1")).to_numpy(),
+        [6.0, 7.0, 8.0],
+    )
+
+    # Everything still works if we have only a single value.
+    state2 = GraphState(num_samples=1)
+    state2.set("a", "v1", 1.0)
+    state2.set("a", "v2", 3.0)
+    state2.set("b", "v1", 6.0)
+
+    result2 = state2.to_pyarrow_struct_array()
+    assert result2.field(GraphState.extended_param_name("a", "v1")).to_numpy()[0] == 1.0
+    assert result2.field(GraphState.extended_param_name("a", "v2")).to_numpy()[0] == 3.0
+    assert result2.field(GraphState.extended_param_name("b", "v1")).to_numpy()[0] == 6.0
 
 
 def test_graph_state_update_multi():
