@@ -19,6 +19,7 @@ from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel, SinWaveModel, StepModel
 from lightcurvelynx.models.physical_model import SEDModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
+from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
@@ -29,6 +30,7 @@ from lightcurvelynx.simulate import (
     get_time_windows,
     simulate_lightcurves,
 )
+from lightcurvelynx.survey_info import SurveyInfo
 from nested_pandas import NestedFrame, read_parquet
 
 
@@ -127,8 +129,9 @@ def test_simulation_info():
     # Create a completely fake passband group and obstable for testing.
     pb_group = PassbandGroup(
         [
-            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "a"),
-            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "b"),
+            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "r"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "g"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "i"),
         ]
     )
 
@@ -146,11 +149,16 @@ def test_simulation_info():
         sky_bg_electrons=100.0,
     )
 
+    survey_info = SurveyInfo(
+        obstable=ops_data,
+        passbands=pb_group,
+        noise_model=GivenNoiseModel(),  # Uses the bandflux_error from the obs table
+    )
+
     sim_info = SimulationInfo(
         model=model,
         num_samples=100,
-        obstable=ops_data,
-        passbands=pb_group,
+        survey_info=survey_info,
         obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
         rng=np.random.default_rng(12345),
     )
@@ -202,8 +210,7 @@ def test_simulation_info():
         _ = SimulationInfo(
             model=model,
             num_samples=-10,
-            obstable=ops_data,
-            passbands=pb_group,
+            survey_info=survey_info,
             obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
             rng=np.random.default_rng(12345),
         )
@@ -217,8 +224,9 @@ def test_simulation_info_random_split():
     # Create a completely fake passband group and obstable for testing.
     pb_group = PassbandGroup(
         [
-            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "a"),
-            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "b"),
+            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "r"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "g"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "i"),
         ]
     )
 
@@ -236,12 +244,17 @@ def test_simulation_info_random_split():
         sky_bg_electrons=100.0,
     )
 
+    survey_info = SurveyInfo(
+        obstable=ops_data,
+        passbands=pb_group,
+        noise_model=GivenNoiseModel(),  # Uses the bandflux_error from the obs table
+    )
+
     # Create a SimulationInfo object with a given seed.
     sim_info1 = SimulationInfo(
         model=model,
         num_samples=100,
-        obstable=ops_data,
-        passbands=pb_group,
+        survey_info=survey_info,
         rng=np.random.default_rng(12345),
     )
     batches1 = sim_info1.split(num_batches=5)
@@ -251,8 +264,7 @@ def test_simulation_info_random_split():
     sim_info2 = SimulationInfo(
         model=model,
         num_samples=100,
-        obstable=ops_data,
-        passbands=pb_group,
+        survey_info=survey_info,
         rng=np.random.default_rng(12345),
     )
     batches2 = sim_info2.split(num_batches=5)
@@ -279,6 +291,9 @@ def test_simulate_lightcurves(test_data_dir):
         filters=["g", "r", "i", "z"],
     )
 
+    # Use the default noise model.
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
     # Create a constant SED model with known brightnesses and RA, dec
     # values that match the opsim.
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
@@ -294,8 +309,7 @@ def test_simulate_lightcurves(test_data_dir):
     results = simulate_lightcurves(
         source,
         5,
-        opsim_db,
-        passband_group,
+        survey_info,
         obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
         progress_bar=False,  # Disable progress bar for testing
@@ -374,8 +388,7 @@ def test_simulate_lightcurves(test_data_dir):
         _ = simulate_lightcurves(
             source2,
             1,
-            opsim_db,
-            passband_group,
+            survey_info,
             param_cols=["source2.unknown_parameter"],
             progress_bar=False,  # Disable progress bar for testing
         )
@@ -412,11 +425,11 @@ def test_simulate_lightcurves_to_file(test_data_dir):
         file_path = Path(tmpdir) / "test_simulate_lightcurves.parquet"
         assert not file_path.exists()
 
+        survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
         results = simulate_lightcurves(
             source,
             5,
-            opsim_db,
-            passband_group,
+            survey_info,
             obstable_save_cols=["observationId", "zp_nJy"],
             param_cols=["source.brightness"],
             output_file_path=file_path,
@@ -446,6 +459,7 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
         table_dir=test_data_dir / "passbands",
         filters=["g", "r", "i", "z"],
     )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
     # Create a basic sinwave model with random parameters. RA and dec values
     # should match the opsim so we get at least one observation for each sample.
@@ -464,8 +478,7 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
     results1 = simulate_lightcurves(
         source,
         num_samples,
-        opsim_db,
-        passband_group,
+        survey_info,
         progress_bar=False,  # Disable progress bar for testing
         rng=rng1,
     )
@@ -476,8 +489,7 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
     results2 = simulate_lightcurves(
         source,
         num_samples,
-        opsim_db,
-        passband_group,
+        survey_info,
         progress_bar=False,  # Disable progress bar for testing
         rng=rng2,
     )
@@ -503,8 +515,7 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
     results3 = simulate_lightcurves(
         source,
         num_samples,
-        opsim_db,
-        passband_group,
+        survey_info,
         progress_bar=False,  # Disable progress bar for testing
         rng=rng3,
     )
@@ -543,7 +554,8 @@ def test_simulate_bandfluxes(test_data_dir):
     # Create a static bandflux model and simulate 2 runs. Check that we correctly extract per-observation
     # information, such as times, filters, and data indices.
     model = StaticBandfluxModel({"g": 1.0, "i": 2.0, "r": 3.0, "y": 4.0, "z": 5.0}, ra=0.0, dec=10.0)
-    results = simulate_lightcurves(model, 2, obstable, passband_group, progress_bar=False)
+    survey_info = SurveyInfo(obstable=obstable, passbands=passband_group)
+    results = simulate_lightcurves(model, 2, survey_info, progress_bar=False)
     assert len(results) == 2
     for idx in range(2):
         assert np.allclose(results["lightcurve"][idx]["mjd"], [0.0, 1.0, 3.0, 5.0])
@@ -578,12 +590,13 @@ def test_simulate_parallel_threads(test_data_dir):
         node_label="source",
     )
 
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = simulate_lightcurves(
             source,
             100,
-            opsim_db,
-            passband_group,
+            survey_info,
             obstable_save_cols=["observationId", "zp_nJy"],
             param_cols=["source.brightness"],
             executor=executor,
@@ -623,6 +636,7 @@ def test_simulate_parallel_processes(test_data_dir):
         table_dir=test_data_dir / "passbands",
         filters=["g", "r", "i", "z"],
     )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
     ra0 = opsim_db["ra"].values[0]
     dec0 = opsim_db["dec"].values[0]
@@ -649,8 +663,7 @@ def test_simulate_parallel_processes(test_data_dir):
         results = simulate_lightcurves(
             source,
             500,
-            opsim_db,
-            passband_group,
+            survey_info,
             obstable_save_cols=["observationId", "zp_nJy"],
             param_cols=["source.brightness"],
             executor=executor,
@@ -679,8 +692,7 @@ def test_simulate_parallel_processes(test_data_dir):
     results2 = simulate_lightcurves(
         source,
         100,
-        opsim_db,
-        passband_group,
+        survey_info,
         obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
         batch_size=10,
@@ -701,8 +713,7 @@ def test_simulate_parallel_processes(test_data_dir):
         results3 = simulate_lightcurves(
             source,
             200,
-            opsim_db,
-            passband_group,
+            survey_info,
             obstable_save_cols=["observationId", "zp_nJy"],
             param_cols=["source.brightness"],
             output_file_path=base_path,
@@ -730,6 +741,7 @@ def test_simulate_single_lightcurve(test_data_dir):
         table_dir=test_data_dir / "passbands",
         filters=["g", "r", "i", "z"],
     )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
     # Create a constant SED model with known brightnesses and RA, dec
     # values that match the opsim.
@@ -746,8 +758,7 @@ def test_simulate_single_lightcurve(test_data_dir):
     results = simulate_lightcurves(
         source,
         1,
-        opsim_db,
-        passband_group,
+        survey_info,
         obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
         progress_bar=False,  # Disable progress bar for testing
@@ -788,6 +799,8 @@ def test_simulate_with_time_window(test_data_dir):
         filters=["g", "r", "i", "z"],
     )
 
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
     # Create a constant SED model with known brightnesses and RA, dec
     # values that match the opsim.
     source = ConstantSEDModel(
@@ -803,8 +816,7 @@ def test_simulate_with_time_window(test_data_dir):
     results1 = simulate_lightcurves(
         source,
         2,
-        opsim_db,
-        passband_group,
+        survey_info,
         obs_time_window_offset=(-5.0, 10.0),
         progress_bar=False,  # Disable progress bar for testing
     )
@@ -825,8 +837,7 @@ def test_simulate_with_time_window(test_data_dir):
     results2 = simulate_lightcurves(
         source,
         2,
-        opsim_db,
-        passband_group,
+        survey_info,
         rest_time_window_offset=(-5.0, 5.0),
         progress_bar=False,  # Disable progress bar for testing
     )
@@ -845,8 +856,7 @@ def test_simulate_with_time_window(test_data_dir):
     results3 = simulate_lightcurves(
         source,
         1,
-        opsim_db,
-        passband_group,
+        survey_info,
         rest_time_window_offset=(-5.0, 10.0),
         progress_bar=False,  # Disable progress bar for testing
     )
@@ -874,6 +884,7 @@ def test_simulate_multiple_surveys(test_data_dir):
         table_dir=test_data_dir / "passbands",
         filters=["g", "r"],
     )
+    survey_info1 = SurveyInfo(obstable=obstable1, passbands=passband_group1)
 
     # The second survey points at two locations on the sky in the "r" and "z" bands.
     obsdata2 = {
@@ -893,6 +904,7 @@ def test_simulate_multiple_surveys(test_data_dir):
         table_dir=test_data_dir / "passbands",
         filters=["r", "z"],
     )
+    survey_info2 = SurveyInfo(obstable=obstable2, passbands=passband_group2)
 
     # Create a constant SED model with known brightnesses and RA, dec values that
     # match the (0.0, 10.0) pointing.
@@ -900,8 +912,7 @@ def test_simulate_multiple_surveys(test_data_dir):
     results = simulate_lightcurves(
         model,
         1,
-        [obstable1, obstable2],
-        [passband_group1, passband_group2],
+        [survey_info1, survey_info2],
         obstable_save_cols=["zp", "custom_col"],
         progress_bar=False,  # Disable progress bar for testing
     )
@@ -921,15 +932,6 @@ def test_simulate_multiple_surveys(test_data_dir):
     # The custom column should only exist for observations from one of the surveys.
     assert np.all(lightcurve["custom_col"][0:2] == 1)
     assert np.all(np.isnan(lightcurve["custom_col"][2:4]))
-
-    # We fail if we pass in lists of different lengths.
-    with pytest.raises(ValueError):
-        simulate_lightcurves(
-            model,
-            1,
-            [obstable1, obstable2],
-            passband_group1,
-        )
 
 
 def test_simulate_multiple_surveys_diff_filters():
@@ -954,6 +956,7 @@ def test_simulate_multiple_surveys_diff_filters():
     transmission1 = np.where((waves >= 6000) & (waves <= 7000), 1.0, 0.0)
     r_passband1 = Passband(np.column_stack((waves, transmission1)), "survey1", "r")
     passband_group1 = PassbandGroup([r_passband1])
+    survey_info1 = SurveyInfo(obstable=obstable1, passbands=passband_group1)
 
     # The second survey points at the same location at different times. But uses
     # a shifted passband for the "r" filter that only partially overlaps the SED.
@@ -972,6 +975,7 @@ def test_simulate_multiple_surveys_diff_filters():
     transmission2 = np.where((waves >= 5500) & (waves <= 6500), 1.0, 0.0)
     r_passband2 = Passband(np.column_stack((waves, transmission2)), "survey2", "r")
     passband_group2 = PassbandGroup([r_passband2])
+    survey_info2 = SurveyInfo(obstable=obstable2, passbands=passband_group2)
 
     # Create an SED model that is a step function over part of the range.
     class _ToyRedSEDModel(SEDModel):
@@ -1008,8 +1012,7 @@ def test_simulate_multiple_surveys_diff_filters():
     results = simulate_lightcurves(
         model,
         1,
-        [obstable1, obstable2],
-        [passband_group1, passband_group2],
+        [survey_info1, survey_info2],
         obstable_save_cols=["zp", "custom_col"],
         save_full_filter_names=True,
         progress_bar=False,  # Disable progress bar for testing
@@ -1050,6 +1053,7 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
         table_dir=test_data_dir / "passbands",
         filters=["g", "r"],
     )
+    survey_info1 = SurveyInfo(obstable=obstable1, passbands=passband_group1)
 
     # The second survey points at two locations on the sky and uses a spectrograph.
     obsdata2 = {
@@ -1065,6 +1069,7 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
     }
     obstable2 = OpSim(obsdata2)
     spectrograph = Spectrograph.from_regular_grid(2000.0, 10000.0, 100.0, instrument="survey2")
+    survey_info2 = SurveyInfo(obstable=obstable2, passbands=spectrograph)
 
     # Create a constant SED model with known brightnesses and RA, dec values that
     # match the (0.0, 10.0) pointing.
@@ -1072,8 +1077,7 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
     results = simulate_lightcurves(
         model,
         1,
-        [obstable1, obstable2],
-        [passband_group1, spectrograph],
+        [survey_info1, survey_info2],
         progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results) == 1
@@ -1209,7 +1213,7 @@ def test_saturation_mags_initialization(test_data_dir):
         radius=100.0,
         read_noise=5.0,
         sky_bg_electrons={"g": 150.0, "r": 140.0},
-        survey_name="MY_SURVEY",
+        survey_name="none",
     )
     assert fake_obs._saturation_mags is None
 
@@ -1250,9 +1254,16 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
         radius=100.0,
         read_noise=5.0,
         sky_bg_electrons={"g": 150.0, "r": 140.0, "i": 155.0},
-        survey_name="MY_SURVEY",
+        survey_name="none",
     )
     assert ops_data._saturation_mags is None
+
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    survey_info = SurveyInfo(obstable=ops_data, passbands=passband_group)
 
     # Set up model
     source = ConstantSEDModel(
@@ -1265,16 +1276,10 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
     )
 
     # Simulate
-    passband_group = PassbandGroup.from_preset(
-        preset="LSST",
-        table_dir=test_data_dir / "passbands",
-        filters=["g", "r", "i", "z"],
-    )
     results = simulate_lightcurves(
         source,
         1,
-        ops_data,
-        passband_group,
+        survey_info,
         obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
     )
@@ -1297,6 +1302,7 @@ def test_simulate_with_default_saturation_mags_values(test_data_dir):
         table_dir=test_data_dir / "passbands",
         filters=["g", "r"],
     )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
     # Create a constant SED model with known RA and dec values that match the opsim.
     # Note the brightness is set very high to ensure saturation threshold is surpassed.
@@ -1312,8 +1318,7 @@ def test_simulate_with_default_saturation_mags_values(test_data_dir):
     results = simulate_lightcurves(
         source,
         1,
-        opsim_db,
-        passband_group,
+        survey_info,
         obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
     )
@@ -1366,7 +1371,7 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
         radius=100.0,
         read_noise=5.0,
         sky_bg_electrons={"g": 150.0, "r": 140.0, "i": 155.0},
-        survey_name="MY_SURVEY",
+        survey_name="none",
         saturation_mags=toy_sat_thresholds,
     )
 
@@ -1380,17 +1385,18 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
         node_label="source",
     )
 
-    # Simulate
     passband_group = PassbandGroup.from_preset(
         preset="LSST",
         table_dir=test_data_dir / "passbands",
         filters=["g", "r", "i", "z"],
     )
+    survey_info = SurveyInfo(obstable=ops_data, passbands=passband_group)
+
+    # Simulate
     results = simulate_lightcurves(
         source,
         1,
-        ops_data,
-        passband_group,
+        survey_info,
         obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
     )

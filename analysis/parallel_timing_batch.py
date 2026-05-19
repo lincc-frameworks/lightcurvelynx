@@ -21,6 +21,7 @@ from lightcurvelynx.math_nodes.ra_dec_sampler import ApproximateMOCSampler
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.simulate import simulate_lightcurves
+from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.extrapolate import LinearDecay
 
 
@@ -46,6 +47,8 @@ def run_timing_tests(args):
         table_dir=args.passband_table_dir,
     )
     print(f"Loaded passband group with {len(passband_group)} passbands.")
+
+    survey_info = SurveyInfo(obstable=ops_data, passbands=passband_group, survey_name="LSST")
 
     # Construct the model.
     print("Constructing the SN model...")
@@ -81,8 +84,7 @@ def run_timing_tests(args):
                 simulate_lightcurves,
                 model=source,
                 num_samples=num_samples,
-                obstable=ops_data,
-                passbands=passband_group,
+                survey_info=survey_info,
                 num_jobs=num_threads,
                 obs_time_window_offset=(-100, 400),
                 progress_bar=False,  # Disable progress bar

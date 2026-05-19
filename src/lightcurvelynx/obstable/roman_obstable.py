@@ -204,7 +204,6 @@ class RomanObsTable(ObsTable):
         colmap=None,
         ma_table_path=None,
         saturation_mags=None,
-        noise_model=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -219,15 +218,10 @@ class RomanObsTable(ObsTable):
         self.pass_map = hltds_pass_map
         self._append_apt_table()
 
-        # If noise model is not provided, then set to the Roman default.
-        if noise_model is None:
-            noise_model = RomanPoissonFluxNoiseModel()
-
         super().__init__(
             self.apt_table,
             colmap=colmap,
             saturation_mags=saturation_mags,
-            noise_model=noise_model,
             **kwargs,
         )
         # assign time based on https://roman.gsfc.nasa.gov/science/High_Latitude_Time_Domain_Survey.html

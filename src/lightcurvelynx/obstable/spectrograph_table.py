@@ -30,6 +30,7 @@ class SpectrographObsTable(ObsTable):
     # By default there are no survey values.
     _default_survey_values = {
         "radius": 10.0 / 3600.0,  # degrees, corresponds to a 10 arcsec radius
+        "survey_name": "spectrograph",
     }
 
     # Class constants for the column names.

@@ -25,7 +25,6 @@ def test_skymapper_obstable_init():
     }
     survey_data_table = pd.DataFrame(survey_data)
     obs_table = SkyMapperObsTable(table=survey_data_table, make_detector_footprint=True)
-    assert isinstance(obs_table.noise_model, PoissonFluxNoiseModel)
 
     assert "zp" in obs_table
     assert "psf_footprint" in obs_table
@@ -45,7 +44,8 @@ def test_skymapper_obstable_init():
 
     # We can compute errors.
     clean_flux = mag2flux(np.full(3, 19.0))
-    new_vals, err_vals = obs_table.noise_model.apply_noise(
+    noise_model = PoissonFluxNoiseModel()
+    new_vals, err_vals = noise_model.apply_noise(
         clean_flux,
         obs_table=obs_table,
         indices=np.array([0, 1, 2]),  # Index values for the first three rows

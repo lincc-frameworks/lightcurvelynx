@@ -21,7 +21,6 @@ def test_create_lsst_obstable():
     ops_data = LSSTObsTable(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
-    assert isinstance(ops_data.noise_model, PoissonFluxNoiseModel)
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.022
@@ -133,7 +132,7 @@ def test_lsst_obstable_from_ccdvisit():
     )
     assert obs_table_with_footprint._detector_footprint is not None
 
-    # We filter out any of the noise columns with NaN.
+    # We filter out any of the noise columns with NaN and display a warning.
     ccd_visit_table.loc[5, "seeing"] = np.nan
     ccd_visit_table.loc[7, "zeroPoint"] = np.nan
     ccd_visit_table.loc[9, "skyBg"] = np.nan
@@ -191,7 +190,8 @@ def test_lsst_noise_model_delegation():
     indices = np.array([0, 1, 2])
 
     # We can compute errors.
-    new_vals, err_vals = table.noise_model.apply_noise(
+    noise_model = PoissonFluxNoiseModel()
+    new_vals, err_vals = noise_model.apply_noise(
         bandflux,
         obs_table=table,
         indices=indices,
