@@ -174,7 +174,13 @@ def test_create_single_graph_state_from_pyarrow_struct_array():
 
 def test_create_multi_graph_state_from_pyarrow_struct_array():
     """Test that we can create a multi-sample GraphState from a PyArrow StructArray."""
-    values = [[1.0, 2.0, 3.0], [2.0, 3.0, 4.0], [3.0, 4.0, 5.0], [4.0, 5.0, 6.0], [5.0, 6.0, 7.0]]
+    values = [
+        [1.0, 2.0, 3.0],
+        [2.0, 3.0, 4.0],
+        [3.0, 4.0, 5.0],
+        [4.0, 5.0, 6.0],
+        [5.0, 6.0, 7.0],
+    ]
     names = ["a.v1", "b.v1", "c.v3", "a.v2", "c.v2"]
     struct_array = pa.StructArray.from_arrays(values, names)
 

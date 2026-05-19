@@ -48,9 +48,9 @@ Note that if the ``output_file_path`` parameter is used, the results are written
 Saved Simulation State
 -------------------------------------------------------------------------------
 
-The results table also contains a copy of the parameters used to simulate each object (in the ``params`` column) as a PyArrow StructArray. This allows users to easily lookup the parameters for a given object and use them for post analysis. Each entry in the StructArray corresponds to a parameter and is stored as a key-value pair. The key consists of the node name and parameter name (separated by a dot), and the value is the parameter value.
+The results table also contains a copy of the parameters used to simulate each object (in the ``params`` column) as a PyArrow StructArray. This allows users to easily lookup the parameters for a given object and use them for post analysis. The field names in the StructArray consist of the node name and parameter name (separated by a dot):
 
-For example, the parameter ``c`` from the node ``salt2`` would be stored under the key ``salt2.c``.
+For example, the parameter ``c`` from the node ``salt2`` would be stored under the field ``salt2.c``.
 
 .. code-block:: python
 
@@ -68,7 +68,7 @@ Users can rebuild the original ``GraphState`` object from the parameters using t
 
     state = GraphState.from_list(results["params"].values)
 
-Users can also extract a dictionary of parameters for a specific row (`index`) using:
+Users can also extract a dictionary of parameters for a specific row (``index``) using:
 
 .. code-block:: python
 
