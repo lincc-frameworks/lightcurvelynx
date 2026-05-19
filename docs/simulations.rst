@@ -21,13 +21,9 @@ step includes the following components:
 * A mathematical model that defines the properties of the time-domain light source, which can
   also include a host-galaxy model, and is used to generate the noise-free light curves (given
   the sampled parameters).
-* ``ObsTable`` contains the survey information such as survey strategy and observing
-  conditions. It is used to specify the observing times and bands. For more information
-  see the :doc:`survey data documentation page <survey_data>`.
+* ``SurveyInfo`` contains the survey information such as survey strategy, observing conditions, instrument characteristics, filter characteristics, and noise model. It is a wrapper around other specific data structures such as ``ObsTable`` and ``PassbandGroup``.
 * A set of predefined effects, such as dust extinction and detector noise, are applied to
   the noise-free light curves to produce realistic light curves.
-* The ``PassbandGroup`` contains the filter information of the telescope and is used
-  to calculate the fluxes in each band.
 
 To perform a simulation that includes different populations of objects, the user would run the core
 simulate function multiple times--once for each population. The results can then be concatenated together
@@ -196,11 +192,11 @@ band fluxes directly will not account for all of these factors.
 Running a Full Simulation
 -------------------------------------------------------------------------------
 
-To run a full simulation, users call the ``simulate_lightcurves()`` function, which handles the parameter sampling, matching with ``ObsTable`` positions, the full density simulation (including effects), application of noise, etc. The function takes the model object to simulation, the number of samples to generate, and the survey information (``ObsTable`` and ``PassbandGroup``). It returns a nested pandas DataFrame as described in the  :doc:`Results and Output documentation page <results_and_output>`, which includes both the sampled parameters and the resulting light curves for each simulated object.
+To run a full simulation, users call the ``simulate_lightcurves()`` function, which handles the parameter sampling, matching with ``ObsTable`` positions, the full density simulation (including effects), application of noise, etc. The function takes the model object to simulation, the number of samples to generate, and the survey information (``SurveyInfo``). It returns a nested pandas DataFrame as described in the  :doc:`Results and Output documentation page <results_and_output>`, which includes both the sampled parameters and the resulting light curves for each simulated object.
 
 .. code-block:: python
 
-    results = simulate_lightcurves(model, num_samples, obs_table, passband_group)
+    results = simulate_lightcurves(model, num_samples, survey_info)
 
 The ``simulate_lightcurves()`` function has many additional arguments to allow the user to
 control various aspects of the simulation. These include:
@@ -246,7 +242,7 @@ Simulating from Multiple Surveys
 -------------------------------------------------------------------------------
 
 LightCurveLynx can simulate observations from multiple surveys in a single run by passing a list of
-``ObsTable`` and a list of ``PassbandGroup`` to the ``simulate_lightcurves()`` function.
+``SurveyInfo`` objects to the ``simulate_lightcurves()`` function.
 The parameter space is sampled once for each simulated object, so the observations in each
 survey are consistent with respect to the parameterization. The times of observation and filters
 used are determined by each survey. And the bandflux is computed using that survey's passbands.

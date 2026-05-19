@@ -11,7 +11,6 @@ from mocpy import MOC
 
 from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
-from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 _argus_view_radius = 52.0
@@ -45,9 +44,6 @@ class ArgusHealpixObsTable(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, Argus-specific defaults will be
         used.
-    noise_model : NoiseModel, optional
-        The noise model to use for this ObsTable. If not provided, the PoissonFluxNoiseModel
-        will be used.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -90,7 +86,6 @@ class ArgusHealpixObsTable(ObsTable):
         colmap=None,
         apply_saturation=True,
         saturation_mags=None,
-        noise_model=None,
         nside=None,
         **kwargs,
     ):
@@ -126,16 +121,11 @@ class ArgusHealpixObsTable(ObsTable):
         if "detector_footprint" in kwargs or "wcs" in kwargs:  # pragma: no cover
             raise ValueError("ArgusObsTable does not support detector footprints.")
 
-        # If noise model is not provided, then set to the Argus default.
-        if noise_model is None:
-            noise_model = PoissonFluxNoiseModel()
-
         super().__init__(
             table=table,
             colmap=colmap,
             apply_saturation=apply_saturation,
             saturation_mags=saturation_mags,
-            noise_model=noise_model,
             **kwargs,
         )
 
