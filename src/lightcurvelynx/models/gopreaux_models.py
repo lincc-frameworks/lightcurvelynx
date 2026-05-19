@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 from citation_compass import CiteClass
 
-from lightcurvelynx.astro_utils.mag_flux import mag2flux
+from lightcurvelynx.astro_utils.mag_flux import flux2mag, mag2flux
 from lightcurvelynx.models.physical_model import SEDModel
 
 
@@ -49,23 +49,20 @@ class GoPreauxModel(SEDModel, CiteClass):
     ----------
     model : caat.SNModel
         The gopreaux SNModel object that defines the surface to be evaluated.
-    intrinsic_brightness : Parameter
-        The intrinsic brightness of the supernova at its peak and the wavelength closest
+    peak_flux5500 : Parameter
+        Rest-frame spectral flux density, in nJy, at zero phase and 5500 angstroms.
         to the V-band (in magnitudes).
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
 
-    def __init__(self, model, intrinsic_brightness, **kwargs):
+    def __init__(self, model, peak_flux5500, **kwargs):
         super().__init__(**kwargs)
         self.model = model
         self.add_parameter(
-            "brightness",
-            intrinsic_brightness,
-            description=(
-                "The intrinsic brightness of the supernova at its peak and the wavelength closest"
-                " to the V-band (in magnitudes).",
-            ),
+            "peak_flux5500",
+            peak_flux5500,
+            description=("Rest-frame spectral flux density, in nJy, at zero phase and 5500 angstroms.",),
             **kwargs,
         )
 
@@ -239,7 +236,8 @@ class GoPreauxModel(SEDModel, CiteClass):
         # wavelength closest to the V-band) where a delta of 1.0 indicates an increase
         # in brightness (and thus a decrease in magnitude) by 1.0. So we need to *subtract*
         # these changes from the intrinsic brightness.
-        total_mag = self.get_param(graph_state, "brightness") - rel_mag
+        intrinsic_mag = flux2mag(self.get_param(graph_state, "peak_flux5500"))
+        total_mag = intrinsic_mag - rel_mag
 
         # Convert from magnitudes to fluxes in nJy and return the result.
         return mag2flux(total_mag)
