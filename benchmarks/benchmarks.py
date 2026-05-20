@@ -283,19 +283,19 @@ class TimeSuite:
         sampler = ApproximateMOCSampler.from_obstable(self.obs_table, depth=8)
         _ = sampler.sample_parameters(num_samples=1_000)
 
-    def time_obs_table_check_compatibility(self):
-        """Time the check_compatibility function of LSSTObsTable with the PoissonFluxNoiseModel."""
+    def time_poisson_noise_model(self):
+        """Time applying the creation, checking, and application of the PoissonFluxNoiseModel."""
         noise_model = PoissonFluxNoiseModel()
         noise_model.check_compatibility(self.obs_table)
 
-    def time_obs_table_get_value_per_row_const(self):
-        """Time the get_value_per_row function when querying a constant value."""
+        inds = np.arange(25)
+        bandflux = 1.5e8 * inds
+        _ = noise_model.apply_noise(bandflux, obs_table=self.obs_table, indices=inds)
+
+    def time_obs_table_get_value_per_row(self):
+        """Time the get_value_per_row function when querying a column and a constant value."""
         inds = np.arange(len(self.obs_table) - 5)
         _ = self.obs_table.get_value_per_row("exptime", indices=inds)
-
-    def time_obs_table_get_value_per_row_col(self):
-        """Time the get_value_per_row function when extracting from a column."""
-        inds = np.arange(len(self.obs_table) - 5)
         _ = self.obs_table.get_value_per_row("ra", indices=inds)
 
     def time_basic_end_to_end_simulation(self):
@@ -319,8 +319,10 @@ class TimeSuite:
 
         _ = simulate_lightcurves(
             model=source,
-            num_samples=1_000,
+            num_samples=100,
             survey_info=SurveyInfo(obstable=obs_table, passbands=self.passbands, survey_name="LSST"),
             obs_time_window_offset=(-100, 400),
             progress_bar=False,  # Disable progress bar
         )
+
+    time_basic_end_to_end_simulation.timeout = 300.0  # 5 minutes
