@@ -301,6 +301,35 @@ class GraphState:
         return state
 
     @classmethod
+    def from_pyarrow_struct_array(cls, struct_array, num_samples=1):
+        """Create a GraphState from a PyArrow StructArray with fields for each parameter
+        and field names of the form '{node_name}.{param_name}'.
+
+        Parameters
+        ----------
+        struct_array : pyarrow.StructArray
+            The input StructArray.
+        num_samples : int
+            The number of samples.
+            Default:  1
+        """
+        state = GraphState(num_samples=num_samples)
+        for col in struct_array.type:
+            components = col.name.split(".")
+            if len(components) != 2:
+                raise ValueError(
+                    f"Invalid name for entry '{col.name}'. Entries should be of the form "
+                    f"'node_name.param_name'."
+                )
+
+            # If we only have a single value then store that value instead of the np array.
+            if num_samples == 1:
+                state.set(components[0], components[1], struct_array.field(col.name)[0].as_py())
+            else:
+                state.set(components[0], components[1], struct_array.field(col.name).to_numpy())
+        return state
+
+    @classmethod
     def from_list(cls, data):
         """Concatenate a list of GraphStates or single state dictionaries into a single GraphState.
         All the entries in the data must have the same set of parameters (keys).
@@ -637,6 +666,36 @@ class GraphState:
                 else:
                     values[self.extended_param_name(node_name, param_name)] = list(param_value)
         return values
+
+    def to_pyarrow_struct_array(self):
+        """Flatten the graph state to a PyArrow StructArray with fields for each parameter.
+
+        The column names are: {node_name}.{param_name}
+
+        Returns
+        -------
+        values : pyarrow.StructArray
+            The resulting StructArray.
+        """
+        try:
+            import pyarrow as pa
+        except ImportError as err:  # pragma: no cover
+            raise ImportError(
+                "PyArrow is required to convert the GraphState to a PyArrow StructArray. "
+                "Please install it with 'pip install pyarrow'."
+            ) from err
+
+        names = []
+        arrays = []
+        for node_name, node_params in self.states.items():
+            for param_name, param_value in node_params.items():
+                full_name = self.extended_param_name(node_name, param_name)
+                names.append(full_name)
+                if self.num_samples == 1:
+                    arrays.append(pa.array([param_value]))
+                else:
+                    arrays.append(pa.array(param_value))
+        return pa.StructArray.from_arrays(arrays, names=names)
 
     def save_to_file(self, filename, overwrite=False):
         """Save the GraphState to a file.

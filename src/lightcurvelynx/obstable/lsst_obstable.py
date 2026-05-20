@@ -2,12 +2,14 @@
 
 from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
+import logging
+import warnings
+
 import numpy as np
 
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
-from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 LSSTCAM_PIXEL_SCALE = 0.2
@@ -55,6 +57,8 @@ We choose a very conservative noise flooring of 1e-4 mag.
 This number will be updated when we have a better estimate from LSST.
 """
 
+logger = logging.getLogger(__name__)
+
 
 class LSSTObsTable(ObsTable):
     """An ObsTable for observations from the Rubin Observatory data releases.
@@ -71,9 +75,6 @@ class LSSTObsTable(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, LSST-specific defaults will be
         used.
-    noise_model : NoiseModel, optional
-        The noise model to use for this ObsTable. If not provided, defaults to
-        PoissonFluxNoiseModel.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -161,7 +162,6 @@ class LSSTObsTable(ObsTable):
         table,
         colmap=None,
         saturation_mags=None,
-        noise_model=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -171,15 +171,10 @@ class LSSTObsTable(ObsTable):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
-        # If noise model is not provided, then set to the LSST default.
-        if noise_model is None:
-            noise_model = PoissonFluxNoiseModel()
-
         super().__init__(
             table,
             colmap=colmap,
             saturation_mags=saturation_mags,
-            noise_model=noise_model,
             **kwargs,
         )
 
@@ -241,11 +236,32 @@ class LSSTObsTable(ObsTable):
         """
         table = table.copy()
         cols = table.columns.to_list()
+        logger.debug(f"Loading LSSTObsTable from CCDVisit table with {len(table)} rows and columns: {cols}")
+
+        # Drop rows with NaNs in the noise information. Not all rows are required, so we only
+        # drop rows that exist.
+        noise_cols = ["pixelScale", "seeing", "skyBg", "zeroPoint"]
+        for col in noise_cols:
+            if col in cols and table[col].isna().any():
+                warnings.warn(
+                    f"Found NaN values in critical column '{col}'. "
+                    "Dropping rows with NaN values in this column."
+                )
+                table = table.dropna(subset=[col]).reset_index(drop=True)
+        logger.debug(f"Dropped rows with NaNs in critical columns. Remaining rows: {len(table)}")
 
         # Try to derive the viewing radius if we have the information to do so.
-        if "xSize" in cols and "ySize" in cols and "pixel_scale" in cols:
+        if "xSize" in cols and "ySize" in cols and "pixelScale" in cols:
             radius_px = np.sqrt((table["xSize"] / 2) ** 2 + (table["ySize"] / 2) ** 2)
-            table["radius"] = (radius_px * table["pixel_scale"]) / 3600.0  # arcsec to degrees
+            table["radius"] = (radius_px * table["pixelScale"]) / 3600.0  # arcsec to degrees
+
+            # Overwrite any rows that had invalid values with the default radius value.
+            if np.any(~np.isfinite(table["radius"])):
+                warnings.warn(
+                    "Found invalid values in 'radius' column. "
+                    "Overwriting these values with the default radius."
+                )
+                table.loc[~np.isfinite(table["radius"]), "radius"] = _lsstcam_ccd_radius
         elif "radius" not in kwargs:
             # Use a single approximate average ccd radius.
             kwargs["radius"] = _lsstcam_ccd_radius
@@ -289,7 +305,12 @@ class LSSTObsTable(ObsTable):
             An LSSTObsTable object containing the data from the science validation visits table.
         """
         # Remove the rows with NaNs in sky_bg_median or zero_point_median.
-        table = table.dropna(subset=["sky_bg_median", "zero_point_median"]).reset_index(drop=True)
+        if np.any(table["sky_bg_median"].isna()) or np.any(table["zero_point_median"].isna()):
+            warnings.warn(
+                "Found NaN values in critical columns ['sky_bg_median', 'zero_point_median']. "
+                "Dropping rows with NaN values in these columns."
+            )
+            table = table.dropna(subset=["sky_bg_median", "zero_point_median"]).reset_index(drop=True)
 
         # Set the radius as the view (not CCD) radius because we do not have
         # per-CCD information.

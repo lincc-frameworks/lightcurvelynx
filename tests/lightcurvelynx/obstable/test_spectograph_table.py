@@ -17,6 +17,7 @@ def test_create_spectrograph_obstable():
     assert np.all(survey_data["ra"] == data["ra"])
     assert np.all(survey_data["dec"] == data["dec"])
     assert np.all(survey_data["time"] == data["time"])
+    assert survey_data["survey_name"] == "spectrograph"
 
     # We fill in a fake filter column. This is not used for anything.
     assert np.all(survey_data["filter"] == "spectra")

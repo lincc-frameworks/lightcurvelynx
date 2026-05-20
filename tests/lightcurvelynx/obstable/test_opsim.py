@@ -31,7 +31,6 @@ def test_create_opsim():
     ops_data = OpSim(pdf)
     assert len(ops_data) == 5
     assert len(ops_data.columns) == 4
-    assert isinstance(ops_data.noise_model, PoissonFluxNoiseModel)
 
     # We have all the attributes set at their default values.
     assert ops_data.survey_values["dark_current"] == 0.2
@@ -506,7 +505,8 @@ def test_opsim_flux_err_point_source(opsim_shorten):
     flux = mag2flux(ops_data["fiveSigmaDepth"])
     expected_flux_err = flux / 5.0
 
-    new_flux, flux_err = ops_data.noise_model.apply_noise(
+    noise_model = PoissonFluxNoiseModel()
+    new_flux, flux_err = noise_model.apply_noise(
         flux,
         obs_table=ops_data,
         indices=np.arange(len(ops_data)),
@@ -532,6 +532,10 @@ def test_create_random_opsim():
     """Test that we can create a complete random OpSim."""
     opsim = create_random_opsim(1000)
     assert len(opsim) == 1000
+
+    # We fail if we try to create an opsim with a non-positive number of rows.
+    with pytest.raises(ValueError):
+        _ = create_random_opsim(0)
 
 
 def test_oversample_opsim(opsim_shorten):

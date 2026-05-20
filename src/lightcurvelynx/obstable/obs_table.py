@@ -1,6 +1,6 @@
-"""The top-level module for survey related data, such as pointing and noise
-information. ObsTable class is a base class with specific implementations
-for different survey data, such as Rubin and ZTF."""
+"""The top-level module for survey related data, such as pointing and observation conditions.
+ObsTable class is a base class with specific implementations for different survey data,
+such as Rubin and ZTF."""
 
 import logging
 import sqlite3
@@ -26,8 +26,11 @@ logger = logging.getLogger(__name__)
 
 
 class ObsTable:
-    """A wrapper class around the observations table with helper computation functions and
-    cached data for efficiency.
+    """A class that stores a table of information about the observations in a survey,
+    such as pointing and observation conditions. ObsTables are specialized for different
+    surveys and include information about that survey (e.g. default noise parameters,
+    default filter characteristics, etc.). They also include helper functions for common
+    computations.
 
     Parameters
     ----------
@@ -51,8 +54,6 @@ class ObsTable:
         A dictionary mapping filter names to their saturation thresholds in magnitudes.
         The filters provided must match those in the table. If not provided,
         saturation effects will not be applied.
-    noise_model : FluxNoiseModel, optional
-        The noise model to use for this survey.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This can include
         overrides of any of the survey values.
@@ -64,8 +65,6 @@ class ObsTable:
         as readout noise and dark current.
     filters : np.ndarray
         The unique filters in the survey table (if provided).
-    noise_model : FluxNoiseModel, optional
-        The noise model to use for this survey.
     _table : pandas.core.frame.DataFrame
         The table with all the observation information mapped to standard column names.
     _colmap : dict
@@ -106,7 +105,6 @@ class ObsTable:
         detector_footprint=None,
         wcs=None,
         saturation_mags=None,
-        noise_model=None,
         **kwargs,
     ):
         # Create a copy of the table.
@@ -153,10 +151,17 @@ class ObsTable:
                 self._inv_colmap[value] = key
         self._table.rename(columns=name_map, inplace=True)
 
-        # Check that we have the required columns.
+        # Check that we have the required columns and filter out any NaNs.
         for col in self._required_columns:
             if col not in self._table.columns:
                 raise KeyError(f"Missing required column: {col}")
+
+            if self._table[col].isna().any():
+                warnings.warn(
+                    f"Found NaN values in required column '{col}'. "
+                    "Dropping rows with NaN values in this column."
+                )
+                self._table = self._table.dropna(subset=[col]).reset_index(drop=True)
         logger.debug(f"ObsTable initialized with columns: {self._table.columns.tolist()}")
 
         # Save the survey values, with table metadata and keyword arguments overwriting the defaults.
@@ -179,12 +184,8 @@ class ObsTable:
         # Save the saturation thresholds.
         self._saturation_mags = saturation_mags
 
-        # Save the noise model.
-        self.noise_model = noise_model
-
-        # Build the kd-tree (or other spatial data structure).
-        self._spatial_data = None
-        self._build_spatial_data()
+        # Update all of the cached data.
+        self._update_cached_data()
 
         # Create the footprint if one is provided.
         if detector_footprint is not None:
@@ -224,14 +225,12 @@ class ObsTable:
         new_colmap = self._colmap.copy()
         new_detector_footprint = self._detector_footprint  # Assuming this is immutable or we want to share it
         new_saturation_mags = self._saturation_mags.copy() if self._saturation_mags is not None else None
-        new_noise_model = self.noise_model  # Assuming this is immutable or we want to share it
 
         return ObsTable(
             new_table,
             colmap=new_colmap,
             detector_footprint=new_detector_footprint,
             saturation_mags=new_saturation_mags,
-            noise_model=new_noise_model,
             **new_survey_values,
         )
 
@@ -321,10 +320,10 @@ class ObsTable:
         if isinstance(value, dict):
             # Map the values for each filter to the rows in the table.
             result = np.zeros(len(indices), dtype=float)
-            for fil, val in value.items():
-                if fil not in self.filters:
-                    raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{fil}'")
-                result[self._table["filter"].iloc[indices] == fil] = val
+            for filt in self.filters:
+                if filt not in value:
+                    raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{filt}'")
+                result[self._table["filter"].iloc[indices] == filt] = value[filt]
             return result
         raise TypeError(f"Unsupported type for '{key}': {type(value)}")
 
@@ -559,6 +558,21 @@ class ObsTable:
         fig, ax = plot_moc(moc, fig=fig, ax=ax, **kwargs)
         return fig, ax
 
+    def _update_cached_data(self):
+        """Update any cached data based on the current table and survey values.
+        This can be used any time the underlying table is updated, such as when rows
+        are filtered.
+        """
+        # Reset the index column if it exists.
+        self._table = self._table.reset_index(drop=True)
+
+        # Rebuild the list of filters.
+        self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
+
+        # Build the kd-tree (or other spatial data structure).
+        self._spatial_data = None
+        self._build_spatial_data()
+
     def _build_spatial_data(self):
         """Construct the KD-tree from the ObsTable."""
         # Convert the pointings to Cartesian coordinates on a unit sphere.
@@ -689,11 +703,9 @@ class ObsTable:
             mask = np.full((len(self._table),), False)
             mask[rows] = True
 
-        # Filter the rows. Build a new spatial data structure and list of filters.
-        self._table = self._table[mask].reset_index(drop=True)
-        self.filters = np.unique(self._table["filter"]) if "filter" in self._table.columns else np.array([])
-        self._spatial_data = None
-        self._build_spatial_data()
+        # Filter the rows. Update all of the cached data.
+        self._table = self._table[mask]
+        self._update_cached_data()
 
         return self
 
@@ -1079,8 +1091,6 @@ class ObsTable:
             survey_kwargs["wcs"] = None  # None because we have already converted to DetectorFootprint
         if "saturation_mags" not in survey_kwargs:
             survey_kwargs["saturation_mags"] = self._saturation_mags
-        if "noise_model" not in survey_kwargs:
-            survey_kwargs["noise_model"] = self.noise_model
         for key, value in self.survey_values.items():
             if key not in survey_kwargs:
                 survey_kwargs[key] = value

@@ -1,6 +1,5 @@
 import logging
 
-from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 logger = logging.getLogger(__name__)
@@ -38,10 +37,6 @@ class FakeObsTable(ObsTable):
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, saturation effects will not be applied.
-    noise_model : NoiseModel, optional
-        The noise model to use for this survey. If not provided, a default GivenNoiseModel
-        will be used, which can compute flux errors from the table parameters using the
-        poisson_bandflux_std function.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -67,21 +62,12 @@ class FakeObsTable(ObsTable):
         *,
         colmap=None,
         bandflux_error=None,
-        noise_model=None,
         **kwargs,
     ):
-        if noise_model is None:
-            if bandflux_error is None:
-                raise ValueError(
-                    "Must provide either a noise_model or a bandflux_error to use for FakeObsTable."
-                )
-            noise_model = GivenNoiseModel()
-
         # Pass along all the survey parameters to the parent class.
         super().__init__(
             table,
             colmap=colmap,
             bandflux_error=bandflux_error,
-            noise_model=noise_model,
             **kwargs,
         )

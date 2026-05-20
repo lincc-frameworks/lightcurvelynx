@@ -64,6 +64,7 @@ in roughly alphabetical order of simulation package or simulation type).
     AGN Damped Random Walk Model <notebooks/pre_executed/agn>
     Basic SNIa Simulation <notebooks/simple_snia>
     EzTaoX <notebooks/pre_executed/eztaox_example>
+    GoPreaux <notebooks/pre_executed/gopreaux_example>
     Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
     Microlensing Effect Example <notebooks/pre_executed/microlensing>
     PLAsTiCC SNIa <notebooks/pre_executed/plasticc_snia>

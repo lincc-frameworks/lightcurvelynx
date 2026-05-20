@@ -136,6 +136,51 @@ def test_create_argus_obstable_alternate():
         _ = ArgusHealpixObsTable(pdf)
 
 
+def test_filter_argus_obstable():
+    """Create a minimal ArgusHealpixObsTable object, filter some rows, and perform basic queries."""
+    ra = np.array([15.0, 30.0, 15.0, 0.0, 30.0, 15.0, 15.0, 15.0, 15.0, 0.5])
+    dec = np.array([10.0, -5.0, 10.0, 5.0, -5.0, 10.0, 10.0, 10.0, 10.0, 0.5])
+    healpix = _ra_dec_to_healpix(ra, dec)
+    values = {
+        "epoch": 59500.0 + np.arange(len(ra)),
+        "ra": ra,
+        "dec": dec,
+        "zp": np.ones_like(ra),
+        "nside": np.full_like(ra, 32),
+        "counter": np.arange(len(ra)),
+    }
+    pdf = pd.DataFrame(values, index=healpix)
+    pdf.index.name = "healpix"
+    ops_data = ArgusHealpixObsTable(pdf)
+    assert len(ops_data) == 10
+    assert ops_data.healpix_nside == 32
+    assert ops_data.healpix_depth == 5
+
+    # Check that we can extract the time bounds.
+    t_min, t_max = ops_data.time_bounds()
+    assert t_min == 59500.0
+    assert t_max == 59509.0
+
+    # Filter out the odd rows. This should force the ObsTable to rebuild all
+    # of its internal data structures.
+    ops_data = ops_data.filter_rows(ops_data["counter"] % 2 == 0)
+    assert len(ops_data) == 5
+
+    # Check that we can extract the time bounds.
+    t_min, t_max = ops_data.time_bounds()
+    assert t_min == 59500.0
+    assert t_max == 59508.0
+
+    # Check that we can determine which times a point is seen.
+    assert np.array_equal(ops_data.range_search(15.0, 10.0), [0, 1, 3, 4])
+    assert np.array_equal(ops_data.range_search(30.0, -5.0), [2])
+
+    # We can filter the range search by time.
+    assert np.array_equal(ops_data.range_search(15.0, 10.0, t_min=59501.0), [1, 3, 4])
+    assert np.array_equal(ops_data.range_search(15.0, 10.0, t_max=59502.0), [0, 1])
+    assert np.array_equal(ops_data.range_search(15.0, 10.0, t_min=59501.0, t_max=59503.0), [1])
+
+
 def test_argus_obstable_footprint():
     """We cannot use a footprint for the argus obstable since it is already healpix."""
     ra = np.array([15.0, 30.0, 15.0, 0.0, 15.0, 30.0])
@@ -178,7 +223,6 @@ def test_argus_obstable_noise():
     }
     pdf = pd.DataFrame(values)
     table = ArgusHealpixObsTable(pdf, nside=32)
-    assert isinstance(table.noise_model, PoissonFluxNoiseModel)
 
     assert "zp" in table
     assert np.all(table["zp"] > 15.0)
@@ -186,7 +230,8 @@ def test_argus_obstable_noise():
     # Check that we can compute the bandflux error for a given bandflux.
     bandfluxes = np.array([1000.0, 500.0, 200.0])
     index = np.array([0, 2, 4])
-    bandflux_noise, bandflux_err = table.noise_model.apply_noise(
+    noise_model = PoissonFluxNoiseModel()
+    bandflux_noise, bandflux_err = noise_model.apply_noise(
         bandflux=bandfluxes,
         obs_table=table,
         indices=index,
