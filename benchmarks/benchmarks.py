@@ -8,6 +8,7 @@ https://asv.readthedocs.io/en/stable/writing_benchmarks.html."""
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from astropy import units as u
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.astro_utils.snia_utils import DistModFromRedshift, HostmassX1Func, X0FromDistMod
@@ -15,11 +16,17 @@ from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.effects.white_noise import WhiteNoise
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.math_nodes.ra_dec_sampler import ApproximateMOCSampler
 from lightcurvelynx.models.basic_models import ConstantSEDModel, LinearWavelengthModel, StepModel
 from lightcurvelynx.models.lightcurve_template_model import LightcurveTemplateModel
 from lightcurvelynx.models.multi_object_model import AdditiveMultiObjectModel
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.models.static_sed_model import StaticSEDModel
+from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
+from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable
+from lightcurvelynx.simulate import simulate_lightcurves
+from lightcurvelynx.survey_info import SurveyInfo
+from lightcurvelynx.utils.extrapolate import LinearDecay
 
 # ASV runs from copy of the project (benchmarks/env/....). So we load the
 # data files based off the current file location instead.
@@ -58,6 +65,10 @@ class TimeSuite:
         """Set up items that will be used in multiple tests."""
         # Preload the passbands for tests that use them.
         self.passbands = _load_test_passbands()
+
+        # Preread a small CCD visit table to use in the obs table loading benchmark.
+        self.ccd_table = pd.read_parquet(_TEST_DATA_DIR / "dp1_ccdvisit_subsampled.parquet")
+        self.obs_table = LSSTObsTable.from_ccdvisit_table(self.ccd_table)
 
         # Create a model we can use in tests.
         self.redshift = 0.1
@@ -261,3 +272,54 @@ class TimeSuite:
         times = np.array([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])
         wavelengths = np.array([1000.0, 2000.0, 3000.0, 4000.0])
         _ = model.evaluate_sed(times, wavelengths, state)
+
+    def time_load_ccdvisit_table(self):
+        """Time loading an LSSTObsTable from a pandas CCD visit table."""
+        _ = LSSTObsTable.from_ccdvisit_table(self.ccd_table)
+
+    def time_approximate_moc_sampler(self):
+        """Time creating an ApproximateMOCSampler from an LSSTObsTable."""
+        obs_table = LSSTObsTable.from_ccdvisit_table(self.ccd_table)
+        _ = ApproximateMOCSampler.from_obstable(obs_table, depth=8)
+
+    def time_obs_table_check_compatibility(self):
+        """Time the check_compatibility function of LSSTObsTable with the PoissonFluxNoiseModel."""
+        noise_model = PoissonFluxNoiseModel()
+        noise_model.check_compatibility(self.obs_table)
+
+    def time_obs_table_get_value_per_row_const(self):
+        """Time the get_value_per_row function when querying a constant value."""
+        inds = np.arange(len(self.obs_table) - 5)
+        _ = self.obs_table.get_value_per_row("exptime", inds)
+
+    def time_obs_table_get_value_per_row_col(self):
+        """Time the get_value_per_row function when extracting from a column."""
+        inds = np.arange(len(self.obs_table) - 5)
+        _ = self.obs_table.get_value_per_row("ra", inds)
+
+    def time_basic_end_to_end_simulation(self):
+        """Time a basic simulation run of an SncosmoWrapperModel."""
+        obs_table = self.obs_table
+        ra_dec_sampler = ApproximateMOCSampler.from_obstable(obs_table, depth=8)
+        t_min, t_max = obs_table.time_bounds()
+
+        source = SncosmoWrapperModel(
+            "salt2-h17",
+            t0=0.5 * (t_min + t_max),
+            x0=1.0e-6,
+            x1=0.5,
+            c=0.2,
+            ra=ra_dec_sampler.ra,
+            dec=ra_dec_sampler.dec,
+            redshift=0.01,
+            node_label="source",
+            time_extrapolation=LinearDecay(decay_width=50.0),
+        )
+
+        _ = simulate_lightcurves(
+            model=source,
+            num_samples=10_000,
+            survey_info=SurveyInfo(obstable=obs_table, passbands=self.passbands, survey_name="LSST"),
+            obs_time_window_offset=(-100, 400),
+            progress_bar=False,  # Disable progress bar
+        )
