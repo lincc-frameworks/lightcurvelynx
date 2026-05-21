@@ -20,7 +20,7 @@ as you would with a normal Pandas DataFrame.
 
 The ``lightcurve`` column stores a nested frame for each object with the corresponding time series information,
 including time (MJD), flux, and flux error.  When accessing the light curve at a specific row the result is a
-Pandas DataFrame with one row for each observation.
+Pandas DataFrame with one row for each observation. Results in the nested light curve DataFrame are sorted by time. If the data is from multiple surveys, this means the data will be interleaved in time order, and the ``survey_idx`` column can be used to identify which survey each observation came from (see below for more details on the columns in the nested light curve DataFrame).
 
 .. code-block:: python
 
