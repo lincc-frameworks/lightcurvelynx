@@ -146,6 +146,40 @@ def test_lsst_obstable_from_ccdvisit():
     assert len(obs_table_with_nan) == 176
 
 
+def test_lsst_obstable_from_ccdvisit_range_search(test_data_dir):
+    """Test that we get the expected results from a range search a single pointing
+    in a CCD visit table both with and without a detector footprint."""
+    pdf = pd.read_parquet(test_data_dir / "dp1_ccdvisit_subsampled.parquet")
+    t0 = pdf["expMidptMJD"].min()
+    pdf = pdf[np.abs(pdf["expMidptMJD"] - t0) < 1e-6]  # Select a single time
+    assert len(pdf) == 9
+
+    # Build an LSSTObsTable with and without a detector footprint.
+    obs_table1 = LSSTObsTable.from_ccdvisit_table(pdf)
+    with pytest.warns(UserWarning):
+        obs_table2 = LSSTObsTable.from_ccdvisit_table(pdf, make_detector_footprint=False)
+
+    # Sample a grid of RA, Dec points around the center of the pointing and check that we
+    # get the expected number of matches.
+    center_ra = pdf["ra"].mean()
+    center_dec = pdf["dec"].mean()
+    query_ra = np.linspace(center_ra - 1.0, center_ra + 1.0, 50)
+    query_dec = np.linspace(center_dec - 1.0, center_dec + 1.0, 50)
+    ra, dec = np.meshgrid(query_ra, query_dec)
+    ra = ra.flatten()
+    dec = dec.flatten()
+
+    # With the detector footprint, we should get 0 or 1 matches per point.
+    matching_inds1 = obs_table1.range_search(ra, dec)
+    num_matches1 = np.array([len(matches) for matches in matching_inds1])
+    assert np.all(np.isin(num_matches1, [0, 1]))
+
+    # Without the detector footprint, we should get 0, 1, or 2 matches per point.
+    matching_inds2 = obs_table2.range_search(ra, dec)
+    num_matches2 = np.array([len(matches) for matches in matching_inds2])
+    assert np.all(np.isin(num_matches2, [0, 1, 2]))
+
+
 def test_lsst_obstable_from_sv_visits():
     """Test that we can read an LSSTObsTable from the SV visits table."""
     values = {
