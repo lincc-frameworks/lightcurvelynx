@@ -497,7 +497,7 @@ def _simulate_lightcurves_batch(simulation_info):
         # Sort the object nested dictionary by time (across all surveys) before appending to the
         # overall nested dictionary. We only do this if we have at least one non-spectral observation.
         if len(object_nested_dict["mjd"]) > 0:
-            sorted_indices = np.argsort(object_nested_dict["mjd"])
+            sorted_indices = np.argsort(object_nested_dict["mjd"], kind="stable")
             for key in nested_dict:
                 nested_dict[key].extend(np.array(object_nested_dict[key])[sorted_indices].tolist())
 

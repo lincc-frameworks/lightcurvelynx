@@ -932,7 +932,7 @@ def test_simulate_multiple_surveys(test_data_dir):
     assert "spectra" not in results
 
     # Check that the light curve was simulated correctly, including saving the zeropoint information
-    # from each ObsTable. The all entries for the light curve should be sorted by time.
+    # from each ObsTable. All entries for the light curve should be sorted by time.
     lightcurve = results["lightcurve"][0]
     assert np.allclose(lightcurve["mjd"], np.array([0.0, 0.5, 1.0, 2.5]))
     assert np.allclose(lightcurve["zp"], np.array([0.4, 0.05, 0.5, 0.2]))
