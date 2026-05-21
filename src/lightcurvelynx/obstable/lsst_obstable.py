@@ -267,8 +267,9 @@ class LSSTObsTable(ObsTable):
                     "Overwriting these values with the default radius."
                 )
                 table.loc[~np.isfinite(table["radius"]), "radius"] = _lsstcam_ccd_radius
-        elif "radius" not in kwargs:
-            # Use a single approximate average ccd radius.
+
+        # We need to use the CCD radius instead of the full LSST radius.
+        if "radius" not in kwargs:
             kwargs["radius"] = _lsstcam_ccd_radius
 
         # Create the ObsTable object. Use the default column mapping for LSST, which
