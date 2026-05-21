@@ -49,7 +49,8 @@ class GraphState:
         The total number of parameters stored in a single sample within GraphState.
     fixed_vars : dict
         A dictionary mapping the node name to a set of the variable names that
-        are fixed (not changed by resampling) in this GraphState instance.
+        are fixed (not changed by resampling) in this GraphState instance. Nodes are only
+        included if they have at least one fixed variable.
     sample_offset : int
         An optional offset to add to the graph state for any stateful nodes.
         Default: 0
@@ -452,15 +453,14 @@ class GraphState:
         if "." in node_name or "." in var_name:
             raise ValueError("GraphState names (node or variable) cannot contain the character '.'")
 
-        # Update the meta data.
+        # Update the meta data. We don't add an entry to fixed_vars until we need it.
         if node_name not in self.states:
             self.states[node_name] = {}
-            self.fixed_vars[node_name] = set()
         if var_name not in self.states[node_name]:
             self.num_parameters += 1
 
         # Check if this parameter is fixed. If so, skip the set.
-        if var_name in self.fixed_vars[node_name]:
+        if node_name in self.fixed_vars and var_name in self.fixed_vars[node_name]:
             return
 
         # Set the actual values.
@@ -480,8 +480,11 @@ class GraphState:
         else:
             self.states[node_name][var_name] = np.asarray(value)
 
-        # Mark the variable as fixed if needed.
+        # Mark the variable as fixed if needed. We create the entry for this node the
+        # first time we need it.
         if fixed:
+            if node_name not in self.fixed_vars:
+                self.fixed_vars[node_name] = set()
             self.fixed_vars[node_name].add(var_name)
 
     def update(self, inputs, force_copy=False, all_fixed=False):
