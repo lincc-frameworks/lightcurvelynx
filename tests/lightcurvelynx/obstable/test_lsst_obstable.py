@@ -122,8 +122,12 @@ def test_lsst_obstable_from_ccdvisit():
     assert np.all(obs_table["pixel_scale"] >= 0.19)
     assert np.all(obs_table["pixel_scale"] <= 0.21)
 
-    # No footprint is created by default.
-    assert obs_table._detector_footprint is None
+    # from_ccdvisit_table should create a detector footprint by default. The computed
+    # radius of the footprint should be close to the expected value for a 4000x4000 pixel CCD
+    # with 0.2 arcsec/pixel.
+    assert obs_table._detector_footprint is not None
+    expected_radius = np.sqrt((4000 / 2) ** 2 + (4000 / 2) ** 2) * 0.2 / 3600.0
+    assert obs_table._detector_footprint.compute_radius() == pytest.approx(expected_radius, abs=0.01)
 
     # If we create a footprint, it is set correctly.
     obs_table_with_footprint = LSSTObsTable.from_ccdvisit_table(
@@ -210,7 +214,13 @@ def test_reading_lsst_obstable_from_ccdvisits(test_data_dir):
     assert "psf_footprint" not in pdf.columns
     assert "sky_bg_e" not in pdf.columns
 
-    obs_table = LSSTObsTable.from_ccdvisit_table(pdf)
+    # We get a warning about not creating a detector footprint, but we want to use a circular
+    # radius for the searches below.
+    with pytest.warns(UserWarning):
+        obs_table = LSSTObsTable.from_ccdvisit_table(
+            pdf,
+            make_detector_footprint=False,
+        )
     assert total_obs == len(obs_table)
     assert set(obs_table.filters) == {"g", "i", "r", "u", "y", "z"}
 

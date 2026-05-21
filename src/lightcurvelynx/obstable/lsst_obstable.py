@@ -205,7 +205,7 @@ class LSSTObsTable(ObsTable):
             self.add_column("sky_bg_e", sky_bg_e, overwrite=True)
 
     @classmethod
-    def from_ccdvisit_table(cls, table, make_detector_footprint=False, **kwargs):
+    def from_ccdvisit_table(cls, table, make_detector_footprint=True, **kwargs):
         """Construct an LSSTObsTable object from a CCDVisit table.
 
         As an example we could access the DP1 CCDVisit table from RSP as::
@@ -219,13 +219,18 @@ class LSSTObsTable(ObsTable):
             from lightcurvelynx.utils.io_utils import read_sqlite_table
             table = read_sqlite_table("path_to_file.db", sql_query="SELECT * FROM observations")
 
+        Note that this will load a single pointing per-ccd. If you do not use
+        `make_detector_footprint=True`, you will observe multiple points in your light curve
+        with the same time stamp whenever the point falls near the edge of a chip.
+
         Parameters
         ----------
         table : pandas.core.frame.DataFrame
             The CCDVisit table containing the LSSTObsTable data.
         make_detector_footprint : bool, optional
-            If True, the detector footprint will be created based on the xSize and ySize columns
-            in the table.
+            If True, the detector footprint will be created based on the specified survey values for
+            number of x pixels, number of y pixels, and pixel_scale.
+            Default is True
         **kwargs : dict
             Additional keyword arguments to pass to the LSSTObsTable constructor.
 
@@ -271,13 +276,18 @@ class LSSTObsTable(ObsTable):
         obstable = cls(table, **kwargs)
 
         # Create a detector footprint if requested. We use the same (average) footprint for
-        #  all CCDs based on the survey parameters for pixel scale and CCD size.
+        # all CCDs based on the survey parameters for pixel scale and CCD size.
         if make_detector_footprint:
             pixel_scale = obstable.survey_values.get("pixel_scale")
             width_px = obstable.survey_values.get("ccd_pixel_width")
             height_px = obstable.survey_values.get("ccd_pixel_height")
             detect_fp = DetectorFootprint.from_pixel_rect(width_px, height_px, pixel_scale=pixel_scale)
             obstable.set_detector_footprint(detect_fp)
+        else:
+            warnings.warn(
+                "Not creating a detector footprint for a CCD pointing table. This may lead to "
+                "duplicate results for points near the edges of the CCDs."
+            )
 
         return obstable
 
