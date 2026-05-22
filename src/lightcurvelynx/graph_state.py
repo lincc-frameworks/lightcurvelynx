@@ -48,9 +48,10 @@ class GraphState:
     num_parameters : int
         The total number of parameters stored in a single sample within GraphState.
     fixed_vars : dict
-        A dictionary mapping the node name to a set of the variable names that
-        are fixed (not changed by resampling) in this GraphState instance. Nodes are only
-        included if they have at least one fixed variable.
+        A dictionary mapping the node name to a set of the variable names that are fixed (not
+        changed by resampling) in this GraphState instance. This is used for presetting certain
+        parameters to fixed values (such as during automatic differentiation).
+        Nodes are only included if they have at least one fixed variable.
     sample_offset : int
         An optional offset to add to the graph state for any stateful nodes.
         Default: 0
@@ -447,6 +448,8 @@ class GraphState:
             Default: False
         fixed : bool
             Treat this parameter as fixed and do not change it during subsequent calls to set.
+            It is recommended not to manually set this to True as it can cause difficult to debug
+            issues. It is primarily intended for use in automatic differentiation.
             Default: False
         """
         # Check that the names do not use the separator value.
@@ -459,7 +462,9 @@ class GraphState:
         if var_name not in self.states[node_name]:
             self.num_parameters += 1
 
-        # Check if this parameter is fixed. If so, skip the set.
+        # Check if this parameter is fixed. If so, skip the set. We do this instead of raising
+        # an error, because fixed variables are used to preset values during automatic differentiation
+        # or similar processes. We want to keep the preset values and fill in the rest of the graph.
         if node_name in self.fixed_vars and var_name in self.fixed_vars[node_name]:
             return
 
