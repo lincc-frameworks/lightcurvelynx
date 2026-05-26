@@ -26,6 +26,7 @@ features and models of the LightCurveLynx package.
 
     Using Rubin OpSims in Simulations <notebooks/opsim_notebook>
     Using Rubin CCD Visit Table in Simulations <notebooks/pre_executed/rubin_ccdvisit>
+    CCD Level Obstables <notebooks/ccd_obstables>
     Sampling Object Positions <notebooks/sampling_positions>
     Passband Demo <notebooks/passband-demo>
     Simulating Spectra <notebooks/spectrograph_demo>

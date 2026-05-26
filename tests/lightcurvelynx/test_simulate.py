@@ -575,6 +575,39 @@ def test_simulate_bandfluxes(test_data_dir):
     assert np.array_equal(results["lightcurve"][0]["survey_idx"], [0, 0])
 
 
+def test_simulate_bandfluxes_dups(test_data_dir):
+    """Test that we warn when duplicate observation times are found."""
+    # Create a toy observation table with two pointings.
+    num_obs = 6
+    obsdata = {
+        "time": [0.0, 1.0, 1.0, 4.0, 5.0, 6.0],
+        "ra": [0.0, 0.0, 0.0, 180.0, 0.0, 180.0],
+        "dec": [10.0, 10.0, 10.0, -10.0, 10.0, -10.0],
+        "filter": ["g", "r", "g", "r", "z", "z"],
+        "zp": [1.0] * num_obs,
+        "seeing": [1.12] * num_obs,
+        "skybrightness": [20.0] * num_obs,
+        "exptime": [29.2] * num_obs,
+        "nexposure": [2] * num_obs,
+    }
+    obstable = OpSim(obsdata)
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Check that we have a warning for duplicate observation times.
+    model = StaticBandfluxModel({"g": 1.0, "i": 2.0, "r": 3.0, "y": 4.0, "z": 5.0}, ra=0.0, dec=10.0)
+    survey_info = SurveyInfo(obstable=obstable, passbands=passband_group)
+    with pytest.warns(UserWarning):
+        results = simulate_lightcurves(model, 1, survey_info, progress_bar=False)
+    assert np.allclose(results["lightcurve"][0]["mjd"], [0.0, 1.0, 1.0, 5.0])
+    assert np.array_equal(results["lightcurve"][0]["obs_idx"], [0, 1, 2, 4])
+
+
 def test_simulate_parallel_threads(test_data_dir):
     """Test an end to end run of simulating the light curves parallel with threads."""
     # Load the OpSim data.

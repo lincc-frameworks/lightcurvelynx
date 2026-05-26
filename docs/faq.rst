@@ -120,3 +120,9 @@ catalog.
 
 See the :doc:`sampling positions demo notebook <notebooks/sampling_positions>` notebook
 for a detailed description of how to sample (RA, dec) positions.
+
+
+Why does my light curve have multiple points at the same time?
+--------------------------------------------------------------------------------
+
+While this can legitimately happen if multiple surveys have the exact same MJD for an observations, this is more likely an artifact of per-CCD level information. If the survey data is provided at the CCD-level (such as with Rubin's DP1 CCD visit table) **and** no detector footprint is set, the code will estimate a circular footprint per-CCD. Points that lie near the edge of one CCD may also be picked up by another CCD. This can often be solved by setting the detector footprint for each CCD. See the :doc:`ccd-level obstable <notebooks/ccd_obstables>` for more information.
