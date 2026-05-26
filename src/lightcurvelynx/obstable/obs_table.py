@@ -532,6 +532,7 @@ class ObsTable:
         depth=14,
         fig=None,
         ax=None,
+        use_footprint=False,
         **kwargs,
     ):
         """Plot the MOC footprint using matplotlib.
@@ -544,6 +545,9 @@ class ObsTable:
             An existing matplotlib figure to use. If None, a new figure is created.
         ax : matplotlib.pyplot.Axes or None, optional
             The axes to use for the plot. If None, new axes will be created on the figure.
+        use_footprint : bool, optional
+            Whether to use the detector footprint to build the MOC. If True, the
+            detector footprint will be used. Default is False.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the plot_moc function.
 
@@ -554,7 +558,7 @@ class ObsTable:
         ax: matplotlib.pyplot.Axes
             The axes containing the plot.
         """
-        moc = self.build_moc(max_depth=depth, use_footprint=True)
+        moc = self.build_moc(max_depth=depth, use_footprint=use_footprint)
         fig, ax = plot_moc(moc, fig=fig, ax=ax, **kwargs)
         return fig, ax
 

@@ -122,8 +122,12 @@ def test_lsst_obstable_from_ccdvisit():
     assert np.all(obs_table["pixel_scale"] >= 0.19)
     assert np.all(obs_table["pixel_scale"] <= 0.21)
 
-    # No footprint is created by default.
-    assert obs_table._detector_footprint is None
+    # from_ccdvisit_table should create a detector footprint by default. The computed
+    # radius of the footprint should be close to the expected value for a 4000x4000 pixel CCD
+    # with 0.2 arcsec/pixel.
+    assert obs_table._detector_footprint is not None
+    expected_radius = np.sqrt((4000 / 2) ** 2 + (4000 / 2) ** 2) * 0.2 / 3600.0
+    assert obs_table._detector_footprint.compute_radius() == pytest.approx(expected_radius, abs=0.01)
 
     # If we create a footprint, it is set correctly.
     obs_table_with_footprint = LSSTObsTable.from_ccdvisit_table(
@@ -140,6 +144,40 @@ def test_lsst_obstable_from_ccdvisit():
     with pytest.warns(UserWarning):
         obs_table_with_nan = LSSTObsTable.from_ccdvisit_table(ccd_visit_table)
     assert len(obs_table_with_nan) == 176
+
+
+def test_lsst_obstable_from_ccdvisit_range_search(test_data_dir):
+    """Test that we get the expected results from a range search a single pointing
+    in a CCD visit table both with and without a detector footprint."""
+    pdf = pd.read_parquet(test_data_dir / "dp1_ccdvisit_subsampled.parquet")
+    t0 = pdf["expMidptMJD"].min()
+    pdf = pdf[np.abs(pdf["expMidptMJD"] - t0) < 1e-6]  # Select a single time
+    assert len(pdf) == 9
+
+    # Build an LSSTObsTable with and without a detector footprint.
+    obs_table1 = LSSTObsTable.from_ccdvisit_table(pdf)
+    with pytest.warns(UserWarning):
+        obs_table2 = LSSTObsTable.from_ccdvisit_table(pdf, make_detector_footprint=False)
+
+    # Sample a grid of RA, Dec points around the center of the pointing and check that we
+    # get the expected number of matches.
+    center_ra = pdf["ra"].mean()
+    center_dec = pdf["dec"].mean()
+    query_ra = np.linspace(center_ra - 1.0, center_ra + 1.0, 50)
+    query_dec = np.linspace(center_dec - 1.0, center_dec + 1.0, 50)
+    ra, dec = np.meshgrid(query_ra, query_dec)
+    ra = ra.flatten()
+    dec = dec.flatten()
+
+    # With the detector footprint, we should get 0 or 1 matches per point.
+    matching_inds1 = obs_table1.range_search(ra, dec)
+    num_matches1 = np.array([len(matches) for matches in matching_inds1])
+    assert np.all(np.isin(num_matches1, [0, 1]))
+
+    # Without the detector footprint, we should get 0, 1, or 2 matches per point.
+    matching_inds2 = obs_table2.range_search(ra, dec)
+    num_matches2 = np.array([len(matches) for matches in matching_inds2])
+    assert np.all(np.isin(num_matches2, [0, 1, 2]))
 
 
 def test_lsst_obstable_from_sv_visits():
@@ -210,7 +248,13 @@ def test_reading_lsst_obstable_from_ccdvisits(test_data_dir):
     assert "psf_footprint" not in pdf.columns
     assert "sky_bg_e" not in pdf.columns
 
-    obs_table = LSSTObsTable.from_ccdvisit_table(pdf)
+    # We get a warning about not creating a detector footprint, but we want to use a circular
+    # radius for the searches below.
+    with pytest.warns(UserWarning):
+        obs_table = LSSTObsTable.from_ccdvisit_table(
+            pdf,
+            make_detector_footprint=False,
+        )
     assert total_obs == len(obs_table)
     assert set(obs_table.filters) == {"g", "i", "r", "u", "y", "z"}
 

@@ -416,6 +416,12 @@ def _simulate_lightcurves_batch(simulation_info):
             if nobs == 0:
                 continue
 
+            if len(np.unique(obs_times)) != nobs:
+                warnings.warn(
+                    "Found duplicate observation times in a single survey. "
+                    "This may indicate an issue with the ObsTable."
+                )
+
             # Split on whether we are evaluating bandfluxes or spectra.
             if isinstance(passbands[survey_idx], Spectrograph):
                 # This is a spectrograph, so we compute the spectra for the spectra column.
