@@ -1,9 +1,13 @@
-Citations
+Citations / Acknowledgements
 ===============================================================================
 
-LightCurveLynx relies on numerous open source packages to perform the computation. In addition to
-LightCurveLynx itself (citation information coming soon), please make sure to cite the packages
-that your study uses.
+If you use LightCurveLynx in your research, we ask that you cite the following papers:
+
+  * Dai et. al. 2026 "LightCurveLynx: Forward Modeling of Time-Domain Surveys with Application to ZTF SN Ia DR2" (in review; see `arxiv.org/abs/2604.07134 <https://arxiv.org/abs/2604.07134>`_ )
+  * Kubica et. al. 2026 "LightCurveLynx: Fast and Nimble Time Domain Simulation for Astronomical Surveys" (`in review <https://joss.theoj.org/papers/01344d3b6112431d1a4e49e41389e587>`_)
+
+LightCurveLynx relies on numerous open source packages to perform the computation. Please make sure to cite the packages that your study uses.
+
 
 Base Libraries
 -------------------------------------------------------------------------------
@@ -23,6 +27,7 @@ Some runs may also use:
 * `matplotlib <https://matplotlib.org/>`_
 * `scipy <https://www.scipy.org/>`_
 
+
 Models, Effects, and Parameters
 -------------------------------------------------------------------------------
 
@@ -39,6 +44,7 @@ package (Green 2018). The dust extinction is computed via the ExtinctionEffect w
 each individual dustmap and extinction function should be cited
 from their original science paper. The `dustmaps readthedocs <https://dustmaps.readthedocs.io/en/latest/maps.html>`_
 page provides more information on the available dustmaps and their citations.
+
 
 Citation-Compass
 -------------------------------------------------------------------------------
