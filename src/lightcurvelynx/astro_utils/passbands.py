@@ -151,7 +151,7 @@ class PassbandGroup:
         else:
             raise KeyError(f"Unknown passband {key}")
 
-    def __contains__(self, key):
+    def __contains__(self, key) -> bool:
         if key in self.passbands:
             return True
         elif key in self._filter_to_name:
@@ -168,7 +168,7 @@ class PassbandGroup:
         return list(self._filter_to_name.keys())
 
     @classmethod
-    def from_preprocessed_file(cls, file_path: Union[str, Path], **kwargs):
+    def from_preprocessed_file(cls, file_path: Union[str, Path], **kwargs) -> "PassbandGroup":
         """Load a PassbandGroup from a single file containing multiple preprocessed passbands.
 
         The file should be a CSV file with columns: survey, filter_name, wavelength, transmission.
@@ -226,7 +226,7 @@ class PassbandGroup:
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         units: Literal["nm", "A"] | None = "A",
-    ):
+    ) -> "PassbandGroup":
         """Load the passbands from a directory where the directorty name corresponds
         to the survey and the file names correspond to the filters:
         path_to_survey_dir/survey_name/filter_name.dat
@@ -277,7 +277,7 @@ class PassbandGroup:
         return PassbandGroup(given_passbands=all_params, filters=filters)
 
     @classmethod
-    def from_preset(cls, preset: str, *, table_dir=None, filters=None, **kwargs) -> None:
+    def from_preset(cls, preset: str, *, table_dir=None, filters=None, **kwargs) -> "PassbandGroup":
         """Create a passband group from a pre-defined set of passbands.
 
         Parameters
@@ -430,7 +430,7 @@ class PassbandGroup:
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         **kwargs,
-    ):
+    ) -> "PassbandGroup":
         """Create a PassbandGroup object from the SVO Filter Profile Service given a list
         of full filter names in the form of "{FACILITY}/{INSTRUMENT}.{FILTER}" or a single
         string of the form "{FACILITY}/{INSTRUMENT}" to download all filters.
@@ -565,7 +565,7 @@ class PassbandGroup:
                 indices = np.searchsorted(self.waves, passband.waves)
             self._in_band_wave_indices[name] = indices
 
-    def wave_bounds(self):
+    def wave_bounds(self) -> tuple[float, float]:
         """Get the minimum and maximum wavelength for this group.
 
         Returns
@@ -579,7 +579,7 @@ class PassbandGroup:
         max_wave = np.max(self.waves)
         return min_wave, max_wave
 
-    def mask_by_filter(self, filters):
+    def mask_by_filter(self, filters) -> np.ndarray:
         """Compute a mask for whether a given observations is of interest for
         for a given analysis. For example this could be used to remove unneeded
         observations from an ObsTable.
@@ -601,7 +601,7 @@ class PassbandGroup:
 
     def process_transmission_tables(
         self, *, delta_wave: float | None = 5.0, trim_quantile: float | None = 1e-3
-    ):
+    ) -> None:
         """Process the transmission tables for all passbands in the group; recalculate group's wave
         attribute. This function is used to change the preprocessing of the transmission tables after
         the PassbandGroup has been initialized, such as using different delta_wave or trim_quantile
@@ -703,7 +703,7 @@ class PassbandGroup:
         combined_df = pd.concat(all_data, ignore_index=True)
         combined_df.to_csv(file_path, index=False)
 
-    def plot(self, *, ax=None, figure=None, plot_transmission=False):
+    def plot(self, *, ax=None, figure=None, plot_transmission=False) -> None:
         """Plot the PassbandGroup on a single plot.
 
         Parameters
@@ -847,7 +847,7 @@ class Passband:
         table_url: str | None = None,
         units: Literal["nm", "A"] | None = "A",
         force_download: bool = False,
-    ):
+    ) -> "Passband":
         """Construct a Passband object from a file, downloading it if needed.
 
         Parameters
@@ -907,7 +907,7 @@ class Passband:
 
     @classmethod
     @cite_function
-    def from_sncosmo(cls, survey: str, filter_name: str, bandpass=None, **kwargs):
+    def from_sncosmo(cls, survey: str, filter_name: str, bandpass=None, **kwargs) -> "Passband":
         """Create a Passband object from an sncosmo.Bandpass object.
 
         Parameters
@@ -957,7 +957,7 @@ class Passband:
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
         **kwargs,
-    ):
+    ) -> "Passband":
         """Create a Passband object from the SVO [1]_, [2]_, [3]_ Filter Profile Service.
 
         References
@@ -1113,7 +1113,7 @@ class Passband:
         *,
         delta_wave: float | None = 5.0,
         trim_quantile: float | None = 1e-3,
-    ):
+    ) -> None:
         """Process the transmission table, transforming it to the desired wave grid and
         and computing a normalized system response from the throughput table.
 
@@ -1326,7 +1326,7 @@ class Passband:
         figure=None,
         color=None,
         plot_transmission=False,
-    ):
+    ) -> None:
         """Plot the passband.
 
         Parameters
