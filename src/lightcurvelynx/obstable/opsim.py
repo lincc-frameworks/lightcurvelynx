@@ -142,6 +142,17 @@ class OpSim(ObsTable):
         "y": 13.9,
     }
 
+    # Newer versions of OpSim have slightly different filter names.
+    # This mapping allows us to support both.
+    _alt_filter_name_map = {
+        "g_6": "g",
+        "i_39": "i",
+        "r_57": "r",
+        "u_24": "u",
+        "y_10": "y",
+        "z_20": "z",
+    }
+
     # Class constants for the column names.
     def __init__(
         self,

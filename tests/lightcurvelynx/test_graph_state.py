@@ -20,7 +20,7 @@ def test_create_single_sample_graph_state():
 
     state.set("a", "v1", 1.0)
     state.set("a", "v2", 2.0)
-    state.set("b", "v1", 3.0)
+    state.set("b", "v1", 3.0, fixed=True)
     assert len(state) == 3
     assert state["a"]["v1"] == 1.0
     assert state["a"]["v2"] == 2.0
@@ -85,10 +85,7 @@ def test_create_single_sample_graph_state():
     assert state["a"]["v1"] == 1.0
     assert state["a"]["v2"] == 2.0
     assert state["b"]["v1"] == 3.0
-
-    # Both nodes are in the fixed vars (empty sets).
-    assert len(new_state.fixed_vars) == 2
-    assert "a" in new_state.fixed_vars
+    assert len(new_state.fixed_vars) == 1  # "b.v1" should still be fixed
     assert "b" in new_state.fixed_vars
 
     # We can overwrite settings.
@@ -343,7 +340,7 @@ def test_graph_state_copy():
     state = GraphState()
     state.set("a", "v1", 1.0)
     state.set("a", "v2", 2.0)
-    state.set("b", "v1", 3.0)
+    state.set("b", "v1", 3.0, fixed=True)
 
     state2 = state.copy()
 
@@ -351,14 +348,14 @@ def test_graph_state_copy():
     assert state2.num_parameters == 3
     assert state2.sample_offset == 0
     assert state2.sample_idx is None
-    assert len(state2.fixed_vars) == 2  # empty set for each node
-    assert "a" in state2.fixed_vars
+    assert len(state2.fixed_vars) == 1  # Only a set for node "b"
+    assert len(state2.fixed_vars["b"]) == 1  # Only variable "v1" is fixed
     assert "b" in state2.fixed_vars
 
     # Test with single values.
     state2.set("a", "v1", 10.0)
     state2.set("a", "v2", 20.0)
-    state2.set("b", "v1", 30.0)
+    state2.set("b", "v1", 30.0)  # No effect since this variable is fixed.
 
     # State 1 is unchanged
     assert state["a"]["v1"] == 1.0
@@ -368,7 +365,7 @@ def test_graph_state_copy():
     # State 2 has the new values.
     assert state2["a"]["v1"] == 10.0
     assert state2["a"]["v2"] == 20.0
-    assert state2["b"]["v1"] == 30.0
+    assert state2["b"]["v1"] == 3.0  # No effect since this variable is fixed.
 
     # Test with arrays.
     state = GraphState(3, sample_offset=2)
@@ -380,7 +377,7 @@ def test_graph_state_copy():
     state2 = state.copy()
     assert state2.num_parameters == 3
     assert state2.sample_offset == 2
-    assert len(state2.fixed_vars) == 2  # empty set for each node
+    assert len(state2.fixed_vars) == 0  # No sets until needed.
 
     state2["a.v1"][1] = 10.0
     state2["a.v2"][0] = 20.0

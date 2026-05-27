@@ -393,6 +393,12 @@ def _simulate_lightcurves_batch(simulation_info):
     ):
         total_num_obs = 0
 
+        # Create an object-specific nested dictionary for this so we can sort by time
+        # (over all surveys) before appending to the overall nested dictionary.
+        # These will be collected as a list of lists/numpy arrays until they are
+        # all merged together.
+        object_nested_dict = {key: [] for key in nested_dict}
+
         for survey_idx in range(num_surveys):
             # Find the indices and times where the current model is seen.
             obs_index = np.asarray(all_obs_matches[survey_idx][idx])
@@ -404,7 +410,17 @@ def _simulate_lightcurves_batch(simulation_info):
 
                 # Extract the filters for this observation.
                 obs_filters = all_filters[survey_idx][obs_index]
+
+            # Skip all computation for objects that we do not see in this survey.
             nobs = len(obs_times)
+            if nobs == 0:
+                continue
+
+            if len(np.unique(obs_times)) != nobs:
+                warnings.warn(
+                    "Found duplicate observation times in a single survey. "
+                    "This may indicate an issue with the ObsTable."
+                )
 
             # Split on whether we are evaluating bandfluxes or spectra.
             if isinstance(passbands[survey_idx], Spectrograph):
@@ -457,23 +473,23 @@ def _simulate_lightcurves_batch(simulation_info):
                     saturation_flags = [False] * nobs
 
                 # Append the per-observation data to the nested dictionary, including
-                # any needed ObsTable columns.
-                nested_dict["mjd"].extend(list(obs_times))
-                nested_dict["filter"].extend(list(obs_filters))
-                nested_dict["flux_perfect"].extend(list(bandfluxes_perfect))
-                nested_dict["flux"].extend(list(bandfluxes))
-                nested_dict["fluxerr"].extend(list(bandfluxes_error))
-                nested_dict["survey_idx"].extend([survey_idx] * nobs)
-                nested_dict["is_saturated"].extend(list(saturation_flags))
-                nested_dict["obs_idx"].extend(list(obs_index))
+                # any needed ObsTable columns. These are appended
+                object_nested_dict["mjd"].append(obs_times)
+                object_nested_dict["filter"].append(obs_filters)
+                object_nested_dict["flux_perfect"].append(bandfluxes_perfect)
+                object_nested_dict["flux"].append(bandfluxes)
+                object_nested_dict["fluxerr"].append(bandfluxes_error)
+                object_nested_dict["survey_idx"].append([survey_idx] * nobs)
+                object_nested_dict["is_saturated"].append(saturation_flags)
+                object_nested_dict["obs_idx"].append(obs_index)
                 for col in obstable_save_cols:
                     if len(obs_index) > 0:
                         col_data = (
-                            list(obstable[survey_idx][col].values[obs_index])
+                            obstable[survey_idx][col].values[obs_index]
                             if col in obstable[survey_idx]
-                            else [None] * nobs
+                            else np.full(nobs, None)
                         )
-                        nested_dict[col].extend(col_data)
+                        object_nested_dict[col].append(col_data)
 
                 # Add the new entries to the light curve's nested index.
                 nested_index.extend([idx] * nobs)
@@ -485,10 +501,20 @@ def _simulate_lightcurves_batch(simulation_info):
                     for filter_name in np.unique(obs_filters):
                         pb_obj = passbands[survey_idx][filter_name]
                         full_filter_names[obs_filters == filter_name] = pb_obj.full_name
-                    nested_dict["full_filter_name"].extend(list(full_filter_names))
+                    object_nested_dict["full_filter_name"].append(list(full_filter_names))
 
             # Regardless of the integrator (instrument), we count the number of observations.
             total_num_obs += nobs
+
+        # Sort the object nested dictionary by time (across all surveys) before appending to the
+        # overall nested dictionary (which will aggregate over all objects). We only do this
+        # if we have at least one non-spectral observation.
+        if len(object_nested_dict["mjd"]) > 0:
+            obj_survey_times = np.concatenate(object_nested_dict["mjd"])
+            sorted_indices = np.argsort(obj_survey_times, kind="stable")
+            for key in nested_dict:
+                nested_col_data = np.concatenate(object_nested_dict[key])
+                nested_dict[key].extend(nested_col_data[sorted_indices].tolist())
 
         # The number of observations is the total across all surveys.
         results_dict["nobs"][idx] = total_num_obs

@@ -11,6 +11,7 @@ A Fast and Nimble Package for Time Domain Astronomy
 [![Codecov](https://codecov.io/gh/lincc-frameworks/lightcurvelynx/branch/main/graph/badge.svg)](https://codecov.io/gh/lincc-frameworks/lightcurvelynx)
 [![Benchmarks](https://img.shields.io/github/actions/workflow/status/lincc-frameworks/lightcurvelynx/asv-main.yml?label=benchmarks)](https://lincc-frameworks.github.io/lightcurvelynx/)
 [![Read the Docs](https://img.shields.io/readthedocs/lightcurvelynx)](https://lightcurvelynx.readthedocs.io/)
+[![status](https://joss.theoj.org/papers/01344d3b6112431d1a4e49e41389e587/status.svg)](https://joss.theoj.org/papers/01344d3b6112431d1a4e49e41389e587)
 
 
 ## Introduction
@@ -85,6 +86,16 @@ Notes:
    [pre-commit](https://lincc-ppt.readthedocs.io/en/latest/practices/precommit.html)
 
 If you are interested in contributing directly to the package, see our [contribution guide](https://lightcurvelynx.readthedocs.io/en/latest/contributing.html).
+
+
+## Citations / Acknowledgements
+
+If you use LightCurveLynx in your research, we ask that you cite the following papers:
+
+  * Dai et. al. 2026 "LightCurveLynx: Forward Modeling of Time-Domain Surveys with Application to ZTF SN Ia DR2" (in review; see [arxiv.org/abs/2604.07134](https://arxiv.org/abs/2604.07134) )
+  * Kubica et. al. 2026 "LightCurveLynx: Fast and Nimble Time Domain Simulation for Astronomical Surveys" ([in review](https://joss.theoj.org/papers/01344d3b6112431d1a4e49e41389e587) )
+
+LightCurveLynx relies on numerous open source packages to perform the computation. Please make sure to cite the packages that your study uses.
 
 
 ## Advisories
