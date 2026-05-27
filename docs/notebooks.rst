@@ -64,11 +64,11 @@ in roughly alphabetical order of simulation package or simulation type).
 
     AGN Damped Random Walk Model <notebooks/pre_executed/agn>
     Basic SNIa Simulation <notebooks/simple_snia>
+    Simulating SNIa with Rubin Opsim <notebooks/pre_executed/plasticc_snia>
     EzTaoX <notebooks/pre_executed/eztaox_example>
     GoPreaux <notebooks/pre_executed/gopreaux_example>
     Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
     Microlensing Effect Example <notebooks/pre_executed/microlensing>
-    PLAsTiCC SNIa <notebooks/pre_executed/plasticc_snia>
     PyLIMA Micro-Lensing Model <notebooks/pre_executed/pylima_example>
     PZFlow Source Demo <notebooks/pre_executed/using_pzflow>
     Redback Models <notebooks/pre_executed/redback_example>
