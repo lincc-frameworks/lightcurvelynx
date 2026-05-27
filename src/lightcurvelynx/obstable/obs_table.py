@@ -97,6 +97,10 @@ class ObsTable:
         "survey_name": "Unknown",
     }
 
+    # An alternate mapping of filter names to handle changes in schema.
+    # The keys are the alternate names and the values are the standard names.
+    _alt_filter_name_map = {}
+
     def __init__(
         self,
         table,
@@ -163,6 +167,14 @@ class ObsTable:
                 )
                 self._table = self._table.dropna(subset=[col]).reset_index(drop=True)
         logger.debug(f"ObsTable initialized with columns: {self._table.columns.tolist()}")
+
+        # If we have a filter column, check whether we should remap and of the filter values.
+        if "filter" in self._table.columns:
+            for alt_name, standard_name in self._alt_filter_name_map.items():
+                mask = self._table["filter"] == alt_name
+                if mask.any():
+                    logger.info(f"Remapping filter name '{alt_name}' to standard name '{standard_name}'.")
+                    self._table.loc[mask, "filter"] = standard_name
 
         # Save the survey values, with table metadata and keyword arguments overwriting the defaults.
         self.survey_values = self._default_survey_values.copy()

@@ -118,6 +118,22 @@ def test_create_opsim_override():
     assert set(ops_data.filters) == {"r", "g", "i"}
 
 
+def test_create_opsim_filter_mapping():
+    """Create an OpSim with alternate filter names and check that they
+    are mapped to the standard ones.
+    """
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0, 45.0, 90.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0]),
+        "filter": np.array(["g_6", "i_39", "r_57", "u_24", "z_20", "r_57", "g_6"]),
+        "zp": np.ones(7),
+    }
+    opsim = OpSim(values)
+    assert set(opsim.filters) == set(["g", "i", "r", "u", "z"])
+    assert np.array_equal(opsim["filter"], np.array(["g", "i", "r", "u", "z", "r", "g"]))
+
+
 def test_create_opsim_saturation():
     """Test that we can control whether saturation mags are stored."""
     values = {
