@@ -101,7 +101,7 @@ def test_bayesn_matchness(test_data_dir):
         dec=0,
         redshift=redshift,
         _M20_model_path=test_data_dir / "BAYESN.M20",
-        hsiao_model_path=test_data_dir / "hsiao.h5",
+        hsiao_path_or_url=test_data_dir / "hsiao.h5",
         Amplitude=np.power(10.0, -0.4 * (distmod + m_abs)),
     )
     assert model.minphase() == pytest.approx(-20.0)
@@ -127,7 +127,7 @@ def test_bayesn_no_model(test_data_dir):
             ra=0,
             dec=0,
             redshift=redshift,
-            hsiao_model_path=test_data_dir / "hsiao.h5",
+            hsiao_path_or_url=test_data_dir / "hsiao.h5",
             Amplitude=np.power(10.0, -0.4 * (distmod + m_abs)),
             _M20_model_path=dir_name,
         )
