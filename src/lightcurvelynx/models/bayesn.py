@@ -1,12 +1,17 @@
+from pathlib import Path
+
 import h5py
 import numpy as np
 from astropy import units as u
 from citation_compass import CiteClass
 
-from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
+from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
 from lightcurvelynx.effects.extinction import ExtinctionEffect
 from lightcurvelynx.models.physical_model import SEDModel
+from lightcurvelynx.utils.data_download import download_data_file_if_needed
+
+_LIGHTCURVELYNX_BAYESN_CACHE_PATH = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "bayesn-data"
 
 
 class BayesnModel(SEDModel, CiteClass):
@@ -83,7 +88,7 @@ class BayesnModel(SEDModel, CiteClass):
     tau_knots_filename: str
         The file name of the knot values of times for interpolation
         Default: "tau_knots.txt"
-    hsiao_model_path: str
+    hsiao_path_or_url: str
         The path for the hsiao model template file directory.
         Default: "bayesn-model-files/hsiao.h5"
     **kwargs : dict, optional
@@ -100,12 +105,12 @@ class BayesnModel(SEDModel, CiteClass):
         Rv=None,
         t0=0.0,
         Amplitude=1.0,
-        _M20_model_path=_LIGHTCURVELYNX_BASE_DATA_DIR / "bayesn-model-files/BAYESN.M20",
+        M20_path_or_url="https://github.com/bayesn/bayesn-model-files/raw/refs/heads/main/BAYESN.M20/",
         W0_filename="W0.txt",
         W1_filename="W1.txt",
         l_knots_filename="l_knots.txt",
         tau_knots_filename="tau_knots.txt",
-        hsiao_model_path=_LIGHTCURVELYNX_BASE_DATA_DIR / "bayesn-model-files/hsiao.h5",
+        hsiao_path_or_url="https://github.com/bayesn/bayesn/raw/refs/heads/main/bayesn/data/hsiao.h5",
         **kwargs,
     ):
         super().__init__(t0=t0, **kwargs)
@@ -117,11 +122,27 @@ class BayesnModel(SEDModel, CiteClass):
         self.add_parameter("Amplitude", Amplitude, **kwargs)
 
         # load the data files.
-        self._W0_ = np.loadtxt(_M20_model_path / W0_filename)
-        self._W1_ = np.loadtxt(_M20_model_path / W1_filename)
-        self._l_knots_ = np.loadtxt(_M20_model_path / l_knots_filename)
-        self._tau_knots_ = np.loadtxt(_M20_model_path / tau_knots_filename)
-        with h5py.File(hsiao_model_path, "r") as file:
+        if M20_path_or_url.startswith("http"):
+            m20_path = _LIGHTCURVELYNX_BAYESN_CACHE_PATH / "BAYESN.M20"
+        else:
+            m20_path = Path(M20_path_or_url)
+        if M20_path_or_url.startswith("http"):
+            for fname in [W0_filename, W1_filename, l_knots_filename, tau_knots_filename]:
+                if not download_data_file_if_needed(m20_path / fname, f"{M20_path_or_url}/{fname}"):
+                    raise RuntimeError(f"Failed to download BayeSN data file from {M20_path_or_url}/{fname}.")
+        self._W0_ = np.loadtxt(m20_path / W0_filename)
+        self._W1_ = np.loadtxt(m20_path / W1_filename)
+        self._l_knots_ = np.loadtxt(m20_path / l_knots_filename)
+        self._tau_knots_ = np.loadtxt(m20_path / tau_knots_filename)
+
+        if hsiao_path_or_url.startswith("http"):
+            hsiao_path = _LIGHTCURVELYNX_BAYESN_CACHE_PATH / "hsiao.h5"
+            if not download_data_file_if_needed(hsiao_path, hsiao_path_or_url):
+                raise RuntimeError(f"Failed to download BayeSN data file from {hsiao_path_or_url}.")
+        else:
+            hsiao_path = Path(hsiao_path_or_url)
+
+        with h5py.File(hsiao_path, "r") as file:
             data = file["default"]
             self._hsiao_phase = data["phase"][()].astype("float64")
             self._hsiao_wave = data["wave"][()].astype("float64")
@@ -474,17 +495,22 @@ class BayesnModel(SEDModel, CiteClass):
         params = self.get_local_params(graph_state)
 
         tau = times - params["t0"]
+
+        within_phase_range = (tau >= self.minphase()) & (tau <= self.maxphase())
+        flux_density = np.zeros((len(times), len(wavelengths)))
         W = W_0 + params["theta"] * W_1
         invKD_l = self.compute_invkd(l_knots)
         J_l = self.natural_cubic_spline_basis_matrix_from_invkd(l_knots, wavelengths, invKD_l)
         invKD_tau = self.compute_invkd(tau_knots)
-        J_t = self.natural_cubic_spline_basis_matrix_from_invkd(tau_knots, tau, invKD_tau)
+        J_t = self.natural_cubic_spline_basis_matrix_from_invkd(tau_knots, tau[within_phase_range], invKD_tau)
         J_t_T = np.atleast_2d(J_t).T
         WJt = np.matmul(W, J_t_T)
         W_grid = np.matmul(J_l, WJt)
         W_grid = np.atleast_2d(W_grid).T
-        H_grid = self.evaluate_2d_cubic_spline(hsiao_phase, hsiao_wave, hsiao_flux, tau, wavelengths)
-        flux_density = H_grid * 10 ** (-0.4 * W_grid)
+        H_grid = self.evaluate_2d_cubic_spline(
+            hsiao_phase, hsiao_wave, hsiao_flux, tau[within_phase_range], wavelengths
+        )
+        flux_density[within_phase_range, :] = H_grid * 10 ** (-0.4 * W_grid)
 
         # Apply dust extinction law
         # Get ebv such that ebv = Av/Rv
