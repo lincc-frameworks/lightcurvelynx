@@ -75,6 +75,7 @@ in roughly alphabetical order of simulation package or simulation type).
     Resampling LCLIB <notebooks/pre_executed/lclib_example>
     SNANA Models <notebooks/pre_executed/snana_example>
     Synphot-based Models <notebooks/pre_executed/synphot_example>
+    BayeSN Supernova Ia Model <notebooks/pre_executed/bayeSN_example>
 
 
 Other Surveys
