@@ -10,7 +10,8 @@ from lightcurvelynx.math_nodes.given_sampler import GivenValueSampler
 
 class RandomChoiceNode(FunctionNode):
     """A FunctionNode that returns randomly selected parameters from a given list
-    with replacement.
+    with replacement. This is a version of the GivenValueSampler that is designed to
+    work with parameterized (chained) inputs.
 
     Parameters
     ----------

@@ -148,6 +148,9 @@ class GivenValueSampler(NumpyRandomFunc):
     """A FunctionNode that returns randomly selected items from a given list
     with replacement.
 
+    Note that this node does not support parameterized (chained) inputs. If you need
+    to select from a list of parameterized inputs, use the RandomChoiceNode.
+
     Attributes
     ----------
     values : int, list, or numpy.ndarray
