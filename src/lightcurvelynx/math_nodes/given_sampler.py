@@ -148,6 +148,9 @@ class GivenValueSampler(NumpyRandomFunc):
     """A FunctionNode that returns randomly selected items from a given list
     with replacement.
 
+    Note that this node does not support parameterized (chained) inputs. If you need
+    to select from a list of parameterized inputs, use the RandomChoiceNode.
+
     Attributes
     ----------
     values : int, list, or numpy.ndarray
@@ -176,7 +179,12 @@ class GivenValueSampler(NumpyRandomFunc):
                     f"Number of weights ({len(self._weights)}) must match the number "
                     f"of values provided ({self._num_values})."
                 )
-            self._weights /= np.sum(self._weights)
+            if np.any(self._weights < 0) or not np.isfinite(self._weights).all():
+                raise ValueError("Weights must be non-negative and finite.")
+            weight_sum = np.sum(self._weights)
+            if weight_sum <= 0:
+                raise ValueError("Weights must sum to a positive value.")
+            self._weights /= weight_sum
         else:
             self._weights = None
 
