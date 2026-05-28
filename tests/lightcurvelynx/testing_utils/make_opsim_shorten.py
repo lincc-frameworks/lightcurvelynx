@@ -72,7 +72,7 @@ def parse_args(args):
     parser.add_argument(
         "-i",
         "--input",
-        default="http://astro-lsst-01.astro.washington.edu:8080/fbs_db/fbs_3.5/baseline/baseline_v3.5_10yrs.db",
+        default="https://s3df.slac.stanford.edu/data/rubin/sim-data/sims_featureScheduler_runs5.3/baseline/baseline_v5.3.0_10yrs.db",
         help="The fsspec-recognizable path to the OpSim SQLite file.",
     )
     parser.add_argument(
