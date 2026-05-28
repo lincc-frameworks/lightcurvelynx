@@ -559,7 +559,9 @@ def test_oversample_opsim(opsim_shorten):
     opsim = OpSim.from_db(opsim_shorten)
 
     bands = ["g", "r"]
-    ra, dec = 205.0, -57.0
+    ra, dec = 330.0, -20.0
+    # Much larger than LSSTCam, but otherwise we wouldn't get both bands
+    search_radius = 45.0
     time_range = 60_000.0, 60_010.0
     delta_t = 0.01
 
@@ -567,6 +569,7 @@ def test_oversample_opsim(opsim_shorten):
         oversampled = oversample_opsim(
             opsim,
             pointing=(ra, dec),
+            search_radius=search_radius,
             time_range=time_range,
             delta_t=delta_t,
             bands=bands,

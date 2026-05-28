@@ -2,28 +2,35 @@
 
 import argparse
 import sqlite3
+from collections.abc import Collection
 from pathlib import Path
-from shutil import copyfileobj
+from shutil import copy2
 
-import fsspec
+from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
+from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
 
-def make_opsim_shorten(opsim_path: str, n_rows: int, output_path: str):
+def make_opsim_shorten(
+    *, opsim_url: str, n_rows: int, bands: Collection[str] = tuple("ugrizy"), output_path: str
+) -> None:
     """Create a shortened version of an OpSim file.
 
     Parameters
     ----------
-    opsim_path : `str`
-        The fsspec-recognizable path to the OpSim SQLite file.
+    opsim_url : `str`
+        The URL to the OpSim SQLite file.
     n_rows : `int`
         The number of rows to keep in the shortened version.
+    bands : str or list of str
+        The bands to keep in the shortened version. Default is all LSST bands.
     output_path : `str`
         The local path to save the shortened version.
     """
-    # Save the whole opsim database to a new file
-    with fsspec.open(opsim_path, mode="rb") as input_file:
-        with open(output_path, "wb") as output_file:
-            copyfileobj(input_file, output_file)
+    data_file_name = opsim_url.split("/")[-1]
+    cached_path = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "opsim" / data_file_name
+    if not download_data_file_if_needed(cached_path, opsim_url):
+        raise RuntimeError(f"Failed to download opsim data from {opsim_url}.")
+    copy2(cached_path, output_path)
 
     table_to_halt = "observations"
     temp_table = f"temp_{table_to_halt}"
@@ -36,23 +43,30 @@ def make_opsim_shorten(opsim_path: str, n_rows: int, output_path: str):
             if table != table_to_halt:
                 cursor.execute(f"DROP TABLE {table};")
 
-        # Create a temporary table to store the shortened version of "observations"
-        cursor.execute(
-            f"""
-                   CREATE TABLE {temp_table} AS
-                   SELECT * FROM {table_to_halt} LIMIT ?;
-               """,
-            (n_rows,),
-        )
+        # Create a temporary table with ~equal rows per band
+        n_bands = len(bands)
+        n_rows_per_band = n_rows // n_bands
+        remainder = n_rows % n_bands
+        cursor.execute(f"CREATE TABLE {temp_table} AS SELECT * FROM {table_to_halt} WHERE 0;")
+        for i, band in enumerate(bands):
+            limit = n_rows_per_band + (1 if i < remainder else 0)
+            cursor.execute(
+                f"""
+                    INSERT INTO {temp_table}
+                    SELECT * FROM {table_to_halt}
+                    WHERE band = ?
+                    ORDER BY observationStartMJD
+                    LIMIT ?;
+                """,
+                (band, limit),
+            )
         # Drop the original table
         cursor.execute(f"DROP TABLE {table_to_halt};")
         # Rename the temporary table to the original table
         cursor.execute(f"ALTER TABLE {temp_table} RENAME TO {table_to_halt};")
 
-        # Clean up
-        cursor.execute("VACUUM;")
-
         conn.commit()
+        conn.execute("VACUUM;")
 
 
 def parse_args(args):
@@ -82,6 +96,12 @@ def parse_args(args):
         default=100,
         help="The number of rows to keep in the shortened version.",
     )
+    parser.add_argument(
+        "--bands",
+        type=str,
+        default="gr",
+        help="The bands to keep in the shortened version.",
+    )
     default_output_path = Path(__file__).parent.parent / "data" / "opsim_shorten.db"
     parser.add_argument(
         "-o",
@@ -101,7 +121,7 @@ def main(args=None):
         The command line arguments.
     """
     args = parse_args(args)
-    make_opsim_shorten(opsim_path=args.input, n_rows=args.n_rows, output_path=args.output)
+    make_opsim_shorten(opsim_url=args.input, n_rows=args.n_rows, bands=args.bands, output_path=args.output)
 
 
 if __name__ == "__main__":
