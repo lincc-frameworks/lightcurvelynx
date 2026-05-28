@@ -701,8 +701,16 @@ class GraphState:
                 names.append(full_name)
                 if self.num_samples == 1:
                     arrays.append(pa.array([param_value]))
-                else:
+                elif np.ndim(param_value) < 2:
                     arrays.append(pa.array(param_value))
+                else:
+                    inner_size = np.prod(param_value.shape[1:])
+                    flat_arrow = pa.array(np.reshape(param_value, (-1,)))
+                    list_arrow = pa.FixedSizeListArray.from_arrays(
+                        values=flat_arrow,
+                        list_size=inner_size,
+                    )
+                    arrays.append(list_arrow)
         return pa.StructArray.from_arrays(arrays, names=names)
 
     def save_to_file(self, filename, overwrite=False):
