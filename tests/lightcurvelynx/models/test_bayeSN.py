@@ -100,8 +100,6 @@ def test_bayesn_matchness(test_data_dir):
         ra=0,
         dec=0,
         redshift=redshift,
-        _M20_model_path=test_data_dir / "BAYESN.M20",
-        hsiao_model_path=test_data_dir / "hsiao.h5",
         Amplitude=np.power(10.0, -0.4 * (distmod + m_abs)),
     )
     assert model.minphase() == pytest.approx(-20.0)
@@ -109,28 +107,6 @@ def test_bayesn_matchness(test_data_dir):
 
     flux_density = model.evaluate_sed(times, wavelengths)
     assert np.allclose(bayesian_flux, flux_density, rtol=0.1)
-
-
-def test_bayesn_no_model(test_data_dir):
-    """Test that we fail if using the wrong model directory."""
-    dir_name = test_data_dir / "no_such_salt2_model_dir"
-    with pytest.raises(FileNotFoundError):
-        redshift = 0.001
-        cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
-        distmod = cosmo.distmod(redshift).value
-        m_abs = -19.5
-        _ = BayesnModel(
-            theta=1,
-            Av=1,
-            Rv=3,
-            t0=0,
-            ra=0,
-            dec=0,
-            redshift=redshift,
-            hsiao_model_path=test_data_dir / "hsiao.h5",
-            Amplitude=np.power(10.0, -0.4 * (distmod + m_abs)),
-            _M20_model_path=dir_name,
-        )
 
 
 def test_bayesn_citation():

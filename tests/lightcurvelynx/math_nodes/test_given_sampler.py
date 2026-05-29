@@ -222,6 +222,20 @@ def test_given_value_sampler_weighted():
     assert len(results[results == 7]) > 500
 
 
+@pytest.mark.parametrize("bad_weights", [[-0.1, 0.6, 0.5], [0.2, -0.2, 1.0]])
+def test_given_value_sampler_negative_weights_fail(bad_weights):
+    """Test that negative weights are rejected."""
+    with pytest.raises(ValueError, match="Weights must be non-negative"):
+        _ = GivenValueSampler([1, 3, 5], bad_weights)
+
+
+@pytest.mark.parametrize("bad_weights", [[0.0, 0.0, 0.0], [-0.0, 0.0, 0.0]])
+def test_given_value_sampler_non_positive_weight_sum_fail(bad_weights):
+    """Test that weights must have a strictly positive total."""
+    with pytest.raises(ValueError, match="Weights must sum to a positive value"):
+        _ = GivenValueSampler([1, 3, 5], bad_weights)
+
+
 @pytest.mark.parametrize("test_data_type", ["dict", "ap_table", "pd_df"])
 def test_table_sampler(test_data_type):
     """Test that we can retrieve numbers from a TableSampler from a
