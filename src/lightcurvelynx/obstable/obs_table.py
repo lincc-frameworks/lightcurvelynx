@@ -173,7 +173,7 @@ class ObsTable:
             for alt_name, standard_name in self._alt_filter_name_map.items():
                 mask = self._table["filter"] == alt_name
                 if mask.any():
-                    logger.info(f"Remapping filter name '{alt_name}' to standard name '{standard_name}'.")
+                    logger.debug(f"Remapping filter name '{alt_name}' to standard name '{standard_name}'.")
                     self._table.loc[mask, "filter"] = standard_name
 
         # Save the survey values, with table metadata and keyword arguments overwriting the defaults.
