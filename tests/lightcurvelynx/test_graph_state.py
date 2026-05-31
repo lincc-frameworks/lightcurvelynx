@@ -768,6 +768,99 @@ def test_graph_state_update_multi():
         state.update(state4)
 
 
+def test_graph_state_repeat_multi_sample():
+    """Test that repeat correctly expands a multi-sample GraphState."""
+    state = GraphState(num_samples=3)
+    state.set("a", "v1", [1.0, 2.0, 3.0])
+    state.set("a", "v2", [10.0, 20.0, 30.0])
+    state.set("b", "v1", [-1.0, -2.0, -3.0])
+
+    # We fail if the length of the repeat array does not match the number of samples.
+    with pytest.raises(ValueError):
+        state.repeat([2, 0])
+
+    # We fail if the repeat array contains negative values or non-integer values.
+    with pytest.raises(ValueError):
+        state.repeat([2, -1, 3])
+    with pytest.raises(TypeError):
+        state.repeat([2, 0.5, 3])
+
+    # We fail if we would remove all the values.
+    with pytest.raises(ValueError):
+        state.repeat([0, 0, 0])
+
+    # Do a valid repeat and check the results.
+    state.repeat([2, 0, 3])
+    assert state.num_samples == 5
+    assert np.array_equal(state["a"]["v1"], [1.0, 1.0, 3.0, 3.0, 3.0])
+    assert np.array_equal(state["a"]["v2"], [10.0, 10.0, 30.0, 30.0, 30.0])
+    assert np.array_equal(state["b"]["v1"], [-1.0, -1.0, -3.0, -3.0, -3.0])
+
+
+def test_graph_state_repeat_multi_to_single():
+    """Test that repeat correctly 'expands' a multi-sample GraphState to a
+    single-sample GraphState."""
+    state = GraphState(num_samples=3)
+    state.set("a", "v1", [1.0, 2.0, 3.0])
+    state.set("a", "v2", [10.0, 20.0, 30.0])
+    state.set("b", "v1", [-1.0, -2.0, -3.0])
+
+    # Do a valid repeat and check the results.
+    state.repeat([0, 1, 0])
+    assert state.num_samples == 1
+    assert np.isscalar(state["a"]["v1"])
+    assert state["a"]["v1"] == 2.0
+    assert np.isscalar(state["a"]["v2"])
+    assert state["a"]["v2"] == 20.0
+    assert np.isscalar(state["b"]["v1"])
+    assert state["b"]["v1"] == -2.0
+
+
+def test_graph_state_repeat_single_sample():
+    """Test that repeat correctly expands a single-sample GraphState."""
+    state = GraphState(num_samples=1)
+    state.set("a", "v1", 2.5)
+    state.set("b", "v1", -4.0)
+
+    state.repeat([4])
+    assert state.num_samples == 4
+    assert np.array_equal(state["a"]["v1"], [2.5, 2.5, 2.5, 2.5])
+    assert np.array_equal(state["b"]["v1"], [-4.0, -4.0, -4.0, -4.0])
+
+
+def test_graph_state_repeat_single_to_single():
+    """Test that repeat handle a single-sample GraphState with repeat = 1."""
+    state = GraphState(num_samples=1)
+    state.set("a", "v1", 2.5)
+    state.set("b", "v1", -4.0)
+
+    state.repeat([1])
+    assert state.num_samples == 1
+    assert np.isscalar(state["a"]["v1"])
+    assert state["a"]["v1"] == 2.5
+    assert np.isscalar(state["b"]["v1"])
+    assert state["b"]["v1"] == -4.0
+
+
+def test_graph_state_repeat_integer_shortcut():
+    """Test that repeat accepts a scalar integer and applies it to all samples."""
+    state = GraphState(num_samples=3)
+    state.set("a", "v1", [1.0, 2.0, 3.0])
+
+    # We fail with invalid values.
+    with pytest.raises(ValueError):
+        state.repeat(0)
+    with pytest.raises(ValueError):
+        state.repeat(-1)
+    with pytest.raises(TypeError):
+        state.repeat(1.5)
+
+    # Valid repeat value.
+    state.repeat(2)
+    assert state.num_samples == 6
+    assert np.array_equal(state["a"]["v1"], [1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
+
+
 def test_graph_to_from_file(tmp_path):
     """Test that we can create an AstroPy Table from a GraphState."""
     state = GraphState(num_samples=3)

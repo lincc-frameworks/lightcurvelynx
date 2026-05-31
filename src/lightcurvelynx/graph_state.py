@@ -535,6 +535,64 @@ class GraphState:
             for var_name, value in node_vars.items():
                 self.set(node_name, var_name, value, force_copy=force_copy, fixed=all_fixed)
 
+    def repeat(self, repeats):
+        """Expand the GraphState to a new number of samples by repeating the existing values
+        for all node.parameter combinations.
+
+        Note
+        ----
+        This method is experimental and may be removed in the future.
+
+        Parameters
+        ----------
+        repeats : array-like or int
+            An array of the number of repetitions for each of the current samples.
+            The length of this array must match the current number of samples.
+            If an integer is provided, all samples will be repeated that many times.
+            The sum of the entries in this array will determine the new number of samples.
+        """
+        # If we get a scalar integer, repeat all samples by that amount.
+        if isinstance(repeats, int):
+            repeats = np.full(self.num_samples, int(repeats), dtype=int)
+        else:
+            repeats = np.asarray(repeats)
+            if repeats.dtype.kind not in {"i", "u"}:
+                raise TypeError("Entries in repeats must be integers.")
+            if len(repeats) != self.num_samples:
+                raise ValueError(
+                    f"Length of repeats must match the current number of samples. "
+                    f"Received {len(repeats)} and {self.num_samples}."
+                )
+
+        # Check that the entries are valid.
+        if np.any(repeats < 0):
+            raise ValueError("Entries in repeats must be non-negative.")
+
+        # Check how many samples we will have after the repeats.
+        new_num_samples = np.sum(repeats)
+        if new_num_samples == 0:
+            raise ValueError("Cannot have zero samples in GraphState.")
+
+        # Update each the array (or value) for each node+parameter in the GraphState by
+        # repeating the values according to repeats.
+        for node_name, node_vars in self.states.items():
+            for var_name, value in node_vars.items():
+                # Compute the new values as an array.
+                if self.num_samples == 1:
+                    new_values = np.full(repeats[0], value)
+                else:
+                    new_values = np.repeat(value, repeats)
+
+                # If we only have a single sample at the end, store its value.
+                if new_num_samples == 1:
+                    new_values = new_values[0]
+
+                # Save the updated values.
+                self.states[node_name][var_name] = new_values
+
+        # Update the number of samples.
+        self.num_samples = new_num_samples
+
     def extract_single_sample(self, sample_num):
         """Create a new GraphState with a single sample state and all scalar values.
 
