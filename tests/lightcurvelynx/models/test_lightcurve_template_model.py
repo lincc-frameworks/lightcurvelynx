@@ -9,6 +9,7 @@ from citation_compass import find_in_citations
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
+from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.lightcurve_template_model import (
     LightcurveBandData,
     LightcurveTemplateModel,
@@ -799,6 +800,73 @@ def test_create_multilightcurve_template_model() -> None:
     single_state = model.sample_parameters(num_samples=1)
     assert model.minphase(filter="g", graph_state=single_state) is None
     assert model.maxphase(filter="g", graph_state=single_state) is None
+
+
+def test_create_multilightcurve_template_model_indices() -> None:
+    """Test that we can create a simple MultiLightcurveTemplateModel object
+    with pre-specified indices."""
+    pb_group = _create_toy_passbands()
+
+    # Lightcurve 1 is non-periodic and covers u and g.
+    lc1_times = np.arange(0.0, 10.5, 0.5)
+    lc1_lightcurves = {
+        "u": np.array([lc1_times + 0.1, 2.0 * np.ones_like(lc1_times)]).T,
+        "g": np.array([lc1_times, 3.0 * np.ones_like(lc1_times)]).T,
+    }
+    lc1_data = LightcurveBandData(lc1_lightcurves, lc_data_t0=0.0, baseline={"u": 0.1, "g": 0.2})
+
+    # Light curve 2 is periodic and covers r and g.
+    lc2_times = np.arange(0.0, 19.0, 1.0)
+    lc2_lightcurves = {
+        "r": np.array([lc2_times, lc2_times % 2]).T,
+        "g": np.array([lc2_times, lc2_times % 2 + 0.5]).T,
+    }
+    lc2_data = LightcurveBandData(lc2_lightcurves, lc_data_t0=0.0, periodic=True)
+
+    # Create the MultiLightcurveTemplateModel with both light curves and predefined indices.
+    indices = GivenValueList([0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1])
+    model = MultiLightcurveTemplateModel(
+        [lc1_data, lc2_data],
+        pb_group,
+        t0=0.0,
+        indices=indices,
+        node_label="source",
+    )
+    assert len(model.lightcurves) == 2
+    assert set(model.filters) == {"u", "g", "r"}
+
+    # Check that we sample the light curves correctly.
+    graph_state = model.sample_parameters(num_samples=10)
+    lc_used = graph_state["source"]["selected_lightcurve"]
+    assert np.array_equal(lc_used, [0, 0, 1, 0, 0, 1, 1, 1, 0, 0])
+
+    # Check that the baseline values are set correctly for the selected light curves.
+    # Light curve 0 has values given for u and g. Light curve 1 does not have any given
+    # baseline values, so it should default to 0.0 in all bands.
+    lc0_mask = lc_used == 0
+    assert np.all(graph_state["source"]["baseline_u"][lc0_mask] == 0.1)
+    assert np.all(graph_state["source"]["baseline_g"][lc0_mask] == 0.2)
+    assert np.all(graph_state["source"]["baseline_r"][lc0_mask] == 0.0)  # Default
+
+    lc1_mask = lc_used == 1
+    assert np.all(graph_state["source"]["baseline_u"][lc1_mask] == 0.0)
+    assert np.all(graph_state["source"]["baseline_g"][lc1_mask] == 0.0)
+    assert np.all(graph_state["source"]["baseline_r"][lc1_mask] == 0.0)
+
+    query_times = np.array([-1.0, 1.0, 2.0, 3.0, 4.0, 20.0, 21.0])
+    query_filters = np.full(len(query_times), "g")
+    fluxes = model.evaluate_bandfluxes(pb_group, query_times, query_filters, graph_state)
+    assert len(fluxes) == 10
+
+    # Check that we sampled from the light curve that we said we did.
+    expected_0 = np.array([0.2, 3.0, 3.0, 3.0, 3.0, 0.2, 0.2])
+    expected_1 = np.array([1.5, 1.5, 0.5, 1.5, 0.5, 0.5, 1.5])
+    for idx in range(10):
+        if lc_used[idx] == 0:
+            # The first light curve is 3.0 when active
+            assert np.allclose(fluxes[idx], expected_0)
+        else:
+            assert np.allclose(fluxes[idx], expected_1)
 
 
 def test_create_multilightcurve_template_model_fail() -> None:

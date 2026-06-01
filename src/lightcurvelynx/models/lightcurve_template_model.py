@@ -740,12 +740,16 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
 
 class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
-    """A MultiLightcurveTemplateModel randomly selects a light curve at each evaluation
-    computes the flux from that source. The models can generate either the SED or
-    bandflux of a source based of given light curves in each band. When generating
-    the bandflux, the model interpolates the light curves directly. When generating the SED,
-    the model uses a box-shaped SED for each filter such that the resulting flux density
-    is equal to the light curve's value after passing through the passband filter.
+    """A MultiLightcurveTemplateModel either randomly or programmatically selects a light
+    curve at each evaluation computes the flux from that source. If the 'indices' parameter
+    is provided, the model uses those indices to select the light curve (in order). Otherwise,
+    the model randomly samples from the available light curves (with replacement).
+
+    The models can generate either the SED or bandflux of a source based of given light curves
+    in each band. When generating the bandflux, the model interpolates the light curves directly.
+    When generating the SED, the model uses a box-shaped SED for each filter such that the
+    resulting flux density is equal to the light curve's value after passing through the passband
+    filter.
 
     MultiLightcurveTemplateModel supports both periodic and non-periodic light curves. If the
     light curve is not periodic then each light curve's given values will be interpolated
@@ -789,7 +793,14 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         Default: None
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
-        a light curve at random. If None, all light curves will be weighted equally.
+        a light curve at random. Cannot be used if the 'index' parameter is provided.
+        If None, all light curves will be weighted equally.
+        Default: None
+    indices : parameter, optional
+        An array-like parameter that provides the indices of the light curves to select.
+        If provided, the model will use these indices to select the light curves instead
+        of sampling randomly.
+        Default: None
     """
 
     def __init__(
@@ -798,6 +809,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         passbands=None,
         *,
         weights=None,
+        indices=None,
         **kwargs,
     ):
         # Validate the light curve input and create a union of all filters used.
@@ -811,11 +823,18 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
         super().__init__(passbands=passbands, filters=self.filters, **kwargs)
 
-        all_inds = [i for i in range(len(lightcurves))]
-        self._sampler_node = GivenValueSampler(all_inds, weights=weights)
+        # Either choose from the indices (in order)
+        if indices is not None:
+            if weights is not None:
+                raise ValueError("Cannot provide both 'weights' and 'indices' parameters.")
+            indices_sampler = indices
+        else:
+            all_inds = [i for i in range(len(lightcurves))]
+            indices_sampler = GivenValueSampler(all_inds, weights=weights)
+
         self.add_parameter(
             "selected_lightcurve",
-            value=self._sampler_node,
+            value=indices_sampler,
             allow_gradient=False,
             description="Index of the light curve selected for sampling.",
         )
