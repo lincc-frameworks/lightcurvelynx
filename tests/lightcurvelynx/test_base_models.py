@@ -319,21 +319,12 @@ def test_parameterized_build_dependency_graph():
 
 
 def test_parameterized_node_from_node():
-    """Test that we can set the values of a parameterized node directly
-    from the values of another parameterized node.
+    """Test that we can no longer set the values of a parameterized node directly
+    from the values of another parameterized node as this is a confusing pattern.
     """
     model1 = PairModel(value1=0.5, value2=1.5, node_label="A")
-    model2 = PairModel(value1=model1, value2=model1, node_label="B")
-
-    # The "value1" and "value2" of model2 should be the same as model1.
-    state = model2.sample_parameters()
-    assert state["B"]["value1"] == 0.5
-    assert state["B"]["value2"] == 1.5
-
-    # We fail if we try to reference a parameter in a node that does not have it.
-    model3 = SingleVariableNode("value1", 0.5, node_label="C")
     with pytest.raises(ValueError):
-        _ = PairModel(value1=model3, value2=model3)
+        _ = PairModel(value1=model1, value2=model1, node_label="B")
 
 
 def test_parameterized_node_overwrite_fun():
