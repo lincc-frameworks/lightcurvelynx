@@ -65,31 +65,47 @@ class BinarySampler(NumpyRandomFunc):
 
 class GivenValueList(FunctionNode):
     """A FunctionNode that returns given results for a single parameter
-    in the order in which they are provided.
+    in the order in which they are provided. This node can be used as either
+    stateful or stateless. If stateful, the node will keep track of the next index to
+    return and will return the values in order. If stateless, the node will always
+    return the first N values in the list.
 
     Note
     ----
-    This is a stateful node that keeps track of the next index to return
-    that cannot be used in parallel sampling.
+    The stateful version of this node does not support parallel sampling, because it keeps
+    track of a single index for the next value to return. If you need to use this node in
+    parallel sampling, you should set stateful=False, but be aware that this will cause the
+    node to always return the first N values in the list, where N is the number of samples
+    requested, instead of iterating through the list.
 
     Attributes
     ----------
-    values : float, list, or numpy.ndarray
+    values : list or numpy.ndarray
         The values to return.
     next_ind : int
         The index of the next value.
+    stateful : bool
+        Whether this node is stateful. If True, the node will keep track of the next
+        index to return. If False, the node will always return the first N values in the list,
+        where N is the number of samples requested.
+        Default: True
     """
 
-    def __init__(self, values, **kwargs):
+    def __init__(self, values, *, stateful=True, **kwargs):
         self.values = np.asarray(values)
         if len(values) == 0:
             raise ValueError("No values provided for GivenValueList")
         self.next_ind = 0
+        self._stateful = stateful
 
         super().__init__(self._non_func, **kwargs)
 
     def __getstate__(self):
-        raise RuntimeError("GivenValueList cannot be pickled. This node does not support parallel sampling.")
+        if self._stateful:
+            raise RuntimeError(
+                "A stateful GivenValueList cannot be pickled. This node does not support parallel sampling."
+            )
+        return super().__getstate__()
 
     def reset(self):
         """Reset the next index to use."""
@@ -127,7 +143,8 @@ class GivenValueList(FunctionNode):
                 )
 
             results = self.values[sample_ind]
-            self.next_ind += 1
+            if self._stateful:
+                self.next_ind += 1
         else:
             end_ind = sample_ind + graph_state.num_samples
             if end_ind > len(self.values):
@@ -137,7 +154,8 @@ class GivenValueList(FunctionNode):
                 )
 
             results = self.values[sample_ind:end_ind]
-            self.next_ind += graph_state.num_samples
+            if self._stateful:
+                self.next_ind += graph_state.num_samples
 
         # Save and return the results.
         self._save_results(results, graph_state)
