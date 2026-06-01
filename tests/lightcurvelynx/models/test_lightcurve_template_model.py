@@ -868,6 +868,18 @@ def test_create_multilightcurve_template_model_indices() -> None:
         else:
             assert np.allclose(fluxes[idx], expected_1)
 
+    # We can also create a model with the indices in list form.
+    indices_list = [0, 0, 0, 1, 0, 1, 0, 1, 1, 0]
+    model2 = MultiLightcurveTemplateModel(
+        [lc1_data, lc2_data],
+        pb_group,
+        t0=0.0,
+        indices=indices_list,
+        node_label="source",
+    )
+    graph_state2 = model2.sample_parameters(num_samples=10)
+    assert np.array_equal(graph_state2["source"]["selected_lightcurve"], indices_list)
+
 
 def test_create_multilightcurve_template_model_fail() -> None:
     """Test creating a MultiLightcurveTemplateModel with invalid parameters."""

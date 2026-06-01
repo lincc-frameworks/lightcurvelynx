@@ -22,7 +22,11 @@ from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.sed_basis_models import SEDBasisModel
 from lightcurvelynx.consts import lsst_filter_plot_colors
-from lightcurvelynx.math_nodes.given_sampler import GivenValueSampler, GivenValueSelector
+from lightcurvelynx.math_nodes.given_sampler import (
+    GivenValueList,
+    GivenValueSampler,
+    GivenValueSelector,
+)
 from lightcurvelynx.models.physical_model import BandfluxModel
 from lightcurvelynx.utils.io_utils import read_lclib_data
 
@@ -796,7 +800,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         a light curve at random. Cannot be used if the 'index' parameter is provided.
         If None, all light curves will be weighted equally.
         Default: None
-    indices : parameter, optional
+    indices : parameter or array-like, optional
         An array-like parameter that provides the indices of the light curves to select.
         If provided, the model will use these indices to select the light curves instead
         of sampling randomly.
@@ -827,7 +831,11 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         if indices is not None:
             if weights is not None:
                 raise ValueError("Cannot provide both 'weights' and 'indices' parameters.")
-            indices_sampler = indices
+            if isinstance(indices, list | np.ndarray):
+                indices_sampler = GivenValueList(indices)
+            else:
+                # Assume it is already a parameter or sampler.
+                indices_sampler = indices
         else:
             all_inds = [i for i in range(len(lightcurves))]
             indices_sampler = GivenValueSampler(all_inds, weights=weights)
