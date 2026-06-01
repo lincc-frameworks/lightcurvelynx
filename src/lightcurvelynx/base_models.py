@@ -498,13 +498,15 @@ class ParameterizedNode:
             output_name = name if name in value.outputs else "function_node_result"
             self.setters[name].set_as_function(value, output_name)
         elif isinstance(value, ParameterizedNode):
-            # Case 3: We are trying to access a parameter of a ParameterizedNode
-            # with the same name.
-            if value == self:
-                raise ValueError(f"Parameter '{name}' is recursively assigned to self.{name}.")
-            if name not in value.setters:
-                raise ValueError(f"Parameter '{name}' missing from {str(value)}.")
-            self.setters[name].set_as_parameter(value, name)
+            # Case 3 [No longer supported]: We are trying to access a parameter of a
+            # ParameterizedNode with the same name as the current parameter (implicit linking).
+            # We removed this pattern because it increases the potential for user confusion.
+            raise ValueError(
+                f"Error setting parameter '{name}': Setting a parameter to a ParameterizedNode "
+                f"and implicitly determining that parameter name (e.g. using '{name}=other_node' "
+                f"to link other_node.{name}) is no longer supported. You must explicitly specify "
+                f"the parameter name using the dot notation (e.g. '{name}=other_node.{name}')."
+            )
         else:
             # Case 4: The value is constant (including None).
             self.setters[name].set_as_constant(value)
