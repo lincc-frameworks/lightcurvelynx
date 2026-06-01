@@ -1091,3 +1091,62 @@ class FunctionNode(ParameterizedNode):
         for output_name in self.outputs:
             results.append(self.get_param(state, output_name))
         return results
+
+
+class ExpansionNode(FunctionNode):
+    """A special FunctionNode that expands the graph state by applying the repeat() method.
+    It takes a single input (the number of repeats for each sample), modifies the GraphState,
+    and produces a single output value (an array of the original indices).
+
+    This node is meant to be used in the rare case that a single step in the parameter
+    sampling process needs to change the number of samples (one sample branching into multiple
+    results).
+
+    Because of the structure of sampling, each ExpansionNode will only be triggered
+    once during each sampling process.
+
+    Note
+    ----
+    This class is experimental and may be removed in the future.
+    """
+
+    def __init__(self, repeats, **kwargs):
+        super().__init__(
+            func=self._non_func,  # We will override compute() so the function doesn't matter.
+            repeats=repeats,  # The one parameter
+            outputs=["expanded_indices"],  # The one output
+            **kwargs,
+        )
+
+    def compute(self, graph_state, rng_info=None, **kwargs):
+        """Expand the graph state by applying the repeat() method.
+        Parameters
+        ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values. This object is modified
+            in place as it is sampled.
+        rng_info : numpy.random._generator.Generator, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator.
+        **kwargs : dict, optional
+            Additional function arguments.
+
+        Returns
+        -------
+        results : any
+            The result of the computation. This return value is provided so that testing
+            functions can easily access the results.
+
+        Raises
+        ------
+        ValueError
+            If func attribute is None.
+        """
+        # Get the repeats parameter and apply the repeat() method to expand the graph state.
+        args = self._build_inputs(graph_state, **kwargs)
+        repeats = args["repeats"]
+        print(repeats)
+        results = np.arange(graph_state.num_samples).repeat(repeats)
+        graph_state.repeat(repeats)
+        self._save_results(results, graph_state)
+        return results
