@@ -745,7 +745,7 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
 class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     """A MultiLightcurveTemplateModel either randomly or programmatically selects a light
-    curve at each evaluation computes the flux from that source. If the 'indices' parameter
+    curve at each evaluation and computes the flux from that source. If the 'indices' parameter
     is provided, the model uses those indices to select the light curve (in order). Otherwise,
     the model randomly samples from the available light curves (with replacement).
 
@@ -797,10 +797,10 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         Default: None
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
-        a light curve at random. Cannot be used if the 'index' parameter is provided.
+        a light curve at random. Cannot be used if the 'indices' parameter is provided.
         If None, all light curves will be weighted equally.
         Default: None
-    indices : parameter or array-like, optional
+    indices : parameter, list, or numpy.ndarray, optional
         An array-like parameter that provides the indices of the light curves to select.
         If provided, the model will use these indices to select the light curves instead
         of sampling randomly.
@@ -832,6 +832,9 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             if weights is not None:
                 raise ValueError("Cannot provide both 'weights' and 'indices' parameters.")
             if isinstance(indices, list | np.ndarray):
+                indices = np.asarray(indices)
+                if np.any((indices < 0) | (indices >= len(lightcurves))):
+                    raise ValueError("Indices must be between 0 and the number of light curves.")
                 indices_sampler = GivenValueList(indices)
             else:
                 # Assume it is already a parameter or sampler.
@@ -1035,6 +1038,8 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         """
         params = self.get_local_params(state)
         model_ind = params["selected_lightcurve"]
+        if model_ind < 0 or model_ind >= len(self.lightcurves):  # pragma: no cover
+            raise ValueError(f"Selected light curve index {model_ind} is out of bounds.")
         lc = self.lightcurves[model_ind]
 
         # Check that the filter is supported by the model.

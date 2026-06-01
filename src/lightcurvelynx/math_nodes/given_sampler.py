@@ -80,7 +80,7 @@ class GivenValueList(FunctionNode):
 
     Attributes
     ----------
-    values : float, list, or numpy.ndarray
+    values : list or numpy.ndarray
         The values to return.
     next_ind : int
         The index of the next value.

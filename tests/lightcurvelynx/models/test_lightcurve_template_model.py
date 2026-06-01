@@ -880,6 +880,16 @@ def test_create_multilightcurve_template_model_indices() -> None:
     graph_state2 = model2.sample_parameters(num_samples=10)
     assert np.array_equal(graph_state2["source"]["selected_lightcurve"], indices_list)
 
+    # We fail if the indices are out of bounds.
+    with pytest.raises(ValueError):
+        _ = MultiLightcurveTemplateModel(
+            [lc1_data, lc2_data],
+            pb_group,
+            t0=0.0,
+            indices=[0, 0, 2, 0, 0, 1, 1, 1, 0, 0],  # Index of 2 is out of bounds
+            node_label="source",
+        )
+
 
 def test_create_multilightcurve_template_model_fail() -> None:
     """Test creating a MultiLightcurveTemplateModel with invalid parameters."""
