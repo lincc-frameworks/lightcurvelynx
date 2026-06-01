@@ -840,7 +840,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
                 # Assume it is already a parameter or sampler.
                 indices_sampler = indices
         else:
-            all_inds = [i for i in range(len(lightcurves))]
+            all_inds = np.arange(len(lightcurves))
             indices_sampler = GivenValueSampler(all_inds, weights=weights)
 
         self.add_parameter(
