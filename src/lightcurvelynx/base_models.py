@@ -1093,7 +1093,7 @@ class FunctionNode(ParameterizedNode):
         return results
 
 
-class ExpansionNode(FunctionNode):
+class StateExpansionNode(FunctionNode):
     """A special FunctionNode that expands the graph state by applying the repeat() method.
     It takes a single input (the number of repeats for each sample), modifies the GraphState,
     and produces a single output value (an array of the original indices).
@@ -1145,7 +1145,6 @@ class ExpansionNode(FunctionNode):
         # Get the repeats parameter and apply the repeat() method to expand the graph state.
         args = self._build_inputs(graph_state, **kwargs)
         repeats = args["repeats"]
-        print(repeats)
         results = np.arange(graph_state.num_samples).repeat(repeats)
         graph_state.repeat(repeats)
         self._save_results(results, graph_state)
