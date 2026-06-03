@@ -5,7 +5,7 @@ from os import urandom
 
 import numpy as np
 import scipy.stats
-from scipy.stats.sampling import NumericalInversePolynomial
+from scipy.stats.sampling import NumericalInversePolynomial, UNURANError
 
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.graph_state import transpose_dict_of_list
@@ -13,7 +13,7 @@ from lightcurvelynx.graph_state import transpose_dict_of_list
 
 def _safe_make_inv_polynomial(*args, **kwargs):
     """A wrapper function around the NumericalInversePolynomial constructor that:
-    1) catches a potential error about that can arise when the domain is too small.
+    1) catches a potential error that can arise when the domain is too small.
     2) ignores a potential warning about the mean of the sampling distribution being moved.
 
     Parameters
@@ -36,7 +36,7 @@ def _safe_make_inv_polynomial(*args, **kwargs):
         # That can result from the domain being too small for the sampling distribution to find.
         try:
             inv_poly = NumericalInversePolynomial(*args, **kwargs)
-        except Exception as err:
+        except UNURANError as err:
             if "condition for method violated" in str(err):
                 raise ValueError(
                     "Error creating the NumericalInversePolynomial object. This can arise when "
@@ -66,7 +66,7 @@ class NumericalInversePolynomialFunc(FunctionNode):
         the distribution from which to sample.
     domain : tuple, optional
         A tuple of (min, max) values to use as bounds for the sampling. If
-        not provided, the sampling will be unbounded.
+        not provided, scipy will try to infer the domain.
     seed : int, optional
         The seed to use.
     """
@@ -204,7 +204,7 @@ class SamplePDF(NumericalInversePolynomialFunc):
         The pdf function from which to sample or a class/object with that function.
     domain : tuple, optional
         A tuple of (min, max) values to use as bounds for the sampling. If
-        not provided, the sampling will be unbounded.
+        not provided, scipy will try to infer the domain.
     """
 
     def __init__(self, dist, *, domain=None, **kwargs):
