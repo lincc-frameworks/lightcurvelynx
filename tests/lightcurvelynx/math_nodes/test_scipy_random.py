@@ -118,6 +118,20 @@ def test_numerical_inverse_polynomial_func_object_seed():
     assert not np.allclose(values1, values3)
 
 
+def test_numerical_inverse_polynomial_func_object_domain():
+    """Test that we can specify a domain for the distribution."""
+    dist = FlatDist(min_val=0.0, max_val=1.0)
+    scipy_node = NumericalInversePolynomialFunc(dist, domain=(0.25, 0.75), seed=100)
+
+    # Test that the values are within the specified domain.
+    num_samples = 1000
+    states = scipy_node.sample_parameters(num_samples=num_samples)
+    samples = scipy_node.get_param(states, "function_node_result")
+    assert len(samples) == num_samples
+    assert np.all(samples >= 0.25)
+    assert np.all(samples <= 0.75)
+
+
 def test_numerical_inverse_polynomial_func_class():
     """Test that we can generate numbers from a uniform distribution."""
     scipy_node = NumericalInversePolynomialFunc(
@@ -227,9 +241,9 @@ def test_numerical_sample_pdf_with_domain():
     assert np.all(samples <= 0.3)
     assert np.all(samples >= 0.2)
 
-    # The distribution of samples should be monotinically inreasing with x.
-    # Use 90% buffer to account for noise in the sampling. We ignore the first
-    # and last bin because of edge with binning.
+    # The distribution of samples should be monotonically increasing with x.
+    # Use a 90% buffer to account for noise in the sampling. We ignore the first two
+    # and last bin because of edge effects from binning.
     hist, _ = np.histogram(samples, bins=10, range=(0.2, 0.3))
     for i in range(2, len(hist) - 1):
         assert hist[i] >= 0.9 * hist[i - 1]

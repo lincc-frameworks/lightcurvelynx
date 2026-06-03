@@ -21,19 +21,6 @@ class NumericalInversePolynomialFunc(FunctionNode):
     If a class is provided, then the sampling function will create a new
     object (with the sampled parameters) for each sampling. This is very expensive.
 
-    Attributes
-    ----------
-    _dist : object or class
-        An object or class with either a pdf() or logpdf() method that defines
-        the distribution from which to sample.
-    _inv_poly: scipy.stats.sampling.NumericalInversePolynomial
-        The scipy object to use for sampling. Set to None if _dist is a class.
-    _vect_sample : numpy.vectorize
-        The vectorized function to create a distribution from a class and sample it.
-        Set to None if _dist is an object.
-    _rng : numpy.random._generator.Generator
-        This object's random number generator.
-
     Parameters
     ----------
     dist : object or class
@@ -53,6 +40,9 @@ class NumericalInversePolynomialFunc(FunctionNode):
             raise ValueError("Distribution must have either pdf() or logpdf().")
         self._dist = dist
 
+        # Save the domain.
+        self._domain = domain
+
         # Classes show up as type="type". In this case we will need to create
         # a concrete object from the class and any given parameters.
         if isinstance(dist, type):
@@ -62,8 +52,8 @@ class NumericalInversePolynomialFunc(FunctionNode):
             with warnings.catch_warnings():
                 # Catch a potential warning about the mean of the sampling distribution
                 # being moved.
-                warnings.filterwarnings("ignore", category=RuntimeWarning)
-                self._inv_poly = NumericalInversePolynomial(self._dist, domain=domain)
+                warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*moved.*")
+                self._inv_poly = NumericalInversePolynomial(self._dist, domain=self._domain)
             self._vect_sample = None
 
         # Get a default random number generator for this object, using the
@@ -107,7 +97,11 @@ class NumericalInversePolynomialFunc(FunctionNode):
             The result of sampling the function.
         """
         dist = self._dist(**args)
-        sample = NumericalInversePolynomial(dist).rvs(1, rng)[0]
+        with warnings.catch_warnings():
+            # Catch a potential warning about the mean of the sampling distribution
+            # being moved.
+            warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*moved.*")
+            sample = NumericalInversePolynomial(dist, domain=self._domain).rvs(1, rng)[0]
         return sample
 
     def compute(self, graph_state, rng_info=None, **kwargs):
@@ -146,7 +140,11 @@ class NumericalInversePolynomialFunc(FunctionNode):
 
             if graph_state.num_samples == 1:
                 dist = self._dist(**args)
-                results = NumericalInversePolynomial(dist).rvs(1, rng)[0]
+                with warnings.catch_warnings():
+                    # Catch a potential warning about the mean of the sampling distribution
+                    # being moved.
+                    warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*moved.*")
+                    results = NumericalInversePolynomial(dist, domain=self._domain).rvs(1, rng)[0]
             else:
                 # Transpose the dict of arrays to a list of dicts.
                 arg_list = transpose_dict_of_list(args, graph_state.num_samples)
