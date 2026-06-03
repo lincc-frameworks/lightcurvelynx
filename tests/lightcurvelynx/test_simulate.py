@@ -2,6 +2,7 @@ import tempfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
+import lightcurvelynx.simulate as simulate_module
 import numpy as np
 import pandas as pd
 import pytest
@@ -395,6 +396,84 @@ def test_simulate_lightcurves(test_data_dir):
     assert "Available parameters are:" in str(excinfo.value)
     assert "source2.ra" in str(excinfo.value)
     assert "source2.dec" in str(excinfo.value)
+
+
+def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatch):
+    """Test that serial and threaded runs share one progress bar instance."""
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    class DummyTqdm:
+        instances = []
+
+        def __init__(self, iterable=None, *args, **kwargs):
+            self._iterable = iterable
+            self.total = kwargs.get("total")
+            self.disabled = kwargs.get("disable", False)
+            self.updates = []
+            if not self.disabled:
+                DummyTqdm.instances.append(self)
+
+        def __iter__(self):
+            return iter(self._iterable) if self._iterable is not None else iter([])
+
+        def update(self, n=1):
+            self.updates.append(n)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, exc_tb):
+            return False
+
+    monkeypatch.setattr(simulate_module, "tqdm", DummyTqdm)
+
+    source1 = ConstantSEDModel(
+        brightness=GivenValueList(
+            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
+        ),
+        t0=0.0,
+        ra=GivenValueList(opsim_db["ra"].values[0:10]),
+        dec=GivenValueList(opsim_db["dec"].values[0:10]),
+        redshift=0.0,
+        node_label="source",
+    )
+    _ = simulate_lightcurves(source1, 5, survey_info, progress_bar=True)
+    assert len(DummyTqdm.instances) == 1
+    assert DummyTqdm.instances[0].total == 5
+
+    DummyTqdm.instances.clear()
+
+    class FakeMapExecutor:
+        def map(self, fn, iterable):
+            return [fn(item) for item in iterable]
+
+    source2 = ConstantSEDModel(
+        brightness=GivenValueList(
+            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
+        ),
+        t0=0.0,
+        ra=GivenValueList(opsim_db["ra"].values[0:10]),
+        dec=GivenValueList(opsim_db["dec"].values[0:10]),
+        redshift=0.0,
+        node_label="source",
+    )
+    _ = simulate_lightcurves(
+        source2,
+        5,
+        survey_info,
+        executor=FakeMapExecutor(),
+        batch_size=2,
+        progress_bar=True,  # Should only create one progress bar for the whole run.
+    )
+    assert len(DummyTqdm.instances) == 1
+    assert DummyTqdm.instances[0].total == 5
+    assert sum(DummyTqdm.instances[0].updates) == 5
 
 
 def test_simulate_lightcurves_to_file(test_data_dir):

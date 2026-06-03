@@ -189,7 +189,7 @@ class SimulationInfo:
                 rng=batch_rng,
                 output_file_path=batch_output_file_path,
                 save_full_filter_names=self.save_full_filter_names,
-                progress_bar=self.progress_bar,
+                progress_bar=False,  # Don't show per-batch progress bars.
                 **self.kwargs,
             )
             batches.append(batch_info)
@@ -561,17 +561,24 @@ def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000):
         for each object. Otherwise the NestedFrame is saved to a file and the function
         returns that file's path.
     """
-    # Perform the simulation in parallel batches and combine the results. Since different
-    # frameworks may return either Future objects or direct results from the map function,
-    # we check for both.
+    # Perform the simulation in parallel batches (with a single progress bar) and
+    # combine the results. Since different frameworks may return either Future
+    # objects or direct results from the map function, we check for both.
     batches = simulation_info.split(batch_size=batch_size)
-    futures_or_results = executor.map(_simulate_lightcurves_batch, batches)
-    result_list = []
-    for res in futures_or_results:
-        if hasattr(res, "result") and callable(res.result):  # A Future
-            result_list.append(res.result())
-        else:  # A direct result
-            result_list.append(res)
+    result_list = [None] * len(batches)
+    with tqdm(
+        total=simulation_info.num_samples,
+        desc="Simulating",
+        unit="obj",
+        disable=not simulation_info.progress_bar,
+    ) as progress_bar:
+        futures_or_results = executor.map(_simulate_lightcurves_batch, batches)
+        for batch_idx, res in enumerate(futures_or_results):
+            if hasattr(res, "result") and callable(res.result):  # A Future
+                result_list[batch_idx] = res.result()
+            else:  # A direct result
+                result_list[batch_idx] = res
+            progress_bar.update(batches[batch_idx].num_samples)
     return result_list
 
 
