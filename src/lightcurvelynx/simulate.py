@@ -189,7 +189,7 @@ class SimulationInfo:
                 rng=batch_rng,
                 output_file_path=batch_output_file_path,
                 save_full_filter_names=self.save_full_filter_names,
-                progress_bar=self.progress_bar,
+                progress_bar=False,  # Don't show per-batch progress bars.
                 **self.kwargs,
             )
             batches.append(batch_info)
@@ -270,7 +270,7 @@ def get_time_windows(t0, z, obs_time_window_offset, rest_time_window_offset):
     return start_times, end_times
 
 
-def _simulate_lightcurves_batch(simulation_info):
+def _simulate_lightcurves_batch(simulation_info, progress_callback=None):
     """Generate a number of simulations of the given model and information
     from one or more surveys.
 
@@ -281,6 +281,9 @@ def _simulate_lightcurves_batch(simulation_info):
     ----------
     simulation_info : SimulationInfo
         The information needed to perform simulate a single batch of results.
+    progress_callback : callable, optional
+        Callback invoked after each simulated object is processed. This is only
+        used by the parent process when running in serial mode.
 
     Returns
     -------
@@ -382,15 +385,10 @@ def _simulate_lightcurves_batch(simulation_info):
     all_filters = [np.asarray(obstable[i]["filter"].values, dtype=str) for i in range(num_surveys)]
 
     # We loop over objects first, then surveys. This allows us to generate a single block
-    # of data for the object over all surveys.
+    # of data for the object over all surveys. The progress bar (if there is one) is managed
+    # by the parent process and updated via the call to progress_callback(1).
     logger.info("Simulating light curves for each object.")
-    for idx, state in tqdm(
-        enumerate(sample_states),
-        total=num_samples,
-        desc="Simulating",
-        unit="obj",
-        disable=not simulation_info.progress_bar,
-    ):
+    for idx, state in enumerate(sample_states):
         total_num_obs = 0
 
         # Create an object-specific nested dictionary for this so we can sort by time
@@ -519,6 +517,10 @@ def _simulate_lightcurves_batch(simulation_info):
         # The number of observations is the total across all surveys.
         results_dict["nobs"][idx] = total_num_obs
 
+        # If we are showing a progress bar, we update it after each object is processed.
+        if progress_callback is not None:
+            progress_callback(1)
+
     # Create the nested frame and either save it to a file or return it directly.
     logger.info("Compiling results.")
     results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
@@ -561,17 +563,28 @@ def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000):
         for each object. Otherwise the NestedFrame is saved to a file and the function
         returns that file's path.
     """
-    # Perform the simulation in parallel batches and combine the results. Since different
-    # frameworks may return either Future objects or direct results from the map function,
-    # we check for both.
+    # Split the batches and disable the per-batch progress bars.
     batches = simulation_info.split(batch_size=batch_size)
-    futures_or_results = executor.map(_simulate_lightcurves_batch, batches)
-    result_list = []
-    for res in futures_or_results:
-        if hasattr(res, "result") and callable(res.result):  # A Future
-            result_list.append(res.result())
-        else:  # A direct result
-            result_list.append(res)
+    for batch in batches:
+        batch.progress_bar = False
+
+    # Perform the simulation in parallel batches (with a single progress bar) and
+    # combine the results. Since different frameworks may return either Future
+    # objects or direct results from the map function, we check for both.
+    result_list = [None] * len(batches)
+    with tqdm(
+        total=simulation_info.num_samples,
+        desc="Simulating",
+        unit="obj",
+        disable=not simulation_info.progress_bar,
+    ) as progress_bar:
+        futures_or_results = executor.map(_simulate_lightcurves_batch, batches)
+        for batch_idx, res in enumerate(futures_or_results):
+            if hasattr(res, "result") and callable(res.result):  # A Future
+                result_list[batch_idx] = res.result()
+            else:  # A direct result
+                result_list[batch_idx] = res
+            progress_bar.update(batches[batch_idx].num_samples)
     return result_list
 
 
@@ -748,7 +761,13 @@ def simulate_lightcurves(
 
     # If we do not have any parallelization information, perform in serial.
     if executor is None and num_jobs is None:
-        return _simulate_lightcurves_batch(simulation_info)
+        with tqdm(
+            total=simulation_info.num_samples,
+            desc="Simulating",
+            unit="obj",
+            disable=not simulation_info.progress_bar,
+        ) as progress_bar:
+            return _simulate_lightcurves_batch(simulation_info, progress_callback=progress_bar.update)
 
     # If we have an executor, use that.
     if executor is not None:
