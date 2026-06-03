@@ -1,13 +1,52 @@
 """Wrapper classes for some of scipy's sampling functions."""
 
+import warnings
 from os import urandom
 
 import numpy as np
 import scipy.stats
-from scipy.stats.sampling import NumericalInversePolynomial
+from scipy.stats.sampling import NumericalInversePolynomial, UNURANError
 
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.graph_state import transpose_dict_of_list
+
+
+def _safe_make_inv_polynomial(*args, **kwargs):
+    """A wrapper function around the NumericalInversePolynomial constructor that:
+    1) catches a potential error that can arise when the domain is too small.
+    2) ignores a potential warning about the mean of the sampling distribution being moved.
+
+    Parameters
+    ----------
+    *args
+        The positional arguments to use for the NumericalInversePolynomial constructor.
+    **kwargs
+        The keyword arguments to use for the NumericalInversePolynomial constructor.
+
+    Returns
+    -------
+    inv_poly : NumericalInversePolynomial
+        The created NumericalInversePolynomial object.
+    """
+    with warnings.catch_warnings():
+        # Catch a potential warning about the mean of the sampling distribution being moved.
+        warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*moved.*")
+
+        # Catch the potential error (internal scipy type is not public so we have to check the message)
+        # That can result from the domain being too small for the sampling distribution to find.
+        try:
+            inv_poly = NumericalInversePolynomial(*args, **kwargs)
+        except UNURANError as err:
+            if "condition for method violated" in str(err):
+                raise ValueError(
+                    "Error creating the NumericalInversePolynomial object. This can arise when "
+                    "the domain is too small for the sampling distribution to find. You can use the "
+                    "'domain' parameter to explicitly set the bounds for the sampling distribution. "
+                    f"Original error message: {str(err)}. "
+                ) from err
+            else:
+                raise
+    return inv_poly
 
 
 class NumericalInversePolynomialFunc(FunctionNode):
@@ -20,34 +59,27 @@ class NumericalInversePolynomialFunc(FunctionNode):
     If a class is provided, then the sampling function will create a new
     object (with the sampled parameters) for each sampling. This is very expensive.
 
-    Attributes
-    ----------
-    _dist : object or class
-        An object or class with either a pdf() or logpdf() method that defines
-        the distribution from which to sample.
-    _inv_poly: scipy.stats.sampling.NumericalInversePolynomial
-        The scipy object to use for sampling. Set to None if _dist is a class.
-    _vect_sample : numpy.vectorize
-        The vectorized function to create a distribution from a class and sample it.
-        Set to None if _dist is an object.
-    _rng : numpy.random._generator.Generator
-        This object's random number generator.
-
     Parameters
     ----------
     dist : object or class
         An object or class with either a pdf() or logpdf() method that defines
         the distribution from which to sample.
+    domain : tuple, optional
+        A tuple of (min, max) values to use as bounds for the sampling. If
+        not provided, scipy will try to infer the domain.
     seed : int, optional
         The seed to use.
     """
 
-    def __init__(self, dist=None, seed=None, **kwargs):
+    def __init__(self, dist=None, *, domain=None, seed=None, **kwargs):
         # Check that the distribution object/class has a pdf or logpdf function
         # or that we have provided a function directly.
         if not hasattr(dist, "pdf") and not hasattr(dist, "logpdf"):
             raise ValueError("Distribution must have either pdf() or logpdf().")
         self._dist = dist
+
+        # Save the domain.
+        self._domain = domain
 
         # Classes show up as type="type". In this case we will need to create
         # a concrete object from the class and any given parameters.
@@ -55,7 +87,7 @@ class NumericalInversePolynomialFunc(FunctionNode):
             self._inv_poly = None
             self._vect_sample = np.vectorize(self._create_and_sample)
         else:
-            self._inv_poly = NumericalInversePolynomial(self._dist)
+            self._inv_poly = _safe_make_inv_polynomial(self._dist, domain=self._domain)
             self._vect_sample = None
 
         # Get a default random number generator for this object, using the
@@ -99,7 +131,7 @@ class NumericalInversePolynomialFunc(FunctionNode):
             The result of sampling the function.
         """
         dist = self._dist(**args)
-        sample = NumericalInversePolynomial(dist).rvs(1, rng)[0]
+        sample = _safe_make_inv_polynomial(dist, domain=self._domain).rvs(1, rng)[0]
         return sample
 
     def compute(self, graph_state, rng_info=None, **kwargs):
@@ -138,7 +170,7 @@ class NumericalInversePolynomialFunc(FunctionNode):
 
             if graph_state.num_samples == 1:
                 dist = self._dist(**args)
-                results = NumericalInversePolynomial(dist).rvs(1, rng)[0]
+                results = _safe_make_inv_polynomial(dist, domain=self._domain).rvs(1, rng)[0]
             else:
                 # Transpose the dict of arrays to a list of dicts.
                 arg_list = transpose_dict_of_list(args, graph_state.num_samples)
@@ -170,16 +202,19 @@ class SamplePDF(NumericalInversePolynomialFunc):
     ----------
     dist : function, class, or object
         The pdf function from which to sample or a class/object with that function.
+    domain : tuple, optional
+        A tuple of (min, max) values to use as bounds for the sampling. If
+        not provided, scipy will try to infer the domain.
     """
 
-    def __init__(self, dist, **kwargs):
+    def __init__(self, dist, *, domain=None, **kwargs):
         if hasattr(dist, "pdf"):
             self.dist_obj = dist
         elif callable(dist):
             self.dist_obj = PDFFunctionWrapper(dist)
         else:
             raise ValueError("No pdf function detected.")
-        super().__init__(self.dist_obj, **kwargs)
+        super().__init__(self.dist_obj, domain=domain, **kwargs)
 
 
 class LogPDFFunctionWrapper:
