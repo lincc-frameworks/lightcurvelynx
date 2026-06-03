@@ -11,6 +11,44 @@ from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.graph_state import transpose_dict_of_list
 
 
+def _safe_make_inv_polynomial(*args, **kwargs):
+    """A wrapper function around the NumericalInversePolynomial constructor that:
+    1) catches a potential error about that can arise when the domain is too small.
+    2) ignores a potential warning about the mean of the sampling distribution being moved.
+
+    Parameters
+    ----------
+    *args
+        The positional arguments to use for the NumericalInversePolynomial constructor.
+    **kwargs
+        The keyword arguments to use for the NumericalInversePolynomial constructor.
+
+    Returns
+    -------
+    inv_poly : NumericalInversePolynomial
+        The created NumericalInversePolynomial object.
+    """
+    with warnings.catch_warnings():
+        # Catch a potential warning about the mean of the sampling distribution being moved.
+        warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*moved.*")
+
+        # Catch the potential error (internal scipy type is not public so we have to check the message)
+        # That can result from the domain being too small for the sampling distribution to find.
+        try:
+            inv_poly = NumericalInversePolynomial(*args, **kwargs)
+        except Exception as err:
+            if "condition for method violated" in str(err):
+                raise ValueError(
+                    "Error creating the NumericalInversePolynomial object. This can arise when "
+                    "the domain is too small for the sampling distribution to find. You can use the "
+                    "'domain' parameter to explicitly set the bounds for the sampling distribution. "
+                    f"Original error message: {str(err)}. "
+                ) from err
+            else:
+                raise
+    return inv_poly
+
+
 class NumericalInversePolynomialFunc(FunctionNode):
     """A class for sampling from scipy's NumericalInversePolynomial
     given a distribution function, an object with a pdf function,
@@ -49,11 +87,7 @@ class NumericalInversePolynomialFunc(FunctionNode):
             self._inv_poly = None
             self._vect_sample = np.vectorize(self._create_and_sample)
         else:
-            with warnings.catch_warnings():
-                # Catch a potential warning about the mean of the sampling distribution
-                # being moved.
-                warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*moved.*")
-                self._inv_poly = NumericalInversePolynomial(self._dist, domain=self._domain)
+            self._inv_poly = _safe_make_inv_polynomial(self._dist, domain=self._domain)
             self._vect_sample = None
 
         # Get a default random number generator for this object, using the
@@ -97,11 +131,7 @@ class NumericalInversePolynomialFunc(FunctionNode):
             The result of sampling the function.
         """
         dist = self._dist(**args)
-        with warnings.catch_warnings():
-            # Catch a potential warning about the mean of the sampling distribution
-            # being moved.
-            warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*moved.*")
-            sample = NumericalInversePolynomial(dist, domain=self._domain).rvs(1, rng)[0]
+        sample = _safe_make_inv_polynomial(dist, domain=self._domain).rvs(1, rng)[0]
         return sample
 
     def compute(self, graph_state, rng_info=None, **kwargs):
@@ -140,11 +170,7 @@ class NumericalInversePolynomialFunc(FunctionNode):
 
             if graph_state.num_samples == 1:
                 dist = self._dist(**args)
-                with warnings.catch_warnings():
-                    # Catch a potential warning about the mean of the sampling distribution
-                    # being moved.
-                    warnings.filterwarnings("ignore", category=RuntimeWarning, message=r".*moved.*")
-                    results = NumericalInversePolynomial(dist, domain=self._domain).rvs(1, rng)[0]
+                results = _safe_make_inv_polynomial(dist, domain=self._domain).rvs(1, rng)[0]
             else:
                 # Transpose the dict of arrays to a list of dicts.
                 arg_list = transpose_dict_of_list(args, graph_state.num_samples)

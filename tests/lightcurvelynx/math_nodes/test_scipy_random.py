@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.scipy_random import (
@@ -232,6 +233,11 @@ def test_numerical_sample_pdf_with_domain():
         ]
     )
     zpdf = interp1d(x, y, bounds_error=False, fill_value=0)
+
+    # We fail if we try to create a SamplePDF node without specifying the domain,
+    # because the sampling distribution can't find a valid domain to sample from.
+    with pytest.raises(ValueError, match="Error creating the NumericalInversePolynomial object"):
+        _ = SamplePDF(zpdf, seed=100, node_label="zpdf_sampler_no_domain")
 
     # Check that we sample correctly given the domain of the distribution.
     scipy_node = SamplePDF(zpdf, seed=100, domain=(0.2, 0.3), node_label="zpdf_sampler")
