@@ -1,5 +1,6 @@
 """Wrapper classes for some of scipy's sampling functions."""
 
+import warnings
 from os import urandom
 
 import numpy as np
@@ -38,11 +39,14 @@ class NumericalInversePolynomialFunc(FunctionNode):
     dist : object or class
         An object or class with either a pdf() or logpdf() method that defines
         the distribution from which to sample.
+    domain : tuple, optional
+        A tuple of (min, max) values to use as bounds for the sampling. If
+        not provided, the sampling will be unbounded.
     seed : int, optional
         The seed to use.
     """
 
-    def __init__(self, dist=None, seed=None, **kwargs):
+    def __init__(self, dist=None, *, domain=None, seed=None, **kwargs):
         # Check that the distribution object/class has a pdf or logpdf function
         # or that we have provided a function directly.
         if not hasattr(dist, "pdf") and not hasattr(dist, "logpdf"):
@@ -55,7 +59,11 @@ class NumericalInversePolynomialFunc(FunctionNode):
             self._inv_poly = None
             self._vect_sample = np.vectorize(self._create_and_sample)
         else:
-            self._inv_poly = NumericalInversePolynomial(self._dist)
+            with warnings.catch_warnings():
+                # Catch a potential warning about the mean of the sampling distribution
+                # being moved.
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                self._inv_poly = NumericalInversePolynomial(self._dist, domain=domain)
             self._vect_sample = None
 
         # Get a default random number generator for this object, using the
@@ -170,16 +178,19 @@ class SamplePDF(NumericalInversePolynomialFunc):
     ----------
     dist : function, class, or object
         The pdf function from which to sample or a class/object with that function.
+    domain : tuple, optional
+        A tuple of (min, max) values to use as bounds for the sampling. If
+        not provided, the sampling will be unbounded.
     """
 
-    def __init__(self, dist, **kwargs):
+    def __init__(self, dist, *, domain=None, **kwargs):
         if hasattr(dist, "pdf"):
             self.dist_obj = dist
         elif callable(dist):
             self.dist_obj = PDFFunctionWrapper(dist)
         else:
             raise ValueError("No pdf function detected.")
-        super().__init__(self.dist_obj, **kwargs)
+        super().__init__(self.dist_obj, domain=domain, **kwargs)
 
 
 class LogPDFFunctionWrapper:
