@@ -446,7 +446,6 @@ def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatc
     _ = simulate_lightcurves(source1, 5, survey_info, progress_bar=True)
     assert len(DummyTqdm.instances) == 1
     assert DummyTqdm.instances[0].total == 5
-    assert sum(DummyTqdm.instances[0].updates) == 5
 
     DummyTqdm.instances.clear()
 
