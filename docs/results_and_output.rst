@@ -109,7 +109,7 @@ If users have already run a simulation and want to include specific columns from
 
 The data will be stored in the ``test_col`` column in the nested light curve DataFrame.
 
-Note that if the simulation was run with mutiple surveys, the function matches observations to each observation based on the ``survey_idx`` and ``obs_idx`` columns in the nested light curve DataFrame.  In this case, users will need to pass in a list of ObsTable in the same order as the original simulation, because 
+Note that if the simulation was run with mutiple surveys, the function matches observations to each observation based on the ``survey_idx`` and ``obs_idx`` columns in the nested light curve DataFrame.  In this case, users will need to pass in a list of ObsTable in the same order as the original simulation.
 
 
 Plotting Results
