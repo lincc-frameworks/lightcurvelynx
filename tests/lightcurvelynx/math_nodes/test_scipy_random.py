@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.scipy_random import (
@@ -7,6 +8,7 @@ from lightcurvelynx.math_nodes.scipy_random import (
     SamplePDF,
     ScipyRandomDist,
 )
+from scipy.interpolate import interp1d
 
 
 class FlatDist:
@@ -117,6 +119,20 @@ def test_numerical_inverse_polynomial_func_object_seed():
     assert not np.allclose(values1, values3)
 
 
+def test_numerical_inverse_polynomial_func_object_domain():
+    """Test that we can specify a domain for the distribution."""
+    dist = FlatDist(min_val=0.0, max_val=1.0)
+    scipy_node = NumericalInversePolynomialFunc(dist, domain=(0.25, 0.75), seed=100)
+
+    # Test that the values are within the specified domain.
+    num_samples = 1000
+    states = scipy_node.sample_parameters(num_samples=num_samples)
+    samples = scipy_node.get_param(states, "function_node_result")
+    assert len(samples) == num_samples
+    assert np.all(samples >= 0.25)
+    assert np.all(samples <= 0.75)
+
+
 def test_numerical_inverse_polynomial_func_class():
     """Test that we can generate numbers from a uniform distribution."""
     scipy_node = NumericalInversePolynomialFunc(
@@ -167,6 +183,76 @@ def test_numerical_sample_pdf():
     expected = mid_heights * 0.2 * num_samples
     for idx in range(10):
         assert np.abs(counts[idx] - expected[idx]) < 200.0
+
+
+def test_numerical_sample_pdf_interp():
+    """Test that we can create a SamplePDF node from an interpolated function."""
+    # A bimodal distribution with a wide peak at 1.5 and a sharper peak at 4.0
+    x = np.array([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
+    y = np.array([0.001, 0.5, 0.5, 0.5, 0.5, 0.5, 0.001, 0.001, 0.001, 2.5, 0.001])
+    pdf = interp1d(x, y, bounds_error=False, fill_value=0)
+
+    # Sample the distribution.
+    num_samples = 50_000
+    scipy_node = SamplePDF(pdf, seed=100, node_label="test_node")
+    state = scipy_node.sample_parameters(num_samples=num_samples)
+    samples = scipy_node.get_param(state, "function_node_result")
+
+    # Approximately half the samples should be between 0.0 and 3.0 (with a plateau
+    # between 0.5 and 2.5), and the other half should be between 4.0 and 5.0.
+    assert np.all(samples >= 0.0)
+    assert np.all(samples <= 5.0)
+    assert np.sum((samples >= 0.0) & (samples <= 3.0)) > 0.45 * num_samples
+    assert np.sum((samples >= 0.5) & (samples <= 1.0)) > 0.05 * num_samples
+    assert np.sum((samples >= 1.0) & (samples <= 1.5)) > 0.05 * num_samples
+    assert np.sum((samples >= 1.5) & (samples <= 2.0)) > 0.05 * num_samples
+    assert np.sum((samples >= 2.0) & (samples <= 2.5)) > 0.05 * num_samples
+    assert np.sum((samples >= 4.0) & (samples <= 5.0)) > 0.45 * num_samples
+
+
+def test_numerical_sample_pdf_with_domain():
+    """Test that we can create a SamplePDF node from a function with a specified domain.
+    This addresses a previous error where the code was failing because the valid
+    domain of the distribution was too small.
+    """
+    # Data comes from num_snia_per_redshift_bin() function. We use a 1-d interpolation
+    # of the data to create a pdf that we can sample from.
+    x = np.array([0.205, 0.215, 0.225, 0.235, 0.245, 0.255, 0.265, 0.275, 0.285, 0.295])
+    y = np.array(
+        [
+            8793.8721014,
+            9628.46268465,
+            10495.70909757,
+            11394.86207448,
+            12325.16647819,
+            13285.86241747,
+            14276.18632372,
+            15295.37198651,
+            16342.65154774,
+            17417.25645436,
+        ]
+    )
+    zpdf = interp1d(x, y, bounds_error=False, fill_value=0)
+
+    # We fail if we try to create a SamplePDF node without specifying the domain,
+    # because the sampling distribution can't find a valid domain to sample from.
+    with pytest.raises(ValueError, match="Error creating the NumericalInversePolynomial object"):
+        _ = SamplePDF(zpdf, seed=100, node_label="zpdf_sampler_no_domain")
+
+    # Check that we sample correctly given the domain of the distribution.
+    scipy_node = SamplePDF(zpdf, seed=100, domain=(0.2, 0.3), node_label="zpdf_sampler")
+    state = scipy_node.sample_parameters(num_samples=10_000)
+    samples = scipy_node.get_param(state, "function_node_result")
+    assert len(samples) == 10_000
+    assert np.all(samples <= 0.3)
+    assert np.all(samples >= 0.2)
+
+    # The distribution of samples should be monotonically increasing with x.
+    # Use a 90% buffer to account for noise in the sampling. We ignore the first two
+    # and last bin because of edge effects from binning.
+    hist, _ = np.histogram(samples, bins=10, range=(0.2, 0.3))
+    for i in range(2, len(hist) - 1):
+        assert hist[i] >= 0.9 * hist[i - 1]
 
 
 def test_numerical_sample_logpdf():
