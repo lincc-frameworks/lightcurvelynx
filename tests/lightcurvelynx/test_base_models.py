@@ -94,6 +94,15 @@ class _ListNode(FunctionNode):
         return self._values
 
 
+class _DictNode(ParameterizedNode):
+    """Return a given value in a dictionary."""
+
+    def __init__(self, value_dict, **kwargs):
+        super().__init__(**kwargs)
+        for key in value_dict:
+            self.add_parameter(key, value_dict[key], **kwargs)
+
+
 def test_parameter_source(capsys):
     """Test the _ParameterSource creation and setter functions."""
     source = _ParameterSource("test")
@@ -289,6 +298,65 @@ def test_parameterized_node_modify():
     # We cannot set a value that hasn't been added.
     with pytest.raises(KeyError):
         model.set_parameter("brightness", 5.0)
+
+
+def test_parameterized_node_remove():
+    """Test that we can remove parameters from a node."""
+    model = _PairModel(value1=0.5, value2=0.5)
+    assert np.array_equal(model.list_params(), ["value1", "value2", "value_sum"])
+
+    # We cannot remove a parameter that does not exist.
+    with pytest.raises(KeyError):
+        model.remove_parameter("brightness")
+
+    # We can remove a parameter, but it will cause an error when we try to sample it.
+    model.remove_parameter("value1")
+    assert np.array_equal(model.list_params(), ["value2", "value_sum"])
+    with pytest.raises(KeyError):
+        _ = model.sample_parameters()
+
+    # We can re-add the parameter, but the parameters will be in a different order
+    # and we can still not sample.
+    model.add_parameter("value1", 0.5)
+    assert np.array_equal(model.list_params(), ["value2", "value_sum", "value1"])
+    with pytest.raises(KeyError):
+        _ = model.sample_parameters()
+
+    # So why would we want to do this??? Only if we need to manually change the
+    # ordering of parameters.
+    fake_model = _DictNode({"ra": 0.5, "dec": 0.5, "t0": 1.0})
+    fake_model.add_parameter("base_ra", 0.1)
+    fake_model.add_parameter("base_dec", 0.1)
+    fake_model.add_parameter("base_t0", 0.1)
+    assert np.array_equal(
+        fake_model.list_params(),
+        ["ra", "dec", "t0", "base_ra", "base_dec", "base_t0"],
+    )
+
+    state = fake_model.sample_parameters()
+    assert fake_model.get_param(state, "ra") == 0.5
+    assert fake_model.get_param(state, "dec") == 0.5
+    assert fake_model.get_param(state, "t0") == 1.0
+    assert fake_model.get_param(state, "base_ra") == 0.1
+    assert fake_model.get_param(state, "base_dec") == 0.1
+    assert fake_model.get_param(state, "base_t0") == 0.1
+
+    # We want to make ra depend on a base_ra, but they are in the wrong order!
+    fake_model.set_parameter("ra", fake_model.base_ra)
+    with pytest.raises(KeyError):
+        _ = fake_model.sample_parameters()
+
+    # We can remove and re-add ra to get this to work.
+    fake_model.remove_parameter("ra")
+    fake_model.add_parameter("ra", fake_model.base_ra)
+
+    state = fake_model.sample_parameters()
+    assert fake_model.get_param(state, "ra") == 0.1
+    assert fake_model.get_param(state, "dec") == 0.5
+    assert fake_model.get_param(state, "t0") == 1.0
+    assert fake_model.get_param(state, "base_ra") == 0.1
+    assert fake_model.get_param(state, "base_dec") == 0.1
+    assert fake_model.get_param(state, "base_t0") == 0.1
 
 
 def test_parameterized_node_self_parameter():

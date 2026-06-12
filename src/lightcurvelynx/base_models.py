@@ -511,6 +511,26 @@ class ParameterizedNode:
             # Case 4: The value is constant (including None).
             self.setters[name].set_as_constant(value)
 
+    def remove_parameter(self, name):
+        """Remove a parameter from the ParameterizedNode. This should ONLY be used when
+        the parameter has NOTHING that depends on it. Otherwise it can produce very difficult
+        to debug errors.
+
+        Parameters
+        ----------
+        name : str
+            The parameter name to remove.
+
+        Raises
+        ------
+        KeyError
+            If the parameter is not found.
+        """
+        if name not in self.setters:
+            raise KeyError(f"Trying to remove parameter '{name}' that is not in node {self.node_string}.")
+        del self.setters[name]
+        delattr(self, name)
+
     def set_allow_gradient(self, name, allow_gradient):
         """Turn on or off the ability to compute a gradient for this variable.
 
