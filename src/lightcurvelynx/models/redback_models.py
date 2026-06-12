@@ -5,6 +5,7 @@ https://redback.readthedocs.io/en/latest/
 """
 
 import astropy.units as uu
+import numpy as np
 from citation_compass import CiteClass, cite_inline
 
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
@@ -48,6 +49,16 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         The redback model's Bilby priors.
     parameters : dict, optional
         A dictionary of parameter setters to pass to the source function.
+    wave_bounds : tuple of (float, float), optional
+        A tuple of (min_wave, max_wave) in angstroms to set the wavelength bounds for the
+        model. If not provided, the code will try to infer the bounds from the model result.
+        However this is not always possible and may lead to evaluating the model at invalid points.
+        Default: (None, None) which corresponds to (-inf, inf).
+    phase_bounds : tuple of (float, float), optional
+        A tuple of (min_phase, max_phase) in days to set the phase bounds for the model.
+        If not provided, the code will try to infer the bounds from the model result. However this
+        is not always possible and may lead to evaluating the model at invalid points.
+        Default: (None, None) which corresponds to (-inf, inf).
     **kwargs : dict, optional
         Any additional keyword arguments.
 
@@ -67,6 +78,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         *,
         priors=None,
         parameters=None,
+        wave_bounds=(None, None),
+        phase_bounds=(None, None),
         **kwargs,
     ):
         # Check that the parameters passed in the dictionary and keyword arguments
@@ -133,6 +146,17 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         # since we have not computed any SEDs yet.
         self._cached_data = {}
 
+        # Save the bounds in wavelength and time.
+        if len(wave_bounds) != 2:
+            raise ValueError("wave_bounds should be a tuple of (min_wave, max_wave).")
+        self._min_wave = wave_bounds[0]
+        self._max_wave = wave_bounds[1]
+
+        if len(phase_bounds) != 2:
+            raise ValueError("phase_bounds should be a tuple of (min_phase, max_phase).")
+        self._min_phase = phase_bounds[0]
+        self._max_phase = phase_bounds[1]
+
     @property
     def param_names(self):
         """Return a list of the model's parameter names."""
@@ -153,6 +177,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
+        if self._min_wave is not None:
+            return self._min_wave
         return self._cached_data.get("minwave", None)
 
     def maxwave(self, graph_state=None):
@@ -170,6 +196,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The maximum wavelength of the model (in angstroms) or None
             if the model does not have a defined maximum wavelength.
         """
+        if self._max_wave is not None:
+            return self._max_wave
         return self._cached_data.get("maxwave", None)
 
     def minphase(self, **kwargs):
@@ -186,6 +214,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The minimum phase of the model (in days) or None
             if the model does not have a defined minimum phase.
         """
+        if self._min_phase is not None:
+            return self._min_phase
         return self._cached_data.get("minphase", None)
 
     def maxphase(self, **kwargs):
@@ -202,6 +232,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             The maximum phase of the model (in days) or None
             if the model does not have a defined maximum phase.
         """
+        if self._max_phase is not None:
+            return self._max_phase
         return self._cached_data.get("maxphase", None)
 
     def _do_bounds_precomputation(self, times, wavelengths, graph_state=None, **kwargs):
@@ -240,6 +272,15 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             t0 = 0.0
         shifted_times = times - t0
 
+        # Only evaluate the model within its phase bounds. If we end up with no times,
+        # we use phase=0.1 in order to get the wavelength bounds.
+        if self._min_phase is not None:
+            shifted_times = shifted_times[shifted_times >= self._min_phase]
+        if self._max_phase is not None:
+            shifted_times = shifted_times[shifted_times <= self._max_phase]
+        if len(shifted_times) == 0:
+            shifted_times = np.array([0.1])
+
         # Call the source function to get the RedbackTimeSeriesSource object.
         # We create this object with each call, because it depends on the parameters (fn_args).
         try:
@@ -250,8 +291,10 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             )
         except Exception as err:  # pragma: no cover
             raise RuntimeError(
-                "Error calling the redback model function. This is often due to invalid parameter values"
-                "or time/wavelength values outside the model's bounds. Original error message: " + str(err)
+                "Error calling the redback model function. This is often due to invalid parameter values "
+                "or time/wavelength values outside the model's bounds. If needed, you can set the bounds "
+                "manually using the `wave_bounds` and `phase_bounds` parameters of the RedbackWrapperModel."
+                "Original error message: " + str(err)
             ) from err
 
         # Save the computed RedbackTimeSeriesSource and the bounds.
