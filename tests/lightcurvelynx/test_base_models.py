@@ -576,19 +576,21 @@ def test_state_expansion_node():
 
     # We ask for 2 samples, but force 3 repeats of each.
     assert state.num_samples == 6
-    assert state["exp"]["expanded_indices"].tolist() == [0, 0, 0, 1, 1, 1]
+    assert state["exp"]["org_inds"].tolist() == [0, 0, 0, 1, 1, 1]
+    assert state["exp"]["sub_inds"].tolist() == [0, 1, 2, 0, 1, 2]
     assert state["exp"]["repeats"].tolist() == [3, 3, 3, 3, 3, 3]
 
-    # If we resample, we retrigger the exapansion and get new indices.
+    # If we resample, we retrigger the expansion and get new indices.
     new_state = exp_node.sample_parameters(num_samples=3)
     assert new_state.num_samples == 9
-    assert new_state["exp"]["expanded_indices"].tolist() == [0, 0, 0, 1, 1, 1, 2, 2, 2]
+    assert new_state["exp"]["org_inds"].tolist() == [0, 0, 0, 1, 1, 1, 2, 2, 2]
+    assert new_state["exp"]["sub_inds"].tolist() == [0, 1, 2, 0, 1, 2, 0, 1, 2]
     assert new_state["exp"]["repeats"].tolist() == [3, 3, 3, 3, 3, 3, 3, 3, 3]
 
     # We can chain the nodes.
     exp_node2 = StateExpansionNode(repeats=2, node_label="exp2")
     pair_node = _PairModel(
-        value1=exp_node2.expanded_indices,
+        value1=exp_node2.org_inds,
         value2=exp_node2.repeats,
         node_label="pair",
     )
@@ -605,9 +607,12 @@ def test_state_expansion_node():
     # the number of samples.
     repeats_list = _ListNode([2, 0, 3])
     exp_node3 = StateExpansionNode(repeats=repeats_list, node_label="exp3")
-    single_model = _SingleModel(value=exp_node3.expanded_indices, node_label="single")
+    single_model = _SingleModel(value=exp_node3.org_inds, node_label="single")
     state = single_model.sample_parameters(num_samples=3)
     assert state.num_samples == 5
+    assert state["exp3"]["org_inds"].tolist() == [0, 0, 2, 2, 2]
+    assert state["exp3"]["sub_inds"].tolist() == [0, 1, 0, 1, 2]
+    assert state["exp3"]["repeats"].tolist() == [2, 2, 3, 3, 3]
     assert state["single"]["value"].tolist() == [0, 0, 2, 2, 2]
 
     # Too few or too many samples should throw an error.

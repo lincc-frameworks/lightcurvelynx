@@ -1116,7 +1116,7 @@ class StateExpansionNode(FunctionNode):
         super().__init__(
             func=self._non_func,  # We will override compute() so the function doesn't matter.
             repeats=repeats,  # The one parameter
-            outputs=["expanded_indices"],  # The one output
+            outputs=["org_inds", "sub_inds"],  # The two outputs
             **kwargs,
         )
 
@@ -1147,7 +1147,13 @@ class StateExpansionNode(FunctionNode):
         # Get the repeats parameter and apply the repeat() method to expand the graph state.
         args = self._build_inputs(graph_state, **kwargs)
         repeats = args["repeats"]
-        results = np.arange(graph_state.num_samples).repeat(repeats)
+        if np.isscalar(repeats):
+            repeats = [repeats] * graph_state.num_samples
+
+        org_inds = np.arange(graph_state.num_samples).repeat(repeats)
+        sub_inds = np.concatenate([np.arange(r) for r in repeats])
+
         graph_state.repeat(repeats)
-        self._save_results(results, graph_state)
-        return results
+
+        self._save_results((org_inds, sub_inds), graph_state)
+        return org_inds, sub_inds
