@@ -1154,7 +1154,6 @@ class StateExpansionNode(FunctionNode):
             raise ValueError("You must provide either 'repeats' or 'subparameters' to StateExpansionNode.")
         if repeats is not None and subparameters is not None:
             raise ValueError("You cannot provide both 'repeats' and 'subparameters' to StateExpansionNode.")
-        print(f"Initializing StateExpansionNode with repeats={repeats} and subparameters={subparameters}")
 
         super().__init__(
             func=self._non_func,  # We will override compute() so the function doesn't matter.
@@ -1188,7 +1187,6 @@ class StateExpansionNode(FunctionNode):
             The sub-indices for each sample after expansion. This is useful for tracking the position
             of each expanded sample within its original sample.
         """
-        print("STARTING STATE EXPANSION")
         # Get the parameters for the number of repeats and subparameters.
         args = self._build_inputs(graph_state, **kwargs)
         repeats = args.get("repeats", None)
