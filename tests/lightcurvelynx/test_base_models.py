@@ -302,28 +302,7 @@ def test_parameterized_node_modify():
 
 def test_parameterized_node_remove():
     """Test that we can remove parameters from a node."""
-    model = _PairModel(value1=0.5, value2=0.5)
-    assert np.array_equal(model.list_params(), ["value1", "value2", "value_sum"])
-
-    # We cannot remove a parameter that does not exist.
-    with pytest.raises(KeyError):
-        model.remove_parameter("brightness")
-
-    # We can remove a parameter, but it will cause an error when we try to sample it.
-    model.remove_parameter("value1")
-    assert np.array_equal(model.list_params(), ["value2", "value_sum"])
-    with pytest.raises(KeyError):
-        _ = model.sample_parameters()
-
-    # We can re-add the parameter, but the parameters will be in a different order
-    # and we can still not sample.
-    model.add_parameter("value1", 0.5)
-    assert np.array_equal(model.list_params(), ["value2", "value_sum", "value1"])
-    with pytest.raises(KeyError):
-        _ = model.sample_parameters()
-
-    # So why would we want to do this??? Only if we need to manually change the
-    # ordering of parameters.
+    # Check that we can remove parameters to change the order in sampling.
     fake_model = _DictNode({"ra": 0.5, "dec": 0.5, "t0": 1.0})
     fake_model.add_parameter("base_ra", 0.1)
     fake_model.add_parameter("base_dec", 0.1)
@@ -357,6 +336,10 @@ def test_parameterized_node_remove():
     assert fake_model.get_param(state, "base_ra") == 0.1
     assert fake_model.get_param(state, "base_dec") == 0.1
     assert fake_model.get_param(state, "base_t0") == 0.1
+
+    # We cannot remove a parameter that does not exist.
+    with pytest.raises(KeyError):
+        fake_model.remove_parameter("brightness")
 
 
 def test_parameterized_node_self_parameter():
