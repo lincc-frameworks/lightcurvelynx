@@ -1117,8 +1117,10 @@ class FunctionNode(ParameterizedNode):
 
 class StateExpansionNode(FunctionNode):
     """A special FunctionNode that expands the graph state by applying the repeat() method.
-    It takes a single input (the number of repeats for each sample), modifies the GraphState,
-    and produces a single output value (an array of the original indices).
+    The user can either provide the number of repeats for each sample for identical rows or
+    a list of subparameters. Subparameters must be provided as a list of dictionaries where
+    each dictionary contains the same keys (new column names) and the values within a dictionary
+    are the same length.
 
     This node is meant to be used in the rare case that a single step in the parameter
     sampling process needs to change the number of samples (one sample branching into multiple
@@ -1130,18 +1132,42 @@ class StateExpansionNode(FunctionNode):
     Note
     ----
     This class is experimental and may be removed in the future.
+
+    Parameters
+    ----------
+    repeats : int or list of int, optional
+        The number of repeats for each sample. If an int is provided, it is applied to
+        all samples. If a list is provided, it must be the same length as the number of samples
+        in the graph state and specifies the number of repeats for each sample.
+        Default: None
+    subparameters : list of dict, optional
+        A list of dictionaries where each dictionary contains the same keys (new column names)
+        and the values within a dictionary are the same length. The number of dictionaries must
+        be the same as the number of samples in the graph state.
+        Default: None
+    **kwargs : dict, optional
+         Additional keyword arguments.
     """
 
-    def __init__(self, repeats, **kwargs):
+    def __init__(self, *, repeats=None, subparameters=None, **kwargs):
+        if repeats is None and subparameters is None:
+            raise ValueError("You must provide either 'repeats' or 'subparameters' to StateExpansionNode.")
+        if repeats is not None and subparameters is not None:
+            raise ValueError("You cannot provide both 'repeats' and 'subparameters' to StateExpansionNode.")
+        print(f"Initializing StateExpansionNode with repeats={repeats} and subparameters={subparameters}")
+
         super().__init__(
             func=self._non_func,  # We will override compute() so the function doesn't matter.
-            repeats=repeats,  # The one parameter
+            repeats=repeats,
+            subparameters=subparameters,
             outputs=["org_inds", "sub_inds"],  # The two outputs
             **kwargs,
         )
+        self._use_subparameters = subparameters is not None
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Expand the graph state by applying the repeat() method.
+
         Parameters
         ----------
         graph_state : GraphState
@@ -1155,25 +1181,65 @@ class StateExpansionNode(FunctionNode):
 
         Returns
         -------
-        results : any
-            The result of the computation. This return value is provided so that testing
-            functions can easily access the results.
-
-        Raises
-        ------
-        ValueError
-            If func attribute is None.
+        org_inds : numpy.ndarray
+            The original indices for each sample before expansion. This is useful for tracking which
+            original sample each expanded sample came from.
+        sub_inds : numpy.ndarray
+            The sub-indices for each sample after expansion. This is useful for tracking the position
+            of each expanded sample within its original sample.
         """
-        # Get the repeats parameter and apply the repeat() method to expand the graph state.
+        print("STARTING STATE EXPANSION")
+        # Get the parameters for the number of repeats and subparameters.
         args = self._build_inputs(graph_state, **kwargs)
-        repeats = args["repeats"]
-        if np.isscalar(repeats):
-            repeats = [repeats] * graph_state.num_samples
+        repeats = args.get("repeats", None)
+        subparameters = args.get("subparameters", None)
 
+        # If subparameters is not None, we compute the repeats array from the length of the subparameters
+        # for each sample.
+        if self._use_subparameters:
+            if len(subparameters) != graph_state.num_samples:
+                raise ValueError(
+                    f"The number of subparameter dictionaries ({len(subparameters)}) must match the "
+                    f"number of samples in the graph state ({graph_state.num_samples})."
+                )
+            repeats = [0] * graph_state.num_samples
+
+            # We get the first dictionary to compute the column names.
+            column_names = list(subparameters[0].keys())
+            concat_values = {col: [] for col in column_names}
+            for idx, subparam_dict in enumerate(subparameters):
+                # Make sure each dictionary has the same column names (keys).
+                if list(subparam_dict.keys()) != column_names:
+                    raise ValueError("All dictionaries in subparameters must have the same keys.")
+
+                # Use the first column to compute the number of repeats for this sample.
+                repeats[idx] = len(subparam_dict[column_names[0]])
+
+                # For each entry in the dictionary, check that the length matches the number of repeats
+                # and concatenate the values for this new column.
+                for col in column_names:
+                    if len(subparam_dict[col]) != repeats[idx]:
+                        raise ValueError(
+                            f"All values in each subparameter dictionary {idx} must have the same length. "
+                            f"Found mismatched lengths for column '{col}': expected {repeats[idx]}, "
+                            f"but got {len(subparam_dict[col])}."
+                        )
+                    concat_values[col].extend(subparam_dict[col])
+        else:
+            # We are given the repeat values directly.
+            if np.isscalar(repeats):
+                repeats = [repeats] * graph_state.num_samples
+            concat_values = {}
+
+        # Use the repeats list to expand the graph state.
         org_inds = np.arange(graph_state.num_samples).repeat(repeats)
         sub_inds = np.concatenate([np.arange(r) for r in repeats])
-
         graph_state.repeat(repeats)
 
+        # Add columns for any subparameters we need to concatenate.
+        for col, values in concat_values.items():
+            graph_state.set(self.node_string, col, values)
+
+        # Save and return the old incides and the subindices as the result.
         self._save_results((org_inds, sub_inds), graph_state)
         return org_inds, sub_inds

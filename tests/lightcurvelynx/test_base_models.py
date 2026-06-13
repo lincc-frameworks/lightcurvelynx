@@ -671,3 +671,50 @@ def test_state_expansion_node():
         _ = single_model.sample_parameters(num_samples=2)
     with pytest.raises(ValueError):
         _ = single_model.sample_parameters(num_samples=4)
+
+    # We fail if we try to create a node without any repetition information.
+    with pytest.raises(ValueError):
+        _ = StateExpansionNode(node_label="bad_exp")
+
+
+def test_state_expansion_node_subparameters():
+    """Test that we can create and query a StateExpansionNode from subparameters."""
+    sub_param_list = [
+        {"a": [1, 2], "b": [3, 4]},
+        {"a": [5, 6, 7], "b": [7, 8, 9]},
+        {"a": [], "b": []},
+        {"a": [9, 10], "b": [13, 14]},
+    ]
+    exp_node = StateExpansionNode(subparameters=_ListNode(sub_param_list), node_label="exp")
+    state = exp_node.sample_parameters(num_samples=4)
+
+    # We ask for 4 samples, but after flattening the subparameters we have 2 + 3 + 0 + 2 = 7.
+    # We have also flattened and appended the new column data.
+    assert state.num_samples == 7
+    assert state["exp"]["org_inds"].tolist() == [0, 0, 1, 1, 1, 3, 3]
+    assert state["exp"]["sub_inds"].tolist() == [0, 1, 0, 1, 2, 0, 1]
+    assert state["exp"]["repeats"].tolist() == [None, None, None, None, None, None, None]
+    assert state["exp"]["a"].tolist() == [1, 2, 5, 6, 7, 9, 10]
+    assert state["exp"]["b"].tolist() == [3, 4, 7, 8, 9, 13, 14]
+
+    # We fail if we try to give both repeats and subparameters.
+    with pytest.raises(ValueError):
+        _ = StateExpansionNode(repeats=2, subparameters=_ListNode(sub_param_list))
+
+    # We fail if the subparameters have different column names or different
+    # lengths within a single row.
+    bad_subparameters = [
+        {"a": [1, 2], "b": [3, 4]},
+        {"a": [5, 6, 7], "c": [7, 8, 9]},
+    ]
+    bad_node = StateExpansionNode(subparameters=_ListNode(bad_subparameters))
+    with pytest.raises(ValueError):
+        _ = bad_node.sample_parameters(num_samples=2)
+
+    bad_subparameters2 = [
+        {"a": [1, 2], "b": [3, 4]},
+        {"a": [5, 6, 7], "b": [7, 8]},
+    ]
+    bad_node2 = StateExpansionNode(subparameters=_ListNode(bad_subparameters2))
+    with pytest.raises(ValueError):
+        _ = bad_node2.sample_parameters(num_samples=2)
