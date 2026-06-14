@@ -46,6 +46,7 @@ class _DuplicatingObservationEffect(EffectModel):
             A length N array of wavelengths (in angstroms). Not used for this effect.
         flux_scale : float, optional
             The multiplicative factor by which to scale the flux. Not used for this effect.
+        **kwargs : `dict`, optional
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.
 

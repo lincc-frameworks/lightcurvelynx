@@ -552,7 +552,7 @@ class GraphState:
             The sum of the entries in this array will determine the new number of samples.
         """
         # If we get a scalar integer, repeat all samples by that amount.
-        if isinstance(repeats, (int, np.integer)):
+        if isinstance(repeats, int | np.integer):
             repeats = np.full(self.num_samples, int(repeats), dtype=int)
         else:
             repeats = np.asarray(repeats)
