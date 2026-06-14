@@ -161,6 +161,6 @@ class StateExpansionNode(FunctionNode):
             graph_state.set(self.node_string, col, values)
             results.append(values)
 
-        # Save and return the old incides and the subindices as the result.
+        # Save and return the old indices and the subindices as the result.
         self._save_results(results, graph_state)
         return results

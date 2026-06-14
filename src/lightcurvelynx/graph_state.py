@@ -552,10 +552,12 @@ class GraphState:
             The sum of the entries in this array will determine the new number of samples.
         """
         # If we get a scalar integer, repeat all samples by that amount.
-        if isinstance(repeats, int):
+        if isinstance(repeats, (int, np.integer)):
             repeats = np.full(self.num_samples, int(repeats), dtype=int)
         else:
             repeats = np.asarray(repeats)
+            if repeats.ndim != 1:
+                raise TypeError("repeats must be an int or a 1D array-like of integers.")
             if repeats.dtype.kind not in {"i", "u"}:
                 raise TypeError("Entries in repeats must be integers.")
             if len(repeats) != self.num_samples:
@@ -563,7 +565,6 @@ class GraphState:
                     f"Length of repeats must match the current number of samples. "
                     f"Received {len(repeats)} and {self.num_samples}."
                 )
-
         # Check that the entries are valid.
         if np.any(repeats < 0):
             raise ValueError("Entries in repeats must be non-negative.")
@@ -592,6 +593,8 @@ class GraphState:
 
         # Update the number of samples.
         self.num_samples = new_num_samples
+        if self.num_samples != 1:
+            self.sample_idx = None
 
     def extract_single_sample(self, sample_num):
         """Create a new GraphState with a single sample state and all scalar values.

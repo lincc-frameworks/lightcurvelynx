@@ -10,7 +10,7 @@ from lightcurvelynx.models.basic_models import ConstantSEDModel
 
 
 class _DuplicatingObservationEffect(EffectModel):
-    """An effect that duplcates the observations of an object a specified number of
+    """An effect that duplicates the observations of an object a specified number of
     times with the same parameters.
 
     Attributes
@@ -45,8 +45,7 @@ class _DuplicatingObservationEffect(EffectModel):
         wavelengths : numpy.ndarray, optional
             A length N array of wavelengths (in angstroms). Not used for this effect.
         flux_scale : float, optional
-            The multiplicative factor by which to scale the flux. Raises an error if None is provided.
-        **kwargs : `dict`, optional
+            The multiplicative factor by which to scale the flux. Not used for this effect.
            Any additional keyword arguments, including any additional
            parameters needed to apply the effect.
 
@@ -55,7 +54,7 @@ class _DuplicatingObservationEffect(EffectModel):
         flux_density : numpy.ndarray
             A length T x N matrix of flux densities after the effect is applied (in nJy).
         """
-        # No change tothe flux density values.
+        # No change to the flux density values.
         return flux_density
 
     def apply_bandflux(
