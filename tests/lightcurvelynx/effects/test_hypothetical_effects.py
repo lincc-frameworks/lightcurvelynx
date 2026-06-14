@@ -3,9 +3,9 @@ in production, but help stress test the underlying machinery and make sure that 
 are working as expected in a variety of scenarios.
 """
 
-from lightcurvelynx.base_models import StateExpansionNode
 from lightcurvelynx.effects.effect_model import EffectModel
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
+from lightcurvelynx.math_nodes.state_expansion_node import StateExpansionNode
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 
 

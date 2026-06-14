@@ -4,9 +4,10 @@ are working as expected in a variety of scenarios.
 """
 
 import numpy as np
-from lightcurvelynx.base_models import FunctionNode, StateExpansionNode
+from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.math_nodes.state_expansion_node import StateExpansionNode
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 
 
@@ -192,21 +193,26 @@ class _ApplyOffsetsNode(FunctionNode):
             **kwargs,
         )
 
-        # Add the relevant information from the StateExpansionNode.
-        self._expansion_node = StateExpansionNode(subparameters=offsets)
+        # Create the expansion node and pass through the relevant parameters.
+        self._expansion_node = StateExpansionNode(
+            param_names=["dRA", "dDec", "dT0"],
+            param_values=offsets,
+        )
         self.add_parameter("org_inds", self._expansion_node.org_inds)
         self.add_parameter("sub_inds", self._expansion_node.sub_inds)
+        self.add_parameter("dRA", self._expansion_node.dRA)
+        self.add_parameter("dDec", self._expansion_node.dDec)
+        self.add_parameter("dT0", self._expansion_node.dT0)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Overriden compute function that takes the offsets and applies them to the base parameters."""
         params = self.get_local_params(graph_state)
-        added_params = self._expansion_node.get_local_params(graph_state)
 
         # At this point the graph state has already been expanded by the StateExpansionNode and
         # the delta columns reside in that node's parameter columns.
-        ra = params["base_ra"] + added_params["dRA"]
-        dec = params["base_dec"] + added_params["dDec"]
-        t0 = params["base_t0"] + added_params["dT0"]
+        ra = params["base_ra"] + params["dRA"]
+        dec = params["base_dec"] + params["dDec"]
+        t0 = params["base_t0"] + params["dT0"]
 
         self._save_results((ra, dec, t0), graph_state)
 
