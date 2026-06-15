@@ -990,6 +990,13 @@ def test_dependency_graph_subgraphs():
     assert set(dep_graph.all_nodes) == {"a", "b", "c", "d", "e"}
     assert set(dep_graph.all_params) == {"a.1", "b.1", "c.1", "c.2", "d.1", "d.2", "e.1"}
 
+    # We can ask about different node's dependencies.
+    assert dep_graph.get_all_dependencies("b.1") == set(["a.1", "c.1"])
+    assert dep_graph.get_all_dependencies("c.2") == set(["a.1", "b.1", "c.1"])
+    assert dep_graph.get_all_dependencies("d.1") == set(["a.1", "b.1", "c.1"])
+    assert dep_graph.get_all_dependencies("a.1") == set()
+    assert dep_graph.get_all_dependencies("e.1") == set()
+
     # We can get the various types of subgraphs for a node, including:
     # 1) All nodes on which this node depends (incoming=True, outgoing=False)
     subgraph1 = dep_graph.build_subgraph("b.1", incoming=True, outgoing=False)

@@ -337,6 +337,20 @@ def test_parameterized_build_dependency_graph():
     )
     assert dep_graph.outgoing["FunctionNode:_test_func_1.function_node_result"] == set(["A.value_sum"])
 
+    # Check that we can get all dependencies for a parameter.
+    deps = dep_graph.get_all_dependencies("A.value_sum")
+    assert deps == set(
+        [
+            "A.value1",
+            "A.value2",
+            "const_0=0.15",
+            "const_1=0.5",
+            "FunctionNode:_test_func_1.value1",
+            "FunctionNode:_test_func_1.value2",
+            "FunctionNode:_test_func_1.function_node_result",
+        ]
+    )
+
 
 def test_parameterized_node_from_node():
     """Test that we can no longer set the values of a parameterized node directly
