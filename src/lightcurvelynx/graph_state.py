@@ -820,6 +820,33 @@ class DependencyGraph:
         self.incoming[to_param].add(from_param)
         self.outgoing[from_param].add(to_param)
 
+    def get_all_dependencies(self, param_name):
+        """Get the parameters that the given parameter depends on, including transitive dependencies.
+
+        Parameters
+        ----------
+        param_name : str
+            The name of the parameter to get the dependencies for.
+
+        Returns
+        -------
+        dependencies : set
+            The set of parameters that the given parameter depends on, including transitive dependencies.
+        """
+        if param_name not in self.all_params:
+            raise KeyError(f"Parameter '{param_name}' not found in the graph.")
+
+        to_visit = [param_name]
+        dependencies = set()
+        while to_visit:
+            current = to_visit.pop()
+            for dep in self.incoming[current]:
+                if dep not in dependencies:
+                    dependencies.add(dep)
+                    to_visit.append(dep)
+
+        return dependencies
+
     def build_subgraph(self, param_name, incoming=True, outgoing=True):
         """Get the DAG subgraph that contains this parameter. This can be:
         1) the parameters on which this parameter depends (incoming=True, outgoing=False),
