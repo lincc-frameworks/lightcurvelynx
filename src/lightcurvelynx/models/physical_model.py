@@ -18,6 +18,7 @@ import numpy as np
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.redshift import RedshiftDistFunc, obs_to_rest_times_waves, rest_to_obs_flux
 from lightcurvelynx.base_models import ParameterizedNode
+from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.utils.extrapolate import FluxExtrapolationModel
 
@@ -198,6 +199,12 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         used to adjust the value of a parameter when applying an effect. Only one offset function can
         be applied to each parameter.
 
+        Note
+        ----
+        Offsets cannot be applied to parameters that are used to derive later parameters (e.g. redshift
+        when it is used to derive distance) since this would change the ordering of computations in the
+        graph and break dependencies.
+
         Parameters
         ----------
         param_name : str
@@ -210,8 +217,20 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             times the offset) or additive (i.e. the new parameter is the original value plus the offset).
             Default: False (additive).
         """
+        # Check that the parameter exists in the model.
         if param_name not in self.setters:
             raise ValueError(f"Parameter {param_name} not found in model.")
+
+        # Check that nothing in this node (transitively) depends on this parameter. We will need
+        # to change its ordering in the setters, which may break dependencies.
+        dependency_graph = self.build_dependency_graph()
+        full_param_name = GraphState.extended_param_name(str(self), param_name)
+        dependent_params = dependency_graph.outgoing[full_param_name]
+        if len(dependent_params) > 0:
+            raise ValueError(
+                f"Cannot apply an offset to parameter {param_name} since other parameters "
+                f"depend on it: {', '.join(dependent_params)}. "
+            )
 
         # We create a base version of the parameter for reference.
         base_name = f"base_{param_name}"
@@ -223,19 +242,21 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             description=f"Base version of parameter {param_name} before applying offset.",
         )
 
-        # Resort the setters to ensure the base parameter comes immediately before the original parameter.
-        # This is important for the correct evaluation order.
+        # Add the new base parameter in the location (sorted ordering) of the original parameter
+        # and the updated parameter at the end. This allows the offset to depend on any other
+        # computed parameters.
         base_setter = self.setters.pop(base_name)  # Remove the new setter from the dictionary.
         new_setters = {}
         for key, val in self.setters.items():
             if key == param_name:
-                # Once we see the original parameter, we add the base parameter BEFORE
-                # the original parameter.
+                # When we see the original parameter, we add the base parameter instead.
                 new_setters[base_name] = base_setter
-            new_setters[key] = val
+            else:
+                new_setters[key] = val
+        new_setters[param_name] = self.setters[param_name]
         self.setters = new_setters
 
-        # Compute the offset using a BasicMathNode.
+        # Compute the offset using a BasicMathNode and overwrite the setter.
         offset_modifier = "*" if multiplicative else "+"
         offset_node = BasicMathNode(
             f"base_value {offset_modifier} offset",
