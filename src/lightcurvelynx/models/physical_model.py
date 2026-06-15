@@ -219,10 +219,18 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             raise ValueError(f"An offset has already been applied to parameter {param_name}.")
         self.add_parameter(
             base_name,
-            self.setters[param_name],  # We do a copy of the original setter
+            self.setters[param_name],  # Copy the original setter
             description=f"Base version of parameter {param_name} before applying offset.",
-            add_at_front=True,  # Make sure base value is computed before the offset version.
         )
+
+        # Place base_<param> immediately before <param> to preserve intra-node dependency order.
+        base_setter = self.setters.pop(base_name)
+        reordered = {}
+        for key, val in self.setters.items():
+            if key == param_name:
+                reordered[base_name] = base_setter
+            reordered[key] = val
+        self.setters = reordered
 
         # Compute the offset using a BasicMathNode.
         offset_modifier = "*" if multiplicative else "+"
