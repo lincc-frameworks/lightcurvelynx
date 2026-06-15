@@ -546,7 +546,6 @@ class ParameterizedNode:
         self,
         name,
         value=None,
-        *,
         allow_gradient=None,
         description=None,
         add_at_front=False,

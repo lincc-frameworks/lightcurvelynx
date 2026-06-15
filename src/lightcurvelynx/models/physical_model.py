@@ -18,6 +18,7 @@ import numpy as np
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.redshift import RedshiftDistFunc, obs_to_rest_times_waves, rest_to_obs_flux
 from lightcurvelynx.base_models import ParameterizedNode
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.utils.extrapolate import FluxExtrapolationModel
 
 
@@ -191,6 +192,46 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             The effect to add.
         """
         raise NotImplementedError()  # pragma: no cover
+
+    def add_parameter_offset(self, param_name, offset, *, multiplicative=False):
+        """Add an offset computation step to one of the core parameters (RA, Dec, t0, etc.). This is
+        used to adjust the value of a parameter when applying an effect. Only one offset function can
+        be applied to each parameter.
+
+        Parameters
+        ----------
+        param_name : str
+            The name of the parameter to adjust.
+        offset : parameter
+            The additive or multiplicative offset to apply to the parameter. This can be a function
+            of other parameters.
+        multiplicative : bool
+            Whether the offset should be multiplicative (i.e. the new parameter is the original value
+            times the offset) or additive (i.e. the new parameter is the original value plus the offset).
+            Default: False (additive).
+        """
+        if param_name not in self.setters:
+            raise ValueError(f"Parameter {param_name} not found in model.")
+
+        # We create a base version of the parameter for reference.
+        base_name = f"base_{param_name}"
+        if base_name in self.setters:
+            raise ValueError(f"An offset has already been applied to parameter {param_name}.")
+        self.add_parameter(
+            base_name,
+            self.setters[param_name],  # We do a copy of the original setter
+            description=f"Base version of parameter {param_name} before applying offset.",
+            add_at_front=True,  # Make sure base value is computed before the offset version.
+        )
+
+        # Compute the offset using a BasicMathNode.
+        offset_modifier = "*" if multiplicative else "+"
+        offset_node = BasicMathNode(
+            f"base_value {offset_modifier} offset",
+            base_value=getattr(self, base_name),  # Attribute reference for chaining.
+            offset=offset,
+        )
+        self.set_parameter(param_name, offset_node)
 
     def evaluate_bandfluxes(self, passband_or_group, times, filters, state, rng_info=None) -> np.ndarray:
         """Get the band fluxes for a given Passband or PassbandGroup.

@@ -145,3 +145,31 @@ def test_sed_model_evaluate_bandflux(passbands_dir):
     assert bandfluxes2.shape == (n_samples, n_passbands)
     for idx, brightness in enumerate(brightness_list):
         np.testing.assert_allclose(bandfluxes2[idx, :], brightness, rtol=1e-10)
+
+
+def test_sed_model_offset():
+    """Test that we can create a SEDModel and apply offsets."""
+    # Everything is specified to start with, but we add an additive offset to RA
+    # and a multiplicative offset to t0.
+    model = SEDModel(ra=1.0, dec=2.0, redshift=0.0, t0=1.0, node_label="model")
+    model.add_parameter_offset(
+        "ra",
+        offset=GivenValueList([0.1, 0.2, 0.3]),
+        multiplicative=False,
+    )
+    model.add_parameter_offset(
+        "t0",
+        offset=GivenValueList([1.0, 0.5, 2.0]),
+        multiplicative=True,
+    )
+
+    state = model.sample_parameters(num_samples=3)
+    assert np.array_equal(state["model"]["base_ra"], [1.0, 1.0, 1.0])
+    assert np.array_equal(state["model"]["base_t0"], [1.0, 1.0, 1.0])
+    assert "base_dec" not in state["model"]
+    assert "base_redshift" not in state["model"]
+
+    assert np.array_equal(state["model"]["ra"], [1.1, 1.2, 1.3])
+    assert np.array_equal(state["model"]["dec"], [2.0, 2.0, 2.0])
+    assert np.array_equal(state["model"]["redshift"], [0.0, 0.0, 0.0])
+    assert np.array_equal(state["model"]["t0"], [1.0, 0.5, 2.0])
