@@ -239,20 +239,6 @@ def test_parameterized_node(capsys):
         _ = model1.sample_parameters(num_samples=0)
 
 
-def test_parameterized_node_add_at_front():
-    """Test that we can add a parameter at the front of the setters dictionary."""
-    model = _PairModel(value1=0.5, value2=0.5)
-    assert list(model.setters.keys()) == ["value1", "value2", "value_sum"]
-
-    # By default adding a parameter adds it at the end of the setters dictionary.
-    model.add_parameter("new_param_1", 1.0)
-    assert list(model.setters.keys()) == ["value1", "value2", "value_sum", "new_param_1"]
-
-    # But we can also add the parameter at the front of the setters dictionary.
-    model.add_parameter("new_param_2", 2.0, add_at_front=True)
-    assert list(model.setters.keys()) == ["new_param_2", "value1", "value2", "value_sum", "new_param_1"]
-
-
 def test_parameterized_node_label_collision():
     """Test that throw an error when two nodes use the same label."""
     node_a = SingleVariableNode("A", 10.0, node_label="A")

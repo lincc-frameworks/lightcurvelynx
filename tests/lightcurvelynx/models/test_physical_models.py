@@ -163,11 +163,18 @@ def test_sed_model_offset():
         multiplicative=True,
     )
 
+    # Check that the base parameters come immediately before the offset parameters.
+    param_list = model.list_params()
+    assert param_list.index("base_ra") == param_list.index("ra") - 1
+    assert param_list.index("base_t0") == param_list.index("t0") - 1
+
+    # Check that when we sample, the base parameters are the original values and the
+    # offset parameters are the original values plus (or times) the offset.
     state = model.sample_parameters(num_samples=3)
     assert np.array_equal(state["model"]["base_ra"], [1.0, 1.0, 1.0])
     assert np.array_equal(state["model"]["base_t0"], [1.0, 1.0, 1.0])
-    assert "base_dec" not in state["model"]
-    assert "base_redshift" not in state["model"]
+    assert "base_dec" not in state["model"]  # No offset.
+    assert "base_redshift" not in state["model"]  # No offset.
 
     assert np.array_equal(state["model"]["ra"], [1.1, 1.2, 1.3])
     assert np.array_equal(state["model"]["dec"], [2.0, 2.0, 2.0])

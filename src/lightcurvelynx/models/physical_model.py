@@ -223,14 +223,17 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             description=f"Base version of parameter {param_name} before applying offset.",
         )
 
-        # Place base_<param> immediately before <param> to preserve intra-node dependency order.
-        base_setter = self.setters.pop(base_name)
-        reordered = {}
+        # Resort the setters to ensure the base parameter comes immediately before the original parameter.
+        # This is important for the correct evaluation order.
+        base_setter = self.setters.pop(base_name)  # Remove the new setter from the dictionary.
+        new_setters = {}
         for key, val in self.setters.items():
             if key == param_name:
-                reordered[base_name] = base_setter
-            reordered[key] = val
-        self.setters = reordered
+                # Once we see the original parameter, we add the base parameter BEFORE
+                # the original parameter.
+                new_setters[base_name] = base_setter
+            new_setters[key] = val
+        self.setters = new_setters
 
         # Compute the offset using a BasicMathNode.
         offset_modifier = "*" if multiplicative else "+"

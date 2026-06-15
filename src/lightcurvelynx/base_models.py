@@ -542,15 +542,7 @@ class ParameterizedNode:
         """
         self.setters[name].allow_gradient = allow_gradient
 
-    def add_parameter(
-        self,
-        name,
-        value=None,
-        allow_gradient=None,
-        description=None,
-        add_at_front=False,
-        **kwargs,
-    ):
+    def add_parameter(self, name, value=None, allow_gradient=None, description=None, **kwargs):
         """Add a single *new* parameter to the ParameterizedNode.
 
         Note
@@ -574,10 +566,6 @@ class ParameterizedNode:
             Default: None
         description : str, optional
             A brief description of the parameter.
-        add_at_front : bool, optional
-            Add the parameter at the front the setters dictionary instead of the end. Since the order
-            of insertion must match the dependency order, this should be used with care.
-            Default: False.
         **kwargs : dict, optional
            All other keyword arguments, possibly including the parameter setters.
 
@@ -598,16 +586,12 @@ class ParameterizedNode:
         # Add an entry for the setter function and fill in the remaining information using
         # set_parameter(). We add an initial (dummy) value here to indicate that this parameter
         # exists and was added via add_parameter().
-        dummy_parameter_source = _ParameterSource(
+        self.setters[name] = _ParameterSource(
             parameter_name=name,
             source_type=_ParameterSource.UNDEFINED,
             node_name=str(self),
             description=description,
         )
-        if add_at_front:
-            self.setters = {name: dummy_parameter_source, **self.setters}
-        else:
-            self.setters[name] = dummy_parameter_source
         self.set_parameter(name, value, **kwargs)
 
         # Check if we should override allow_gradient.
