@@ -119,6 +119,22 @@ class _ParameterSource:
         elif self.source_type == self.COMPUTE_OUTPUT:
             print("    Source: Result of computation within this node")
 
+    def set_from_parameter_source(self, source_info):
+        """Set the parameter from another _ParameterSource. This effectively
+        copies the source information from one parameter to another.
+
+        Parameters
+        ----------
+        source_info : _ParameterSource
+            The source information to copy.
+        """
+        # We do not set parameter name, node name, or description since those will be unique
+        # to the receiving parameter.
+        self.source_type = source_info.source_type
+        self.allow_gradient = source_info.allow_gradient
+        self.dependency = source_info.dependency
+        self.value = source_info.value
+
     def set_as_constant(self, value, allow_gradient=True):
         """Set the parameter as a constant value.
 
@@ -474,7 +490,10 @@ class ParameterizedNode:
             # The value wasn't set, but the name is in kwargs.
             value = kwargs[name]
 
-        if callable(value):
+        if isinstance(value, _ParameterSource):
+            # If the value is already a _ParameterSource, we just copy the parts that should change.
+            self.setters[name].set_from_parameter_source(value)
+        elif callable(value):
             if isinstance(value, _AttributeIndicatorNode):
                 # Case 1a: This is an attribute of a ParameterizedNode.
                 # We set the parameter's value in this node as the extraction of the
@@ -523,7 +542,16 @@ class ParameterizedNode:
         """
         self.setters[name].allow_gradient = allow_gradient
 
-    def add_parameter(self, name, value=None, allow_gradient=None, description=None, **kwargs):
+    def add_parameter(
+        self,
+        name,
+        value=None,
+        *,
+        allow_gradient=None,
+        description=None,
+        add_at_front=False,
+        **kwargs,
+    ):
         """Add a single *new* parameter to the ParameterizedNode.
 
         Note
@@ -547,6 +575,10 @@ class ParameterizedNode:
             Default: None
         description : str, optional
             A brief description of the parameter.
+        add_at_front : bool, optional
+            Add the parameter at the front the setters dictionary instead of the end. Since the order
+            of insertion must match the dependency order, this should be used with care.
+            Default: False.
         **kwargs : dict, optional
            All other keyword arguments, possibly including the parameter setters.
 
@@ -567,12 +599,16 @@ class ParameterizedNode:
         # Add an entry for the setter function and fill in the remaining information using
         # set_parameter(). We add an initial (dummy) value here to indicate that this parameter
         # exists and was added via add_parameter().
-        self.setters[name] = _ParameterSource(
+        dummy_parameter_source = _ParameterSource(
             parameter_name=name,
             source_type=_ParameterSource.UNDEFINED,
             node_name=str(self),
             description=description,
         )
+        if add_at_front:
+            self.setters = {name: dummy_parameter_source, **self.setters}
+        else:
+            self.setters[name] = dummy_parameter_source
         self.set_parameter(name, value, **kwargs)
 
         # Check if we should override allow_gradient.
