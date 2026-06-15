@@ -229,7 +229,7 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         if len(dependent_params) > 0:
             raise ValueError(
                 f"Cannot apply an offset to parameter {param_name} since other parameters "
-                f"depend on it: {', '.join(dependent_params)}. "
+                f"depend on it: {', '.join(dependent_params)}."
             )
 
         # We create a base version of the parameter for reference.
@@ -242,9 +242,9 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             description=f"Base version of parameter {param_name} before applying offset.",
         )
 
-        # Add the new base parameter in the location (sorted ordering) of the original parameter
-        # and the updated parameter at the end. This allows the offset to depend on any other
-        # computed parameters.
+        # Reinsert the parameters in the setters dictionary so that the new base parameter is
+        # in the same location as the original parameter, the original parameter is now at the end,
+        # and everything else stays in the same place (in term of order of keys).
         base_setter = self.setters.pop(base_name)  # Remove the new setter from the dictionary.
         new_setters = {}
         for key, val in self.setters.items():

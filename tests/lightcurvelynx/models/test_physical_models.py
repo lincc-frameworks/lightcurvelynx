@@ -214,7 +214,7 @@ def test_sed_model_offset_fail():
     assert "base_ra" in model.list_params()
     assert "base_redshift" in model.list_params()
 
-    # But we fail if we try to add a parameter off set for t0.
+    # But we fail if we try to add a parameter offset for t0.
     with pytest.raises(ValueError):
         model.add_parameter_offset(
             "t0",
