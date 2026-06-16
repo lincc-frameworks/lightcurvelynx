@@ -535,6 +535,67 @@ class GraphState:
             for var_name, value in node_vars.items():
                 self.set(node_name, var_name, value, force_copy=force_copy, fixed=all_fixed)
 
+    def repeat(self, repeats):
+        """Expand the GraphState to a new number of samples by repeating the existing values
+        for all node.parameter combinations.
+
+        Note
+        ----
+        This method is experimental and may be removed in the future.
+
+        Parameters
+        ----------
+        repeats : array-like or int
+            An array of the number of repetitions for each of the current samples.
+            The length of this array must match the current number of samples.
+            If an integer is provided, all samples will be repeated that many times.
+            The sum of the entries in this array will determine the new number of samples.
+        """
+        # If we get a scalar integer, repeat all samples by that amount.
+        if isinstance(repeats, int | np.integer):
+            repeats = np.full(self.num_samples, int(repeats), dtype=int)
+        else:
+            repeats = np.asarray(repeats)
+            if repeats.ndim != 1:
+                raise TypeError("repeats must be an int or a 1D array-like of integers.")
+            if not np.issubdtype(repeats.dtype, np.integer):
+                raise TypeError("Entries in repeats must be integers.")
+            if len(repeats) != self.num_samples:
+                raise ValueError(
+                    f"Length of repeats must match the current number of samples. "
+                    f"Received {len(repeats)} and {self.num_samples}."
+                )
+        # Check that the entries are valid.
+        if np.any(repeats < 0):
+            raise ValueError("Entries in repeats must be non-negative.")
+
+        # Check how many samples we will have after the repeats.
+        new_num_samples = np.sum(repeats)
+        if new_num_samples == 0:
+            raise ValueError("Cannot have zero samples in GraphState.")
+
+        # Update each the array (or value) for each node+parameter in the GraphState by
+        # repeating the values according to repeats.
+        for node_name, node_vars in self.states.items():
+            for var_name, value in node_vars.items():
+                # Compute the new values as an array.
+                if self.num_samples == 1:
+                    new_values = np.full(repeats[0], value)
+                else:
+                    new_values = np.repeat(value, repeats)
+
+                # If we only have a single sample at the end, store its value.
+                if new_num_samples == 1:
+                    new_values = new_values[0]
+
+                # Save the updated values.
+                self.states[node_name][var_name] = new_values
+
+        # Update the number of samples.
+        self.num_samples = new_num_samples
+        if self.num_samples != 1:
+            self.sample_idx = None
+
     def extract_single_sample(self, sample_num):
         """Create a new GraphState with a single sample state and all scalar values.
 
@@ -819,6 +880,33 @@ class DependencyGraph:
             raise KeyError("Both parameters must be added to the graph before adding an edge.")
         self.incoming[to_param].add(from_param)
         self.outgoing[from_param].add(to_param)
+
+    def get_all_dependencies(self, param_name):
+        """Get the parameters that the given parameter depends on, including transitive dependencies.
+
+        Parameters
+        ----------
+        param_name : str
+            The name of the parameter to get the dependencies for.
+
+        Returns
+        -------
+        dependencies : set
+            The set of parameters that the given parameter depends on, including transitive dependencies.
+        """
+        if param_name not in self.all_params:
+            raise KeyError(f"Parameter '{param_name}' not found in the graph.")
+
+        to_visit = [param_name]
+        dependencies = set()
+        while to_visit:
+            current = to_visit.pop()
+            for dep in self.incoming[current]:
+                if dep not in dependencies:
+                    dependencies.add(dep)
+                    to_visit.append(dep)
+
+        return dependencies
 
     def build_subgraph(self, param_name, incoming=True, outgoing=True):
         """Get the DAG subgraph that contains this parameter. This can be:
