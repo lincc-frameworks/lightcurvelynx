@@ -558,7 +558,7 @@ class GraphState:
             repeats = np.asarray(repeats)
             if repeats.ndim != 1:
                 raise TypeError("repeats must be an int or a 1D array-like of integers.")
-            if repeats.dtype.kind not in {"i", "u"}:
+            if not np.issubdtype(repeats.dtype, np.integer):
                 raise TypeError("Entries in repeats must be integers.")
             if len(repeats) != self.num_samples:
                 raise ValueError(
