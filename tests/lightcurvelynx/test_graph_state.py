@@ -796,6 +796,14 @@ def test_graph_state_repeat_multi_sample():
     assert np.array_equal(state["a"]["v2"], [10.0, 10.0, 30.0, 30.0, 30.0])
     assert np.array_equal(state["b"]["v1"], [-1.0, -1.0, -3.0, -3.0, -3.0])
 
+    # We can repeat again and it works as expected (note that we need to define the
+    # repeat array with the new number of samples).
+    state.repeat([1, 2, 1, 0, 3])
+    assert state.num_samples == 7
+    assert np.array_equal(state["a"]["v1"], [1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0])
+    assert np.array_equal(state["a"]["v2"], [10.0, 10.0, 10.0, 30.0, 30.0, 30.0, 30.0])
+    assert np.array_equal(state["b"]["v1"], [-1.0, -1.0, -1.0, -3.0, -3.0, -3.0, -3.0])
+
 
 def test_graph_state_repeat_multi_to_single():
     """Test that repeat correctly 'expands' a multi-sample GraphState to a
