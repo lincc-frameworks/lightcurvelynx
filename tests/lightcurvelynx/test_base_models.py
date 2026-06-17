@@ -108,6 +108,7 @@ def test_parameter_source(capsys):
     func = FunctionNode(_test_func, value1=0.1, value2=0.4)
     source.set_as_function(func)
     assert source.source_type == _ParameterSource.FUNCTION_NODE
+    assert source.value == "function_node_result"
     assert source.dependency is func
 
     source.help()

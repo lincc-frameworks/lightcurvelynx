@@ -18,6 +18,8 @@ import numpy as np
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.redshift import RedshiftDistFunc, obs_to_rest_times_waves, rest_to_obs_flux
 from lightcurvelynx.base_models import ParameterizedNode
+from lightcurvelynx.graph_state import GraphState
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.utils.extrapolate import FluxExtrapolationModel
 
 
@@ -191,6 +193,77 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             The effect to add.
         """
         raise NotImplementedError()  # pragma: no cover
+
+    def add_parameter_offset(self, param_name, offset, *, multiplicative=False):
+        """Add an offset computation step to one of the core parameters (RA, Dec, t0, etc.). This is
+        used to adjust the value of a parameter when applying an effect. Only one offset function can
+        be applied to each parameter.
+
+        Note
+        ----
+        Offsets cannot be applied to parameters that are used to derive later parameters (e.g. redshift
+        when it is used to derive distance) since this would change the ordering of computations in the
+        graph and break dependencies.
+
+        Parameters
+        ----------
+        param_name : str
+            The name of the parameter to adjust.
+        offset : parameter
+            The additive or multiplicative offset to apply to the parameter. This can be a function
+            of other parameters.
+        multiplicative : bool
+            Whether the offset should be multiplicative (i.e. the new parameter is the original value
+            times the offset) or additive (i.e. the new parameter is the original value plus the offset).
+            Default: False (additive).
+        """
+        # Check that the parameter exists in the model.
+        if param_name not in self.setters:
+            raise ValueError(f"Parameter {param_name} not found in model.")
+
+        # Check that nothing in this node (transitively) depends on this parameter. We will need
+        # to change its ordering in the setters, which may break dependencies.
+        dependency_graph = self.build_dependency_graph()
+        full_param_name = GraphState.extended_param_name(str(self), param_name)
+        dependent_params = dependency_graph.outgoing[full_param_name]
+        if len(dependent_params) > 0:
+            raise ValueError(
+                f"Cannot apply an offset to parameter {param_name} since other parameters "
+                f"depend on it: {', '.join(dependent_params)}."
+            )
+
+        # We create a base version of the parameter for reference.
+        base_name = f"base_{param_name}"
+        if base_name in self.setters:
+            raise ValueError(f"An offset has already been applied to parameter {param_name}.")
+        self.add_parameter(
+            base_name,
+            self.setters[param_name],  # Copy the original setter
+            description=f"Base version of parameter {param_name} before applying offset.",
+        )
+
+        # Reinsert the parameters in the setters dictionary so that the new base parameter is
+        # in the same location as the original parameter, the original parameter is now at the end,
+        # and everything else stays in the same place (in term of order of keys).
+        base_setter = self.setters.pop(base_name)  # Remove the new setter from the dictionary.
+        new_setters = {}
+        for key, val in self.setters.items():
+            if key == param_name:
+                # When we see the original parameter, we add the base parameter instead.
+                new_setters[base_name] = base_setter
+            else:
+                new_setters[key] = val
+        new_setters[param_name] = self.setters[param_name]
+        self.setters = new_setters
+
+        # Compute the offset using a BasicMathNode and overwrite the setter.
+        offset_modifier = "*" if multiplicative else "+"
+        offset_node = BasicMathNode(
+            f"base_value {offset_modifier} offset",
+            base_value=getattr(self, base_name),  # Attribute reference for chaining.
+            offset=offset,
+        )
+        self.set_parameter(param_name, offset_node)
 
     def evaluate_bandfluxes(self, passband_or_group, times, filters, state, rng_info=None) -> np.ndarray:
         """Get the band fluxes for a given Passband or PassbandGroup.
