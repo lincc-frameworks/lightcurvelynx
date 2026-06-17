@@ -1,10 +1,10 @@
-"""Wrapper classes for sampling from the modeldag package, which
+"""Wrapper class for sampling from the optional `modeldag` package, which
 provides tools for defining and sampling a directed acyclic graph (DAG) of
 parameters.
 
-This code use the modeldag package (https://github.com/MickaelRigault/modeldag) which
-is not installed by default. Users who want to use the modeldag functionality will
-need to install the modeldag package separately with `pip install modeldag`.
+This code uses the `modeldag` package (https://github.com/MickaelRigault/modeldag), which
+is not installed by default. Users who want to use this functionality must
+install it separately, e.g. `pip install modeldag`.
 """
 
 from citation_compass import CiteClass
@@ -49,7 +49,7 @@ class ModelDAGNode(FunctionNode, CiteClass):
             model = ModelDAG(model)
         self.model = model
 
-        # Set the outputs to be the names of the parameters in the prior.
+        # Set the outputs to be the names of the parameters in the model.
         outputs = [param for param in self.model.entries]
         super().__init__(self._non_func, outputs=outputs, **kwargs)
 
@@ -65,9 +65,8 @@ class ModelDAGNode(FunctionNode, CiteClass):
             An object mapping graph parameters to their values. This object is modified
             in place as it is sampled.
         rng_info : numpy.random._generator.Generator, optional
-            This random number generator is not used by this node. Instead, Bilby's internal
-            random number generator is used. You can set the seed for this using the `seed`
-            argument when initializing the node or by calling the `set_seed()` method.
+            A numpy random number generator to forward to `modeldag.ModelDAG.draw`.
+            If not provided, `modeldag` will use its default randomness source.
         **kwargs : dict, optional
             Additional function arguments.
 
