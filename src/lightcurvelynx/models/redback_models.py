@@ -272,10 +272,13 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             t0 = 0.0
         shifted_times = times - t0
 
-        # Only evaluate the model within its phase bounds. If we end up with no times,
-        # we use phase=0.1 in order to get the wavelength bounds.
-        if self._min_phase is not None:
-            shifted_times = shifted_times[shifted_times >= self._min_phase]
+        # Only evaluate the model within its phase bounds. Explosion-based redback
+        # models are only defined for time >= 0 (time since explosion), so we always
+        # clip to the effective minimum phase (max of 0 and any user-supplied lower
+        # bound). If we end up with no post-explosion times, use phase=0.1 so we can
+        # still infer the wavelength bounds from a valid model evaluation.
+        min_phase = max(0.0, self._min_phase) if self._min_phase is not None else 0.0
+        shifted_times = shifted_times[shifted_times >= min_phase]
         if self._max_phase is not None:
             shifted_times = shifted_times[shifted_times <= self._max_phase]
         if len(shifted_times) == 0:
@@ -380,16 +383,44 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             t0 = 0.0
         shifted_times = times - t0
 
-        # Query the RedbackTimeSeriesSource at the given times and wavelengths.
-        # Then convert the output to nJy.
-        model_flam = rb_result.get_flux_density(shifted_times, wavelengths)
-        model_fnu = flam_to_fnu(
-            model_flam,
-            wavelengths,
-            wave_unit=uu.AA,
-            flam_unit=self._FLAM_UNIT,
-            fnu_unit=uu.nJy,
-        )
+        # Split times into post-explosion (>= 0) and pre-explosion (< 0).
+        # Explosion-based redback models (kilonovae, supernovae, etc.) are only
+        # defined for time >= 0 (time since explosion). Pre-explosion observations
+        # are assigned zero flux so that they appear as non-detections in the
+        # simulated survey, which is the physically correct behaviour.
+        post_explosion = shifted_times >= 0.0
+        post_times = shifted_times[post_explosion]
+
+        # Determine the output shape: (n_wavelengths, n_times) or (n_times,).
+        if wavelengths.ndim == 0 or np.ndim(wavelengths) == 0:
+            n_wave = 1
+        else:
+            n_wave = len(wavelengths)
+        n_time = len(shifted_times)
+
+        if post_times.size > 0:
+            model_flam_post = rb_result.get_flux_density(post_times, wavelengths)
+            model_fnu_post = flam_to_fnu(
+                model_flam_post,
+                wavelengths,
+                wave_unit=uu.AA,
+                flam_unit=self._FLAM_UNIT,
+                fnu_unit=uu.nJy,
+            )
+        else:
+            # No post-explosion times — return all zeros.
+            if n_wave > 1:
+                model_fnu_post = np.zeros((n_wave, 0)) * uu.nJy
+            else:
+                model_fnu_post = np.zeros(0) * uu.nJy
+
+        # Reconstruct the full output array, inserting zeros for pre-explosion times.
+        if n_wave > 1:
+            model_fnu = np.zeros((n_wave, n_time)) * uu.nJy
+            model_fnu[:, post_explosion] = model_fnu_post
+        else:
+            model_fnu = np.zeros(n_time) * uu.nJy
+            model_fnu[post_explosion] = model_fnu_post
 
         # Clear the cached data values if we created them locally.
         if created_cache:
