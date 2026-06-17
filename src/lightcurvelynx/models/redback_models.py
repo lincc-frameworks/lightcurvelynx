@@ -390,12 +390,6 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         # simulated survey, which is the physically correct behaviour.
         post_explosion = shifted_times >= 0.0
         post_times = shifted_times[post_explosion]
-
-        # Determine the output shape: (n_wavelengths, n_times) or (n_times,).
-        if wavelengths.ndim == 0 or np.ndim(wavelengths) == 0:
-            n_wave = 1
-        else:
-            n_wave = len(wavelengths)
         n_time = len(shifted_times)
 
         if post_times.size > 0:
@@ -407,20 +401,21 @@ class RedbackWrapperModel(SEDModel, CiteClass):
                 flam_unit=self._FLAM_UNIT,
                 fnu_unit=uu.nJy,
             )
-        else:
-            # No post-explosion times — return all zeros.
-            if n_wave > 1:
-                model_fnu_post = np.zeros((n_wave, 0))
+            # model_fnu_post is either (n_wave, n_post_times) or (n_post_times,).
+            # Build the full output with zeros for pre-explosion entries.
+            if model_fnu_post.ndim == 2:
+                model_fnu = np.zeros((model_fnu_post.shape[0], n_time))
+                model_fnu[:, post_explosion] = model_fnu_post
             else:
-                model_fnu_post = np.zeros(0)
-
-        # Reconstruct the full output array, inserting zeros for pre-explosion times.
-        if n_wave > 1:
-            model_fnu = np.zeros((n_wave, n_time))
-            model_fnu[:, post_explosion] = model_fnu_post
+                model_fnu = np.zeros(n_time)
+                model_fnu[post_explosion] = model_fnu_post
         else:
-            model_fnu = np.zeros(n_time)
-            model_fnu[post_explosion] = model_fnu_post
+            # All times are pre-explosion — probe shape with a dummy call at t=0.1.
+            dummy_flam = rb_result.get_flux_density(np.array([0.1]), wavelengths)
+            if dummy_flam.ndim == 2:
+                model_fnu = np.zeros((dummy_flam.shape[0], n_time))
+            else:
+                model_fnu = np.zeros(n_time)
 
         # Clear the cached data values if we created them locally.
         if created_cache:
