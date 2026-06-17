@@ -410,16 +410,16 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         else:
             # No post-explosion times — return all zeros.
             if n_wave > 1:
-                model_fnu_post = np.zeros((n_wave, 0)) * uu.nJy
+                model_fnu_post = np.zeros((n_wave, 0))
             else:
-                model_fnu_post = np.zeros(0) * uu.nJy
+                model_fnu_post = np.zeros(0)
 
         # Reconstruct the full output array, inserting zeros for pre-explosion times.
         if n_wave > 1:
-            model_fnu = np.zeros((n_wave, n_time)) * uu.nJy
+            model_fnu = np.zeros((n_wave, n_time))
             model_fnu[:, post_explosion] = model_fnu_post
         else:
-            model_fnu = np.zeros(n_time) * uu.nJy
+            model_fnu = np.zeros(n_time)
             model_fnu[post_explosion] = model_fnu_post
 
         # Clear the cached data values if we created them locally.
