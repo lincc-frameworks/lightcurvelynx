@@ -1,5 +1,7 @@
 import logging
 
+import pandas as pd
+
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
 
@@ -97,6 +99,13 @@ class DECamObsTable(ObsTable):
             - radius: The angular radius of the observations (in degrees).
             - read_noise: The standard deviation of the count of readout electrons per pixel.
         """
+        if isinstance(table, dict):
+            table = pd.DataFrame(table)
+        else:
+            # Ensure subsequent column assignments operate on an owned DataFrame,
+            # not a potential slice/view passed in by caller code.
+            table = table.copy()
+
         decat_cols = ["ra", "dec", "time", "filter", "exptime", "secz", "psf", "sky", "cloud", "teff"]
         decat_set = set(decat_cols)
         col_set = set(table.columns)
@@ -109,7 +118,7 @@ class DECamObsTable(ObsTable):
         logger.debug(f"Loading DECAT survey table with {len(table)} rows.")
         if filter_missing_data:
             logger.debug(f"Filtering out rows with missing data in the following columns: {decat_cols}")
-            table = table.dropna(subset=decat_cols)
+            table = table.dropna(subset=decat_cols).copy()
             logger.debug(f"After filtering, {len(table)} rows remain.")
 
         # Add some columns we need for noise. The DECAT survey has columns for:
@@ -125,7 +134,7 @@ class DECamObsTable(ObsTable):
 
         # Compute the psf_footprint from the psf column, which is seeing in arcseconds.
         pixel_scale = kwargs.get("pixel_scale", cls._default_survey_values["pixel_scale"])
-        table["psf_footprint"] = GAUSS_EFF_AREA2FWHM_SQ * (table["psf"] / pixel_scale) ** 2
+        table.loc[:, "psf_footprint"] = GAUSS_EFF_AREA2FWHM_SQ * (table["psf"].values / pixel_scale) ** 2
 
         # Compute the zero point.
 
