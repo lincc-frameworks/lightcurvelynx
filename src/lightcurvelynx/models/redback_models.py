@@ -388,6 +388,10 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         # defined for time >= 0 (time since explosion). Pre-explosion observations
         # are assigned zero flux so that they appear as non-detections in the
         # simulated survey, which is the physically correct behaviour.
+        #
+        # get_flux_density returns shape (n_times, n_waves). We evaluate only the
+        # post-explosion times, then reconstruct the full (n_times, n_waves) array
+        # with zeros for pre-explosion rows.
         post_explosion = shifted_times >= 0.0
         post_times = shifted_times[post_explosion]
         n_time = len(shifted_times)
@@ -401,11 +405,10 @@ class RedbackWrapperModel(SEDModel, CiteClass):
                 flam_unit=self._FLAM_UNIT,
                 fnu_unit=uu.nJy,
             )
-            # model_fnu_post is either (n_wave, n_post_times) or (n_post_times,).
-            # Build the full output with zeros for pre-explosion entries.
+            # Reconstruct full (n_time, n_waves) array with zeros for pre-explosion rows.
             if model_fnu_post.ndim == 2:
-                model_fnu = np.zeros((model_fnu_post.shape[0], n_time))
-                model_fnu[:, post_explosion] = model_fnu_post
+                model_fnu = np.zeros((n_time, model_fnu_post.shape[1]))
+                model_fnu[post_explosion] = model_fnu_post
             else:
                 model_fnu = np.zeros(n_time)
                 model_fnu[post_explosion] = model_fnu_post
@@ -413,7 +416,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             # All times are pre-explosion — probe shape with a dummy call at t=0.1.
             dummy_flam = rb_result.get_flux_density(np.array([0.1]), wavelengths)
             if dummy_flam.ndim == 2:
-                model_fnu = np.zeros((dummy_flam.shape[0], n_time))
+                model_fnu = np.zeros((n_time, dummy_flam.shape[1]))
             else:
                 model_fnu = np.zeros(n_time)
 
