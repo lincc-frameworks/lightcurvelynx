@@ -37,19 +37,25 @@ def test_g10_scatter() -> None:
 
     assert g10_scatter.modelpars["modelname"] == "G10"
 
-    # We can apply the scatter.
+    # Scatter is drawn once per apply() call and broadcast across all epochs,
+    # so T=5 epochs all receive the same wavelength-dependent shift → 3 unique values (one per wavelength).
     flux = np.full((5, 3), 100.0)
     wavelengths = np.array([3000.0, 5000.0, 8000.0])
     flux_new = g10_scatter.apply(flux, wavelengths=wavelengths, modelpars={"modelname": "G10"})
-    assert len(np.unique(flux_new)) == 15
+    assert len(np.unique(flux_new)) == 3
+    # Scatter varies with wavelength (chromatic), so values differ across the 3 wavelengths.
+    assert not np.allclose(flux_new[0], flux_new[0, 0])
 
 
 def test_c11_scatter() -> None:
     """Test that we can apply C11 intrinsic scatter."""
     c11_scatter = SNIaIntrinsicScatter(modelpars={"modelname": "C11"})
 
-    # We can apply the scatter.
+    # Scatter is drawn once per apply() call and broadcast across all epochs,
+    # so T=5 epochs all receive the same wavelength-dependent shift → 3 unique values (one per wavelength).
     flux = np.full((5, 3), 100.0)
     wavelengths = np.array([4000.0, 5000.0, 6000.0])
     flux_new = c11_scatter.apply(flux, wavelengths=wavelengths, modelpars={"modelname": "C11"})
-    assert len(np.unique(flux_new)) == 15
+    assert len(np.unique(flux_new)) == 3
+    # Scatter varies with wavelength (chromatic), so values differ across the 3 wavelengths.
+    assert not np.allclose(flux_new[0], flux_new[0, 0])

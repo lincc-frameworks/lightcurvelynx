@@ -2,27 +2,31 @@
 
 import numpy as np
 import sncosmo
-from scipy.interpolate import RectBivariateSpline
 
 from lightcurvelynx.effects.effect_model import EffectModel
+from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 
 # C11 model constants from Chotard et al. (2011) via SNANA sntools_genSmear.c.
 # 6 bands: v(2500), U(3560), B(4390), V(5490), R(6545), I(8045) Angstroms.
 # The v band (first row/column) is uncorrelated with others (OPT_farUV=0 default).
-_C11_COVARIANCE = np.array(
-    [
-        [+1.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-        [0.000000, +1.000000, -0.118516, -0.768635, -0.908202, -0.219447],
-        [0.000000, -0.118516, +1.000000, +0.570333, -0.238470, -0.888611],
-        [0.000000, -0.768635, +0.570333, +1.000000, +0.530320, -0.399538],
-        [0.000000, -0.908202, -0.238470, +0.530320, +1.000000, +0.490134],
-        [0.000000, -0.219447, -0.888611, -0.399538, +0.490134, +1.000000],
-    ]
-)
+_C11_COVARIANCE = np.array([
+    [+1.000000,  0.000000,  0.000000,  0.000000,  0.000000,  0.000000],
+    [ 0.000000, +1.000000, -0.118516, -0.768635, -0.908202, -0.219447],
+    [ 0.000000, -0.118516, +1.000000, +0.570333, -0.238470, -0.888611],
+    [ 0.000000, -0.768635, +0.570333, +1.000000, +0.530320, -0.399538],
+    [ 0.000000, -0.908202, -0.238470, +0.530320, +1.000000, +0.490134],
+    [ 0.000000, -0.219447, -0.888611, -0.399538, +0.490134, +1.000000],
+])
 _C11_DIAG = np.array([0.5900, 0.06001, 0.040034, 0.050014, 0.040017, 0.080007])
 _C11_KNOT_WAVELENGTHS = np.array([2500.0, 3560.0, 4390.0, 5490.0, 6545.0, 8045.0])
 _C11_COV_SCALE = 1.3
 
+# Precomputed covariance matrix at the 6 knot wavelengths
+_C11_COV_KNOTS = _C11_COVARIANCE * np.outer(_C11_DIAG, _C11_DIAG) * _C11_COV_SCALE
+
+_DEFAULT_COH_SIGMA = 0.1
+_DEFAULT_COH_SIGMA_G10 = 0.09
+_DEFAULT_COH_SIGMA_C11 = 0.09
 
 class SNIaIntrinsicScatter(EffectModel):
     """An effect model for intrinsic scatter in SN Ia.
@@ -33,69 +37,64 @@ class SNIaIntrinsicScatter(EffectModel):
         The name of the intrinsic scatter model.
     """
 
-    def __init__(self, modelpars, **kwargs):
+    def __init__(self, modelpars, interp_method="sine", **kwargs):
         super().__init__(**kwargs)
         self.modelpars = modelpars
+        if interp_method not in ("sine", "linear"):
+            raise ValueError(f"interp_method must be 'sine' or 'linear', got '{interp_method}'")
+        self.interp_method = interp_method
+        self.add_effect_parameter(
+            "snia_scatter_seed",
+            NumpyRandomFunc("integers", low=0, high=2**32 - 1),
+        )
 
     def _get_g10_color_dispersion(self, sourcename="salt2"):
         # Returns a callable spline sigma(wavelength) loaded from the sncosmo source.
         source = sncosmo.get_source(sourcename)
         return source._colordisp
 
-    def _interpolate_c11_covariance(self, wavelengths):
-        """Interpolate the C11 covariance matrix onto an arbitrary wavelength grid.
+    def _interp(self, node_waves, node_values, wavelengths):
+        """Dispatch to the selected interpolation method."""
+        if self.interp_method == "sine":
+            return self._sine_interp(node_waves, node_values, wavelengths)
+        return self._linear_interp(node_waves, node_values, wavelengths)
+
+    def _linear_interp(self, node_waves, node_values, wavelengths):
+        """Linear interpolation between nodes, clamped to edge values outside the range."""
+        return np.interp(wavelengths, node_waves, node_values)
+
+    def _sine_interp(self, node_waves, node_values, wavelengths):
+        """Sine-interpolate node values onto a wavelength grid (SNANA's interp_SINFUN).
+
+        Between adjacent nodes k and k+1:
+            scatter(λ) = z_k cos²(θ/2) + z_{k+1} sin²(θ/2),  θ = π(λ−λ_k)/(λ_{k+1}−λ_k)
+
+        Outside the node range the edge values are used.
 
         Parameters
         ----------
+        node_waves : np.ndarray
+            Wavelengths of the nodes, shape (K,), must be sorted ascending.
+        node_values : np.ndarray
+            Scatter values at each node, shape (K,).
         wavelengths : np.ndarray
-            Target wavelength grid (Angstroms), shape (N,)
+            Target wavelength grid, shape (N,).
 
         Returns
         -------
         np.ndarray
-            Interpolated covariance matrix, shape (N, N)
+            Interpolated scatter values, shape (N,).
         """
-        cov_knots = _C11_COVARIANCE * np.outer(_C11_DIAG, _C11_DIAG) * _C11_COV_SCALE
+        out = np.empty(len(wavelengths))
+        out[wavelengths <= node_waves[0]] = node_values[0]
+        out[wavelengths >= node_waves[-1]] = node_values[-1]
 
-        spline = RectBivariateSpline(
-            _C11_KNOT_WAVELENGTHS,
-            _C11_KNOT_WAVELENGTHS,
-            cov_knots,
-            kx=3,
-            ky=3,
-        )
-
-        return spline(wavelengths, wavelengths)
-
-    def get_intrinsic_scatter_covariance(self, wavelengths, modelpars=None):
-        """Return the wavelength-dependent scatter covariance matrix for G10 or C11 models.
-
-        Parameters
-        ----------
-        wavelengths : np.ndarray
-            Target wavelength grid (Angstroms), shape (N,)
-        modelpars : dict, optional
-            Model parameters dict; defaults to self.modelpars if not provided.
-
-        Returns
-        -------
-        np.ndarray
-            Covariance matrix of shape (N, N).
-        """
-        if modelpars is None:
-            modelpars = self.modelpars
-
-        if modelpars["modelname"] == "G10":
-            g10_colordisp = self._get_g10_color_dispersion(modelpars.get("sourcename", "salt2"))
-            g10_sigma = g10_colordisp(wavelengths)
-            coh_sigma = modelpars.get("coh_sigma", 0.09)
-            return coh_sigma**2 * np.eye(len(wavelengths)) + np.diag(g10_sigma**2)
-
-        elif modelpars["modelname"] == "C11":
-            return self._interpolate_c11_covariance(wavelengths)
-
-        else:
-            raise ValueError(f"Unknown intrinsic scatter model: {modelpars['modelname']}")
+        mask = (wavelengths > node_waves[0]) & (wavelengths < node_waves[-1])
+        lam = wavelengths[mask]
+        k = np.clip(np.searchsorted(node_waves, lam, side="right") - 1, 0, len(node_waves) - 2)
+        theta = np.pi * (lam - node_waves[k]) / (node_waves[k + 1] - node_waves[k])
+        out[mask] = node_values[k] * np.cos(theta / 2) ** 2 + node_values[k + 1] * np.sin(theta / 2) ** 2
+        return out
 
     def apply(
         self,
@@ -124,17 +123,35 @@ class SNIaIntrinsicScatter(EffectModel):
             A length T x N matrix of flux densities after the effect is applied (in nJy).
         """
         modelpars = {**self.modelpars, **kwargs.get("modelpars", {})}
+        rng = np.random.default_rng(kwargs.get("snia_scatter_seed"))
 
         if modelpars["modelname"] == "COH":
             # Coherent scatter: one magnitude shift per epoch, same at all wavelengths.
-            sigma = modelpars.get("sigma", 0.1)
-            scatter = np.random.normal(0, sigma, size=flux_density.shape[0])
+            sigma = modelpars.get("sigma", _DEFAULT_COH_SIGMA)
+            scatter = rng.normal(0, sigma, size=flux_density.shape[0])
             return flux_density * np.power(10, -0.4 * scatter[:, np.newaxis])
 
-        covariance = self.get_intrinsic_scatter_covariance(wavelengths, modelpars=modelpars)
-        flux_scatter = np.random.multivariate_normal(
-            mean=np.zeros(flux_density.shape[1]),
-            cov=covariance,
-            size=flux_density.shape[0],
-        )
-        return flux_density * np.power(10, -0.4 * flux_scatter)
+        if modelpars["modelname"] == "G10":
+            # Chromatic scatter: draw at C11 knot wavelengths, sine-interpolate,
+            # plus a coherent component. Both drawn once per SN, broadcast over epochs.
+            g10_colordisp = self._get_g10_color_dispersion(modelpars.get("sourcename", "salt2"))
+            node_sigma = g10_colordisp(_C11_KNOT_WAVELENGTHS)
+            node_draws = rng.normal(0, node_sigma)
+            scatter_chrom = self._interp(_C11_KNOT_WAVELENGTHS, node_draws, wavelengths)
+            coh_sigma = modelpars.get("coh_sigma", _DEFAULT_COH_SIGMA_G10)
+            scatter = rng.normal(0, coh_sigma) + scatter_chrom  # shape (N,)
+            return flux_density * np.power(10, -0.4 * scatter[np.newaxis, :])
+
+        if modelpars["modelname"] == "C11":
+            # Correlated chromatic scatter: draw 6 correlated values from the C11 covariance
+            # at the knot wavelengths via Cholesky, then sine-interpolate. Same as G10 but
+            # with inter-band correlations from Chotard et al. (2011).
+            # coh_sigma adds a gray floor; C11 models only chromatic scatter so a coherent
+            # component must be added separately (matching SNANA's COH+C11 combination).
+            node_draws = rng.multivariate_normal(np.zeros(6), _C11_COV_KNOTS)
+            scatter_chrom = self._interp(_C11_KNOT_WAVELENGTHS, node_draws, wavelengths)
+            coh_sigma = modelpars.get("coh_sigma", _DEFAULT_COH_SIGMA_C11)
+            scatter = rng.normal(0, coh_sigma) + scatter_chrom
+            return flux_density * np.power(10, -0.4 * scatter[np.newaxis, :])
+
+        raise ValueError(f"Unknown intrinsic scatter model: {modelpars['modelname']}")
