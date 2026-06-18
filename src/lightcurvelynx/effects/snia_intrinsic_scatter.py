@@ -40,8 +40,8 @@ class SNIaIntrinsicScatter(EffectModel):
     def __init__(self, modelpars, interp_method="sine", **kwargs):
         super().__init__(**kwargs)
         self.modelpars = modelpars
-        if interp_method not in ("sine", "linear"):
-            raise ValueError(f"interp_method must be 'sine' or 'linear', got '{interp_method}'")
+        if interp_method not in ("sine", "linear", "pchip", "cubic"):
+            raise ValueError(f"interp_method must be 'sine', 'linear', 'pchip', or 'cubic', got '{interp_method}'")
         self.interp_method = interp_method
         self.add_effect_parameter(
             "snia_scatter_seed",
@@ -57,11 +57,29 @@ class SNIaIntrinsicScatter(EffectModel):
         """Dispatch to the selected interpolation method."""
         if self.interp_method == "sine":
             return self._sine_interp(node_waves, node_values, wavelengths)
+        if self.interp_method == "pchip":
+            return self._pchip_interp(node_waves, node_values, wavelengths)
+        if self.interp_method == "cubic":
+            return self._cubic_interp(node_waves, node_values, wavelengths)
         return self._linear_interp(node_waves, node_values, wavelengths)
 
     def _linear_interp(self, node_waves, node_values, wavelengths):
         """Linear interpolation between nodes, clamped to edge values outside the range."""
         return np.interp(wavelengths, node_waves, node_values)
+
+    def _pchip_interp(self, node_waves, node_values, wavelengths):
+        """PCHIP interpolation — monotone-preserving cubic Hermite, no overshoot."""
+        from scipy.interpolate import PchipInterpolator
+
+        lam = np.clip(wavelengths, node_waves[0], node_waves[-1])
+        return PchipInterpolator(node_waves, node_values)(lam)
+
+    def _cubic_interp(self, node_waves, node_values, wavelengths):
+        """Cubic spline interpolation — C² smooth, may overshoot between nodes."""
+        from scipy.interpolate import CubicSpline
+
+        lam = np.clip(wavelengths, node_waves[0], node_waves[-1])
+        return CubicSpline(node_waves, node_values)(lam)
 
     def _sine_interp(self, node_waves, node_values, wavelengths):
         """Sine-interpolate node values onto a wavelength grid (SNANA's interp_SINFUN).
