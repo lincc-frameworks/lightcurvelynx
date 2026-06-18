@@ -53,9 +53,11 @@ class RedbackWrapperModel(SEDModel, CiteClass):
     parameters : dict, optional
         A dictionary of parameter setters to pass to the source function.
     phase_bounds : tuple of (float, float), required
-        A tuple of (min_phase, max_phase) in days to set the phase bounds for the model.
-        This is required because redback models are only defined for certain phase ranges, and we want to
-        make sure we are not evaluating the model at invalid points.
+        A tuple of (min_phase, max_phase) in days to set the phase bounds for the model. This is
+        required because redback models are only defined for certain phase ranges, and we want to
+        make sure we are not evaluating the model at invalid points. For most redback's
+        explosion-based models, the valid phase_bound range would be (1.e-3, None).
+        Users should consult with the redback team for valid phase_bound values
         Defaults to None which raises an error.
     wave_bounds : tuple of (float, float), optional
         A tuple of (min_wave, max_wave) in angstroms to set the wavelength bounds for the
