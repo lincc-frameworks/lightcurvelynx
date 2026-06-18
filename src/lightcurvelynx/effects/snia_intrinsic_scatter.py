@@ -9,14 +9,16 @@ from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 # C11 model constants from Chotard et al. (2011) via SNANA sntools_genSmear.c.
 # 6 bands: v(2500), U(3560), B(4390), V(5490), R(6545), I(8045) Angstroms.
 # The v band (first row/column) is uncorrelated with others (OPT_farUV=0 default).
-_C11_COVARIANCE = np.array([
-    [+1.000000,  0.000000,  0.000000,  0.000000,  0.000000,  0.000000],
-    [ 0.000000, +1.000000, -0.118516, -0.768635, -0.908202, -0.219447],
-    [ 0.000000, -0.118516, +1.000000, +0.570333, -0.238470, -0.888611],
-    [ 0.000000, -0.768635, +0.570333, +1.000000, +0.530320, -0.399538],
-    [ 0.000000, -0.908202, -0.238470, +0.530320, +1.000000, +0.490134],
-    [ 0.000000, -0.219447, -0.888611, -0.399538, +0.490134, +1.000000],
-])
+_C11_COVARIANCE = np.array(
+    [
+        [+1.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
+        [0.000000, +1.000000, -0.118516, -0.768635, -0.908202, -0.219447],
+        [0.000000, -0.118516, +1.000000, +0.570333, -0.238470, -0.888611],
+        [0.000000, -0.768635, +0.570333, +1.000000, +0.530320, -0.399538],
+        [0.000000, -0.908202, -0.238470, +0.530320, +1.000000, +0.490134],
+        [0.000000, -0.219447, -0.888611, -0.399538, +0.490134, +1.000000],
+    ]
+)
 _C11_DIAG = np.array([0.5900, 0.06001, 0.040034, 0.050014, 0.040017, 0.080007])
 _C11_KNOT_WAVELENGTHS = np.array([2500.0, 3560.0, 4390.0, 5490.0, 6545.0, 8045.0])
 _C11_COV_SCALE = 1.3
@@ -25,8 +27,9 @@ _C11_COV_SCALE = 1.3
 _C11_COV_KNOTS = _C11_COVARIANCE * np.outer(_C11_DIAG, _C11_DIAG) * _C11_COV_SCALE
 
 _DEFAULT_COH_SIGMA = 0.1
-_DEFAULT_COH_SIGMA_G10 = 0.09
-_DEFAULT_COH_SIGMA_C11 = 0.09
+_DEFAULT_COH_SIGMA_G10 = 0.0
+_DEFAULT_COH_SIGMA_C11 = 0.0
+
 
 class SNIaIntrinsicScatter(EffectModel):
     """An effect model for intrinsic scatter in SN Ia.
@@ -41,14 +44,16 @@ class SNIaIntrinsicScatter(EffectModel):
         super().__init__(**kwargs)
         self.modelpars = modelpars
         if interp_method not in ("sine", "linear", "pchip", "cubic"):
-            raise ValueError(f"interp_method must be 'sine', 'linear', 'pchip', or 'cubic', got '{interp_method}'")
+            raise ValueError(
+                f"interp_method must be 'sine', 'linear', 'pchip', or 'cubic', got '{interp_method}'"
+            )
         self.interp_method = interp_method
         self.add_effect_parameter(
             "snia_scatter_seed",
             NumpyRandomFunc("integers", low=0, high=2**32 - 1),
         )
 
-    def _get_g10_color_dispersion(self, sourcename="salt2"):
+    def _get_g10_color_dispersion(self, sourcename="salt3"):
         # Returns a callable spline sigma(wavelength) loaded from the sncosmo source.
         source = sncosmo.get_source(sourcename)
         return source._colordisp
@@ -152,7 +157,7 @@ class SNIaIntrinsicScatter(EffectModel):
         if modelpars["modelname"] == "G10":
             # Chromatic scatter: draw at C11 knot wavelengths, sine-interpolate,
             # plus a coherent component. Both drawn once per SN, broadcast over epochs.
-            g10_colordisp = self._get_g10_color_dispersion(modelpars.get("sourcename", "salt2"))
+            g10_colordisp = self._get_g10_color_dispersion(modelpars.get("sourcename", "salt3"))
             node_sigma = g10_colordisp(_C11_KNOT_WAVELENGTHS)
             node_draws = rng.normal(0, node_sigma)
             scatter_chrom = self._interp(_C11_KNOT_WAVELENGTHS, node_draws, wavelengths)
