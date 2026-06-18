@@ -97,6 +97,10 @@ class ObsTable:
         "survey_name": "Unknown",
     }
 
+    # An alternate mapping of filter names to handle changes in schema.
+    # The keys are the alternate names and the values are the standard names.
+    _alt_filter_name_map = {}
+
     def __init__(
         self,
         table,
@@ -163,6 +167,14 @@ class ObsTable:
                 )
                 self._table = self._table.dropna(subset=[col]).reset_index(drop=True)
         logger.debug(f"ObsTable initialized with columns: {self._table.columns.tolist()}")
+
+        # If we have a filter column, check whether we should remap and of the filter values.
+        if "filter" in self._table.columns:
+            for alt_name, standard_name in self._alt_filter_name_map.items():
+                mask = self._table["filter"] == alt_name
+                if mask.any():
+                    logger.debug(f"Remapping filter name '{alt_name}' to standard name '{standard_name}'.")
+                    self._table.loc[mask, "filter"] = standard_name
 
         # Save the survey values, with table metadata and keyword arguments overwriting the defaults.
         self.survey_values = self._default_survey_values.copy()
@@ -532,6 +544,7 @@ class ObsTable:
         depth=14,
         fig=None,
         ax=None,
+        use_footprint=False,
         **kwargs,
     ):
         """Plot the MOC footprint using matplotlib.
@@ -544,6 +557,9 @@ class ObsTable:
             An existing matplotlib figure to use. If None, a new figure is created.
         ax : matplotlib.pyplot.Axes or None, optional
             The axes to use for the plot. If None, new axes will be created on the figure.
+        use_footprint : bool, optional
+            Whether to use the detector footprint to build the MOC. If True, the
+            detector footprint will be used. Default is False.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the plot_moc function.
 
@@ -554,7 +570,7 @@ class ObsTable:
         ax: matplotlib.pyplot.Axes
             The axes containing the plot.
         """
-        moc = self.build_moc(max_depth=depth, use_footprint=True)
+        moc = self.build_moc(max_depth=depth, use_footprint=use_footprint)
         fig, ax = plot_moc(moc, fig=fig, ax=ax, **kwargs)
         return fig, ax
 

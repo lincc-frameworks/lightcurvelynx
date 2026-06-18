@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from astropy.cosmology import Planck18
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 from lightcurvelynx.models.physical_model import SEDModel
@@ -145,3 +146,87 @@ def test_sed_model_evaluate_bandflux(passbands_dir):
     assert bandfluxes2.shape == (n_samples, n_passbands)
     for idx, brightness in enumerate(brightness_list):
         np.testing.assert_allclose(bandfluxes2[idx, :], brightness, rtol=1e-10)
+
+
+def test_sed_model_offset():
+    """Test that we can create a SEDModel and apply offsets."""
+    # Everything is specified to start with, but we add an additive offset to RA
+    # and a multiplicative offset to t0.
+    model = SEDModel(ra=1.0, dec=2.0, redshift=0.0, t0=1.0, node_label="model")
+    model.add_parameter_offset(
+        "ra",
+        offset=GivenValueList([0.1, 0.2, 0.3]),
+        multiplicative=False,
+    )
+    model.add_parameter_offset(
+        "t0",
+        offset=GivenValueList([1.0, 0.5, 2.0]),
+        multiplicative=True,
+    )
+
+    # Check that the base parameters come before the offset parameters.
+    param_list = model.list_params()
+    assert param_list.index("base_ra") < param_list.index("ra")
+    assert param_list.index("base_t0") < param_list.index("t0")
+
+    # Check that when we sample, the base parameters are the original values and the
+    # offset parameters are the original values plus (or times) the offset.
+    state = model.sample_parameters(num_samples=3)
+    assert np.array_equal(state["model"]["base_ra"], [1.0, 1.0, 1.0])
+    assert np.array_equal(state["model"]["base_t0"], [1.0, 1.0, 1.0])
+    assert "base_dec" not in state["model"]  # No offset.
+    assert "base_redshift" not in state["model"]  # No offset.
+
+    assert np.array_equal(state["model"]["ra"], [1.1, 1.2, 1.3])
+    assert np.array_equal(state["model"]["dec"], [2.0, 2.0, 2.0])
+    assert np.array_equal(state["model"]["redshift"], [0.0, 0.0, 0.0])
+    assert np.array_equal(state["model"]["t0"], [1.0, 0.5, 2.0])
+
+
+def test_sed_model_offset_fail():
+    """Test that we fail to create a parameter offset if there are dependencies."""
+    # Everything is specified to start with, but we add an additive offset to RA
+    # and a multiplicative offset to t0.
+    t0_list = GivenValueList([1.0, 2.0, 10.0])
+    model = SEDModel(ra=1.0, dec=2.0, redshift=0.01, t0=t0_list, node_label="model")
+    model.add_parameter(
+        "t0_minus_50",
+        BasicMathNode("t0 - 50", t0=model.t0),
+        description="The start of interesting time for the event: t0 minus 50",
+    )
+
+    # We correctly condition t0_minus_50 on t0.
+    state = model.sample_parameters(num_samples=3)
+    assert np.array_equal(state["model"]["t0"], [1.0, 2.0, 10.0])
+    assert np.array_equal(state["model"]["t0_minus_50"], [-49.0, -48.0, -40.0])
+
+    # We can add a parameter offset to ra or redshift since nothing depends on them.
+    model.add_parameter_offset(
+        "ra",
+        offset=GivenValueList([0.1, 0.2, 0.3]),
+        multiplicative=False,
+    )
+    model.add_parameter_offset(
+        "redshift",
+        offset=GivenValueList([0.01, 0.02, 0.03]),
+        multiplicative=False,
+    )
+    assert "base_ra" in model.list_params()
+    assert "base_redshift" in model.list_params()
+
+    # But we fail if we try to add a parameter offset for t0.
+    with pytest.raises(ValueError):
+        model.add_parameter_offset(
+            "t0",
+            offset=GivenValueList([1.0, 0.5, 2.0]),
+            multiplicative=True,
+        )
+
+    # We also fail if we try to change redshift in a model where distance depends on it.
+    model2 = SEDModel(ra=1.0, dec=2.0, redshift=0.01, cosmology=Planck18, node_label="model2")
+    with pytest.raises(ValueError):
+        model2.add_parameter_offset(
+            "redshift",
+            offset=GivenValueList([0.01, 0.02, 0.03]),
+            multiplicative=False,
+        )

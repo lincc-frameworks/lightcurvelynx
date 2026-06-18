@@ -109,7 +109,7 @@ def test_given_value_list_offset():
         _ = given_node.compute(state3)
 
 
-def test_test_given_value_list_compound():
+def test_given_value_list_compound():
     """Test that we can use the GivenValueList as input into another node."""
     values = [1.0, 1.5, 2.0, 2.5, 3.0, -1.0, 3.5, 4.0, 10.0, -2.0]
     given_node = GivenValueList(values)
@@ -144,6 +144,40 @@ def test_given_value_list_of_list():
     state2 = given_node.sample_parameters(num_samples=1)
     assert len(state2["node"]["function_node_result"]) == 2
     assert np.array_equal(state2["node"]["function_node_result"], [3, 4])
+
+
+def test_given_value_list_stateless():
+    """Test that we can retrieve numbers from a stateless GivenValueList."""
+    given_node = GivenValueList(
+        [1.0, 1.5, 2.0, 2.5, 3.0, -1.0, 3.5],
+        stateful=False,
+        node_label="node",
+    )
+
+    # Check that we generate the correct result and save it in the GraphState.
+    state = given_node.sample_parameters(num_samples=2)
+    assert np.array_equal(state["node"]["function_node_result"], [1.0, 1.5])
+
+    # If we generate more samples, we should get the same first values again since
+    # the node is stateless.
+    state = given_node.sample_parameters(num_samples=1)
+    assert state["node"]["function_node_result"] == 1.0
+
+    state = given_node.sample_parameters(num_samples=3)
+    assert np.array_equal(state["node"]["function_node_result"], [1.0, 1.5, 2.0])
+
+    # We can use a sample offset to get later values, but the node will still not
+    # keep track of the next index.
+    state = GraphState(num_samples=2, sample_offset=3)
+    results = given_node.compute(state)
+    assert np.array_equal(results, [2.5, 3.0])
+
+    # Check that GivenValueList raises an error when it has run out of samples.
+    with pytest.raises(IndexError):
+        _ = given_node.compute(given_node.sample_parameters(num_samples=100))
+
+    # GivenValueList can be used in distributed computation.
+    assert pickle.dumps(given_node) is not None
 
 
 def test_given_value_sampler():
@@ -220,6 +254,20 @@ def test_given_value_sampler_weighted():
     assert len(results[results == 3]) > 4000
     assert len(results[results == 5]) > 2000
     assert len(results[results == 7]) > 500
+
+
+@pytest.mark.parametrize("bad_weights", [[-0.1, 0.6, 0.5], [0.2, -0.2, 1.0]])
+def test_given_value_sampler_negative_weights_fail(bad_weights):
+    """Test that negative weights are rejected."""
+    with pytest.raises(ValueError, match="Weights must be non-negative"):
+        _ = GivenValueSampler([1, 3, 5], bad_weights)
+
+
+@pytest.mark.parametrize("bad_weights", [[0.0, 0.0, 0.0], [-0.0, 0.0, 0.0]])
+def test_given_value_sampler_non_positive_weight_sum_fail(bad_weights):
+    """Test that weights must have a strictly positive total."""
+    with pytest.raises(ValueError, match="Weights must sum to a positive value"):
+        _ = GivenValueSampler([1, 3, 5], bad_weights)
 
 
 @pytest.mark.parametrize("test_data_type", ["dict", "ap_table", "pd_df"])

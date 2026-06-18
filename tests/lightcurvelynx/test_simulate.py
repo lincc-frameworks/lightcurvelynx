@@ -2,6 +2,7 @@ import tempfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
+import lightcurvelynx.simulate as simulate_module
 import numpy as np
 import pandas as pd
 import pytest
@@ -397,6 +398,84 @@ def test_simulate_lightcurves(test_data_dir):
     assert "source2.dec" in str(excinfo.value)
 
 
+def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatch):
+    """Test that serial and threaded runs share one progress bar instance."""
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    class DummyTqdm:
+        instances = []
+
+        def __init__(self, iterable=None, *args, **kwargs):
+            self._iterable = iterable
+            self.total = kwargs.get("total")
+            self.disabled = kwargs.get("disable", False)
+            self.updates = []
+            if not self.disabled:
+                DummyTqdm.instances.append(self)
+
+        def __iter__(self):
+            return iter(self._iterable) if self._iterable is not None else iter([])
+
+        def update(self, n=1):
+            self.updates.append(n)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, exc_tb):
+            return False
+
+    monkeypatch.setattr(simulate_module, "tqdm", DummyTqdm)
+
+    source1 = ConstantSEDModel(
+        brightness=GivenValueList(
+            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
+        ),
+        t0=0.0,
+        ra=GivenValueList(opsim_db["ra"].values[0:10]),
+        dec=GivenValueList(opsim_db["dec"].values[0:10]),
+        redshift=0.0,
+        node_label="source",
+    )
+    _ = simulate_lightcurves(source1, 5, survey_info, progress_bar=True)
+    assert len(DummyTqdm.instances) == 1
+    assert DummyTqdm.instances[0].total == 5
+
+    DummyTqdm.instances.clear()
+
+    class FakeMapExecutor:
+        def map(self, fn, iterable):
+            return [fn(item) for item in iterable]
+
+    source2 = ConstantSEDModel(
+        brightness=GivenValueList(
+            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
+        ),
+        t0=0.0,
+        ra=GivenValueList(opsim_db["ra"].values[0:10]),
+        dec=GivenValueList(opsim_db["dec"].values[0:10]),
+        redshift=0.0,
+        node_label="source",
+    )
+    _ = simulate_lightcurves(
+        source2,
+        5,
+        survey_info,
+        executor=FakeMapExecutor(),
+        batch_size=2,
+        progress_bar=True,  # Should only create one progress bar for the whole run.
+    )
+    assert len(DummyTqdm.instances) == 1
+    assert DummyTqdm.instances[0].total == 5
+    assert sum(DummyTqdm.instances[0].updates) == 5
+
+
 def test_simulate_lightcurves_to_file(test_data_dir):
     """Test an end to end run of simulating the light curves, saving them to a file."""
     # Load the OpSim data.
@@ -530,12 +609,12 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
 def test_simulate_bandfluxes(test_data_dir):
     """Test an end to end run of simulating a bandflux model."""
     # Create a toy observation table with two pointings.
-    num_obs = 6
+    num_obs = 8
     obsdata = {
-        "time": [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
-        "ra": [0.0, 0.0, 180.0, 0.0, 180.0, 0.0],
-        "dec": [10.0, 10.0, -10.0, 10.0, -10.0, 10.0],
-        "filter": ["g", "r", "g", "r", "z", "z"],
+        "time": [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 7.0, 6.0],
+        "ra": [0.0, 0.0, 180.0, 0.0, 180.0, 0.0, 90.0, 90.0],
+        "dec": [10.0, 10.0, -10.0, 10.0, -10.0, 10.0, -20.0, -20.0],
+        "filter": ["g", "r", "g", "r", "z", "z", "r", "g"],
         "zp": [1.0] * num_obs,
         "seeing": [1.12] * num_obs,
         "skybrightness": [20.0] * num_obs,
@@ -563,6 +642,49 @@ def test_simulate_bandfluxes(test_data_dir):
         assert np.array_equal(results["lightcurve"][idx]["filter"], ["g", "r", "r", "z"])
         assert np.array_equal(results["lightcurve"][idx]["obs_idx"], [0, 1, 3, 5])
         assert np.array_equal(results["lightcurve"][idx]["survey_idx"], [0, 0, 0, 0])
+
+    # Simulate a model with out of order times.
+    model = StaticBandfluxModel({"g": 1.0, "i": 2.0, "r": 3.0, "y": 4.0, "z": 5.0}, ra=90.0, dec=-20.0)
+    results = simulate_lightcurves(model, 1, survey_info, progress_bar=False)
+    assert len(results) == 1
+    assert np.allclose(results["lightcurve"][0]["mjd"], [6.0, 7.0])
+    assert np.allclose(results["lightcurve"][0]["flux_perfect"], [1.0, 3.0])
+    assert np.array_equal(results["lightcurve"][0]["filter"], ["g", "r"])
+    assert np.array_equal(results["lightcurve"][0]["obs_idx"], [7, 6])
+    assert np.array_equal(results["lightcurve"][0]["survey_idx"], [0, 0])
+
+
+def test_simulate_bandfluxes_dups(test_data_dir):
+    """Test that we warn when duplicate observation times are found."""
+    # Create a toy observation table with two pointings.
+    num_obs = 6
+    obsdata = {
+        "time": [0.0, 1.0, 1.0, 4.0, 5.0, 6.0],
+        "ra": [0.0, 0.0, 0.0, 180.0, 0.0, 180.0],
+        "dec": [10.0, 10.0, 10.0, -10.0, 10.0, -10.0],
+        "filter": ["g", "r", "g", "r", "z", "z"],
+        "zp": [1.0] * num_obs,
+        "seeing": [1.12] * num_obs,
+        "skybrightness": [20.0] * num_obs,
+        "exptime": [29.2] * num_obs,
+        "nexposure": [2] * num_obs,
+    }
+    obstable = OpSim(obsdata)
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Check that we have a warning for duplicate observation times.
+    model = StaticBandfluxModel({"g": 1.0, "i": 2.0, "r": 3.0, "y": 4.0, "z": 5.0}, ra=0.0, dec=10.0)
+    survey_info = SurveyInfo(obstable=obstable, passbands=passband_group)
+    with pytest.warns(UserWarning):
+        results = simulate_lightcurves(model, 1, survey_info, progress_bar=False)
+    assert np.allclose(results["lightcurve"][0]["mjd"], [0.0, 1.0, 1.0, 5.0])
+    assert np.array_equal(results["lightcurve"][0]["obs_idx"], [0, 1, 2, 4])
 
 
 def test_simulate_parallel_threads(test_data_dir):
@@ -922,16 +1044,19 @@ def test_simulate_multiple_surveys(test_data_dir):
     assert "spectra" not in results
 
     # Check that the light curve was simulated correctly, including saving the zeropoint information
-    # from each ObsTable.
+    # from each ObsTable. All entries for the light curve should be sorted by time.
     lightcurve = results["lightcurve"][0]
-    assert np.allclose(lightcurve["mjd"], np.array([0.0, 1.0, 0.5, 2.5]))
-    assert np.allclose(lightcurve["zp"], np.array([0.4, 0.5, 0.05, 0.2]))
+    assert np.allclose(lightcurve["mjd"], np.array([0.0, 0.5, 1.0, 2.5]))
+    assert np.allclose(lightcurve["zp"], np.array([0.4, 0.05, 0.5, 0.2]))
     assert np.array_equal(lightcurve["filter"], np.array(["g", "r", "r", "r"]))
-    assert np.array_equal(lightcurve["survey_idx"], np.array([0, 0, 1, 1]))
+    assert np.array_equal(lightcurve["survey_idx"], np.array([0, 1, 0, 1]))
 
-    # The custom column should only exist for observations from one of the surveys.
-    assert np.all(lightcurve["custom_col"][0:2] == 1)
-    assert np.all(np.isnan(lightcurve["custom_col"][2:4]))
+    # The custom column should only exist for observations from one of the surveys
+    # and should be NaN for the other survey.
+    assert lightcurve["custom_col"][0] == 1
+    assert np.isnan(lightcurve["custom_col"][1])
+    assert lightcurve["custom_col"][2] == 1
+    assert np.isnan(lightcurve["custom_col"][3])
 
 
 def test_simulate_multiple_surveys_diff_filters():

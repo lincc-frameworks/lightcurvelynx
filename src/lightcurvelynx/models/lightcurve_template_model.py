@@ -22,7 +22,11 @@ from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.sed_basis_models import SEDBasisModel
 from lightcurvelynx.consts import lsst_filter_plot_colors
-from lightcurvelynx.math_nodes.given_sampler import GivenValueSampler, GivenValueSelector
+from lightcurvelynx.math_nodes.given_sampler import (
+    GivenValueList,
+    GivenValueSampler,
+    GivenValueSelector,
+)
 from lightcurvelynx.models.physical_model import BandfluxModel
 from lightcurvelynx.utils.io_utils import read_lclib_data
 
@@ -740,12 +744,16 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
 
 class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
-    """A MultiLightcurveTemplateModel randomly selects a light curve at each evaluation
-    computes the flux from that source. The models can generate either the SED or
-    bandflux of a source based of given light curves in each band. When generating
-    the bandflux, the model interpolates the light curves directly. When generating the SED,
-    the model uses a box-shaped SED for each filter such that the resulting flux density
-    is equal to the light curve's value after passing through the passband filter.
+    """A MultiLightcurveTemplateModel either randomly or programmatically selects a light
+    curve at each evaluation and computes the flux from that source. If the 'indices' parameter
+    is provided, the model uses those indices to select the light curve (in order). Otherwise,
+    the model randomly samples from the available light curves (with replacement).
+
+    The models can generate either the SED or bandflux of a source based of given light curves
+    in each band. When generating the bandflux, the model interpolates the light curves directly.
+    When generating the SED, the model uses a box-shaped SED for each filter such that the
+    resulting flux density is equal to the light curve's value after passing through the passband
+    filter.
 
     MultiLightcurveTemplateModel supports both periodic and non-periodic light curves. If the
     light curve is not periodic then each light curve's given values will be interpolated
@@ -789,7 +797,14 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         Default: None
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
-        a light curve at random. If None, all light curves will be weighted equally.
+        a light curve at random. Cannot be used if the 'indices' parameter is provided.
+        If None, all light curves will be weighted equally.
+        Default: None
+    indices : parameter, list, or numpy.ndarray, optional
+        An array-like parameter that provides the indices of the light curves to select.
+        If provided, the model will use these indices to select the light curves instead
+        of sampling randomly.
+        Default: None
     """
 
     def __init__(
@@ -798,6 +813,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         passbands=None,
         *,
         weights=None,
+        indices=None,
         **kwargs,
     ):
         # Validate the light curve input and create a union of all filters used.
@@ -811,11 +827,25 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
         super().__init__(passbands=passbands, filters=self.filters, **kwargs)
 
-        all_inds = [i for i in range(len(lightcurves))]
-        self._sampler_node = GivenValueSampler(all_inds, weights=weights)
+        # Either choose from the indices (in order)
+        if indices is not None:
+            if weights is not None:
+                raise ValueError("Cannot provide both 'weights' and 'indices' parameters.")
+            if isinstance(indices, list | np.ndarray):
+                indices = np.asarray(indices)
+                if np.any((indices < 0) | (indices >= len(lightcurves))):
+                    raise ValueError("Indices must be between 0 and the number of light curves.")
+                indices_sampler = GivenValueList(indices)
+            else:
+                # Assume it is already a parameter or sampler.
+                indices_sampler = indices
+        else:
+            all_inds = np.arange(len(lightcurves))
+            indices_sampler = GivenValueSampler(all_inds, weights=weights)
+
         self.add_parameter(
             "selected_lightcurve",
-            value=self._sampler_node,
+            value=indices_sampler,
             allow_gradient=False,
             description="Index of the light curve selected for sampling.",
         )
@@ -1008,6 +1038,8 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         """
         params = self.get_local_params(state)
         model_ind = params["selected_lightcurve"]
+        if model_ind < 0 or model_ind >= len(self.lightcurves):  # pragma: no cover
+            raise ValueError(f"Selected light curve index {model_ind} is out of bounds.")
         lc = self.lightcurves[model_ind]
 
         # Check that the filter is supported by the model.
