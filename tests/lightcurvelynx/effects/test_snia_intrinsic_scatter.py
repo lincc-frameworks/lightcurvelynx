@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 from lightcurvelynx.effects.snia_intrinsic_scatter import (
-    SNIaIntrinsicScatter,
     _C11_COV_KNOTS,
     _C11_KNOT_WAVELENGTHS,
+    SNIaIntrinsicScatter,
 )
 
 
@@ -76,9 +76,7 @@ def test_output_shape_and_positive() -> None:
     flux = np.full((3, 7), 100.0)
     wavelengths = np.linspace(3500, 8000, 7)
     for model in ["COH", "G10", "C11"]:
-        result = SNIaIntrinsicScatter(modelpars={"modelname": model}).apply(
-            flux, wavelengths=wavelengths
-        )
+        result = SNIaIntrinsicScatter(modelpars={"modelname": model}).apply(flux, wavelengths=wavelengths)
         assert result.shape == (3, 7), f"{model}: unexpected shape {result.shape}"
         assert np.all(result > 0), f"{model}: non-positive flux values"
 
@@ -104,19 +102,17 @@ def test_interp_methods_agree_at_nodes() -> None:
 
     results = {}
     for method in ["sine", "linear", "pchip", "cubic"]:
-        eff = SNIaIntrinsicScatter(
-            modelpars={"modelname": "G10", "coh_sigma": 0.0}, interp_method=method
-        )
+        eff = SNIaIntrinsicScatter(modelpars={"modelname": "G10", "coh_sigma": 0.0}, interp_method=method)
         results[method] = eff.apply(flux, wavelengths=wavelengths, snia_scatter_seed=7)
 
     # At exact node wavelengths (columns 0 and 2) all methods must agree.
     for method in ["linear", "pchip", "cubic"]:
-        assert np.allclose(results["sine"][:, 0], results[method][:, 0]), (
-            f"sine and {method} disagree at left node"
-        )
-        assert np.allclose(results["sine"][:, 2], results[method][:, 2]), (
-            f"sine and {method} disagree at right node"
-        )
+        assert np.allclose(
+            results["sine"][:, 0], results[method][:, 0]
+        ), f"sine and {method} disagree at left node"
+        assert np.allclose(
+            results["sine"][:, 2], results[method][:, 2]
+        ), f"sine and {method} disagree at right node"
 
     # Between the nodes the shapes differ — sine and linear should not match.
     assert not np.allclose(results["sine"][:, 1], results["linear"][:, 1])
@@ -152,9 +148,9 @@ def test_coh_sigma_zero() -> None:
         eff = SNIaIntrinsicScatter(modelpars={"modelname": model, "coh_sigma": 0.0})
         result = eff.apply(flux, wavelengths=wavelengths, snia_scatter_seed=42)
         # Scatter should vary across wavelengths (chromatic); first and last values should differ.
-        assert not np.isclose(result[0, 0], result[0, -1]), (
-            f"{model}: scatter appears uniform with coh_sigma=0"
-        )
+        assert not np.isclose(
+            result[0, 0], result[0, -1]
+        ), f"{model}: scatter appears uniform with coh_sigma=0"
 
 
 def test_g10_coh_sigma_override() -> None:
