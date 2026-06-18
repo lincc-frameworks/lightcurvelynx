@@ -31,8 +31,9 @@ def _test_func(value1, value2):
     return value1 + value2
 
 
-class PairModel(ParameterizedNode):
-    """A test class for the ParameterizedNode.
+class _PairModel(ParameterizedNode):
+    """A test class for the ParameterizedNode that takes two values
+    and computes their sum as a parameter.
 
     Parameters
     ----------
@@ -40,8 +41,6 @@ class PairModel(ParameterizedNode):
         The first value.
     value2 : `float`
         The second value.
-    value_sum : `float`
-        The sum of the two values.
     **kwargs : `dict`, optional
         Any additional keyword arguments.
     """
@@ -84,6 +83,7 @@ def test_parameter_source(capsys):
     with pytest.raises(ValueError):
         source.set_as_constant(_test_func)
 
+    # We can set a node from another node's parameter.
     node = SingleVariableNode("A", 20.0, node_label="single")
     source.set_as_parameter(node, "A")
     assert source.source_type == _ParameterSource.MODEL_PARAMETER
@@ -94,21 +94,42 @@ def test_parameter_source(capsys):
     captured = capsys.readouterr()
     assert "Source: MODEL_PARAMETER A of node single" in captured.out
 
+    # Test that we can set a second source as a 'copy' of the first one.
+    source2 = _ParameterSource("test2", node_name="node2", description="A test parameter")
+    source2.set_from_parameter_source(source)
+    assert source2.parameter_name == "test2"
+    assert source2.node_name == "node2"
+    assert source2.source_type == _ParameterSource.MODEL_PARAMETER
+    assert source2.dependency is node
+    assert source2.value == "A"
+    assert source2.description == "A test parameter"
+
+    # We can set a node as a function output.
     func = FunctionNode(_test_func, value1=0.1, value2=0.4)
     source.set_as_function(func)
     assert source.source_type == _ParameterSource.FUNCTION_NODE
+    assert source.value == "function_node_result"
     assert source.dependency is func
 
     source.help()
     captured = capsys.readouterr()
     assert "Source: Result of FUNCTION_NODE" in captured.out
 
+    # We can copy this source function as well.
+    source2.set_from_parameter_source(source)
+    assert source2.parameter_name == "test2"
+    assert source2.node_name == "node2"
+    assert source2.source_type == _ParameterSource.FUNCTION_NODE
+    assert source2.dependency is func
+    assert source2.value == "function_node_result"
+    assert source2.description == "A test parameter"
+
 
 def test_parameterized_node(capsys):
-    """Test that we can sample and create a PairModel object."""
+    """Test that we can sample and create a _PairModel object."""
     # Simple addition
-    model1 = PairModel(value1=0.5, value2=0.5)
-    assert str(model1) == "PairModel"
+    model1 = _PairModel(value1=0.5, value2=0.5)
+    assert str(model1) == "_PairModel"
 
     # Check that we can access the parameter indicators.
     assert model1.value1 is not None
@@ -161,10 +182,10 @@ def test_parameterized_node(capsys):
     # If we set a position (and there is no node_label), the position shows up in the name.
     model1.node_pos = 100
     model1._update_node_string()
-    assert str(model1) == "PairModel_100"
+    assert str(model1) == "_PairModel_100"
 
     # Use value1=model.value and value2=1.0
-    model2 = PairModel(value1=model1.value1, value2=1.0, node_label="test")
+    model2 = _PairModel(value1=model1.value1, value2=1.0, node_label="test")
     assert str(model2) == "test"
 
     state = model2.sample_parameters()
@@ -174,14 +195,14 @@ def test_parameterized_node(capsys):
 
     # Compute value1 from model2's result and value2 from the sampler function.
     # The sampler function is auto-wrapped in a FunctionNode.
-    model3 = PairModel(value1=model2.value_sum, value2=_sampler_fun)
+    model3 = _PairModel(value1=model2.value_sum, value2=_sampler_fun)
     state = model3.sample_parameters()
     rand_val = model3.get_param(state, "value2")
     assert model3.get_param(state, "value_sum") == pytest.approx(1.5 + rand_val)
 
     # Compute value1 from model3's result (which is itself the result for model2 +
     # a random value) and value2 = -1.0.
-    model4 = PairModel(value1=model3.value_sum, value2=-1.0)
+    model4 = _PairModel(value1=model3.value_sum, value2=-1.0)
     state = model4.sample_parameters()
     rand_val = model3.get_param(state, "value2")
     assert model4.get_param(state, "value_sum") == pytest.approx(0.5 + rand_val)
@@ -222,8 +243,8 @@ def test_parameterized_node_label_collision():
     """Test that throw an error when two nodes use the same label."""
     node_a = SingleVariableNode("A", 10.0, node_label="A")
     node_b = SingleVariableNode("B", 20.0, node_label="B")
-    pair1 = PairModel(value1=node_a.A, value2=node_b.B, node_label="pair1")
-    pair2 = PairModel(value1=pair1.value_sum, value2=node_b.B, node_label="pair2")
+    pair1 = _PairModel(value1=node_a.A, value2=node_b.B, node_label="pair1")
+    pair2 = _PairModel(value1=pair1.value_sum, value2=node_b.B, node_label="pair2")
 
     # No collision even though node_b is referenced twice.
     state = pair2.sample_parameters()
@@ -233,14 +254,14 @@ def test_parameterized_node_label_collision():
     # We run into a problem if we reuse a label. Label "A" collides multiple
     # levels above.
     node_c = SingleVariableNode("C", 5.0, node_label="C")
-    pair3 = PairModel(value1=pair2.value_sum, value2=node_c.C, node_label="A")
+    pair3 = _PairModel(value1=pair2.value_sum, value2=node_c.C, node_label="A")
     with pytest.raises(ValueError):
         _ = pair3.sample_parameters()
 
 
 def test_parameterized_node_modify():
     """Test that we can modify the parameters in a node."""
-    model = PairModel(value1=0.5, value2=0.5)
+    model = _PairModel(value1=0.5, value2=0.5)
 
     # We cannot add a parameter a second time.
     with pytest.raises(KeyError):
@@ -270,7 +291,7 @@ def test_parameterized_node_self_parameter():
 
 def test_parameterized_build_dependency_graph():
     """Test that we can build a dependency graph of a simple ParameterizedNode."""
-    model1 = PairModel(value1=0.15, value2=0.5, node_label="A")
+    model1 = _PairModel(value1=0.15, value2=0.5, node_label="A")
     dep_graph = model1.build_dependency_graph()
     assert "A" in dep_graph.all_nodes
 
@@ -317,14 +338,28 @@ def test_parameterized_build_dependency_graph():
     )
     assert dep_graph.outgoing["FunctionNode:_test_func_1.function_node_result"] == set(["A.value_sum"])
 
+    # Check that we can get all dependencies for a parameter.
+    deps = dep_graph.get_all_dependencies("A.value_sum")
+    assert deps == set(
+        [
+            "A.value1",
+            "A.value2",
+            "const_0=0.15",
+            "const_1=0.5",
+            "FunctionNode:_test_func_1.value1",
+            "FunctionNode:_test_func_1.value2",
+            "FunctionNode:_test_func_1.function_node_result",
+        ]
+    )
+
 
 def test_parameterized_node_from_node():
     """Test that we can no longer set the values of a parameterized node directly
     from the values of another parameterized node as this is a confusing pattern.
     """
-    model1 = PairModel(value1=0.5, value2=1.5, node_label="A")
+    model1 = _PairModel(value1=0.5, value2=1.5, node_label="A")
     with pytest.raises(ValueError):
-        _ = PairModel(value1=model1, value2=model1, node_label="B")
+        _ = _PairModel(value1=model1, value2=model1, node_label="B")
 
 
 def test_parameterized_node_overwrite_fun():
@@ -350,8 +385,8 @@ def test_parameterized_node_overwrite_fun():
 
 def test_parameterized_node_build_pytree():
     """Test that we can extract the PyTree of a graph."""
-    model1 = PairModel(value1=0.5, value2=1.5, node_label="A")
-    model2 = PairModel(value1=model1.value1, value2=3.0, node_label="B")
+    model1 = _PairModel(value1=0.5, value2=1.5, node_label="A")
+    model2 = _PairModel(value1=model1.value1, value2=3.0, node_label="B")
     graph_state = model2.sample_parameters()
 
     pytree = model2.build_pytree(graph_state)
@@ -408,7 +443,7 @@ def test_no_resample_functions():
     """Test that if we use the same node as dependencies in two other nodes, we do not resample it."""
     rand_val = FunctionNode(_sampler_fun)
     node_a = SingleVariableNode("A", rand_val)
-    node_b = PairModel(value1=node_a.A, value2=rand_val)
+    node_b = _PairModel(value1=node_a.A, value2=rand_val)
     state = node_b.sample_parameters()
 
     # All the values should be the same (no resampling of A.)
@@ -457,12 +492,12 @@ def test_function_node_obj():
     """
     # The model depends on the function.
     func = FunctionNode(_test_func, value1=5.0, value2=6.0)
-    model = PairModel(value1=10.0, value2=func)
+    model = _PairModel(value1=10.0, value2=func)
     state = model.sample_parameters()
     assert model.get_param(state, "value_sum") == 21.0
 
     # Function depends on the model's value2 parameter.
-    model = PairModel(value1=-10.0, value2=17.5)
+    model = _PairModel(value1=-10.0, value2=17.5)
     func = FunctionNode(_test_func, value1=5.0, value2=model.value2, outputs=["res"])
     state = func.sample_parameters()
 
@@ -504,7 +539,7 @@ def test_function_node_multi():
     assert dep_graph.outgoing["test.value2"] == set(["test.sum_res", "test.diff_res"])
 
     # Build a model that takes the two outputs of the FunctionNode as inputs.
-    model = PairModel(value1=my_func.sum_res, value2=my_func.diff_res, node_label="A")
+    model = _PairModel(value1=my_func.sum_res, value2=my_func.diff_res, node_label="A")
     state = model.sample_parameters()
 
     assert model.get_param(state, "value1") == 11.0

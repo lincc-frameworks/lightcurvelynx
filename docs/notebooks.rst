@@ -35,6 +35,7 @@ features and models of the LightCurveLynx package.
     Extrapolation in Time and Wavelength <notebooks/extrapolation>
     Advanced Sampling Techniques <notebooks/advanced_sampling>
     Simulating Multiple Surveys <notebooks/multiple_surveys>
+    Sampling with ModelDAGs <notebooks/pre_executed/modeldag_sampling>
     Detector Footprints <notebooks/detector_footprint>
     Parallel Runs <notebooks/parallel_runs>
     Setting Saturation Limits <notebooks/saturation>
