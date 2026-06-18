@@ -49,6 +49,7 @@ dev = [
     "jupyter", # Clears output from Jupyter notebooks
     "jax",
     "lsdb>=0.8",
+    "modeldag",
     "networkx",  # Used for graph visualization
     "pre-commit", # Used to run checks before finalizing a git commit
     "pytest",
