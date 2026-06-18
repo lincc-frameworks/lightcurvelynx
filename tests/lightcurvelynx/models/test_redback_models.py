@@ -100,6 +100,7 @@ def test_redback_models_toy() -> None:
         ra=0.0,  # Set other parameters
         dec=-10.0,
         t0=t0,
+        phase_bounds=(None, None),  # No phase bounds for this test
         node_label="source",
     )
     assert set(model.source_param_names) == {"height", "width"}
@@ -139,6 +140,7 @@ def test_redback_models_fail_toy() -> None:
     model = RedbackWrapperModel(
         _toy_redback_model,
         parameters={"height": 1000.0},  # Missing "width"
+        phase_bounds=(1e-3, None),
         t0=t0,
         node_label="source",
     )
@@ -157,8 +159,18 @@ def test_redback_models_fail_toy() -> None:
         _ = RedbackWrapperModel(
             "one_component_kilonova_model",
             parameters={"height": 1000.0, "width": 10.0, "redshift": 0.05},
+            phase_bounds=(1e-3, None),
             redshift=0.1,
             node_label="toy",
+        )
+
+    # Fail if we don't provide required phase bounds.
+    with pytest.raises(ValueError):
+        _ = RedbackWrapperModel(
+            _toy_redback_model,
+            parameters={"height": 1000.0, "width": 10.0},
+            t0=t0,
+            node_label="source",
         )
 
 
@@ -175,7 +187,7 @@ def test_redback_models_bounded_toy() -> None:
         _toy_redback_model_with_bounds,
         parameters=parameters,  # Set ALL the redback model parameters
         t0=t0,
-        time_extrapolation=(ConstantPadding(0.0), ConstantPadding(0.0)),
+        phase_bounds=(None, None),
         node_label="source",
     )
     assert set(model.source_param_names) == {"height", "width"}
@@ -230,6 +242,7 @@ def test_redback_models_chained_toy() -> None:
         _toy_redback_model,
         parameters=parameters,  # Set ALL the redback model parameters
         t0=t0,
+        phase_bounds=(1e-6, None),
         node_label="source",
     )
     assert set(model.source_param_names) == {"height", "width"}
@@ -275,6 +288,7 @@ def test_redback_model_extrapolation() -> None:
         _toy_redback_function,
         parameters={"param1": 1.0, "param2": 2.0},
         t0=t0,
+        phase_bounds=(None, None),  # No predefined bounds (we use model's bounds)
         node_label="source",
         wave_extrapolation=(ConstantPadding(1.0), ConstantPadding(2.0)),
         time_extrapolation=(ConstantPadding(3.0), ConstantPadding(4.0)),
@@ -307,3 +321,53 @@ def test_redback_model_extrapolation() -> None:
     # bypass the extrapolation logic and just query the spline directly (all zeros).
     direct_fluxes = model.compute_sed(times, waves_ang, state)
     assert np.all(direct_fluxes == 0.0)
+
+
+@pytest.mark.filterwarnings("ignore")
+def test_redback_kilanova_model_bounds() -> None:
+    """Test that we can create a RedbackWrapperModel from a function
+    that has bounds, and that the wrapper model correctly infers the bounds."""
+    redback = pytest.importorskip("redback")
+
+    # Load a kilonova model from redback's model library.
+    model_fn = redback.model_library.all_models_dict["one_component_kilonova_model"]
+
+    # Set the parameters that are needed by the redback model.
+    parameters = {
+        "mej": 0.0474626158082385,
+        "redshift": 0.04149890084774436,
+        "temperature_floor": 3000,
+        "kappa": 1,
+        "vej": 0.2,
+    }
+
+    # Create the model itself.
+    t0 = 64483.0
+    source = RedbackWrapperModel(
+        model_fn,
+        parameters=parameters,  # Set ALL the redback model parameters
+        ra=0.0,
+        dec=0.0,
+        t0=t0,
+        node_label="source",
+        phase_bounds=(0.1, None),
+    )
+
+    # Try with all times after t0.
+    waves = np.array([5000.0, 6000.0, 7000.0])
+    fluxes = source.evaluate_sed(t0 + np.array([1.0, 2.0]), waves)
+    assert fluxes.shape == (2, 3)
+    assert np.all(fluxes > 0.0)  # The model should return positive fluxes in bounds.
+
+    # Try with a single invalid time (before t0). This should be set to zero.
+    fluxes = source.evaluate_sed(t0 + np.array([-1.0, 1.0, 10.0, 20.0]), waves)
+    assert np.all(fluxes[0, :] == 0.0)  # The flux for the invalid time should be zero.
+    assert np.all(fluxes[1, :] > 0.0)  # The flux for the valid time should be positive.
+
+    # Try with only invalid times. This should all be set to zero.
+    fluxes = source.evaluate_sed(t0 + np.array([-2.0, -1.0]), waves)
+    assert np.all(fluxes == 0.0)
+
+    # Try with just t0=0.0. This falls outside the bounds.
+    fluxes = source.evaluate_sed(np.array([t0]), waves)
+    assert np.all(fluxes == 0.0)

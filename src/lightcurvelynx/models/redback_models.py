@@ -11,10 +11,13 @@ from citation_compass import CiteClass, cite_inline
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
 from lightcurvelynx.math_nodes.bilby_priors import BilbyPriorNode
 from lightcurvelynx.models.physical_model import SEDModel
+from lightcurvelynx.utils.extrapolate import ZeroPadding
 
 
 class RedbackWrapperModel(SEDModel, CiteClass):
-    """A wrapper for redback models.
+    """A wrapper for redback models. The user must provide the redback model function (or
+    the name of the model in the redback library), the parameter values to use for that model,
+    and the valid phase bounds for that model.
 
     Parameterized values include:
 
@@ -49,16 +52,21 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         The redback model's Bilby priors.
     parameters : dict, optional
         A dictionary of parameter setters to pass to the source function.
+    phase_bounds : tuple of (float, float), required
+        A tuple of (min_phase, max_phase) in days to set the phase bounds for the model. This is
+        required because redback models are only defined for certain phase ranges, and we want to
+        make sure we are not evaluating the model at invalid points. For most redback's
+        explosion-based models, the valid phase_bound range would be (1.e-3, None).
+        Users should consult with the redback team for valid phase_bound values
+        Defaults to None which raises an error.
     wave_bounds : tuple of (float, float), optional
         A tuple of (min_wave, max_wave) in angstroms to set the wavelength bounds for the
         model. If not provided, the code will try to infer the bounds from the model result.
         However this is not always possible and may lead to evaluating the model at invalid points.
         Default: (None, None) which corresponds to (-inf, inf).
-    phase_bounds : tuple of (float, float), optional
-        A tuple of (min_phase, max_phase) in days to set the phase bounds for the model.
-        If not provided, the code will try to infer the bounds from the model result. However this
-        is not always possible and may lead to evaluating the model at invalid points.
-        Default: (None, None) which corresponds to (-inf, inf).
+    time_extrapolation : tuple of Extrapolation, optional
+        The extrapolation method to use for times outside the model's bounds.
+        If nothing is provided, then the code adds zero padding.
     **kwargs : dict, optional
         Any additional keyword arguments.
 
@@ -78,8 +86,9 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         *,
         priors=None,
         parameters=None,
+        phase_bounds=None,
         wave_bounds=(None, None),
-        phase_bounds=(None, None),
+        time_extrapolation=None,
         **kwargs,
     ):
         # Check that the parameters passed in the dictionary and keyword arguments
@@ -94,7 +103,10 @@ class RedbackWrapperModel(SEDModel, CiteClass):
                     "and as a parameter itself. Please include it only in the dictionary."
                 )
 
-        super().__init__(**kwargs)
+        # If no time extrapolation method is provided, we default to zero padding.
+        if time_extrapolation is None:
+            time_extrapolation = ZeroPadding()
+        super().__init__(time_extrapolation=time_extrapolation, **kwargs)
 
         # Add all of the items from the bilby prior node as settable parameters.
         parameters = parameters.copy()
@@ -152,6 +164,12 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         self._min_wave = wave_bounds[0]
         self._max_wave = wave_bounds[1]
 
+        if phase_bounds is None:
+            raise ValueError(
+                "phase_bounds must be provided for RedbackWrapperModel to indicate when the "
+                "model is valid. These bounds are in days relative to t0. For example, many models "
+                "can use phase_bounds=(1e-3, None)."
+            )
         if len(phase_bounds) != 2:
             raise ValueError("phase_bounds should be a tuple of (min_phase, max_phase).")
         self._min_phase = phase_bounds[0]
