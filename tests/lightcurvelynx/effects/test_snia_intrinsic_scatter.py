@@ -22,16 +22,16 @@ def test_coh_scatter() -> None:
     """Test that we can apply COH intrinsic scatter."""
     coh_scatter = SNIaIntrinsicScatter(modelpars={"modelname": "COH", "sigma": 0.1})
 
-    # COH is coherent: same magnitude shift at all wavelengths per epoch → 5 unique values (one per epoch).
+    # COH is coherent: same magnitude shift at all wavelengths and not dependent on time.
     flux = np.full((5, 3), 100.0)
     wavelengths = np.array([4000.0, 5000.0, 6000.0])
     flux_new = coh_scatter.apply(flux, wavelengths=wavelengths, modelpars={"modelname": "COH", "sigma": 0.1})
-    assert len(np.unique(flux_new)) == 5
+    assert len(np.unique(flux_new)) == 1
     assert np.sum(np.abs(-2.5 * np.log10(flux_new / 100.0)) <= 0.5) >= 4
 
     # We can override sigma via modelpars kwarg; larger sigma → larger scatter.
     flux_new = coh_scatter.apply(flux, wavelengths=wavelengths, modelpars={"modelname": "COH", "sigma": 1.0})
-    assert len(np.unique(flux_new)) == 5
+    assert len(np.unique(flux_new)) == 1
     assert np.sum(np.abs(-2.5 * np.log10(flux_new / 100.0)) <= 5.0) >= 4
 
 

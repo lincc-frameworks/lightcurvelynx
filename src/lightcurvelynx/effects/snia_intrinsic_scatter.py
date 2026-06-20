@@ -149,10 +149,10 @@ class SNIaIntrinsicScatter(EffectModel):
         rng = np.random.default_rng(kwargs.get("snia_scatter_seed"))
 
         if modelpars["modelname"] == "COH":
-            # Coherent scatter: one magnitude shift per epoch, same at all wavelengths.
+            # Coherent scatter: one magnitude shift for all wavelengths and independent of time.
             sigma = modelpars.get("sigma", _DEFAULT_COH_SIGMA)
-            scatter = rng.normal(0, sigma, size=flux_density.shape[0])
-            return flux_density * np.power(10, -0.4 * scatter[:, np.newaxis])
+            scatter = rng.normal(0, sigma)
+            return flux_density * np.power(10, -0.4 * scatter)
 
         if modelpars["modelname"] == "G10":
             # Chromatic scatter: draw at C11 knot wavelengths, sine-interpolate,
