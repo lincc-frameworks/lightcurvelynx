@@ -174,3 +174,33 @@ def test_c11_cov_knots_positive_semidefinite() -> None:
 def test_c11_knot_wavelengths_sorted() -> None:
     """_C11_KNOT_WAVELENGTHS must be strictly ascending (required by interpolation)."""
     assert np.all(np.diff(_C11_KNOT_WAVELENGTHS) > 0)
+
+
+def test_interp_wave_interval_c11_default() -> None:
+    """Omitting interp_wave_interval and setting it to 'C11' produce identical output."""
+    flux = np.full((1, 5), 100.0)
+    wavelengths = np.linspace(3500, 8000, 5)
+    eff_default = SNIaIntrinsicScatter(modelpars={"modelname": "G10", "coh_sigma": 0.0})
+    eff_c11 = SNIaIntrinsicScatter(
+        modelpars={"modelname": "G10", "coh_sigma": 0.0, "interp_wave_interval": "C11"}
+    )
+    out_default = eff_default.apply(flux, wavelengths=wavelengths, snia_scatter_seed=42)
+    out_c11 = eff_c11.apply(flux, wavelengths=wavelengths, snia_scatter_seed=42)
+    assert np.allclose(out_default, out_c11)
+
+
+def test_interp_wave_interval_numeric() -> None:
+    """Numeric interp_wave_interval produces valid but different scatter than C11 nodes."""
+    flux = np.full((3, 5), 100.0)
+    wavelengths = np.linspace(3500, 8000, 5)
+    eff_c11 = SNIaIntrinsicScatter(modelpars={"modelname": "G10", "coh_sigma": 0.0})
+    eff_800 = SNIaIntrinsicScatter(
+        modelpars={"modelname": "G10", "coh_sigma": 0.0, "interp_wave_interval": 800}
+    )
+    out_c11 = eff_c11.apply(flux, wavelengths=wavelengths, snia_scatter_seed=42)
+    out_800 = eff_800.apply(flux, wavelengths=wavelengths, snia_scatter_seed=42)
+    # Different node positions → different chromatic scatter pattern.
+    assert not np.allclose(out_c11, out_800)
+    # Output must still be valid: correct shape and all-positive flux.
+    assert out_800.shape == (3, 5)
+    assert np.all(out_800 > 0)

@@ -58,6 +58,18 @@ class SNIaIntrinsicScatter(EffectModel):
         source = sncosmo.get_source(sourcename)
         return source._colordisp
 
+    def _get_g10_node_wavelengths(self, modelpars):
+        """Return node wavelengths for G10 scatter interpolation.
+
+        ``interp_wave_interval="C11"`` (default) uses the 6 C11 knot wavelengths.
+        ``interp_wave_interval=<float>`` generates evenly spaced nodes from
+        2000 to 9200 Å at that spacing (in Angstroms).
+        """
+        interval = modelpars.get("interp_wave_interval", "C11")
+        if interval == "C11":
+            return _C11_KNOT_WAVELENGTHS
+        return np.arange(2000.0, 9200.0 + float(interval) / 2, float(interval))
+
     def _interp(self, node_waves, node_values, wavelengths):
         """Dispatch to the selected interpolation method."""
         if self.interp_method == "sine":
@@ -155,12 +167,13 @@ class SNIaIntrinsicScatter(EffectModel):
             return flux_density * np.power(10, -0.4 * scatter)
 
         if modelpars["modelname"] == "G10":
-            # Chromatic scatter: draw at C11 knot wavelengths, sine-interpolate,
+            # Chromatic scatter: draw at node wavelengths, sine-interpolate,
             # plus a coherent component. Both drawn once per SN, broadcast over epochs.
             g10_colordisp = self._get_g10_color_dispersion(modelpars.get("sourcename", "salt3"))
-            node_sigma = g10_colordisp(_C11_KNOT_WAVELENGTHS)
+            node_waves = self._get_g10_node_wavelengths(modelpars)
+            node_sigma = g10_colordisp(node_waves)
             node_draws = rng.normal(0, node_sigma)
-            scatter_chrom = self._interp(_C11_KNOT_WAVELENGTHS, node_draws, wavelengths)
+            scatter_chrom = self._interp(node_waves, node_draws, wavelengths)
             coh_sigma = modelpars.get("coh_sigma", _DEFAULT_COH_SIGMA_G10)
             scatter = rng.normal(0, coh_sigma) + scatter_chrom  # shape (N,)
             return flux_density * np.power(10, -0.4 * scatter[np.newaxis, :])
