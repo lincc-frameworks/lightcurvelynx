@@ -20,7 +20,7 @@ The accuracy of the simulation framework should be prioritized above aspects suc
 
 **Make Easy Things Easy, Hard Things Possible.** Common use cases should require minimal configuration, but users should also be able to construct complex simulations.
 
-**Units should be documented.** New code and docstrings should describe the expected units coming into and out of each function.
+**Units should be consistent and documented.** New code and docstrings should describe the expected units coming into and out of each function. Calls to each function should provide the values in the correct units.
 
 **Citation information should be available.** References for used code and data should be made available via docstrings and `citation_compass`.
 
@@ -88,6 +88,13 @@ Key file: `src/lightcurvelynx/graph_state.py`
 The `GraphState` object stores the information about the parameter values. Information is stored in this object, instead of in the parameterized nodes themselves, to keep the main objects stateless. In addition a `GraphState` object can be saved and used to deterministically reperform a simulation or part of the simulation.
 
 The `GraphState` object stores the information about the parameter values. It is organized as a doubly nested dictionary. The outer layer is keyed by the node's name and has values that correspond to that node's parameter dictionary. The inner layer is keyed by the parameter name and either an individual value (for `num_samples==1`) or a numpy array of sample values.
+
+Example or accessing a parameter:
+```python
+param_val = graph_state["node_name"]["param_name"]
+```
+
+Note that the values within `GraphState` should only be set by the `sample_parameters` of a `ParameterizedNode` object. Users should not manually modify these values.
 
 
 ## Architecture: ParameterizedNodes
@@ -272,10 +279,21 @@ A typical LightCurveLynx workflow involves:
 
 1. Loading one or more `ObsTable` for the surveys that you want to simulate.
 2. Loading a `PassbandGroup` for each survey you want to simulate.
-3. Defining the sampling of the parameters via the use of one or more `ParameterizedNode` objects.
+3. Defining the sampling of the parameters via the use of one or more `ParameterizedNode` objects. You can add explicit dependencies between the sampled values in one node (`model`) and another node (`myotherobject`) using the dot notation:
+```python
+model = MyObject(
+    param1=myotherobject.its_param,
+    ...
+)
+```
 4. Creating a physical model object of the source to simulate. Setting its parameters from the previously created parameterized nodes. Common parameters include ra, dec, redshift, and t0.
 5. Creating and adding zero or more `EffectModel`s and attaching them to your model object with the `add_effect` function.
 6. Calling `simulate_lightcurves` to create a `nested_pandas.NestedFrame` with the results. Each `ObsTable`/`PassbandGroup` pair should be wrapped in a `SurveyInfo` object.
+
+
+## Debugging
+
+The first step in debugging is often examining the parameters within a `GraphState` object named `state`. Users can do this by printing the object (`print(state)`). Users can also access a dictionary of all parameters for a single node with `state[<node_name>]`.
 
 
 ## Testing Conventions
