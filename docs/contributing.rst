@@ -7,6 +7,9 @@ The code
 The LightCurveLynx code is hosted on GitHub at
 `https://github.com/lincc-frameworks/lightcurvelynx <https://github.com/lincc-frameworks/lightcurvelynx>`_.
 
+You may want to start by reading the `LIGHTCURVELYNX_GUIDE.md` file in the root repository.
+This file provides an overview of the design principles and core abstractions for the project.
+Although it was written for AI coding assistants, it is a great resource for any new contributor.
 
 Find (or make) a new GitHub issue
 -------------------------------------------------------------------------------
