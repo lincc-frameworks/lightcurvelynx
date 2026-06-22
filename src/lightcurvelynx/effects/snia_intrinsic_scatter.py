@@ -37,8 +37,12 @@ class SNIaIntrinsicScatter(EffectModel):
 
     Attributes
     ----------
-    modelname : parameter
-        The name of the intrinsic scatter model.
+    modelpars : dict
+        A dictionary of model parameters, which must include the key "modelname" with value
+        "COH", "G10", or "C11". Additional parameters may be included depending on the modelname.
+    interp_method : str
+        The interpolation method to use for the G10 and C11 models.
+        Must be one of "sine", "linear", "pchip", or "cubic". Default is "sine".
     """
 
     def __init__(self, modelpars, interp_method="sine", **kwargs):
