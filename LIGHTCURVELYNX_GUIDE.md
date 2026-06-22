@@ -12,7 +12,7 @@ LightCurveLynx is an efficient, flexible, and extensible framework for forward s
 **Correctness is the Top Priority**
 The accuracy of the simulation framework should be prioritized above aspects such as efficiency.
 
-**Code should be modular and use a few consistent APIs.** Models, effects, and survey information are all implemented as classes with a consistent API to allow the user plug in different components for their simulation.
+**Code should be modular and use a few consistent APIs.** Models, effects, and survey information are all implemented as classes with a consistent API to allow the user to plug in different components for their simulation.
 
 **Configuration looks like code.** Instead of custom configuration files, the setup should be represented in pythonic code. This is why the `ParameterizedNode` objects set their attributes to be `_AttributeIndicatorNode`, which allows the user to use the dot notation to assign parameter dependencies.
 
@@ -59,7 +59,7 @@ src/lightcurvelynx/astro_utils/   Functions and classes for astronomy specific f
 src/lightcurvelynx/effects/       EffectModel definitions
 src/lightcurvelynx/math_nodes/    Utility nodes for generating data during sampling
 src/lightcurvelynx/models/        Models of astronomical phenomena
-src/lightcurvelynx/noise_models/  Models of astronomical phenomena
+src/lightcurvelynx/noise_models/  Noise model definitions
 src/lightcurvelynx/obstable/      Survey specific classes and functionality
 src/lightcurvelynx/utils/         General helper utilities
 tests/lightcurvelynx/             Test suite
@@ -81,7 +81,7 @@ Key files:
 
 ## Architecture: ParameterizedNodes
 
-Parameterized nodes (sometimes just called nodes) are Python objects that are a subclass of the ``ParameterizedNode`` class and produce or use model parameters during the simulation. Each parameterized node object registers zero or more parameters using the `add_parameter` function. These parameter's represent the sampled information the parameterized node needs to complete the simulation. The parameterized node uses the `_sample_helper` function to compute the value of each parameter based on any relevant inputs (recursively calling `_sample_helper` for the node's dependencies) and writes those parameter values to the current `GraphState` object. The parameterized nodes structure is designed to enable simple and consistent sampling.
+Parameterized nodes (sometimes just called nodes) are Python objects that are a subclass of the ``ParameterizedNode`` class and produce or use model parameters during the simulation. Each parameterized node object registers zero or more parameters using the `add_parameter` function. These parameters represent the sampled information the parameterized node needs to complete the simulation. The parameterized node uses the `_sample_helper` function to compute the value of each parameter based on any relevant inputs (recursively calling `_sample_helper` for the node's dependencies) and writes those parameter values to the current `GraphState` object. The parameterized nodes structure is designed to enable simple and consistent sampling.
 
 ### ParameterizedNode
 
@@ -153,14 +153,14 @@ A physical or systematic effect to apply to an observation. Effects are added to
 
 Key file: `src/lightcurvelynx/obstable/obs_table.py`
 
-`ObsTable` is the parent class for stroing information about the observations in a survey, such as pointing and observation conditions. Subclasses of `ObsTable` are defined for different surveys and include information about that survey (e.g. default noise parameters, default filter characteristics, etc.).
+`ObsTable` is the parent class for storing information about the observations in a survey, such as pointing and observation conditions. Subclasses of `ObsTable` are defined for different surveys and include information about that survey (e.g. default noise parameters, default filter characteristics, etc.).
 
 **Key method groups:**
 
 - **Introspection:** `head`, `__len__`, `time_bounds`
 - **Data Access:** `__getitem__`, `__contains__`, `get_value_per_row`, `safe_get_survey_value`, `add_column`
 - **Detector Footprints:** `clear_detector_footprint`, `set_detector_footprint`, `uses_footprint`
-- **Filtering:** `filter_rows`, 
+- **Filtering:** `filter_rows`
 - **Read from file:** `from_db`, `from_parquet`
 - **Resampling:** `make_resampled_table`
 - **Saturation:** `compute_saturation`
@@ -175,10 +175,10 @@ A typical LightCurveLynx workflow involves:
 
 1. Loading one or more `ObsTable` for the surveys that you want to simulate.
 2. Loading a `PassbandGroup` for each survey you want to simulate.
-3. Defining the sampling of the parameters via the use of one or more `Parameterized` node objects.
+3. Defining the sampling of the parameters via the use of one or more `ParameterizedNode` objects.
 4. Creating a physical model object of the source to simulate. Setting its parameters from the previously created parameterized nodes. Common parameters include ra, dec, redshift, and t0.
 5. Creating and adding zero or more `EffectModel`s and attaching them to your model object with the `add_effect` function.
-6. Calling `simulate_lightcurves` to create a nested pandas DataFrame with the result information. Each `ObsTable` and `PassbandGroup` pairs must be wrapped in a `SurveyInfo` object.
+6. Calling `simulate_lightcurves` to create a `nested_pandas.NestedFrame` with the results. Each `ObsTable`/`PassbandGroup` pair should be wrapped in a `SurveyInfo` object.
 
 ## Testing Conventions
 
