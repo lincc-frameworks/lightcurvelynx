@@ -45,7 +45,7 @@ python -m pytest -n auto
 ruff check src/ tests/
 ruff format src/ tests/
 
-# Pre-commit (runs ruff, mypy stubs, trailing whitespace, etc.)
+# Pre-commit (runs ruff lint/format, workflow/pyproject schema checks, pytest, etc.)
 pre-commit run --all-files
 
 # Build docs
@@ -85,11 +85,11 @@ Key files:
 
 Key file: `src/lightcurvelynx/graph_state.py`
 
-The `GraphState` object stores the information about the parameter values. Information is stored in this object, instead of in the parameterized nodes themselves, to keep the main objects stateless. In addition a `GraphState` object can be saved and used to deterministically reperform a simulation or part of the simulation.
+The `GraphState` object stores the information about the parameter values. Information is stored in this object, instead of in the parameterized nodes themselves, to keep the main objects stateless. In addition a `GraphState` object can be saved and used to deterministically re-run a simulation or part of the simulation.
 
 The `GraphState` object stores the information about the parameter values. It is organized as a doubly nested dictionary. The outer layer is keyed by the node's name and has values that correspond to that node's parameter dictionary. The inner layer is keyed by the parameter name and maps to the value(s). If `num_samples > 1` the values are stored in a numpy array. If `num_samples==1` the individual (often scalar) value is stored directly. If a function returns an array of length `num_samples` and `num_samples==1`, the value should be extracted from the array *before* `set` is called so that only the individual value is saved.
 
-Example or accessing a parameter:
+Example of accessing a parameter:
 ```python
 param_val = graph_state["node_name"]["param_name"]
 ```
