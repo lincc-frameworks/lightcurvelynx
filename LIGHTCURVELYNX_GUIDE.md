@@ -22,6 +22,8 @@ The accuracy of the simulation framework should be prioritized above aspects suc
 
 **Units should be documented.** New code and docstrings should describe the expected units coming into and out of each function.
 
+**Citation information should be available.** References for used code and data should be made available via docstrings and `citation_compass`.
+
 
 ## Development Setup
 
@@ -73,6 +75,8 @@ Key files:
 | `pyproject.toml` | Project metadata, dependencies, ruff/pytest config |
 | `src/lightcurvelynx/graph_state.py` | The `GraphState` class |
 | `src/lightcurvelynx/base_models.py` | The `ParameterizedNode`, `FunctionNode` and related helper classes |
+| `src/lightcurvelynx/effects/effect_model.py` | The `EffectModel` class |
+| `src/lightcurvelynx/obstable/obs_table.py` | The `ObsTable` class |
 | `src/lightcurvelynx/models/physical_model.py` | The base classes for the models of physical phenomena, including `BasePhysicalModel`, `SEDModel`, and `BandfluxModel` |
 | `src/lightcurvelynx/simulate.py` | The functions to run a simulation of the model |
 
