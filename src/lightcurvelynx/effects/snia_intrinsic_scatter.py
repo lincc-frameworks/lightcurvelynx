@@ -2,6 +2,7 @@
 
 import numpy as np
 import sncosmo
+from citation_compass import cite_inline
 
 from lightcurvelynx.effects.effect_model import EffectModel
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
@@ -230,7 +231,7 @@ class SNIaIntrinsicScatter(EffectModel):
             return flux_density * np.power(10, -0.4 * scatter)
 
         if modelpars["modelname"] == "G10":
-            # Chromatic scatter: draw at node wavelengths, sine-interpolate,
+            # Chromatic scatter: draw at node wavelengths and interpolate using SALT-like color dispersion.
             # plus a coherent component. Both drawn once per SN, broadcast over epochs.
             g10_colordisp = self._get_g10_color_dispersion(modelpars.get("sourcename", "salt3"))
             node_waves = self._get_g10_node_wavelengths(modelpars)
@@ -239,6 +240,10 @@ class SNIaIntrinsicScatter(EffectModel):
             scatter_chrom = self._interp(node_waves, node_draws, wavelengths)
             coh_sigma = modelpars.get("coh_sigma", _DEFAULT_COH_SIGMA_G10)
             scatter = rng.normal(0, coh_sigma) + scatter_chrom  # shape (N,)
+            # Cite G10 source
+            cite_inline("Guy et al. (2010)", "https://doi.org/10.1051/0004-6361/201014468")
+            cite_inline("Kenworthy et al. (2021)", "https://doi.org/10.3847/1538-4357/ac30d8")
+
             return flux_density * np.power(10, -0.4 * scatter[np.newaxis, :])
 
         if modelpars["modelname"] == "C11":
@@ -251,6 +256,10 @@ class SNIaIntrinsicScatter(EffectModel):
             scatter_chrom = self._interp(_C11_KNOT_WAVELENGTHS, node_draws, wavelengths)
             coh_sigma = modelpars.get("coh_sigma", _DEFAULT_COH_SIGMA_C11)
             scatter = rng.normal(0, coh_sigma) + scatter_chrom
+            # Cite C11 source
+            cite_inline(
+                "Chotard et al. (2011)", "PhD thesis, University Claude Bernard Lyon, 1, Lyon, France"
+            )
             return flux_density * np.power(10, -0.4 * scatter[np.newaxis, :])
 
         raise ValueError(f"Unknown intrinsic scatter model: {modelpars['modelname']}")
