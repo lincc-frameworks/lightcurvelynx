@@ -54,16 +54,27 @@ class SNIaIntrinsicScatter(EffectModel):
         )
 
     def _get_g10_color_dispersion(self, sourcename="salt3"):
-        # Returns a callable spline sigma(wavelength) loaded from the sncosmo source.
+        """Returns a callable color dispersion function loaded from the sncosmo source.
+
+        Parameters
+        ----------
+        sourcename : str
+            The name of the sncosmo source to use for the color dispersion function. Default is "salt3".
+
+        """
         source = sncosmo.get_source(sourcename)
         return source._colordisp
 
     def _get_g10_node_wavelengths(self, modelpars):
         """Return node wavelengths for G10 scatter interpolation.
 
-        ``interp_wave_interval="C11"`` (default) uses the 6 C11 knot wavelengths.
-        ``interp_wave_interval=<float>`` generates evenly spaced nodes from
-        2000 to 9200 Å at that spacing (in Angstroms).
+        Parameters
+        ----------
+        modelpars : dict
+            The model parameters dictionary, which may contain the key "interp_wave_interval".
+            ``interp_wave_interval="C11"`` (default) uses the 6 C11 knot wavelengths.
+            ``interp_wave_interval=<float>`` generates evenly spaced nodes from
+            2000 to 9200 Å at that spacing (in Angstroms).
         """
         interval = modelpars.get("interp_wave_interval", "C11")
         if interval == "C11":
@@ -71,7 +82,20 @@ class SNIaIntrinsicScatter(EffectModel):
         return np.arange(2000.0, 9200.0 + float(interval) / 2, float(interval))
 
     def _interp(self, node_waves, node_values, wavelengths):
-        """Dispatch to the selected interpolation method."""
+        """Dispatch to the selected interpolation method.
+        Parameters
+        ----------
+        node_waves : np.ndarray
+            Wavelengths of the nodes, shape (K,), must be sorted ascending.
+        node_values : np.ndarray
+            Scatter values at each node, shape (K,).
+        wavelengths : np.ndarray
+            Target wavelength grid, shape (N,).
+        Returns
+        -------
+        np.ndarray
+            Interpolated scatter values, shape (N,).
+        """
         if self.interp_method == "sine":
             return self._sine_interp(node_waves, node_values, wavelengths)
         if self.interp_method == "pchip":
@@ -81,18 +105,57 @@ class SNIaIntrinsicScatter(EffectModel):
         return self._linear_interp(node_waves, node_values, wavelengths)
 
     def _linear_interp(self, node_waves, node_values, wavelengths):
-        """Linear interpolation between nodes, clamped to edge values outside the range."""
+        """Linear interpolation between nodes, clamped to edge values outside the range.
+        Parameters
+        ----------
+        node_waves : np.ndarray
+            Wavelengths of the nodes, shape (K,), must be sorted ascending.
+        node_values : np.ndarray
+            Scatter values at each node, shape (K,).
+        wavelengths : np.ndarray
+            Target wavelength grid, shape (N,).
+        Returns
+        -------
+        np.ndarray
+            Interpolated scatter values, shape (N,).
+        """
         return np.interp(wavelengths, node_waves, node_values)
 
     def _pchip_interp(self, node_waves, node_values, wavelengths):
-        """PCHIP interpolation — monotone-preserving cubic Hermite, no overshoot."""
+        """PCHIP interpolation — monotone-preserving cubic Hermite, no overshoot.
+        Parameters
+        ----------
+        node_waves : np.ndarray
+            Wavelengths of the nodes, shape (K,), must be sorted ascending.
+        node_values : np.ndarray
+            Scatter values at each node, shape (K,).
+        wavelengths : np.ndarray
+            Target wavelength grid, shape (N,).
+        Returns
+        -------
+        np.ndarray
+            Interpolated scatter values, shape (N,).
+        """
         from scipy.interpolate import PchipInterpolator
 
         lam = np.clip(wavelengths, node_waves[0], node_waves[-1])
         return PchipInterpolator(node_waves, node_values)(lam)
 
     def _cubic_interp(self, node_waves, node_values, wavelengths):
-        """Cubic spline interpolation — C² smooth, may overshoot between nodes."""
+        """Cubic spline interpolation — C² smooth, may overshoot between nodes.
+        Parameters
+        ----------
+        node_waves : np.ndarray
+            Wavelengths of the nodes, shape (K,), must be sorted ascending.
+        node_values : np.ndarray
+            Scatter values at each node, shape (K,).
+        wavelengths : np.ndarray
+            Target wavelength grid, shape (N,).
+        Returns
+        -------
+        np.ndarray
+            Interpolated scatter values, shape (N,).
+        """
         from scipy.interpolate import CubicSpline
 
         lam = np.clip(wavelengths, node_waves[0], node_waves[-1])
