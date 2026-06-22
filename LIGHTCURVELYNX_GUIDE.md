@@ -87,7 +87,7 @@ Key file: `src/lightcurvelynx/graph_state.py`
 
 The `GraphState` object stores the information about the parameter values. Information is stored in this object, instead of in the parameterized nodes themselves, to keep the main objects stateless. In addition a `GraphState` object can be saved and used to deterministically reperform a simulation or part of the simulation.
 
-The `GraphState` object stores the information about the parameter values. It is organized as a doubly nested dictionary. The outer layer is keyed by the node's name and has values that correspond to that node's parameter dictionary. The inner layer is keyed by the parameter name and either an individual value (for `num_samples==1`) or a numpy array of sample values.
+The `GraphState` object stores the information about the parameter values. It is organized as a doubly nested dictionary. The outer layer is keyed by the node's name and has values that correspond to that node's parameter dictionary. The inner layer is keyed by the parameter name and maps to the value(s). If `num_samples > 1` the values are stored in a numpy array. If `num_samples==1` the individual (often scalar) value is stored directly. If a function returns an array of length `num_samples` and `num_samples==1`, the value should be extracted from the array *before* `set` is called so that only the individual value is saved.
 
 Example or accessing a parameter:
 ```python
@@ -271,6 +271,18 @@ Your implementation is correct if:
 - ✓ Same GraphState + code → same output (deterministic given seeds)
 - ✓ Output arrays have expected shapes and finite values
 - ✓ Docstrings document units for all inputs/outputs
+
+### Adding new dependencies
+
+When creating a custom extension requires the addition of a new package dependency, the user should consider the package's license, the package's size, whether it is actively maintained, etc.
+
+- **The package is not open source** → Do not use this package.
+- **The package is out of data and unmaintained* → Do not use this package.
+- **The package has a compatible open source license** → You can (optionally) add the dependency:
+  - Add to core dependencies **only** when the package is core to LightCurveLynx.
+  - Add to "dev" and "all" when a few optional modules depend on the package. This will be the most common case.
+  - Imports outside the code dependencies imports should only be called when needed. The code should use a `try` block and, upon failure, provide instructions on how to install the package.
+  - Tests requiring any package outside the core dependencies should use `pytest.importorskip` to skip tests where the package is not included in either the core or "dev" dependencies.
 
 
 ## Typical LightCurveLynx Workflow
