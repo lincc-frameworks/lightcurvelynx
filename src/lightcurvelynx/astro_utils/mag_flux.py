@@ -8,24 +8,36 @@ from lightcurvelynx.base_models import FunctionNode
 # AB definition is zp=8.9 for 1 Jy
 MAG_AB_ZP_NJY = 8.9 + 2.5 * 9
 
+# Factor to convert flux error to magnitude error
+MAGERR_FACTOR = 2.5 / np.log(10.0)
 
-def mag2flux(mag: npt.ArrayLike) -> npt.ArrayLike:
-    """Convert AB magnitude to bandflux in nJy
+
+def mag2flux(mag: npt.ArrayLike, mag_err: npt.ArrayLike = None) -> npt.ArrayLike:
+    """Convert AB magnitude to bandflux in nJy.
 
     Parameters
     ----------
     mag : ndarray of float
         The magnitude to convert to bandflux.
+    mag_err : ndarray of float, optional
+        The magnitude error to convert to bandflux error.
 
     Returns
     -------
     bandflux : ndarray of float
         The bandflux corresponding to the input magnitude.
+    bandflux_err : ndarray of float, optional
+        The bandflux error corresponding to the input magnitude error.
+        Only returned if ``mag_err`` is provided (not None), making the
+        return value a tuple ``(bandflux, bandflux_err)``.
     """
-    return np.power(10.0, -0.4 * (mag - MAG_AB_ZP_NJY))
+    bandflux = np.power(10.0, -0.4 * (mag - MAG_AB_ZP_NJY))
 
+    if mag_err is None:
+        return bandflux
 
-MAGERR_FACTOR = 2.5 / np.log(10.0)  # Factor to convert flux error to magnitude error
+    bandflux_err = bandflux * mag_err / MAGERR_FACTOR
+    return bandflux, bandflux_err
 
 
 def flux2mag(flux_njy: npt.ArrayLike, flux_err_njy: npt.ArrayLike = None) -> npt.ArrayLike:
@@ -63,13 +75,15 @@ class Mag2FluxNode(FunctionNode):
     ----------
     mag : ndarray of float
         The magnitude to convert to bandflux.
+    mag_err : ndarray of float, optional
+        The magnitude error to convert to bandflux error.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
 
-    def __init__(self, mag, **kwargs):
+    def __init__(self, mag, mag_err=None, **kwargs):
         # Call the super class's constructor with the needed information.
-        super().__init__(func=mag2flux, mag=mag, **kwargs)
+        super().__init__(func=mag2flux, mag=mag, mag_err=mag_err, **kwargs)
 
 
 class Flux2MagNode(FunctionNode):
@@ -79,10 +93,17 @@ class Flux2MagNode(FunctionNode):
     ----------
     flux_njy : float or array-like
         The flux in nJy to convert to magnitude.
+    flux_err_njy : float or array-like, optional
+        The flux error in nJy to convert to magnitude error.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
 
-    def __init__(self, flux_njy, **kwargs):
+    def __init__(self, flux_njy, flux_err_njy=None, **kwargs):
         # Call the super class's constructor with the needed information.
-        super().__init__(func=flux2mag, flux_njy=flux_njy, **kwargs)
+        super().__init__(
+            func=flux2mag,
+            flux_njy=flux_njy,
+            flux_err_njy=flux_err_njy,
+            **kwargs,
+        )

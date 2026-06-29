@@ -51,10 +51,30 @@ def test_flux2mag():
 
 
 def test_mag2flux():
-    """Test that flux2mag is correct."""
+    """Test conversion from AB magnitude/error to nJy flux/error."""
     mag = np.array([0, 8.9, 8.9 + 2.5 * 9])
     desired_flux = np.array([3631e9, 1e9, 1])
-    np.testing.assert_allclose(mag2flux(mag), desired_flux, rtol=1e-3)
+
+    # No magnitude error: return fluxes only, not a tuple.
+    flux_only = mag2flux(mag, mag_err=None)
+
+    assert not isinstance(flux_only, tuple)
+    np.testing.assert_allclose(flux_only, desired_flux, rtol=1e-3)
+
+    # Use 0.1, 0.2, and 0.01 mag uncertainties, respectively.
+    mag_err = np.array([0.10, 0.20, 0.01])
+
+    # flux_err = flux * mag_err / (2.5 / ln(10))
+    desired_flux_err = desired_flux * mag_err / (2.5 / np.log(10.0))
+
+    result = mag2flux(mag, mag_err)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+
+    flux, flux_err = result
+    np.testing.assert_allclose(flux, desired_flux, rtol=1e-3)
+    np.testing.assert_allclose(flux_err, desired_flux_err, rtol=1e-3)
 
 
 def test_mag2flux2mag():
@@ -64,6 +84,14 @@ def test_mag2flux2mag():
     flux = mag2flux(mag)
     mag2 = flux2mag(flux)
     np.testing.assert_allclose(mag, mag2, rtol=1e-10)
+
+    # Test that we can also round trip the errors
+    mag = rng.uniform(-5, 25, 1024)
+    mag_err = rng.uniform(1e-4, 0.5, 1024)
+    flux, flux_err = mag2flux(mag, mag_err)
+    mag2, mag_err2 = flux2mag(flux, flux_err)
+    np.testing.assert_allclose(mag, mag2, rtol=1e-10)
+    np.testing.assert_allclose(mag_err, mag_err2, rtol=1e-10)
 
 
 def test_flux2mag2flux():
@@ -86,6 +114,20 @@ def test_flux2magnode():
         assert node.get_param(state, "function_node_result") == pytest.approx(expected[idx])
 
 
+def test_flux2magnode_with_error():
+    """Test the computation of the Flux2MagNode when flux_err_njy is provided."""
+    fluxes = np.array([3631e9, 1e9, 3631])
+    flux_errs = np.array([0.10 * 3631e9, 0.20 * 1e9, 0.01 * 3631])
+    expected_mag, expected_mag_err = flux2mag(fluxes, flux_errs)
+
+    for idx, (f, f_err) in enumerate(zip(fluxes, flux_errs, strict=False)):
+        node = Flux2MagNode(flux_njy=f, flux_err_njy=f_err)
+        state = node.sample_parameters(num_samples=1)
+        mag, mag_err = node.get_param(state, "function_node_result")
+        assert mag == pytest.approx(expected_mag[idx])
+        assert mag_err == pytest.approx(expected_mag_err[idx])
+
+
 def test_mag2fluxnode():
     """Test the computation of the Mag2FluxNode."""
     mags = np.array([0, 8.9, 8.9 + 2.5 * 9])
@@ -95,6 +137,20 @@ def test_mag2fluxnode():
         node = Mag2FluxNode(mag=m)
         state = node.sample_parameters(num_samples=1)
         assert node.get_param(state, "function_node_result") == pytest.approx(expected[idx])
+
+
+def test_mag2fluxnode_with_error():
+    """Test the computation of the Mag2FluxNode when mag_err is provided."""
+    mags = np.array([0, 8.9, 8.9 + 2.5 * 9])
+    mag_errs = np.array([0.1, 0.2, 0.01])
+    expected_flux, expected_flux_err = mag2flux(mags, mag_errs)
+
+    for idx, (m, m_err) in enumerate(zip(mags, mag_errs, strict=False)):
+        node = Mag2FluxNode(mag=m, mag_err=m_err)
+        state = node.sample_parameters(num_samples=1)
+        flux, flux_err = node.get_param(state, "function_node_result")
+        assert flux == pytest.approx(expected_flux[idx])
+        assert flux_err == pytest.approx(expected_flux_err[idx])
 
 
 def test_flux2magnode_chained():
