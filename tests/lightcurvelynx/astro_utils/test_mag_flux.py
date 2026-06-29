@@ -12,10 +12,42 @@ from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 
 
 def test_flux2mag():
-    """Test that mag2flux is correct."""
-    flux = np.array([3631e9, 1e9, 3631])
-    desired_mag = np.array([0, 8.9, 22.5])
-    np.testing.assert_allclose(flux2mag(flux), desired_mag, atol=1e-3)
+    """Test conversion from nJy flux/error to AB magnitude/error."""
+    flux = np.array([3631e9, 1e9, 3631.0])
+    desired_mag = np.array([0.0, 8.9, 22.5])
+
+    # No flux error: return magnitudes only, not a tuple.
+    mag_only = flux2mag(flux, flux_err_njy=None)
+
+    assert not isinstance(mag_only, tuple)
+    np.testing.assert_allclose(mag_only, desired_mag, atol=1e-3)
+
+    # Use 10%, 20%, and 1% fractional flux uncertainties, respectively.
+    flux_err = np.array(
+        [
+            0.10 * 3631e9,
+            0.20 * 1e9,
+            0.01 * 3631.0,
+        ]
+    )
+
+    # mag_err = (2.5 / ln(10)) * (flux_err / flux)
+    desired_mag_err = np.array(
+        [
+            0.1085736205,  # 1.085736205 * 0.10
+            0.2171472410,  # 1.085736205 * 0.20
+            0.0108573620,  # 1.085736205 * 0.01
+        ]
+    )
+
+    result = flux2mag(flux, flux_err)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+
+    mag, mag_err = result
+    np.testing.assert_allclose(mag, desired_mag, atol=1e-3)
+    np.testing.assert_allclose(mag_err, desired_mag_err, atol=1e-3)
 
 
 def test_mag2flux():

@@ -24,7 +24,9 @@ def mag2flux(mag: npt.ArrayLike) -> npt.ArrayLike:
     """
     return np.power(10.0, -0.4 * (mag - MAG_AB_ZP_NJY))
 
-MAGERR_FACTOR = 2.5 / np.log(10.0) # Factor to convert flux error to magnitude error
+
+MAGERR_FACTOR = 2.5 / np.log(10.0)  # Factor to convert flux error to magnitude error
+
 
 def flux2mag(flux_njy: npt.ArrayLike, flux_err_njy: npt.ArrayLike = None) -> npt.ArrayLike:
     """Convert bandflux in nJy to AB magnitude
@@ -35,14 +37,14 @@ def flux2mag(flux_njy: npt.ArrayLike, flux_err_njy: npt.ArrayLike = None) -> npt
         The bandflux to convert to magnitude.
     flux_err_njy : ndarray of float, optional
         The bandflux error to convert to magnitude error.
-    
+
     Returns
     -------
     mag : ndarray of float
         The magnitude corresponding to the input bandflux.
     mag_err: ndarray of float
-        The magnitude error corresponding to the input bandflux error. 
-        Only returned if flux_err_njy is provided(not None), 
+        The magnitude error corresponding to the input bandflux error.
+        Only returned if flux_err_njy is provided(not None),
         making the return value a tuple (mag, mag_err).
     """
     mag = MAG_AB_ZP_NJY - 2.5 * np.log10(flux_njy)
