@@ -51,10 +51,30 @@ def test_flux2mag():
 
 
 def test_mag2flux():
-    """Test that flux2mag is correct."""
+    """Test conversion from AB magnitude/error to nJy flux/error."""
     mag = np.array([0, 8.9, 8.9 + 2.5 * 9])
     desired_flux = np.array([3631e9, 1e9, 1])
-    np.testing.assert_allclose(mag2flux(mag), desired_flux, rtol=1e-3)
+
+    # No magnitude error: return fluxes only, not a tuple.
+    flux_only = mag2flux(mag, mag_err=None)
+
+    assert not isinstance(flux_only, tuple)
+    np.testing.assert_allclose(flux_only, desired_flux, rtol=1e-3)
+
+    # Use 0.1, 0.2, and 0.01 mag uncertainties, respectively.
+    mag_err = np.array([0.10, 0.20, 0.01])
+
+    # flux_err = flux * mag_err / (2.5 / ln(10))
+    desired_flux_err = desired_flux * mag_err / (2.5 / np.log(10.0))
+
+    result = mag2flux(mag, mag_err)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+
+    flux, flux_err = result
+    np.testing.assert_allclose(flux, desired_flux, rtol=1e-3)
+    np.testing.assert_allclose(flux_err, desired_flux_err, rtol=1e-3)
 
 
 def test_mag2flux2mag():
@@ -64,6 +84,14 @@ def test_mag2flux2mag():
     flux = mag2flux(mag)
     mag2 = flux2mag(flux)
     np.testing.assert_allclose(mag, mag2, rtol=1e-10)
+
+    # Test that we can also round trip the errors
+    mag = rng.uniform(-5, 25, 1024)
+    mag_err = rng.uniform(1e-4, 0.5, 1024)
+    flux, flux_err = mag2flux(mag, mag_err)
+    mag2, mag_err2 = flux2mag(flux, flux_err)
+    np.testing.assert_allclose(mag, mag2, rtol=1e-10)
+    np.testing.assert_allclose(mag_err, mag_err2, rtol=1e-10)
 
 
 def test_flux2mag2flux():

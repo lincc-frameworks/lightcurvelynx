@@ -8,24 +8,36 @@ from lightcurvelynx.base_models import FunctionNode
 # AB definition is zp=8.9 for 1 Jy
 MAG_AB_ZP_NJY = 8.9 + 2.5 * 9
 
+# Factor to convert flux error to magnitude error
+MAGERR_FACTOR = 2.5 / np.log(10.0)
 
-def mag2flux(mag: npt.ArrayLike) -> npt.ArrayLike:
-    """Convert AB magnitude to bandflux in nJy
+
+def mag2flux(mag: npt.ArrayLike, mag_err: npt.ArrayLike = None) -> npt.ArrayLike:
+    """Convert AB magnitude to bandflux in nJy.
 
     Parameters
     ----------
     mag : ndarray of float
         The magnitude to convert to bandflux.
+    mag_err : ndarray of float, optional
+        The magnitude error to convert to bandflux error.
 
     Returns
     -------
     bandflux : ndarray of float
         The bandflux corresponding to the input magnitude.
+    bandflux_err : ndarray of float, optional
+        The bandflux error corresponding to the input magnitude error.
+        Only returned if ``mag_err`` is provided (not None), making the
+        return value a tuple ``(bandflux, bandflux_err)``.
     """
-    return np.power(10.0, -0.4 * (mag - MAG_AB_ZP_NJY))
+    bandflux = np.power(10.0, -0.4 * (mag - MAG_AB_ZP_NJY))
 
+    if mag_err is None:
+        return bandflux
 
-MAGERR_FACTOR = 2.5 / np.log(10.0)  # Factor to convert flux error to magnitude error
+    bandflux_err = bandflux * mag_err / MAGERR_FACTOR
+    return bandflux, bandflux_err
 
 
 def flux2mag(flux_njy: npt.ArrayLike, flux_err_njy: npt.ArrayLike = None) -> npt.ArrayLike:
