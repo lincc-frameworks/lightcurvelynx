@@ -725,6 +725,27 @@ class ObsTable:
 
         return self
 
+    def filter_invalid_rows(self, columns):
+        """Filter the rows in the ObsTable to only include those that have valid (non-NaN) values
+        in the specified columns.
+
+        Parameters
+        ----------
+        columns : list of str
+            The columns to check for valid values.
+
+        Returns
+        -------
+        self : ObsTable
+            The filtered ObsTable object.
+        """
+        mask = np.ones(len(self._table), dtype=bool)
+        for col in columns:
+            mask &= ~self._table[col].isna()
+        self._table = self._table[mask]
+        self._update_cached_data()
+        return self
+
     def is_observed(self, query_ra, query_dec, *, radius=None, t_min=None, t_max=None):
         """Check if the query point(s) fall within the field of view of any
         pointing in the ObsTable.
