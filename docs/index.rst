@@ -178,6 +178,7 @@ This project is supported by Schmidt Sciences.
    Simulations <simulations>
    Survey Data <survey_data>
    Custom Models and Effects <custom_models>
+   Noise Models <noise_models>
    Results and Output <results_and_output>
    Notebooks <notebooks>
    API Reference <autoapi/index>
