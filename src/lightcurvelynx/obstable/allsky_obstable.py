@@ -188,7 +188,7 @@ class AllSkyObsTable(ObsTable):
             inds = [curr_rows] * num_queries
         else:
             inds = []
-            for t_min_val, t_max_val in zip(t_min, t_max):
+            for t_min_val, t_max_val in zip(t_min, t_max, strict=False):
                 curr_rows = all_rows[(all_times >= t_min_val) & (all_times <= t_max_val)]
                 inds.append(curr_rows)
 
