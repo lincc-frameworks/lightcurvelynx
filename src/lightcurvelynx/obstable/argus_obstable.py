@@ -84,7 +84,6 @@ class ArgusHealpixObsTable(ObsTable):
         table,
         *,
         colmap=None,
-        apply_saturation=True,
         saturation_mags=None,
         nside=None,
         **kwargs,
@@ -124,7 +123,6 @@ class ArgusHealpixObsTable(ObsTable):
         super().__init__(
             table=table,
             colmap=colmap,
-            apply_saturation=apply_saturation,
             saturation_mags=saturation_mags,
             **kwargs,
         )
