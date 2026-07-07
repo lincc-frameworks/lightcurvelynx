@@ -77,3 +77,8 @@ The ``ZTFObsTable`` class stores pointing and noise information from the `Zwicky
 Argus Data (ArgusObsTable)
 -------------------------------------------------------------------------------
 The ``ArgusObsTable`` class stores pointing and noise information from simulations of the upcoming `Argus Array <https://www.argusarray.org/>`__. This class is still being validated and may change. Please contact the LightCurveLynx team if you want to use this class or have suggestions for improvement.
+
+
+All Sky Simulations
+-------------------------------------------------------------------------------
+The ``AllSkyObsTable`` class allows users to simulate objects regardless of where they are in the sky. It only requires time and filter columns. It does not perform any spatial filtering. All objects are assumed to be viewed at each time. See the (:doc:`All-Sky ObsTable Notebook <notebooks/allsky_obstable>`) for an example of how to use the ``AllSkyObsTable`` class.
