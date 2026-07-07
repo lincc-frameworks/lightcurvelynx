@@ -23,10 +23,6 @@ class FakeObsTable(ObsTable):
     colmap : dict, optional
         A mapping of standard column names to a list of possible names in the input table.
         Each value in the dictionary can be a string or a list of strings.
-    zp_per_band : dict, optional
-        A dictionary mapping filter names to their instrumental zero points (flux in nJy
-        corresponding to 1 electron per exposure). The filters provided must match those
-        in the table. This is required if the table does not have a zero point column.
     bandflux_error : float or dict, optional
         If provided, use this constant flux error (in nJy) for all observations (overriding
         the normal noise compuation). A value of 0.0 will produce a noise-free simulation.
@@ -39,9 +35,7 @@ class FakeObsTable(ObsTable):
         provided must match those in the table. If not provided, saturation effects will not be applied.
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
-        for survey parameters such as:
-
-        - survey_name: The name of the survey (default="FAKE_SURVEY").
+        for survey parameters, such as "survey_name" or "read_noise".
     """
 
     # Default survey values.
@@ -62,6 +56,8 @@ class FakeObsTable(ObsTable):
         *,
         colmap=None,
         bandflux_error=None,
+        radius=None,
+        saturation_mags=None,
         **kwargs,
     ):
         # Pass along all the survey parameters to the parent class.
@@ -69,5 +65,7 @@ class FakeObsTable(ObsTable):
             table,
             colmap=colmap,
             bandflux_error=bandflux_error,
+            radius=radius,
+            saturation_mags=saturation_mags,
             **kwargs,
         )
