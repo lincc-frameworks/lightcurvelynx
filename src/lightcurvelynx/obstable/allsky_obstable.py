@@ -55,7 +55,7 @@ class AllSkyObsTable(ObsTable):
             colmap = self._default_colnames
 
         # Check the unsupported terms in the kwargs and raise an error if they are provided.
-        if "detector_footprint" in kwargs or "wcs" in kwargs:  # pragma: no cover
+        if kwargs.get("detector_footprint") is not None or kwargs.get("wcs") is not None:  # pragma: no cover
             raise ValueError("AllSkyObsTable does not support detector footprints.")
 
         super().__init__(table=table, colmap=colmap, **kwargs)
@@ -136,16 +136,28 @@ class AllSkyObsTable(ObsTable):
 
         Returns
         -------
-        inds : list[int] or list[numpy.ndarray]
-            Depending on the input, this is either a list of indices for a single query point
-            or a list of arrays (of indices) for an array of query points.
+        inds : numpy.ndarray or list[numpy.ndarray]
+            If the input is a single query point, this is a 1D array of row indices.
+            If the input is an array of query points, this is a list of index arrays (one per query).
         """
+        if query_ra is None or query_dec is None:
+            raise ValueError("Query RA and dec must be provided for range search, but got None.")
+
         # If the query RA and Dec are scalars, convert them to 1D arrays for consistent processing.
         is_scalar = np.isscalar(query_ra) and np.isscalar(query_dec)
-        query_ra = np.atleast_1d(query_ra)
-        query_dec = np.atleast_1d(query_dec)
+        try:
+            query_ra = np.atleast_1d(query_ra).astype(float)
+            query_dec = np.atleast_1d(query_dec).astype(float)
+        except ValueError as err:
+            raise ValueError("Query RA and Dec must be convertible to float.") from err
+
+        if query_ra.ndim != 1 or query_dec.ndim != 1:
+            raise ValueError("Query RA and Dec must be 1-dimensional arrays.")
         if len(query_ra) != len(query_dec):
             raise ValueError("Query RA and Dec must have the same length.")
+        if np.any(np.isnan(query_ra)) or np.any(np.isnan(query_dec)):
+            raise ValueError("Query RA and Dec cannot contain NaN.")
+
         num_queries = len(query_ra)
 
         # If t_min is a scalar, convert it to a 1D array for consistent processing.
@@ -167,10 +179,18 @@ class AllSkyObsTable(ObsTable):
         # For each query point, apply time filtering if specified.
         all_rows = np.arange(len(self._table))
         all_times = self._table["time"].to_numpy()
-        inds = []
-        for t_min_val, t_max_val in zip(t_min, t_max, strict=False):
-            curr_rows = all_rows[(all_times >= t_min_val) & (all_times <= t_max_val)]
-            inds.append(curr_rows)
+
+        # Fast path when all queries share the same time bounds (common for scalar/None t_min/t_max).
+        if num_queries == 0:
+            inds = []
+        elif np.all(t_min == t_min[0]) and np.all(t_max == t_max[0]):
+            curr_rows = all_rows[(all_times >= t_min[0]) & (all_times <= t_max[0])]
+            inds = [curr_rows] * num_queries
+        else:
+            inds = []
+            for t_min_val, t_max_val in zip(t_min, t_max):
+                curr_rows = all_rows[(all_times >= t_min_val) & (all_times <= t_max_val)]
+                inds.append(curr_rows)
 
         # If the input was a single query point, return a single array of indices instead of a list of arrays.
         if is_scalar:
