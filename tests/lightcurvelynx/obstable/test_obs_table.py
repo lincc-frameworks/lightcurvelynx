@@ -944,7 +944,6 @@ def test_obstable_make_resampled_table():
         pixel_scale=0.112,
         radius=1.03,
         survey_other=1.2,
-        apply_saturation=True,
         saturation_mags=saturation_mags,
     )
 
@@ -1003,7 +1002,6 @@ def test_obstable_make_resampled_table_overwrite():
         values,
         detector_footprint=detector_footprint,
         saturation_mags=saturation_mags,
-        apply_saturation=True,
     )
 
     # Create a resampled ObsTable with some new values.
