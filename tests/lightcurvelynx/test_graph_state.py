@@ -530,6 +530,40 @@ def test_graph_state_equal():
     assert state5 != state6
 
 
+def test_graph_state_equal_scalars():
+    """Test that we use == on GraphStates with scalar values."""
+    state1 = GraphState(num_samples=1)
+    state1.set("a", "v1", 1.0)
+    state1.set("a", "v2", 2.0)
+    state1.set("b", "v1", None)
+
+    state2 = GraphState(num_samples=1)
+    state2.set("a", "v1", 1.0)
+    state2.set("a", "v2", 2.0)
+    state2.set("b", "v1", None)
+    assert state1 == state2
+
+    state2.set("a", "v2", 3.0)
+    assert state1 != state2
+
+
+def test_graph_state_equal_nones():
+    """Test that we use == on GraphStates with None values."""
+    state1 = GraphState(num_samples=3)
+    state1.set("a", "v1", [1.0, 2.0, 3.0])
+    state1.set("a", "v2", [2, 3, None])  # One None
+    state1.set("b", "v1", [None, None, None])  # All None
+
+    state2 = GraphState(num_samples=3)
+    state2.set("a", "v1", [1.0, 2.0, 3.0])
+    state2.set("a", "v2", [2, 3, None])  # One None
+    state2.set("b", "v1", [None, None, None])  # All None
+    assert state1 == state2
+
+    state2.set("b", "v1", [2, 4, None])
+    assert state1 != state2
+
+
 def test_graph_state_fixed():
     """Test that we respected the 'fixed' flag for GraphState."""
     state = GraphState()

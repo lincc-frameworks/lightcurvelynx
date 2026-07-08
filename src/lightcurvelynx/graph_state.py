@@ -148,8 +148,23 @@ class GraphState:
             for var_name, var_value in node_params.items():
                 if var_name not in other_params:
                     return False
-                if not np.allclose(var_value, other_params[var_name]):
-                    return False
+
+                values1 = np.atleast_1d(var_value)
+                values2 = np.atleast_1d(other_params[var_name])
+                if np.all(values1 == None) and np.all(values2 == None):  # noqa: E711
+                    # Both arrays are all None values, so they are equal.
+                    # This happens a lot for unset values.
+                    continue
+
+                # If the values are numeric, test that they are close.
+                # If this fails (e.g. because the values are objects), then
+                # test for exact equality.
+                try:
+                    if not np.allclose(values1, values2, equal_nan=True):
+                        return False
+                except (TypeError, ValueError):
+                    if not np.array_equal(values1, values2):
+                        return False
 
         # Finally check that the 'fixed' dictionary is the same.
         return self.fixed_vars == other.fixed_vars
@@ -472,7 +487,7 @@ class GraphState:
         if self.num_samples == 1:
             # If this GraphState holds only a single sample, set it from the given value.
             self.states[node_name][var_name] = value
-        elif np.isscalar(value):
+        elif value is None or np.isscalar(value):
             # If the value is a scalar, expand it to the correct number of samples.
             self.states[node_name][var_name] = np.full(self.num_samples, value)
         elif len(value) != self.num_samples:
