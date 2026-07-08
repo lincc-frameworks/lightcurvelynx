@@ -103,7 +103,11 @@ in multiple observation tables and corresponding passband groups. See the
 Can I Rerun a Simulation with the Same Parameters?
 -------------------------------------------------------------------------------
 
-Yes. LightCurveLynx allows you to rerun a simulation with the same parameters by using the ``GraphState`` object. The ``GraphState`` object captures the state of the simulation graph and allows you to rerun the simulation with the same parameters. You can even change the survey information. This is particularly useful if you want to compare the results you get from different surveys on the exact same set of objects.
+Yes. There are two approaches do doing this. 
+
+First, if you want to produce exactly the same results, you can provide a random number generator with a fixed seed to the ``simulate_lightcurves()`` function. This will ensure that the same random numbers are used in the simulation for both parameter sampling and noise generation, resulting in identical outputs.
+
+Second, LightCurveLynx allows you to rerun a new simulation with the same model parameters by using the ``GraphState`` object. The ``GraphState`` object captures the state of the simulation graph and allows you to rerun the simulation with the same parameters. This approach can be used to rerun a simulation with different survey information (or the same survey information and different noise realizations). This is particularly useful if you want to compare the results you get from different surveys on the exact same set of objects.
 
 You can capture the state of the previous simulation from the "params" column in its results table:
 
@@ -123,6 +127,8 @@ Then you pass this ``previous_state`` to the ``simulate_lightcurves()`` function
     )
 
 You can see the :doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` for an example of how to do this.
+
+It is possible to change the values within the ``GraphState`` object before passing it to the ``simulate_lightcurves()`` function. For example, you might want to change the objects' ``t0`` values to correspond to the new survey's time range. However, care should be taken when changing the values within the ``GraphState`` object. If other parameters depend on the values you change, they will **not** be updated automatically and you can end up with inconsistent results.
 
 
 Can I Simulate Spectra?
