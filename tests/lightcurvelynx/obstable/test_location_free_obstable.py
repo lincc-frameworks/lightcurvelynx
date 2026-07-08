@@ -1,19 +1,19 @@
 import numpy as np
 import pytest
-from lightcurvelynx.obstable.no_location_obstable import NoLocationObsTable
+from lightcurvelynx.obstable.location_free_obstable import LocationFreeObsTable
 
 
-def test_create_no_location_obstable():
-    """Create a minimal NoLocationObsTable object and perform basic queries."""
+def test_create_location_free_obstable():
+    """Create a minimal LocationFreeObsTable object and perform basic queries."""
     num_points = 50
     values = {
         "time": 59000.0 + np.arange(num_points),
         "filter": np.random.choice(["g", "r", "i"], size=num_points),
     }
-    obs_table = NoLocationObsTable(values)
+    obs_table = LocationFreeObsTable(values)
     assert len(obs_table) == num_points
 
-    # The query should return all indices since the NoLocationObsTable covers the entire sky.
+    # The query should return all indices since the LocationFreeObsTable covers the entire sky.
     query_ra = np.random.uniform(0.0, 360.0, size=10)
     query_dec = np.random.uniform(-90.0, 90.0, size=10)
     inds = obs_table.range_search(query_ra, query_dec)
@@ -39,19 +39,19 @@ def test_create_no_location_obstable():
 
     # We fail if we are missing required columns.
     with pytest.raises(KeyError):
-        _ = NoLocationObsTable({"time": 59000.0 + np.arange(num_points)})
+        _ = LocationFreeObsTable({"time": 59000.0 + np.arange(num_points)})
     with pytest.raises(KeyError):
-        _ = NoLocationObsTable({"filter": np.random.choice(["g", "r", "i"], size=num_points)})
+        _ = LocationFreeObsTable({"filter": np.random.choice(["g", "r", "i"], size=num_points)})
 
 
-def test_no_location_obstable_build_moc():
-    """Test that the MOC built from an NoLocationObsTable covers the entire sky."""
+def test_location_free_obstable_build_moc():
+    """Test that the MOC built from an LocationFreeObsTable covers the entire sky."""
     num_points = 50
     values = {
         "time": 59000.0 + np.arange(num_points),
         "filter": np.random.choice(["g", "r", "i"], size=num_points),
     }
-    obs_table = NoLocationObsTable(values)
+    obs_table = LocationFreeObsTable(values)
     moc = obs_table.build_moc(max_depth=5)
     assert moc is not None
     assert moc.sky_fraction == pytest.approx(1.0, rel=1e-6)

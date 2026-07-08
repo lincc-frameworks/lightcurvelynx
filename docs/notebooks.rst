@@ -87,7 +87,7 @@ The following notebooks provide example simulations using non-Rubin surveys.
 .. toctree::
     :maxdepth: 1
 
-    All-Sky ObsTable Example <notebooks/no_location_obstable>
+    All-Sky ObsTable Example <notebooks/location_free_obstable>
     Argus Survey (prototype development)<notebooks/pre_executed/argus_example>
     SkyMapper Survey <notebooks/pre_executed/skymapper_example>
 
