@@ -103,7 +103,7 @@ in multiple observation tables and corresponding passband groups. See the
 Can I Rerun a Simulation with the Same Parameters?
 -------------------------------------------------------------------------------
 
-Yes. There are two approaches do doing this. 
+Yes. There are two approaches to doing this. 
 
 First, if you want to produce exactly the same results, you can provide a random number generator with a fixed seed to the ``simulate_lightcurves()`` function. This will ensure that the same random numbers are used in the simulation for both parameter sampling and noise generation, resulting in identical outputs.
 
