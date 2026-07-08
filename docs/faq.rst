@@ -100,6 +100,31 @@ in multiple observation tables and corresponding passband groups. See the
 :doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` for an example of how to do this.
 
 
+Can I Rerun a Simulation with the Same Parameters?
+-------------------------------------------------------------------------------
+
+Yes. LightCurveLynx allows you to rerun a simulation with the same parameters by using the ``GraphState`` object. The ``GraphState`` object captures the state of the simulation graph and allows you to rerun the simulation with the same parameters. You can even change the survey information. This is particularly useful if you want to compare the results you get from different surveys on the exact same set of objects.
+
+You can capture the state of the previous simulation from the "params" column in its results table:
+
+.. code-block:: python
+
+    previous_state = GraphState.from_list(results["params"].values)
+
+Then you pass this ``previous_state`` to the ``simulate_lightcurves()`` function to rerun the simulation with the same parameters:
+
+.. code-block:: python
+
+    results2 = simulate_lightcurves(
+        model,
+        previous_state.num_samples,
+        new_survey_info,
+        graph_state=previous_state,
+    )
+
+You can see the :doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` for an example of how to do this.
+
+
 Can I Simulate Spectra?
 --------------------------------------------------------------------------------
 
