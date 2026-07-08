@@ -1,4 +1,4 @@
-"""The AllSkyObsTable stores observation information from the entire sky."""
+"""The NoLocationObsTable stores observation information from the entire sky."""
 
 import logging
 
@@ -9,8 +9,8 @@ from mocpy import MOC
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 
-class AllSkyObsTable(ObsTable):
-    """An ObsTable for observations from the entire sky.
+class NoLocationObsTable(ObsTable):
+    """An ObsTable for observations from the entire sky (no location information).
 
     This is used when you want to simulate observations on a regular cadence
     regardless of where they are in the sky, such as when comparing them to
@@ -42,7 +42,7 @@ class AllSkyObsTable(ObsTable):
     _default_survey_values = {
         "nexposure": 1,
         "radius": 180.0,  # degrees
-        "survey_name": "allsky",
+        "survey_name": "no_location",
     }
 
     def __init__(self, table, *, colmap=None, **kwargs):
@@ -56,7 +56,7 @@ class AllSkyObsTable(ObsTable):
 
         # Check the unsupported terms in the kwargs and raise an error if they are provided.
         if kwargs.get("detector_footprint") is not None or kwargs.get("wcs") is not None:  # pragma: no cover
-            raise ValueError("AllSkyObsTable does not support detector footprints.")
+            raise ValueError("NoLocationObsTable does not support detector footprints.")
 
         super().__init__(table=table, colmap=colmap, **kwargs)
 
@@ -72,10 +72,10 @@ class AllSkyObsTable(ObsTable):
             The WCS for the footprint. Either this or pixel_scale must be provided if
             a footprint is provided as a Astropy region.
         """
-        raise NotImplementedError("AllSkyObsTable does not support detector footprints.")
+        raise NotImplementedError("NoLocationObsTable does not support detector footprints.")
 
     def _build_spatial_data(self):
-        """Build the spatial data for the AllSkyObsTable. This is a no-op since the AllSkyObsTable
+        """Build the spatial data for the NoLocationObsTable. This is a no-op since the NoLocationObsTable
         covers the entire sky.
         """
         pass
@@ -99,7 +99,7 @@ class AllSkyObsTable(ObsTable):
             The Multi-Order Coverage Map constructed from the data set.
         """
         logger = logging.getLogger(__name__)
-        logger.debug(f"Building MOC from AllSkyObsTable at depth={max_depth}.")
+        logger.debug(f"Building MOC from NoLocationObsTable at depth={max_depth}.")
         moc = MOC.from_healpix_cells(
             np.arange(12, dtype=np.uint64),
             depth=0,
