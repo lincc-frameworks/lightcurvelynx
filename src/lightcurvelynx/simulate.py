@@ -113,16 +113,13 @@ class SimulationInfo:
         if self.num_samples <= 0:
             raise ValueError("Number of samples must be a positive integer.")
 
-        # Copy the graph state if one is provided.
-        if graph_state is not None:
-            if graph_state.num_samples != self.num_samples:
-                raise ValueError(
-                    f"Graph state has {graph_state.num_samples} samples, but simulation is set to "
-                    f"{self.num_samples} samples."
-                )
-            self.graph_state = graph_state.copy()
-        else:
-            self.graph_state = None
+        # Link the graph state if one is provided.
+        if graph_state is not None and graph_state.num_samples != self.num_samples:
+            raise ValueError(
+                f"Graph state has {graph_state.num_samples} samples, but simulation is set to "
+                f"{self.num_samples} samples."
+            )
+        self.graph_state = graph_state
 
         # If an output file path is provided, check that the directory exists.
         if output_file_path is not None:
@@ -326,7 +323,7 @@ def _simulate_lightcurves_batch(simulation_info):
     num_surveys = len(obstable)
 
     # Sample the parameter space of this model if it is not already provided. We do this once for
-    # all surveys, so the object use the same parameters across all observations.
+    # all surveys, so each object uses the same parameters across all observations.
     if num_samples <= 0:
         raise ValueError("Invalid number of samples.")
     if simulation_info.graph_state is not None:

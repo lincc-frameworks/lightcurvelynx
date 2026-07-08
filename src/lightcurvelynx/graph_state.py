@@ -620,7 +620,7 @@ class GraphState:
             The number of sample to extract.
         """
         new_state = self.extract_slice(sample_num, sample_num + 1)
-        new_state.sample_idx = sample_num
+        new_state.sample_idx = new_state.sample_offset
         return new_state
 
     def extract_slice(self, start, stop):
