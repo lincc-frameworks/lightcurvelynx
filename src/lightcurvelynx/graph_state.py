@@ -153,10 +153,10 @@ class GraphState:
                 values2 = np.atleast_1d(other_params[var_name])
                 if np.all(values1 == None) and np.all(values2 == None):  # noqa: E711
                     # Both arrays are all None values, so they are equal.
-                    # This happens a lot of unset values.
+                    # This happens a lot for unset values.
                     continue
 
-                # If the values are numberic, test that they are close.
+                # If the values are numeric, test that they are close.
                 # If this fails (e.g. because the values are objects), then
                 # test for exact equality.
                 try:
