@@ -67,6 +67,9 @@ class SimulationInfo:
         Whether to save the full filter names in the results (including survey prefix).
     progress_bar : bool
         Whether to show a progress bar during the simulation.
+    graph_state : GraphState, optional
+        The predefined graph state to use to replay a previous simulation. If None,
+        a new graph state is sampled.
     kwargs : dict
         Additional keyword arguments to pass to the simulation function.
     """
@@ -87,6 +90,7 @@ class SimulationInfo:
         output_file_path=None,
         save_full_filter_names=False,
         progress_bar=True,
+        graph_state=None,
         **kwargs,
     ):
         self.model = model
@@ -109,6 +113,18 @@ class SimulationInfo:
         if self.num_samples <= 0:
             raise ValueError("Number of samples must be a positive integer.")
 
+        # Copy the graph state if one is provided.
+        if graph_state is not None:
+            if graph_state.num_samples != self.num_samples:
+                raise ValueError(
+                    f"Graph state has {graph_state.num_samples} samples, but simulation is set to "
+                    f"{self.num_samples} samples."
+                )
+            self.graph_state = graph_state.copy()
+        else:
+            self.graph_state = None
+
+        # If an output file path is provided, check that the directory exists.
         if output_file_path is not None:
             self.output_file_path = Path(output_file_path)
             if not self.output_file_path.parent.exists():
@@ -174,6 +190,12 @@ class SimulationInfo:
             else:
                 batch_output_file_path = None
 
+            # If we have a graph state, take a slice for this batch.
+            if self.graph_state is not None:
+                batch_graph_state = self.graph_state.extract_slice(start_idx, end_idx)
+            else:
+                batch_graph_state = None
+
             # Create a subset of the batch. Most information is the same (references to the
             # same objects), except for the number of samples and the RNG.
             batch_info = SimulationInfo(
@@ -190,6 +212,7 @@ class SimulationInfo:
                 output_file_path=batch_output_file_path,
                 save_full_filter_names=self.save_full_filter_names,
                 progress_bar=False,  # Don't show per-batch progress bars.
+                graph_state=batch_graph_state,
                 **self.kwargs,
             )
             batches.append(batch_info)
@@ -302,16 +325,20 @@ def _simulate_lightcurves_batch(simulation_info):
     rng = simulation_info.rng
     num_surveys = len(obstable)
 
-    # Sample the parameter space of this model. We do this once for all surveys, so the
-    # object use the same parameters across all observations.
+    # Sample the parameter space of this model if it is not already provided. We do this once for
+    # all surveys, so the object use the same parameters across all observations.
     if num_samples <= 0:
         raise ValueError("Invalid number of samples.")
-    logger.info(f"Sampling {num_samples} parameter sets from the model.")
-    sample_states = model.sample_parameters(
-        num_samples=num_samples,
-        rng_info=rng,
-        sample_offset=sample_offset,
-    )
+    if simulation_info.graph_state is not None:
+        logger.info("Using provided graph state to sample parameters.")
+        sample_states = simulation_info.graph_state
+    else:
+        logger.info(f"Sampling {num_samples} parameter sets from the model.")
+        sample_states = model.sample_parameters(
+            num_samples=num_samples,
+            rng_info=rng,
+            sample_offset=sample_offset,
+        )
 
     # Create a dictionary for the object level information, including any saved parameters.
     # Some of these are placeholders (e.g. nobs) until they can be filled in during the simulation.
@@ -600,6 +627,7 @@ def simulate_lightcurves(
     batch_size=100_000,
     save_full_filter_names=False,
     progress_bar=True,
+    graph_state=None,
 ):
     """Generate a number of simulations of the given model and information
     from one or more surveys. The result data can either be returned directly
@@ -671,6 +699,9 @@ def simulate_lightcurves(
         Whether to save the full filter names in the results (including survey prefix).
     progress_bar : bool
         Whether to show a progress bar during the simulation.
+    graph_state : GraphState, optional
+        The predefined graph state to use to replay a previous simulation. If None,
+        a new graph state is sampled.
 
     Returns
     -------
@@ -741,6 +772,7 @@ def simulate_lightcurves(
         output_file_path=output_file_path,
         save_full_filter_names=save_full_filter_names,
         progress_bar=progress_bar,
+        graph_state=graph_state,
     )
 
     # If we are given a number of jobs, make sure the batch size is not larger than
