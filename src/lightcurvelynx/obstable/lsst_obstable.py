@@ -4,8 +4,10 @@ from __future__ import annotations  # "type1 | type2" syntax in Python <3.10
 
 import logging
 import warnings
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
@@ -123,6 +125,26 @@ class LSSTObsTable(ObsTable):
         "time": "exp_midpt_mjd",  # days
         # Some of the values are defined in the ConsDB schema:
         # https://sdm-schemas.lsst.io/cdb_lsstcam.html#exposure
+        "sky_bg_e": "sky_bg_median",  # Averge sky background in electrons per pixel
+        "zp_mag_e": "zero_point_median",  # magnitude to produce 1 electron per exposure
+    }
+
+    # Column names for the Rubin nightly visit summary tables:
+    # https://s3df.slac.stanford.edu/data/rubin/sim-data/schedview/reports/
+    # The schema is largely based on the Rubin Science Validation visit data above.
+    # Note the keys of this dictionary are used to filter the JSON tables, so it should
+    # include all columns we want to keep.
+    _nightly_visits_colmap = {
+        "airmass": "airmass",  # dimensionless
+        "dec": "fieldDec",  # degrees
+        "exptime": "visitExposureTime",  # seconds
+        "filter": "band",
+        "maglim": "fiveSigmaDepth",  # magnitudes
+        "ra": "fieldRA",  # degrees
+        "rotation": "rotSkyPos",  # degrees
+        "seeing": "seeingFwhmEff",  # arcseconds
+        "skybrightness": "skyBrightness",  # mag per arcsec^2
+        "time": "exp_midpt_mjd",  # days
         "sky_bg_e": "sky_bg_median",  # Averge sky background in electrons per pixel
         "zp_mag_e": "zero_point_median",  # magnitude to produce 1 electron per exposure
     }
@@ -331,5 +353,71 @@ class LSSTObsTable(ObsTable):
         # Create the ObsTable object using the science validation visits column mapping
         # (if a custom column mapping is not provided).
         colmap = kwargs.pop("colmap", cls._sv_visits_colmap)
+        obstable = cls(table, colmap=colmap, **kwargs)
+        return obstable
+
+    @staticmethod
+    def load_nightly_summary_tables_from_json(filenames, additional_cols=None, **kwargs):
+        """Load one or more nightly summary tables from the given filenames.
+
+        Parameters
+        ----------
+        filenames : str, Path or list of str or Path
+            The list of JSON filenames containing the nightly summary tables.
+        additional_cols : list of str, optional
+            A list of additional column names to keep from the JSON files, in addition
+            to the columns in the nightly visits column mapping.
+        **kwargs : dict
+            Additional keyword arguments to pass to the pandas.read_json function.
+
+        Returns
+        -------
+        table : pandas.core.frame.DataFrame
+            A single DataFrame object containing the concatenated data from all the nightly summary tables.
+        """
+        if isinstance(filenames, str | Path):
+            filenames = [filenames]
+
+        # Assemble a list of columns to extract.
+        cols_to_keep = list(LSSTObsTable._nightly_visits_colmap.values())
+        if additional_cols is not None:
+            cols_to_keep.extend(additional_cols)
+
+        # Load each table, but only save some of the columns.
+        loaded_tables = [pd.read_json(fname, **kwargs)[cols_to_keep] for fname in filenames]
+        return pd.concat(loaded_tables, ignore_index=True)
+
+    @classmethod
+    def from_nightly_summary_table(cls, table, **kwargs):
+        """Construct an LSSTObsTable object from a nightly summary table.
+        https://s3df.slac.stanford.edu/data/rubin/sim-data/schedview/reports/
+
+        This table can be loaded from JSON files with:
+        LSSTObsTable.load_nightly_summary_tables_from_json(filenames)
+
+        Parameters
+        ----------
+        table : dict or pandas.core.frame.DataFrame
+            The science validation visits table containing the LSSTObsTable data.
+        **kwargs : dict
+            Additional keyword arguments to pass to the LSSTObsTable constructor.
+
+        Returns
+        -------
+        obstable : LSSTObsTable
+            An LSSTObsTable object containing the data from the science validation visits table.
+        """
+        # Make sure we have a pandas DataFrame without NaN values.
+        if isinstance(table, dict):
+            table = pd.DataFrame(table)
+        table = table.dropna().reset_index(drop=True)
+
+        # Set the radius as the view (not CCD) radius because we do not have per-CCD information.
+        if "radius" not in kwargs:
+            kwargs["radius"] = _lsstcam_view_radius
+
+        # Create the ObsTable object using the science validation visits column mapping
+        # (if a custom column mapping is not provided).
+        colmap = kwargs.pop("colmap", cls._nightly_visits_colmap)
         obstable = cls(table, colmap=colmap, **kwargs)
         return obstable
