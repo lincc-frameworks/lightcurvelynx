@@ -102,7 +102,7 @@ class LSSTObsTable(ObsTable):
         "ra": "ra",  # degrees
         "rotation": "skyRotation",  # degrees
         "seeing": "seeing",  # arcseconds
-        "sky_bg_adu": "skyBg",  # Averge sky background in ADU
+        "sky_bg_adu": "skyBg",  # Average sky background in ADU
         "time": ["expMidptMJD", "obsStartMJD"],  # days
         "zp_mag_adu": "zeroPoint",  # magnitudes to produce 1 count (ADU)
     }
@@ -125,14 +125,14 @@ class LSSTObsTable(ObsTable):
         "time": "exp_midpt_mjd",  # days
         # Some of the values are defined in the ConsDB schema:
         # https://sdm-schemas.lsst.io/cdb_lsstcam.html#exposure
-        "sky_bg_e": "sky_bg_median",  # Averge sky background in electrons per pixel
+        "sky_bg_e": "sky_bg_median",  # Average sky background in electrons per pixel
         "zp_mag_e": "zero_point_median",  # magnitude to produce 1 electron per exposure
     }
 
     # Column names for the Rubin nightly visit summary tables:
     # https://s3df.slac.stanford.edu/data/rubin/sim-data/schedview/reports/
     # The schema is largely based on the Rubin Science Validation visit data above.
-    # Note the keys of this dictionary are used to filter the JSON tables, so it should
+    # Note the values of this dictionary are used to filter the JSON tables, so it should
     # include all columns we want to keep.
     _nightly_visits_colmap = {
         "airmass": "airmass",  # dimensionless
@@ -145,7 +145,7 @@ class LSSTObsTable(ObsTable):
         "seeing": "seeingFwhmEff",  # arcseconds
         "skybrightness": "skyBrightness",  # mag per arcsec^2
         "time": "exp_midpt_mjd",  # days
-        "sky_bg_e": "sky_bg_median",  # Averge sky background in electrons per pixel
+        "sky_bg_e": "sky_bg_median",  # Average sky background in electrons per pixel
         "zp_mag_e": "zero_point_median",  # magnitude to produce 1 electron per exposure
     }
 
@@ -381,7 +381,11 @@ class LSSTObsTable(ObsTable):
         # Assemble a list of columns to extract.
         cols_to_keep = list(LSSTObsTable._nightly_visits_colmap.values())
         if additional_cols is not None:
-            cols_to_keep.extend(additional_cols)
+            if isinstance(additional_cols, str):
+                additional_cols = [additional_cols]
+            for col in additional_cols:
+                if col not in cols_to_keep:
+                    cols_to_keep.append(col)
 
         # Load each table, but only save some of the columns.
         loaded_tables = [pd.read_json(fname, **kwargs)[cols_to_keep] for fname in filenames]
@@ -398,14 +402,14 @@ class LSSTObsTable(ObsTable):
         Parameters
         ----------
         table : dict or pandas.core.frame.DataFrame
-            The science validation visits table containing the LSSTObsTable data.
+            The nightly visits table containing the LSSTObsTable data.
         **kwargs : dict
             Additional keyword arguments to pass to the LSSTObsTable constructor.
 
         Returns
         -------
         obstable : LSSTObsTable
-            An LSSTObsTable object containing the data from the science validation visits table.
+            An LSSTObsTable object containing the data from the nightly visits table.
         """
         # Make sure we have a pandas DataFrame without NaN values.
         if isinstance(table, dict):
