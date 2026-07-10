@@ -331,3 +331,40 @@ def test_reading_lsst_obstable_from_sv(test_data_dir):
     # If we at time bounds, we can restrict a lot further.
     inds2 = obs_table.range_search(225.0, -38.0, radius=3.0, t_min=60855.0, t_max=60860.0)
     assert len(inds2) < 0.5 * len(inds)
+
+
+def test_reading_lsst_obstable_from_nightly_summaries(test_data_dir):
+    """Test that we can read an LSSTObsTable from nightly summaries in JSON."""
+    nightly_dir = test_data_dir / "nightly_visit_summary"
+    table1_file = nightly_dir / "visits_2026-07-05_subset.json"
+    table2_file = nightly_dir / "visits_2026-07-06_subset.json"
+
+    # Load a single table.
+    table1 = LSSTObsTable.load_nightly_summary_tables_from_json(table1_file)
+    assert len(table1) > 10
+    for col in LSSTObsTable._nightly_visits_colmap.values():
+        assert col in table1.columns
+    assert "visit_id" not in table1.columns
+
+    # Load a second table with an extra column.
+    table2 = LSSTObsTable.load_nightly_summary_tables_from_json(
+        table2_file,
+        additional_cols=["visit_id"],
+    )
+    assert len(table2) > 10
+    for col in LSSTObsTable._nightly_visits_colmap.values():
+        assert col in table2.columns
+    assert "visit_id" in table2.columns
+
+    # Load two tables. There should be the sum of the rows.
+    table12 = LSSTObsTable.load_nightly_summary_tables_from_json([table1_file, table2_file])
+    assert len(table12) == len(table1) + len(table2)
+    for col in LSSTObsTable._nightly_visits_colmap.values():
+        assert col in table12.columns
+
+    # Build a LSSTObsTable from the loaded table.
+    obs_table_from_json = LSSTObsTable.from_nightly_summary_table(table12)
+
+    # Check that we have mapped the columns.
+    for col in LSSTObsTable._nightly_visits_colmap:
+        assert col in obs_table_from_json.columns
