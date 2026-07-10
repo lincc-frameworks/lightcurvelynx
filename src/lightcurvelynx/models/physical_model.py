@@ -1125,12 +1125,12 @@ class BandfluxModel(BasePhysicalModel, ABC):
             in_bounds_mask = np.full(len(times), True)
 
             if before_time_queries is not None:
-                # Compute the flux values before the model's first valid time.
+                # Compute the flux values before the model's first valid time. We need the shape of the flux
+                # flux values to be (T, W=1) for the extrapolation, so we add a new axis.
                 before_time_mask = times < min_valid_time
-                before_fit_times = query_times[:n_select_time_before]
                 extrapolated_values = self._time_extrap_before.extrapolate_time(
-                    before_fit_times,
-                    computed_flux[:n_select_time_before],
+                    query_times[:n_select_time_before],
+                    computed_flux[:n_select_time_before, np.newaxis],
                     before_time_queries,
                 )
                 new_computed_flux[before_time_mask] = extrapolated_values[:, 0]
@@ -1140,12 +1140,12 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 computed_flux = computed_flux[n_select_time_before:]
 
             if after_time_queries is not None:
-                # Compute the flux values after the model's last valid time.
+                # Compute the flux values after the model's last valid time. We need the shape of the flux
+                # flux values to be (T, W=1) for the extrapolation, so we add a new axis.
                 after_time_mask = times > max_valid_time
-                after_fit_times = query_times[-n_select_time_after:]
                 extrapolated_values = self._time_extrap_after.extrapolate_time(
-                    after_fit_times,
-                    computed_flux[-n_select_time_after:],
+                    query_times[-n_select_time_after:],
+                    computed_flux[-n_select_time_after:, np.newaxis],
                     after_time_queries,
                 )
                 new_computed_flux[after_time_mask] = extrapolated_values[:, 0]

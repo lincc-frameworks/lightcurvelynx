@@ -386,15 +386,23 @@ def test_linear_linear_model_ooo_wavelength() -> None:
 def test_linear_bandflux_model_ooo_time():
     """Test the _LinearBandfluxTestModel with extrapolators on out-of-order times."""
     time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
+    linear_fit = LinearFit(nfit=2)
     query_times = np.array([-10.0, 0.0, -15.0, 50.0, 125.0, 100.0, 75.0, 120.0])
 
-    # Evaluate the model.
+    # Evaluate the model with a linear decay (uses one point).
     model = _LinearBandfluxTestModel(time_extrapolation=(time_linear, time_linear), t0=0.0)
     state = model.sample_parameters(num_samples=1)
     values = model.compute_bandflux_with_extrapolation(query_times, "r", state)
-
     expected = np.array([90.0, 100.0, 85.0, 125.0, 112.5, 150.0, 137.5, 120.0])
     assert np.allclose(values, expected)
+
+    # Evaluate the model with a linear fit extrapolation (uses three points).
+    # Slope will be 0.5 and intercept 100.
+    model2 = _LinearBandfluxTestModel(time_extrapolation=(linear_fit, linear_fit), t0=0.0)
+    state2 = model2.sample_parameters(num_samples=1)
+    values2 = model2.compute_bandflux_with_extrapolation(query_times, "r", state2)
+    expected2 = np.array([95.0, 100.0, 92.5, 125.0, 162.5, 150.0, 137.5, 160.0])
+    assert np.allclose(values2, expected2)
 
 
 def test_linear_fit_extrapolation():
