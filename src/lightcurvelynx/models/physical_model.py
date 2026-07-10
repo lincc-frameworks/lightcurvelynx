@@ -1044,7 +1044,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         bandflux : numpy.ndarray
             A length T array of band fluxes for this model in this filter.
         """
-        query_times = np.copy(times)
+        query_times = np.asarray(times)
 
         # Get t0 offset since the time bounds are given in phase.
         t0 = self.get_param(state, "t0")
