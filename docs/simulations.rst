@@ -250,6 +250,22 @@ used are determined by each survey. And the bandflux is computed using that surv
 For an example see the :doc:`Simulating from Multiple Surveys notebook <notebooks/multiple_surveys>`.
 
 
+Rerunning a Simulation with the Same Parameters
+-------------------------------------------------------------------------------
+
+The ``simulate_lightcurves()`` function takes a ``graph_state`` argument that allows you to pass in a previously generated ``GraphState`` object. If this argument is provided, the simulation will use the parameters from the provided ``GraphState`` instead of sampling new parameters. This approach can be used to rerun a simulation with different survey information or the sample survey information and different noise samples.
+
+You can capture the state of the previous simulation from the "params" column in its results table:
+
+.. code-block:: python
+
+    previous_state = GraphState.from_list(results["params"].values)
+
+You can see an example of this in the :doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` or the :doc:`Resampling LCLIB notebook <notebooks/pre_executed/lclib_example>` where we rerun a simulation with the same parameters but different survey information.
+
+Note that if you want to produce exactly the same results, you can instead provide a random number generator with a fixed seed to the ``simulate_lightcurves()`` function. This will ensure that the same random numbers are used in the simulation for both parameter sampling and noise generation, resulting in identical outputs.
+
+
 Running in Parallel
 -------------------------------------------------------------------------------
 

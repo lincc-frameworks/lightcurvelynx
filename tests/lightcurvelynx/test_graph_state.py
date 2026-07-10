@@ -118,6 +118,47 @@ def test_create_graph_state_offset():
     assert state.sample_offset == 5
 
 
+def test_graph_state_slice():
+    """Test that we can create a slice of a GraphState."""
+    state = GraphState(20, sample_offset=5)
+    state.set("a", "v1", np.arange(20))
+    state.set("a", "v2", np.arange(20) + 1)
+    state.set("b", "v1", np.arange(20) - 1)
+    assert len(state) == 3
+
+    # Check that we can extract a slice of the GraphState.
+    slice_state = state.extract_slice(5, 10)
+    assert slice_state.num_samples == 5
+    assert slice_state.sample_offset == 10
+    assert np.array_equal(slice_state["a"]["v1"], np.arange(5, 10))
+    assert np.array_equal(slice_state["a"]["v2"], np.arange(6, 11))
+    assert np.array_equal(slice_state["b"]["v1"], np.arange(4, 9))
+
+    # We can slice a slice.
+    slice_state2 = slice_state.extract_slice(1, 3)
+    assert slice_state2.num_samples == 2
+    assert slice_state2.sample_offset == 11
+    assert np.array_equal(slice_state2["a"]["v1"], np.arange(6, 8))
+    assert np.array_equal(slice_state2["a"]["v2"], np.arange(7, 9))
+    assert np.array_equal(slice_state2["b"]["v1"], np.arange(5, 7))
+
+    # We can correctly slice out a single sample and get scalars.
+    slice_state3 = state.extract_slice(5, 6)
+    assert slice_state3.num_samples == 1
+    assert slice_state3.sample_offset == 10
+    assert slice_state3["a"]["v1"] == 5
+    assert slice_state3["a"]["v2"] == 6
+    assert slice_state3["b"]["v1"] == 4
+
+    # We fail with invalid slice indices.
+    with pytest.raises(ValueError):
+        _ = state.extract_slice(-1, 5)
+    with pytest.raises(ValueError):
+        _ = state.extract_slice(5, 25)
+    with pytest.raises(ValueError):
+        _ = state.extract_slice(10, 5)
+
+
 def test_create_single_graph_state_from_flattened_dict():
     """Test that we can create a single GraphState from a flattened dictionary."""
     input = {
@@ -278,7 +319,7 @@ def test_create_multi_sample_graph_state():
     new_state = state.extract_single_sample(3)
     assert len(new_state) == 3
     assert new_state.num_samples == 1
-    assert new_state.sample_offset == 0
+    assert new_state.sample_offset == 3
     assert new_state.sample_idx == 3
     assert new_state["a"]["v1"] == 1.0
     assert new_state["a"]["v2"] == 3.5
@@ -528,6 +569,40 @@ def test_graph_state_equal():
     state5 = GraphState(num_samples=1)
     state6 = GraphState(num_samples=2)
     assert state5 != state6
+
+
+def test_graph_state_equal_scalars():
+    """Test that we use == on GraphStates with scalar values."""
+    state1 = GraphState(num_samples=1)
+    state1.set("a", "v1", 1.0)
+    state1.set("a", "v2", 2.0)
+    state1.set("b", "v1", None)
+
+    state2 = GraphState(num_samples=1)
+    state2.set("a", "v1", 1.0)
+    state2.set("a", "v2", 2.0)
+    state2.set("b", "v1", None)
+    assert state1 == state2
+
+    state2.set("a", "v2", 3.0)
+    assert state1 != state2
+
+
+def test_graph_state_equal_nones():
+    """Test that we use == on GraphStates with None values."""
+    state1 = GraphState(num_samples=3)
+    state1.set("a", "v1", [1.0, 2.0, 3.0])
+    state1.set("a", "v2", [2, 3, None])  # One None
+    state1.set("b", "v1", [None, None, None])  # All None
+
+    state2 = GraphState(num_samples=3)
+    state2.set("a", "v1", [1.0, 2.0, 3.0])
+    state2.set("a", "v2", [2, 3, None])  # One None
+    state2.set("b", "v1", [None, None, None])  # All None
+    assert state1 == state2
+
+    state2.set("b", "v1", [2, 4, None])
+    assert state1 != state2
 
 
 def test_graph_state_fixed():

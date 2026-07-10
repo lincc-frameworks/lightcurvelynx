@@ -42,8 +42,7 @@ class ArgusHealpixObsTable(ObsTable):
         Each value in the dictionary can be a string or a list of strings.
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
-        provided must match those in the table. If not provided, Argus-specific defaults will be
-        used.
+        provided must match those in the table. If not provided, no saturation will be applied.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -84,7 +83,6 @@ class ArgusHealpixObsTable(ObsTable):
         table,
         *,
         colmap=None,
-        apply_saturation=True,
         saturation_mags=None,
         nside=None,
         **kwargs,
@@ -124,7 +122,6 @@ class ArgusHealpixObsTable(ObsTable):
         super().__init__(
             table=table,
             colmap=colmap,
-            apply_saturation=apply_saturation,
             saturation_mags=saturation_mags,
             **kwargs,
         )

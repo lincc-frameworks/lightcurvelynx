@@ -166,16 +166,20 @@ def test_simulation_info():
     assert sim_info.num_samples == 100
     assert sim_info.obs_time_window_offset == (-5.0, 10.0)
     assert sim_info.progress_bar is True
+    assert sim_info.graph_state is None
 
     # Test splitting into batches.
     batches = sim_info.split(num_batches=3)
     assert len(batches) == 3
     assert batches[0].num_samples == 34
     assert batches[0].sample_offset == 0
+    assert batches[0].graph_state is None
     assert batches[1].num_samples == 34
     assert batches[1].sample_offset == 34
+    assert batches[1].graph_state is None
     assert batches[2].num_samples == 32
     assert batches[2].sample_offset == 68
+    assert batches[2].graph_state is None
 
     # We propagate all the keyword parameters.
     assert batches[0].obs_time_window_offset == (-5.0, 10.0)
@@ -278,6 +282,82 @@ def test_simulation_info_random_split():
     random_samples2 = [batch.rng.integers(0, 100000) for batch in batches2]
     assert np.all(random_samples1 == random_samples2)
     assert len(np.unique(random_samples1)) == 5
+
+
+def test_simulation_info_graph_state():
+    """Test that we can create and split SimulationInfo objects with given graph state."""
+    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0, node_label="source")
+    state = model.sample_parameters(num_samples=100)
+
+    # Create a completely fake passband group and obstable for testing.
+    pb_group = PassbandGroup(
+        [
+            Passband(np.array([[100, 0.5], [200, 0.75], [300, 0.25]]), "my_survey", "r"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "g"),
+            Passband(np.array([[250, 0.25], [300, 0.5], [350, 0.75]]), "my_survey", "i"),
+        ]
+    )
+
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+    }
+    bandflux_error = {"g": 26.0, "r": 27.0, "i": 28.0}
+    ops_data = FakeObsTable(
+        values,
+        bandflux_error=bandflux_error,
+        fwhm_px=2.0,
+        sky_bg_electrons=100.0,
+    )
+
+    survey_info = SurveyInfo(
+        obstable=ops_data,
+        passbands=pb_group,
+        noise_model=GivenNoiseModel(),  # Uses the bandflux_error from the obs table
+    )
+
+    sim_info = SimulationInfo(
+        model=model,
+        num_samples=100,
+        survey_info=survey_info,
+        obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
+        rng=np.random.default_rng(12345),
+        graph_state=state,
+    )
+    assert sim_info.num_samples == 100
+    assert sim_info.obs_time_window_offset == (-5.0, 10.0)
+    assert sim_info.progress_bar is True
+    assert sim_info.graph_state == state
+
+    # Test splitting into batches.
+    batches = sim_info.split(num_batches=3)
+    assert len(batches) == 3
+    assert batches[0].num_samples == 34
+    assert batches[0].sample_offset == 0
+    assert batches[0].graph_state.sample_offset == 0
+    assert batches[0].graph_state.num_samples == 34
+    assert batches[1].num_samples == 34
+    assert batches[1].sample_offset == 34
+    assert batches[1].graph_state.sample_offset == 34
+    assert batches[1].graph_state.num_samples == 34
+    assert batches[2].num_samples == 32
+    assert batches[2].sample_offset == 68
+    assert batches[2].graph_state.sample_offset == 68
+    assert batches[2].graph_state.num_samples == 32
+
+    # Check that we fail if we try to create a SimulationInfo with a graph state that has a
+    # different number of samples than num_samples.
+    with pytest.raises(ValueError):
+        _ = SimulationInfo(
+            model=model,
+            num_samples=50,  # Wrong number
+            survey_info=survey_info,
+            obs_time_window_offset=(-5.0, 10.0),  # A keyword argument to test
+            rng=np.random.default_rng(12345),
+            graph_state=state,
+        )
 
 
 def test_simulate_lightcurves(test_data_dir):
@@ -396,6 +476,65 @@ def test_simulate_lightcurves(test_data_dir):
     assert "Available parameters are:" in str(excinfo.value)
     assert "source2.ra" in str(excinfo.value)
     assert "source2.dec" in str(excinfo.value)
+
+
+def test_replay_simulate_lightcurves(test_data_dir):
+    """Test an end to end run of simulating the light curves using a given state."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Use the default noise model.
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
+    source = ConstantSEDModel(
+        brightness=GivenValueList(given_brightness),
+        t0=0.0,
+        ra=GivenValueList(opsim_db["ra"].values[0:5]),
+        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    results = simulate_lightcurves(
+        source,
+        5,
+        survey_info,
+        progress_bar=False,  # Disable progress bar for testing
+    )
+
+    # Test that we can replay the simulation using the saved GraphState.
+    state = GraphState.from_list(results["params"].values)
+    replay_results = simulate_lightcurves(
+        source,
+        5,
+        survey_info,
+        progress_bar=False,  # Disable progress bar for testing
+        graph_state=state,
+    )
+    assert np.allclose(replay_results["ra"].values, results["ra"].values)
+    assert np.allclose(replay_results["dec"].values, results["dec"].values)
+    assert np.allclose(replay_results["z"].values, results["z"].values)
+    assert np.allclose(replay_results["t0"].values, results["t0"].values)
+    assert np.allclose(
+        replay_results["lightcurve.flux_perfect"].values,
+        results["lightcurve.flux_perfect"].values,
+    )
+
+    # The noise realization will be different.
+    assert not np.allclose(
+        replay_results["lightcurve.flux"].values,
+        results["lightcurve.flux"].values,
+    )
 
 
 def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatch):
@@ -745,6 +884,33 @@ def test_simulate_parallel_threads(test_data_dir):
             strict=False,
         ):
             assert full_name == f"LSST_{filter_name}"
+
+    # Extract the graph state, rerun and check that we get the same pre-noise results.
+    state = GraphState.from_list(results["params"].values)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results2 = simulate_lightcurves(
+            source,
+            100,
+            survey_info,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            executor=executor,
+            batch_size=10,
+            save_full_filter_names=True,
+            progress_bar=False,  # Disable progress bar for testing
+            graph_state=state,
+        )
+    assert np.allclose(results["ra"].values, results2["ra"].values)
+    assert np.allclose(results["dec"].values, results2["dec"].values)
+    assert np.allclose(
+        results["lightcurve.flux_perfect"].values,
+        results2["lightcurve.flux_perfect"].values,
+    )
+    # Different noise realizations
+    assert not np.allclose(
+        results["lightcurve.flux"].values,
+        results2["lightcurve.flux"].values,
+    )
 
 
 def test_simulate_parallel_processes(test_data_dir):

@@ -148,8 +148,23 @@ class GraphState:
             for var_name, var_value in node_params.items():
                 if var_name not in other_params:
                     return False
-                if not np.allclose(var_value, other_params[var_name]):
-                    return False
+
+                values1 = np.atleast_1d(var_value)
+                values2 = np.atleast_1d(other_params[var_name])
+                if np.all(values1 == None) and np.all(values2 == None):  # noqa: E711
+                    # Both arrays are all None values, so they are equal.
+                    # This happens a lot for unset values.
+                    continue
+
+                # If the values are numeric, test that they are close.
+                # If this fails (e.g. because the values are objects), then
+                # test for exact equality.
+                try:
+                    if not np.allclose(values1, values2, equal_nan=True):
+                        return False
+                except (TypeError, ValueError):
+                    if not np.array_equal(values1, values2):
+                        return False
 
         # Finally check that the 'fixed' dictionary is the same.
         return self.fixed_vars == other.fixed_vars
@@ -472,7 +487,7 @@ class GraphState:
         if self.num_samples == 1:
             # If this GraphState holds only a single sample, set it from the given value.
             self.states[node_name][var_name] = value
-        elif np.isscalar(value):
+        elif value is None or np.isscalar(value):
             # If the value is a scalar, expand it to the correct number of samples.
             self.states[node_name][var_name] = np.full(self.num_samples, value)
         elif len(value) != self.num_samples:
@@ -604,23 +619,49 @@ class GraphState:
         sample_num : int
             The number of sample to extract.
         """
+        new_state = self.extract_slice(sample_num, sample_num + 1)
+        new_state.sample_idx = new_state.sample_offset
+        return new_state
+
+    def extract_slice(self, start, stop):
+        """Create a new GraphState with a slice of samples.
+
+        Note
+        ----
+        We use a contiguous slice of samples (instead of an arbitrary set of indices) to preserve
+        the semantics of the sample_offset attribute.
+
+        Parameters
+        ----------
+        start : int
+            The starting index of the slice (inclusive).
+        stop : int
+            The stopping index of the slice (exclusive).
+
+        Returns
+        -------
+        GraphState
+            The sliced GraphState.
+        """
         if self.num_samples <= 0:
             raise ValueError("Cannot sample an empty GraphState")
-        if sample_num < 0 or sample_num >= self.num_samples:
-            raise ValueError(f"Invalid index {sample_num} in GraphState with {self.num_samples} entries.")
+        if start < 0 or stop > self.num_samples or start >= stop:
+            raise ValueError(f"Invalid slice [{start}:{stop}] in GraphState with {self.num_samples} entries.")
+        indices = np.arange(start, stop)
 
-        # Make a copy of the GraphState with exactly one sample.
-        new_state = GraphState(1)
+        # Make a slice of the GraphState with the specified samples.
+        new_state = GraphState(len(indices))
         new_state.num_parameters = self.num_parameters
-        new_state.sample_offset = self.sample_offset
-        new_state.sample_idx = sample_num
+        new_state.sample_offset = start + self.sample_offset
         for node_name in self.states:
             new_state.states[node_name] = {}
             for var_name, value in self.states[node_name].items():
                 if self.num_samples == 1:
                     new_state.states[node_name][var_name] = value
+                elif new_state.num_samples == 1:
+                    new_state.states[node_name][var_name] = value[indices[0]]
                 else:
-                    new_state.states[node_name][var_name] = value[sample_num]
+                    new_state.states[node_name][var_name] = value[indices]
 
         # Copy over the sets of fixed variables. This is a single set of strings
         # per node, so we just need to copy the sets.
