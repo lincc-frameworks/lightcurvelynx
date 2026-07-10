@@ -261,7 +261,7 @@ You can capture the state of the previous simulation from the "params" column in
 
     previous_state = GraphState.from_list(results["params"].values)
 
-You can see an example of this in the :doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` where we rerun a simulation with the same parameters but different survey information.
+You can see an example of this in the :doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` or the :doc:`Resampling LCLIB notebook <notebooks/pre_executed/lclib_example>` where we rerun a simulation with the same parameters but different survey information.
 
 Note that if you want to produce exactly the same results, you can instead provide a random number generator with a fixed seed to the ``simulate_lightcurves()`` function. This will ensure that the same random numbers are used in the simulation for both parameter sampling and noise generation, resulting in identical outputs.
 

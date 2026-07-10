@@ -126,7 +126,7 @@ Then you pass this ``previous_state`` to the ``simulate_lightcurves()`` function
         graph_state=previous_state,
     )
 
-You can see the :doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` for an example of how to do this.
+You can see the :doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` or the :doc:`Resampling LCLIB notebook <notebooks/pre_executed/lclib_example>` for examples of how to do this.
 
 It is possible to change the values within the ``GraphState`` object before passing it to the ``simulate_lightcurves()`` function. For example, you might want to change the objects' ``t0`` values to correspond to the new survey's time range. However, care should be taken when changing the values within the ``GraphState`` object. If other parameters depend on the values you change, they will **not** be updated automatically and you can end up with inconsistent results.
 
