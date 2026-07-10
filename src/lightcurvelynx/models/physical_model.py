@@ -535,6 +535,9 @@ class SEDModel(BasePhysicalModel):
         query_waves = np.asarray(wavelengths)
         query_times = np.asarray(times)
 
+        # Stage 1: ----- Determine which wavelengths require extrapolation -----
+        # Updates query_waves and creates before_wave_queries and after_wave_queries for extrapolation.
+
         # We check if we can do extrapolation for before the first valid wavelength and, if so, modify
         # the queries and set up the data we need.
         min_query_wave = np.min(wavelengths)
@@ -595,6 +598,9 @@ class SEDModel(BasePhysicalModel):
         else:
             w_idx = np.arange(len(query_waves))
             w_inv_idx = None
+
+        # Stage 2: ----- Determine which times require extrapolation -----
+        # Updates query_times and creates before_time_queries and after_time_queries for extrapolation.
 
         # Get t0 offset since the time bounds are given in phase.
         t0 = self.get_param(graph_state, "t0")
@@ -663,16 +669,17 @@ class SEDModel(BasePhysicalModel):
             t_idx = np.arange(len(query_times))
             t_inv_idx = None
 
-        # Compute the flux density at all times and wavelengths (except those we will extrapolate)
-        # with the query times and wavelengths sorted to be strictly increasing.
+        # Stage 3: ----- Compute the flux density at non-extrapolated times and wavelengths -----
+        # Use the sorted query times and wavelengths so they are strictly increasing.
         computed_flux = self.compute_sed(query_times[t_idx], query_waves[w_idx], graph_state)
         if t_inv_idx is not None:
-            # Unsort on time (if needed)
+            # Unsort the results based on time (if needed)
             computed_flux = computed_flux[t_inv_idx, :]
         if w_inv_idx is not None:
-            # Unsort on wavelength (if needed)
+            # Unsort the results based on wavelength (if needed)
             computed_flux = computed_flux[:, w_inv_idx]
 
+        # Stage 4: ----- Perform the extrapolation for wavelengths and times -----
         # We do the extrapolation in two steps: first for wavelengths and then for times.
         # The result is that we combine the extrapolation for both dimensions at the corners.
         if before_wave_queries is not None or after_wave_queries is not None:
