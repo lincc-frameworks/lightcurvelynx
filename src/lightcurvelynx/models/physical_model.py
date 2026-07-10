@@ -1073,7 +1073,10 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 # the list of times to extrapolate.
                 valid_mask = query_times >= min_valid_time
                 before_time_queries = query_times[~valid_mask]
-                query_times = np.concatenate(([min_valid_time], query_times[valid_mask]))
+                n_select_time_before = self._time_extrap_before.nfit
+                query_times = np.concatenate(
+                    (min_valid_time + np.arange(n_select_time_before), query_times[valid_mask])
+                )
 
         # We check if we can do extrapolation for times after the valid time range and, if so, modify
         # the queries and set up the data we need.
@@ -1097,10 +1100,23 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 # the list of times to extrapolate.
                 valid_mask = query_times <= max_valid_time
                 after_time_queries = query_times[~valid_mask]
-                query_times = np.concatenate((query_times[valid_mask], [max_valid_time]))
+                n_select_time_after = self._time_extrap_after.nfit
+                query_times = np.concatenate(
+                    (query_times[valid_mask], max_valid_time - np.arange(n_select_time_after - 1, -1, -1))
+                )
+
+        # Check if the times are sorted and, if not, create sorting indices.
+        if len(query_times) > 1 and not np.all(query_times[:-1] <= query_times[1:]):
+            t_idx = np.argsort(query_times)
+            t_inv_idx = np.argsort(t_idx)
+        else:
+            t_idx = np.arange(len(query_times))
+            t_inv_idx = None
 
         # Get the band flux at all times (except those we will extrapolate).
-        computed_flux = self.compute_bandflux(query_times, filter, state)
+        computed_flux = self.compute_bandflux(query_times[t_idx], filter, state)
+        if t_inv_idx is not None:
+            computed_flux = computed_flux[t_inv_idx]
 
         # Then do extrapolation for times that fell outside the model's bounds. These might
         # not be in order, so we use masks to keep track of where they go.
@@ -1111,30 +1127,32 @@ class BandfluxModel(BasePhysicalModel, ABC):
             if before_time_queries is not None:
                 # Compute the flux values before the model's first valid time.
                 before_time_mask = times < min_valid_time
+                before_fit_times = query_times[:n_select_time_before]
                 extrapolated_values = self._time_extrap_before.extrapolate_time(
-                    min_valid_time,
-                    np.array([computed_flux[0]]),
+                    before_fit_times,
+                    computed_flux[:n_select_time_before],
                     before_time_queries,
                 )
                 new_computed_flux[before_time_mask] = extrapolated_values[:, 0]
                 in_bounds_mask[before_time_mask] = False
 
                 # Drop the first entry (which was added for extrapolation).
-                computed_flux = computed_flux[1:]
+                computed_flux = computed_flux[n_select_time_before:]
 
             if after_time_queries is not None:
                 # Compute the flux values after the model's last valid time.
                 after_time_mask = times > max_valid_time
+                after_fit_times = query_times[-n_select_time_after:]
                 extrapolated_values = self._time_extrap_after.extrapolate_time(
-                    max_valid_time,
-                    np.array([computed_flux[-1]]),
+                    after_fit_times,
+                    computed_flux[-n_select_time_after:],
                     after_time_queries,
                 )
                 new_computed_flux[after_time_mask] = extrapolated_values[:, 0]
                 in_bounds_mask[after_time_mask] = False
 
                 # Drop the last entry (which was added for extrapolation).
-                computed_flux = computed_flux[:-1]
+                computed_flux = computed_flux[:-n_select_time_after]
 
             # Fill in the valid flux values.
             new_computed_flux[in_bounds_mask] = computed_flux

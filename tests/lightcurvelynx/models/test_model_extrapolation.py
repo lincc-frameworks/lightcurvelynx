@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from lightcurvelynx.models.physical_model import SEDModel
+from lightcurvelynx.models.physical_model import BandfluxModel, SEDModel
 from lightcurvelynx.utils.extrapolate import LinearDecay, LinearFit, ZeroPadding
 
 
@@ -94,6 +94,72 @@ class _LinearLinearTestModel(SEDModel):
         time_component = 2.0 * phase[:, np.newaxis]
         wavelength_component = 0.5 * wavelengths[np.newaxis, :]
         return 100.0 + time_component + wavelength_component
+
+
+class _LinearBandfluxTestModel(BandfluxModel):
+    """A model that emits flux as a linear function of time:
+    f(t, w) = 0.5 * t + 100.0
+
+    The model includes bounds on valid times to test extrapolation.
+
+    Parameters
+    ----------
+    min_phase : float
+        The minimum phase of the model (time relative to t0).
+    max_phase : float
+        The maximum phase of the model (time relative to t0).
+    fail_on_out_of_bounds : bool
+        Whether to raise an error if times or wavelengths are out of bounds.
+    **kwargs : dict
+        Additional keyword arguments.
+    """
+
+    def __init__(
+        self,
+        min_phase=0.0,
+        max_phase=100.0,
+        fail_on_out_of_bounds=True,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.min_phase = min_phase
+        self.max_phase = max_phase
+        self.fail_on_out_of_bounds = fail_on_out_of_bounds
+
+    def minphase(self, **kwargs):
+        """Get the minimum phase of the model."""
+        return self.min_phase
+
+    def maxphase(self, **kwargs):
+        """Get the maximum phase of the model."""
+        return self.max_phase
+
+    def compute_bandflux(self, times, filter, state):
+        """Evaluate the model at the passband level for a single, given graph state and filter.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        filter : str
+            The name of the filter.
+        state : GraphState
+            An object mapping graph parameters to their values with num_samples=1.
+
+        Returns
+        -------
+        bandflux : numpy.ndarray
+            A length T array of band fluxes for this model in this filter.
+        """
+        t0 = self.get_param(state, "t0")
+        if t0 is None:
+            raise ValueError("t0 parameter is required for this model.")
+
+        phase = times - t0
+        if self.fail_on_out_of_bounds and (np.any(phase < self.min_phase) or np.any(phase > self.max_phase)):
+            raise ValueError("Times are out of bounds for this model.")
+
+        return 0.5 * phase + 100.0
 
 
 def test_linear_linear_model() -> None:
@@ -315,6 +381,20 @@ def test_linear_linear_model_ooo_wavelength() -> None:
         values3 = model3.evaluate_sed(query_times, query_waves)
     expected3 = np.array([560.0, 700.0, 1200.0, 420.0, 6300.0, 2700.0, 6250.0])
     assert np.allclose(values3, expected3)
+
+
+def test_linear_bandflux_model_ooo_time():
+    """Test the _LinearBandfluxTestModel with extrapolators on out-of-order times."""
+    time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
+    query_times = np.array([-10.0, 0.0, -15.0, 50.0, 125.0, 100.0, 75.0, 120.0])
+
+    # Evaluate the model.
+    model = _LinearBandfluxTestModel(time_extrapolation=(time_linear, time_linear), t0=0.0)
+    state = model.sample_parameters(num_samples=1)
+    values = model.compute_bandflux_with_extrapolation(query_times, "r", state)
+
+    expected = np.array([90.0, 100.0, 85.0, 125.0, 112.5, 150.0, 137.5, 120.0])
+    assert np.allclose(values, expected)
 
 
 def test_linear_fit_extrapolation():
