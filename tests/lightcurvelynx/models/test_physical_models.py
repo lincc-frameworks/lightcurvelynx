@@ -4,7 +4,7 @@ from astropy.cosmology import Planck18
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
-from lightcurvelynx.models.basic_models import ConstantSEDModel
+from lightcurvelynx.models.basic_models import ConstantSEDModel, LinearWavelengthModel, SinWaveModel
 from lightcurvelynx.models.physical_model import SEDModel
 
 
@@ -112,6 +112,26 @@ def test_sed_model_evaluate_redshift():
 
     # The flux should be the same for all samples (not double applying redshift).
     assert len(np.unique(flux)) == 1
+
+
+def test_sed_model_evaluate_sed_unsorted():
+    """Test that we can evaluate a SEDModel with unsorted times or wavelengths."""
+    times = np.array([4.0, 3.0, 2.0, 1.0, 0.0])
+    waves = np.array([5000.0, 4000.0, 6000.0])
+
+    # Evaluate the flux of a model that depends on wavelength. The results should be in
+    # the order of the unsorted wavelengths even though the code sorts them internally.
+    wave_source = LinearWavelengthModel(linear_base=100.0, linear_scale=10.0)
+    flux = wave_source.evaluate_sed(times, waves)
+    expected_flux = np.tile([100.0 + 10.0 * w for w in waves], (len(times), 1))
+    assert np.allclose(flux, expected_flux)
+
+    # Evaluate the flux of a model that depends on time. The results should be in
+    # the order of the unsorted times even though the code sorts them internally.
+    sin_source = SinWaveModel(amplitude=10.0, frequency=1.0, t0=0.0)
+    flux = sin_source.evaluate_sed(times, waves)
+    expected_flux = np.tile([10.0 * np.sin(2 * np.pi * 1.0 * t) for t in times], (len(waves), 1)).T
+    assert np.allclose(flux, expected_flux)
 
 
 def test_sed_model_evaluate_bandflux(passbands_dir):

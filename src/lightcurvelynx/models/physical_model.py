@@ -532,8 +532,8 @@ class SEDModel(BasePhysicalModel):
         flux_density : numpy.ndarray
             A length T x N matrix of SED values (in nJy).
         """
-        query_waves = np.copy(wavelengths)
-        query_times = np.copy(times)
+        query_waves = np.asarray(wavelengths)
+        query_times = np.asarray(times)
 
         # We check if we can do extrapolation for before the first valid wavelength and, if so, modify
         # the queries and set up the data we need.
@@ -587,6 +587,14 @@ class SEDModel(BasePhysicalModel):
                         max_valid_wave - 10.0 * np.arange(n_select_wave_after - 1, -1, -1),
                     )
                 )
+
+        # Check if the wavelengths are sorted and, if not, create sorting indices.
+        if len(query_waves) > 1 and not np.all(query_waves[:-1] <= query_waves[1:]):
+            w_idx = np.argsort(query_waves)
+            w_inv_idx = np.argsort(w_idx)
+        else:
+            w_idx = np.arange(len(query_waves))
+            w_inv_idx = None
 
         # Get t0 offset since the time bounds are given in phase.
         t0 = self.get_param(graph_state, "t0")
@@ -647,14 +655,23 @@ class SEDModel(BasePhysicalModel):
                     (query_times[valid_mask], max_valid_time - np.arange(n_select_time_after - 1, -1, -1))
                 )
 
-        # Get the flux density at all times and wavelengths (except those we will extrapolate).
-        # Reorder query_times and query_waves to make it strictly increase.
-        t_idx = np.argsort(query_times)
-        w_idx = np.argsort(query_waves)
+        # Check if the times are sorted and, if not, create sorting indices.
+        if len(query_times) > 1 and not np.all(query_times[:-1] <= query_times[1:]):
+            t_idx = np.argsort(query_times)
+            t_inv_idx = np.argsort(t_idx)
+        else:
+            t_idx = np.arange(len(query_times))
+            t_inv_idx = None
+
+        # Compute the flux density at all times and wavelengths (except those we will extrapolate)
+        # with the query times and wavelengths sorted to be strictly increasing.
         computed_flux = self.compute_sed(query_times[t_idx], query_waves[w_idx], graph_state)
-        t_inv_idx = np.argsort(t_idx)
-        w_inv_idx = np.argsort(w_idx)
-        computed_flux = computed_flux[t_inv_idx, :][:, w_inv_idx]
+        if t_inv_idx is not None:
+            # Unsort on time (if needed)
+            computed_flux = computed_flux[t_inv_idx, :]
+        if w_inv_idx is not None:
+            # Unsort on wavelength (if needed)
+            computed_flux = computed_flux[:, w_inv_idx]
 
         # We do the extrapolation in two steps: first for wavelengths and then for times.
         # The result is that we combine the extrapolation for both dimensions at the corners.
