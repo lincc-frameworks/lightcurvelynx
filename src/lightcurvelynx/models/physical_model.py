@@ -596,7 +596,7 @@ class SEDModel(BasePhysicalModel):
             w_idx = np.argsort(query_waves)
             w_inv_idx = np.argsort(w_idx)
         else:
-            w_idx = np.arange(len(query_waves))
+            w_idx = slice(None)
             w_inv_idx = None
 
         # Stage 2: ----- Determine which times require extrapolation -----
@@ -666,7 +666,7 @@ class SEDModel(BasePhysicalModel):
             t_idx = np.argsort(query_times)
             t_inv_idx = np.argsort(t_idx)
         else:
-            t_idx = np.arange(len(query_times))
+            t_idx = slice(None)
             t_inv_idx = None
 
         # Stage 3: ----- Compute the flux density at non-extrapolated times and wavelengths -----
@@ -1110,7 +1110,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
             t_idx = np.argsort(query_times)
             t_inv_idx = np.argsort(t_idx)
         else:
-            t_idx = np.arange(len(query_times))
+            t_idx = slice(None)
             t_inv_idx = None
 
         # Get the band flux at all times (except those we will extrapolate).
@@ -1125,7 +1125,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
             in_bounds_mask = np.full(len(times), True)
 
             if before_time_queries is not None:
-                # Compute the flux values before the model's first valid time. We need the shape of the flux
+                # Compute the flux values before the model's first valid time. We need the shape of the
                 # flux values to be (T, W=1) for the extrapolation, so we add a new axis.
                 before_time_mask = times < min_valid_time
                 extrapolated_values = self._time_extrap_before.extrapolate_time(
@@ -1140,7 +1140,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 computed_flux = computed_flux[n_select_time_before:]
 
             if after_time_queries is not None:
-                # Compute the flux values after the model's last valid time. We need the shape of the flux
+                # Compute the flux values after the model's last valid time. We need the shape of the
                 # flux values to be (T, W=1) for the extrapolation, so we add a new axis.
                 after_time_mask = times > max_valid_time
                 extrapolated_values = self._time_extrap_after.extrapolate_time(
