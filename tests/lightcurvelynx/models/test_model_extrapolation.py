@@ -230,6 +230,13 @@ def test_linear_linear_model_extrapolators() -> None:
     )
     assert np.allclose(values, expected)
 
+    # Test with all times out of bounds. We should still be able to
+    # extrapolate from the last valid point.
+    all_oob_times = np.array([-10.0, 120.0])
+    values = model.evaluate_sed(all_oob_times, query_waves)
+    assert np.allclose(values[0, :], expected[0, :])
+    assert np.allclose(values[1, :], expected[-1, :])
+
     # We fail creation if given invalid numbers or types of extrapolators.
     with pytest.raises(ValueError):
         _ = _LinearLinearTestModel(
@@ -488,5 +495,11 @@ def test_linear_fit_extrapolation():
     wavelength_component = 0.5 * query_waves[np.newaxis, :]
     expected = 100.0 + time_component + wavelength_component
     values = model.evaluate_sed(query_times, query_waves)
-
     assert np.allclose(values, expected)
+
+    # We can still extrapolate without any in-bound times. It should add
+    # two valid points onto the end range for the linear fit.
+    all_oob_times = np.array([-20.0, 120.0])
+    values = model.evaluate_sed(all_oob_times, query_waves)
+    assert np.allclose(values[0, :], expected[0, :])
+    assert np.allclose(values[1, :], expected[6, :])
