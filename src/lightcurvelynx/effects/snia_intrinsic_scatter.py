@@ -7,7 +7,7 @@ from citation_compass import cite_inline
 from lightcurvelynx.effects.effect_model import EffectModel
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 
-# C11 model constants from Chotard et al. (2011) via SNANA sntools_genSmear.c.
+# C11 model constants from Table 14.2, Chotard PhD thesis (2011) via SNANA sntools_genSmear.c.
 # 6 bands: v(2500), U(3560), B(4390), V(5490), R(6545), I(8045) Angstroms.
 # The v band (first row/column) is uncorrelated with others (OPT_farUV=0 default).
 _C11_COVARIANCE = np.array(
@@ -52,6 +52,7 @@ class SNIaIntrinsicScatter(EffectModel):
             raise ValueError(
                 f"interp_method must be 'sine', 'linear', 'pchip', or 'cubic', got '{interp_method}'"
             )
+        self.rest_frame = True
         self.interp_method = interp_method
         self.add_effect_parameter(
             "snia_scatter_seed",
@@ -107,7 +108,10 @@ class SNIaIntrinsicScatter(EffectModel):
             return self._pchip_interp(node_waves, node_values, wavelengths)
         if self.interp_method == "cubic":
             return self._cubic_interp(node_waves, node_values, wavelengths)
-        return self._linear_interp(node_waves, node_values, wavelengths)
+        if self.interp_method == "linear":
+            return self._linear_interp(node_waves, node_values, wavelengths)
+        else:
+            raise ValueError(f"Unknown interpolation method: {self.interp_method}")
 
     def _linear_interp(self, node_waves, node_values, wavelengths):
         """Linear interpolation between nodes, clamped to edge values outside the range.
