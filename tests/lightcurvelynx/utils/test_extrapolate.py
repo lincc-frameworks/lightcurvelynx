@@ -207,6 +207,15 @@ def test_linear_fit_extrapolate():
     result = extrapolator.extrapolate_wavelength(last_waves, last_fluxes, query_waves)
     np.testing.assert_allclose(result, expected_flux)
 
+    # Test that the linear fit works when the data has only one wavelength (which is needed
+    # for bandpass only models).
+    last_times = np.array([30.0, 40.0, 50.0, 55.0])
+    last_fluxes = np.array([[300.0], [250.0], [200.0], [175]])
+    query_times = np.array([60.0, 70.0, 80.0])
+    expected_flux = np.array([[150.0], [100.0], [50.0]])
+    result = extrapolator.extrapolate_time(last_times, last_fluxes, query_times)
+    np.testing.assert_allclose(result, expected_flux)
+
 
 def test_linear_fit_on_mag_extrapolate():
     """Test that the linear fit extrapolation works."""

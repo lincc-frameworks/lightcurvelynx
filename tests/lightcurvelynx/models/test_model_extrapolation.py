@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from lightcurvelynx.models.physical_model import SEDModel
+from lightcurvelynx.models.physical_model import BandfluxModel, SEDModel
 from lightcurvelynx.utils.extrapolate import LinearDecay, LinearFit, ZeroPadding
 
 
@@ -96,6 +96,72 @@ class _LinearLinearTestModel(SEDModel):
         return 100.0 + time_component + wavelength_component
 
 
+class _LinearBandfluxTestModel(BandfluxModel):
+    """A model that emits flux as a linear function of time:
+    f(t, w) = 0.5 * t + 100.0
+
+    The model includes bounds on valid times to test extrapolation.
+
+    Parameters
+    ----------
+    min_phase : float
+        The minimum phase of the model (time relative to t0).
+    max_phase : float
+        The maximum phase of the model (time relative to t0).
+    fail_on_out_of_bounds : bool
+        Whether to raise an error if times or wavelengths are out of bounds.
+    **kwargs : dict
+        Additional keyword arguments.
+    """
+
+    def __init__(
+        self,
+        min_phase=0.0,
+        max_phase=100.0,
+        fail_on_out_of_bounds=True,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.min_phase = min_phase
+        self.max_phase = max_phase
+        self.fail_on_out_of_bounds = fail_on_out_of_bounds
+
+    def minphase(self, **kwargs):
+        """Get the minimum phase of the model."""
+        return self.min_phase
+
+    def maxphase(self, **kwargs):
+        """Get the maximum phase of the model."""
+        return self.max_phase
+
+    def compute_bandflux(self, times, filter, state):
+        """Evaluate the model at the passband level for a single, given graph state and filter.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        filter : str
+            The name of the filter.
+        state : GraphState
+            An object mapping graph parameters to their values with num_samples=1.
+
+        Returns
+        -------
+        bandflux : numpy.ndarray
+            A length T array of band fluxes for this model in this filter.
+        """
+        t0 = self.get_param(state, "t0")
+        if t0 is None:
+            raise ValueError("t0 parameter is required for this model.")
+
+        phase = times - t0
+        if self.fail_on_out_of_bounds and (np.any(phase < self.min_phase) or np.any(phase > self.max_phase)):
+            raise ValueError("Times are out of bounds for this model.")
+
+        return 0.5 * phase + 100.0
+
+
 def test_linear_linear_model() -> None:
     """Test the _LinearLinearTestModel with valid times and wavelengths."""
     query_waves = np.array([1500.0, 2000.0])
@@ -163,6 +229,13 @@ def test_linear_linear_model_extrapolators() -> None:
         ]
     )
     assert np.allclose(values, expected)
+
+    # Test with all times out of bounds. We should still be able to
+    # extrapolate from the last valid point.
+    all_oob_times = np.array([-10.0, 120.0])
+    values = model.evaluate_sed(all_oob_times, query_waves)
+    assert np.allclose(values[0, :], expected[0, :])
+    assert np.allclose(values[1, :], expected[-1, :])
 
     # We fail creation if given invalid numbers or types of extrapolators.
     with pytest.raises(ValueError):
@@ -266,16 +339,45 @@ def test_linear_linear_model_ooo_time() -> None:
     expected = np.array([[990.0], [1100.0], [935.0], [1200.0], [975.0], [1300.0], [1250.0], [1040.0]])
     assert np.allclose(values, expected)
 
-    # With no extrapolation (and no failing), we should just query the model.
+    # We can do extrapolations on just before (none after)
     model2 = _LinearLinearTestModel(
+        time_extrapolation=(time_linear, None),
+        t0=0.0,
+    )
+    query_times_before = np.array([-10.0, 0.0, -15.0, 50.0, 75.0])
+    values = model2.evaluate_sed(query_times_before, query_waves)
+    expected = np.array([[990.0], [1100.0], [935.0], [1200.0], [1250.0]])
+    assert np.allclose(values, expected)
+
+    # We can do extrapolations on just after (none before)
+    model3 = _LinearLinearTestModel(
+        time_extrapolation=(None, time_linear),
+        t0=0.0,
+    )
+    query_times_after = np.array([1.0, 125.0, 50.0, 75.0])
+    values = model3.evaluate_sed(query_times_after, query_waves)
+    expected = np.array([[1102.0], [975.0], [1200.0], [1250.0]])
+    assert np.allclose(values, expected)
+
+    # We can query with a non-zero t0.
+    model4 = _LinearLinearTestModel(
+        time_extrapolation=(time_linear, time_linear),
+        t0=5.0,
+    )
+    values = model4.evaluate_sed(query_times, query_waves)
+    expected = np.array([[935.0], [1045.0], [880.0], [1190.0], [1040.0], [1290.0], [1240.0], [1105.0]])
+    assert np.allclose(values, expected)
+
+    # With no extrapolation (and no failing), we should just query the model.
+    model5 = _LinearLinearTestModel(
         time_extrapolation=(None, None),
         t0=0.0,
         fail_on_out_of_bounds=False,
     )
     with pytest.warns(UserWarning):
-        values2 = model2.evaluate_sed(query_times, query_waves)
-    expected2 = np.array([[1080.0], [1100.0], [1070.0], [1200.0], [1350.0], [1300.0], [1250.0], [1340.0]])
-    assert np.allclose(values2, expected2)
+        values5 = model5.evaluate_sed(query_times, query_waves)
+    expected5 = np.array([[1080.0], [1100.0], [1070.0], [1200.0], [1350.0], [1300.0], [1250.0], [1340.0]])
+    assert np.allclose(values5, expected5)
 
 
 def test_linear_linear_model_ooo_wavelength() -> None:
@@ -317,6 +419,67 @@ def test_linear_linear_model_ooo_wavelength() -> None:
     assert np.allclose(values3, expected3)
 
 
+def test_linear_bandflux_model_ooo_time():
+    """Test the _LinearBandfluxTestModel with extrapolators on out-of-order times."""
+    time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
+    linear_fit = LinearFit(nfit=2)
+    query_times = np.array([-10.0, 0.0, -15.0, 50.0, 125.0, 100.0, 75.0, 120.0])
+
+    # Evaluate the model with a linear decay (uses one point).
+    model = _LinearBandfluxTestModel(time_extrapolation=(time_linear, time_linear), t0=0.0)
+    state = model.sample_parameters(num_samples=1)
+    values = model.compute_bandflux_with_extrapolation(query_times, "r", state)
+    expected = np.array([90.0, 100.0, 85.0, 125.0, 112.5, 150.0, 137.5, 120.0])
+    assert np.allclose(values, expected)
+
+    # Evaluate the model with a linear fit extrapolation (uses three points).
+    # Slope will be 0.5 and intercept 100.
+    model2 = _LinearBandfluxTestModel(time_extrapolation=(linear_fit, linear_fit), t0=0.0)
+    state2 = model2.sample_parameters(num_samples=1)
+    values2 = model2.compute_bandflux_with_extrapolation(query_times, "r", state2)
+    expected2 = np.array([95.0, 100.0, 92.5, 125.0, 162.5, 150.0, 137.5, 160.0])
+    assert np.allclose(values2, expected2)
+
+    # We can do extrapolations on just before (no after). We get a warning
+    # if we get values after.
+    model3 = _LinearBandfluxTestModel(
+        time_extrapolation=(time_linear, None),
+        t0=0.0,
+        fail_on_out_of_bounds=False,
+    )
+    state3 = model3.sample_parameters(num_samples=1)
+    query_times_before = np.array([-10.0, 0.0, -15.0, 50.0, 75.0])
+    values_before = model3.compute_bandflux_with_extrapolation(query_times_before, "r", state3)
+    expected_before = np.array([90.0, 100.0, 85.0, 125.0, 137.5])
+    assert np.allclose(values_before, expected_before)
+
+    with pytest.warns(UserWarning):
+        _ = model3.compute_bandflux_with_extrapolation(query_times, "r", state3)
+
+    # We can do extrapolations on just after (no before). We get a warning
+    # if we get values after.
+    model4 = _LinearBandfluxTestModel(
+        time_extrapolation=(None, time_linear),
+        t0=0.0,
+        fail_on_out_of_bounds=False,
+    )
+    state4 = model4.sample_parameters(num_samples=1)
+    query_times_after = np.array([125.0, 100.0, 75.0, 120.0])
+    values_after = model4.compute_bandflux_with_extrapolation(query_times_after, "r", state4)
+    expected_after = np.array([112.5, 150.0, 137.5, 120.0])
+    assert np.allclose(values_after, expected_after)
+
+    with pytest.warns(UserWarning):
+        _ = model4.compute_bandflux_with_extrapolation(query_times, "r", state4)
+
+    # We can handle extrapolation correctly with t0 != 0.0.
+    model5 = _LinearBandfluxTestModel(time_extrapolation=(time_linear, time_linear), t0=10.0)
+    state5 = model5.sample_parameters(num_samples=1)
+    values5 = model5.compute_bandflux_with_extrapolation(query_times, "r", state5)
+    expected5 = np.array([80.0, 90.0, 75.0, 120.0, 127.5, 145.0, 132.5, 135.0])
+    assert np.allclose(values5, expected5)
+
+
 def test_linear_fit_extrapolation():
     """Test the linear fit extrapolator with the _LinearLinearTestModel"""
 
@@ -332,5 +495,11 @@ def test_linear_fit_extrapolation():
     wavelength_component = 0.5 * query_waves[np.newaxis, :]
     expected = 100.0 + time_component + wavelength_component
     values = model.evaluate_sed(query_times, query_waves)
-
     assert np.allclose(values, expected)
+
+    # We can still extrapolate without any in-bound times. It should add
+    # two valid points onto the end range for the linear fit.
+    all_oob_times = np.array([-20.0, 120.0])
+    values = model.evaluate_sed(all_oob_times, query_waves)
+    assert np.allclose(values[0, :], expected[0, :])
+    assert np.allclose(values[1, :], expected[6, :])
