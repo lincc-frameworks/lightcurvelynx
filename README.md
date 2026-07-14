@@ -12,7 +12,7 @@ A Fast and Nimble Package for Time Domain Astronomy
 [![Benchmarks](https://img.shields.io/github/actions/workflow/status/lincc-frameworks/lightcurvelynx/asv-main.yml?label=benchmarks)](https://lincc-frameworks.github.io/lightcurvelynx/)
 [![Read the Docs](https://img.shields.io/readthedocs/lightcurvelynx)](https://lightcurvelynx.readthedocs.io/)
 [![status](https://joss.theoj.org/papers/01344d3b6112431d1a4e49e41389e587/status.svg)](https://joss.theoj.org/papers/01344d3b6112431d1a4e49e41389e587)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21360142.svg)](https://doi.org/10.5281/zenodo.21360142)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21360141.svg)](https://doi.org/10.5281/zenodo.21360141)
 
 
 ## Introduction
