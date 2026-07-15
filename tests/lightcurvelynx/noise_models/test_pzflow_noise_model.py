@@ -155,3 +155,54 @@ def test_learn_pzflow_noise_model():
     assert isinstance(noise_model._normalizer_data["bandflux"], _ColumnNormalizationData)
     assert isinstance(noise_model._normalizer_data["zp"], _ColumnNormalizationData)
     assert isinstance(noise_model._normalizer_data["flux_err"], _ColumnNormalizationData)
+
+
+def test_pzflow_noise_model_flux_floor():
+    """Test that non-positive bandfluxes are floored for the flow conditioning,
+    while the noise stays centered on the original bandflux."""
+    _ = pytest.importorskip("pzflow")
+
+    rng = np.random.default_rng(2024)
+    num_training_samples = 10_000
+
+    bandflux = rng.normal(loc=500.0, scale=100.0, size=num_training_samples)
+    zp = rng.normal(loc=10.0, scale=0.15, size=num_training_samples)
+    flux_err = np.sqrt(bandflux / zp) * zp
+
+    training_data = pd.DataFrame({"bandflux": bandflux, "zp": zp, "flux_err": flux_err})
+    noise_model = learn_pzflow_noise_model(training_data, noise_column="flux_err", normalize=True)
+
+    # With no explicit flux_floor, the floor is the minimum training bandflux.
+    assert noise_model._flux_floor is None
+    assert np.isclose(noise_model._bandflux_floor(), np.min(bandflux))
+
+    # Zero and negative simulated bandfluxes no longer fail: the conditioning is
+    # floored, and the noise is centered on the original bandflux.
+    num_samples = 4
+    obs_table = LookupOnlyObsTable({"zp": np.full(num_samples, 10.0)})
+    sim_bandflux = np.array([-100.0, 0.0, np.min(bandflux), 500.0])
+    flux_out, flux_err_out = noise_model.apply_noise(
+        sim_bandflux,
+        obs_table=obs_table,
+        indices=np.arange(num_samples),
+        rng=np.random.default_rng(2024),
+    )
+    assert np.all(np.isfinite(flux_out))
+    assert np.all(flux_err_out > 0)
+    assert np.all(np.abs(flux_out - sim_bandflux) < 5 * flux_err_out)
+
+    # An explicit flux_floor takes precedence over the training minimum.
+    explicit_model = PZFlowNoiseModel(
+        flow_obj=noise_model._flow,
+        normalizer_data=noise_model._normalizer_data,
+        flux_floor=450.0,
+    )
+    assert explicit_model._bandflux_floor() == 450.0
+
+    # The flux_floor must be positive.
+    with pytest.raises(ValueError, match="flux_floor must be positive"):
+        PZFlowNoiseModel(
+            flow_obj=noise_model._flow,
+            normalizer_data=noise_model._normalizer_data,
+            flux_floor=-1.0,
+        )
