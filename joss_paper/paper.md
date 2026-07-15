@@ -70,14 +70,14 @@ aas-journal: Astrophysical Journal
 
 # Summary
 
-`LightCurveLynx` is a Python-based forward simulation framework for catalog-level time-varying astronomical phenomena that brings together the community’s many astronomical modeling packages into a single framework. Its goal is to allow the users to mix-and-match different models, effects, and surveys within a single simulation environment. It is optimized for scalability, modularity, and extensibility. `LightCurveLynx` integrates numerous popular packages, such as `sncosmo`, `pzflow`, and `redback`, along with different sampling packages and astronomical surveys.
+`LightCurveLynx` is a Python-based forward simulation framework for catalog-level time-varying astronomical phenomena that brings together the community’s many astronomical modeling packages into a single framework. Its goal is to allow the users to mix-and-match different models, effects, and surveys within a single simulation environment. It is optimized for scalability, modularity, and extensibility. `LightCurveLynx` integrates numerous popular packages, such as SNCosmo, PZFlow, and redback, along with different sampling packages and astronomical surveys.
 
 
 # Statement of need
 
 To fully realize the value of the next generation of large-scale astronomical survey data, it will be necessary to analyze this data relative to expected observations from a range of underlying population models. Such analysis allows scientists to characterize the selection functions inherent in each survey, determine which objects could be observed/classified from the data, and to fit or refine models through simulation-based inference. Further, given these survey’s duration and depth, it is increasingly vital that such simulations are efficient. Making such simulations available early can even help with optimization of the observing strategy for different science cases.
 
-The astronomy community has invested significant resources into developing powerful software packages to simulate and model a wide range of physical phenomena. To provide only a few concrete examples, SNANA [@Kessler2009], SNcosmo [@barbary2025], and SkySurvey [@rigault2026], provide powerful libraries for realistic simulations of supernovae; VBMicrolensing [@Bozza2025], PyLIMA [@Bachelet2017], BAGLE [@lu2025] provide approaches for modeling and simulating microlensing events; and redback [@sarin2024] provides a comprehensive library of models for physical phenomena. Although this proliferation of software allows researchers to explore a large number of phenomena, it introduces a level of fragmentation and complexity. The feature set, such as supported surveys and noise effects, varies from package to package.
+The astronomy community has invested significant resources into developing powerful software packages to simulate and model a wide range of physical phenomena. To provide only a few concrete examples, SNANA [@Kessler2009], SNCosmo [@barbary2025], and skysurvey [@rigault2026], provide powerful libraries for realistic simulations of supernovae; VBMicrolensing [@Bozza2025], PyLIMA [@Bachelet2017], BAGLE [@lu2025] provide approaches for modeling and simulating microlensing events; and redback [@sarin2024] provides a comprehensive library of models for physical phenomena. Although this proliferation of software allows researchers to explore a large number of phenomena, it introduces a level of fragmentation and complexity. The feature set, such as supported surveys and noise effects, varies from package to package.
 
 `LightCurveLynx` is a package for forward simulation of time-varying astronomical phenomena that brings together this extensive ecosystem of software into a consistent framework. The user can access models from different packages, a range of effects, and a variety of surveys and instrument types. In addition, the modular API makes `LightCurveLynx` highly extensible. Users can easily introduce new variability models or wrap other Python packages, expanding the system’s capabilities to incorporate the community’s latest developments.
 
@@ -99,7 +99,7 @@ Models of physical phenomena are implemented as subclasses in a simple class hie
 
 Another advantage of this class hierarchy is that new features can be added in the parent classes and automatically applied to all models. One example of this is `LightCurveLynx`’s extrapolation functionality. Some common models, such as splines fit from data, only produce valid predictions over a finite range of times and wavelengths. By supporting bound checking and extrapolation in the parent classes, `LightCurveLynx` adds the ability to use an extrapolation function with any model.
 
-The parameter distributions are specified using Pythonic syntax as a directed acyclic graph of parameter relations that can draw distributions from packages such as numpy [@harris2020array], scipy [@SciPy2020], or pzflow [@crenshaw2025]. All parameter (and bookkeeping) information is handled through the `ParameterizedNode` base class and saved as a `GraphState` object, which allows the user to analyze or replay the simulations. Sampling is vectorized wherever possible and can be parallelized for efficiency. Where possible `LightCurveLynx` uses established scientific packages, such as astropy [@astropy2013] [@astropy2018] [@astropy2022] and scipy [@2020SciPy], for computation.
+The parameter distributions are specified using Pythonic syntax as a directed acyclic graph of parameter relations that can draw distributions from packages such as NumPy [@harris2020array], SciPy [@SciPy2020], or PZFlow [@crenshaw2025]. All parameter (and bookkeeping) information is handled through the `ParameterizedNode` base class and saved as a `GraphState` object, which allows the user to analyze or replay the simulations. Sampling is vectorized wherever possible and can be parallelized for efficiency. Where possible `LightCurveLynx` uses established scientific packages, such as Astropy [@astropy2013] [@astropy2018] [@astropy2022] and SciPy, for computation.
 
 Line of sight effects are wrapped subclasses of the `EffectModel` class and can be added to any `BasePhysicalModel` object. This separates the implementation of the model from the effects and allows a single effect type (e.g. dust extinction) to be consistently applied to any physical model. This approach ensures consistency and reduces code duplication.
 
@@ -115,12 +115,12 @@ The software was verified by simulating populations of Type Ia supernovae under 
 
 # Installation and usage
 
-`LightCurveLynx` can be installed with `pip` or through `conda-forge`. See the instructions on our [readthedocs page](https://lightcurvelynx.readthedocs.io/en/latest/). The project's [tutorial notebooks documentation page](https://lightcurvelynx.readthedocs.io/en/latest/notebooks.html) provides a variety of usage examples and technical deep dives.
+`LightCurveLynx` can be installed with `pip` or through `conda-forge`. See the instructions on our [Read the Docs page](https://lightcurvelynx.readthedocs.io/en/latest/). The project's [tutorial notebooks documentation page](https://lightcurvelynx.readthedocs.io/en/latest/notebooks.html) provides a variety of usage examples and technical deep dives.
 
 
 # AI usage disclosure
 
-All top level design, including control flow and class structure, was designed by humans. Github copilot (using Claude Sonnet 4 and auto settings) was used during the development of the software for online suggestions and small changes. All code changes, regardless of author, were reviewed by humans. No generative AI tools were used in the writing of this manuscript.
+All top level design, including control flow and class structure, was designed by humans. GitHub Copilot (using Claude Sonnet 4 and auto settings) was used during the development of the software for online suggestions and small changes. All code changes, regardless of author, were reviewed by humans. No generative AI tools were used in the writing of this manuscript.
 
 
 # Acknowledgements
