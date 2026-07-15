@@ -40,6 +40,7 @@ features and models of the LightCurveLynx package.
     Parallel Runs <notebooks/parallel_runs>
     Setting Saturation Limits <notebooks/saturation>
     Using Learned PZFlow Noise Models <notebooks/pre_executed/pzflow_noise_models>
+    Data-Driven Noise from Rubin DP1 <notebooks/pre_executed/data_driven_noise_dp1>
     SN Ia Intrinsic Scatter Models <notebooks/intrinsic_scatter>
 
 Citations
