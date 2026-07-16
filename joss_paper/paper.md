@@ -1,5 +1,5 @@
 ---
-title: 'LightCurveLynx: Fast and Nimble Time Domain Simulation for Astronomical Surveys'
+title: 'LightCurveLynx: Fast and Nimble Time-Domain Simulation for Astronomical Surveys'
 tags:
   - Python
   - astronomy
@@ -82,7 +82,7 @@ The astronomy community has invested significant resources into developing power
 `LightCurveLynx` is a package for forward simulation of time-varying astronomical phenomena that brings together this extensive ecosystem of software into a consistent framework. The user can access models from different packages, a range of effects, and a variety of surveys and instrument types. In addition, the modular API makes `LightCurveLynx` highly extensible. Users can easily introduce new variability models or wrap other Python packages, expanding the system’s capabilities to incorporate the community’s latest developments.
 
 
-# State of the Field
+# State of the field
 
 As noted in the previous section, the astronomy community has developed a range of powerful tools for forward simulation of transient and variable sources. Individual packages often focus on specific types of astronomical phenomena such as supernovae or microlensing. Further each package may support a subset of the existing physical effects or survey strategy. `LightCurveLynx` does not aim to duplicate those efforts, but rather to augment them by providing a common framework for users to combine the existing packages.
 
@@ -91,7 +91,7 @@ As noted in the previous section, the astronomy community has developed a range 
 
 `LightCurveLynx` is designed to enable users to accurately and efficiently run simulations using a range of models and simulation packages. As such, it uses several core principles: (1) provide an extensible and flexible object-oriented API, (2) provide an interface to consistently sample from complex distributions, (3) allow users to save simulation state and replay all/part of the simulation for analysis and debugging, and (4) build in vectorization and parallelization for efficient runs. This modular structure (and the general program flow) are shown in \autoref{fig:flow}.
 
-![The basic simulation flow for `LightCurveLynx`\label{fig:flow}](figure.png)
+![The basic simulation flow for `LightCurveLynx`.\label{fig:flow}](figure.png)
 
 The simulation starts by sampling the model’s parameters from given statistical distributions. These parameters are combined with the information about where the survey is pointing to generate observed fluxes at either the spectral or band level. (We use “flux” as a synonym of “spectral flux density per unit frequency", while by “bandflux” we mean spectral flux density measured in the given photometric passband). `LightCurveLynx` uses the survey information, along with each object's position, to pre-filter evaluations to just those times when the object will be observed, saving significant computation over evaluating models at all times.  The simulation then applies line of sight effects, such as dust extinction, to the fluxes. If the fluxes were generated at the spectral level, they are integrated with the survey’s filter to produce band fluxes. Finally, instrument and detector noise are sampled and added based on the survey’s characteristics.
 
@@ -99,13 +99,13 @@ Models of physical phenomena are implemented as subclasses in a simple class hie
 
 Another advantage of this class hierarchy is that new features can be added in the parent classes and automatically applied to all models. One example of this is `LightCurveLynx`’s extrapolation functionality. Some common models, such as splines fit from data, only produce valid predictions over a finite range of times and wavelengths. By supporting bound checking and extrapolation in the parent classes, `LightCurveLynx` adds the ability to use an extrapolation function with any model.
 
-The parameter distributions are specified using Pythonic syntax as a directed acyclic graph of parameter relations that can draw distributions from packages such as NumPy [@harris2020array], SciPy [@SciPy2020], or PZFlow [@crenshaw2025]. All parameter (and bookkeeping) information is handled through the `ParameterizedNode` base class and saved as a `GraphState` object, which allows the user to analyze or replay the simulations. Sampling is vectorized wherever possible and can be parallelized for efficiency. Where possible `LightCurveLynx` uses established scientific packages, such as Astropy [@astropy2013] [@astropy2018] [@astropy2022] and SciPy, for computation.
+The parameter distributions are specified using Pythonic syntax as a directed acyclic graph of parameter relations that can draw distributions from packages such as NumPy [@harris2020array], SciPy [@SciPy2020], or PZFlow [@crenshaw2024; @crenshaw2025]. All parameter (and bookkeeping) information is handled through the `ParameterizedNode` base class and saved as a `GraphState` object, which allows the user to analyze or replay the simulations. Sampling is vectorized wherever possible and can be parallelized for efficiency. Where possible `LightCurveLynx` uses established scientific packages, such as Astropy [@astropy2013; @astropy2018; @astropy2022] and SciPy, for computation.
 
 Line of sight effects are wrapped subclasses of the `EffectModel` class and can be added to any `BasePhysicalModel` object. This separates the implementation of the model from the effects and allows a single effect type (e.g. dust extinction) to be consistently applied to any physical model. This approach ensures consistency and reduces code duplication.
 
-Survey specific information is encapsulated in subclasses of the `ObsTable`, allowing users to simulate their models under different survey conditions. `LightCurveLynx` currently supports data from the Vera C. Rubin’s LSST [@Ivezic2019] in simulated and DP1/DP2 formats, data from the Zwicky Transient Facility surveys [@Bellm2019], simulations of the Nancy Grace Roman telescope [@Spergel2015], and simulations of the Argus Array [@Law2022].
+Survey specific information is encapsulated in subclasses of the `ObsTable`, allowing users to simulate their models under different survey conditions. `LightCurveLynx` currently supports data from the Vera C. Rubin’s LSST [@Ivezic2019] in simulated and DP1/DP2 formats, data from the Zwicky Transient Facility (ZTF) surveys [@Bellm2019], simulations of the Nancy Grace Roman telescope [@Spergel2015], and simulations of the Argus Array [@Law2022].
 
-Parallelization is natively supported using Python's `ProcessPoolExecutor` as well as multi-machine parallelization such as [Dask](https://www.dask.org/) or [Ray](https://docs.ray.io/en/latest/index.html).
+Parallelization is natively supported using Python's `ProcessPoolExecutor` as well as multi-machine parallelization such as [Dask](https://www.dask.org/) or [Ray](https://docs.ray.io/).
 
 
 # Research impact statement
@@ -115,7 +115,7 @@ The software was verified by simulating populations of Type Ia supernovae under 
 
 # Installation and usage
 
-`LightCurveLynx` can be installed with `pip` or through `conda-forge`. See the instructions on our [Read the Docs page](https://lightcurvelynx.readthedocs.io/en/latest/). The project's [tutorial notebooks documentation page](https://lightcurvelynx.readthedocs.io/en/latest/notebooks.html) provides a variety of usage examples and technical deep dives.
+`LightCurveLynx` can be installed with `pip` or through `conda-forge`. See the instructions on our [Read the Docs page](https://lightcurvelynx.readthedocs.io/). The project's [tutorial notebooks documentation page](https://lightcurvelynx.readthedocs.io/en/latest/notebooks.html) provides a variety of usage examples and technical deep dives.
 
 
 # AI usage disclosure
