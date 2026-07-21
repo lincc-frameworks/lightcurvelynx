@@ -503,3 +503,24 @@ def test_linear_fit_extrapolation():
     values = model.evaluate_sed(all_oob_times, query_waves)
     assert np.allclose(values[0, :], expected[0, :])
     assert np.allclose(values[1, :], expected[6, :])
+
+
+def test_linear_fit_extrapolation_interleave():
+    """Test the linear fit extrapolator when the added times at the start
+    interleave with the query times.
+    """
+    query_waves = np.array([2000.0, 3000.0])
+    query_times = np.array([-10.0, 0.5, 50.0, 60.0, 70.0, 99.5, 120.0])
+
+    # With nfit=2, the times should be added at the start at 0.0 and 1.0
+    # and at the end at 99.0 and 100.0.
+    time_linear = LinearFit(nfit=2)
+    model = _LinearLinearTestModel(
+        time_extrapolation=(time_linear, time_linear),
+        t0=0.0,
+    )
+    values = model.evaluate_sed(query_times, query_waves)
+    assert np.allclose(values[0, :], [1080.0, 1580.0])  # The (extrapolated) value at -10 days is correct.
+    assert np.allclose(values[1, :], [1101.0, 1601.0])  # The value at 0.5 days is correct.
+    assert np.allclose(values[5, :], [1299.0, 1799.0])  # The value at 99.5 days is correct.
+    assert np.allclose(values[6, :], [1340.0, 1840.0])  # The (extrapolated) value at 120 days is correct.
