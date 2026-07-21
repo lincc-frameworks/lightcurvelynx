@@ -322,6 +322,18 @@ def test_linear_linear_model_diff_extrapolators() -> None:
         with pytest.raises(ValueError):
             _ = model.evaluate_sed(query_times, query_waves)
 
+    # We if the model doesn't fail on None, we should get a warning about extrapolation
+    # and then the model should give its best prediction.
+    model = _LinearLinearTestModel(
+        wave_extrapolation=(None, zero_extrap),
+        time_extrapolation=None,
+        t0=0.0,
+        fail_on_out_of_bounds=False,
+    )
+    with pytest.warns(UserWarning):
+        values = model.evaluate_sed(np.array([-10.0, 0.0, 10.0, 110.0]), np.array([2000.0]))
+    assert np.allclose(values, np.array([[1080.0], [1100.0], [1120.0], [1320.0]]))
+
 
 def test_linear_linear_model_ooo_time() -> None:
     """Test the _LinearLinearTestModel with extrapolators on out-of-order times."""
@@ -419,6 +431,32 @@ def test_linear_linear_model_ooo_wavelength() -> None:
     assert np.allclose(values3, expected3)
 
 
+def test_linear_bandflux_model_all_out_of_bounds():
+    """Test the _LinearBandfluxTestModel with extrapolators when all times are out of bounds."""
+    time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
+    model = _LinearBandfluxTestModel(time_extrapolation=(time_linear, time_linear), t0=0.0)
+    state = model.sample_parameters(num_samples=1)
+
+    # All the times are before.
+    query_times = np.array([-50.0, -40.0, -30.0])
+    values = model.compute_bandflux_with_extrapolation(query_times, "r", state)
+    expected = np.array([50.0, 60.0, 70.0])
+    assert np.allclose(values, expected)
+
+    # All the times are after. Extrapolation linearly down from 150.0 to 0 over
+    # 100 days or 1.5 per day.
+    query_times = np.array([150.0, 160.0, 170.0])
+    values = model.compute_bandflux_with_extrapolation(query_times, "r", state)
+    expected = np.array([75.0, 60.0, 45.0])
+    assert np.allclose(values, expected)
+
+    # Some times before and some after (but none in bounds).
+    query_times = np.array([-50.0, -40.0, 150.0, 160.0])
+    values = model.compute_bandflux_with_extrapolation(query_times, "r", state)
+    expected = np.array([50.0, 60.0, 75.0, 60.0])
+    assert np.allclose(values, expected)
+
+
 def test_linear_bandflux_model_ooo_time():
     """Test the _LinearBandfluxTestModel with extrapolators on out-of-order times."""
     time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
@@ -503,3 +541,24 @@ def test_linear_fit_extrapolation():
     values = model.evaluate_sed(all_oob_times, query_waves)
     assert np.allclose(values[0, :], expected[0, :])
     assert np.allclose(values[1, :], expected[6, :])
+
+
+def test_linear_fit_extrapolation_interleave():
+    """Test the linear fit extrapolator when the added times at the start
+    interleave with the query times.
+    """
+    query_waves = np.array([2000.0, 3000.0])
+    query_times = np.array([-10.0, 0.5, 50.0, 60.0, 70.0, 99.5, 120.0])
+
+    # With nfit=2, the times should be added at the start at 0.0 and 1.0
+    # and at the end at 99.0 and 100.0.
+    time_linear = LinearFit(nfit=2)
+    model = _LinearLinearTestModel(
+        time_extrapolation=(time_linear, time_linear),
+        t0=0.0,
+    )
+    values = model.evaluate_sed(query_times, query_waves)
+    assert np.allclose(values[0, :], [1080.0, 1580.0])  # The (extrapolated) value at -10 days is correct.
+    assert np.allclose(values[1, :], [1101.0, 1601.0])  # The value at 0.5 days is correct.
+    assert np.allclose(values[5, :], [1299.0, 1799.0])  # The value at 99.5 days is correct.
+    assert np.allclose(values[6, :], [1340.0, 1840.0])  # The (extrapolated) value at 120 days is correct.
