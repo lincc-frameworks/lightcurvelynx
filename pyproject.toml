@@ -49,7 +49,7 @@ dev = [
     "fsspec[http]",  # Read OpSim file from the web with utils/make_opsim_shorten.py
     "jupyter", # Clears output from Jupyter notebooks
     "jax",
-    "lsdb>=0.8",
+    "lsdb>=0.10.2",
     "modeldag",
     "networkx",  # Used for graph visualization
     "pre-commit", # Used to run checks before finalizing a git commit
@@ -68,7 +68,7 @@ all = [
     "dust_extinction",
     "extinction>=0.4.7",  # Needed by sncosmo
     "jax",
-    "lsdb",  # Used to read and write LSDB catalogs
+    "lsdb>=0.10.2",  # Used to read and write LSDB catalogs
     "networkx",  # Used for graph visualization
     "pzflow>=4.0",
     "synphot",  # used for SED modeling tests
