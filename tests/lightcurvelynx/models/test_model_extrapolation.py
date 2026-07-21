@@ -322,6 +322,18 @@ def test_linear_linear_model_diff_extrapolators() -> None:
         with pytest.raises(ValueError):
             _ = model.evaluate_sed(query_times, query_waves)
 
+    # We if the model doesn't fail on None, we should get a warning about extrapolation
+    # and then the model should give its best prediction.
+    model = _LinearLinearTestModel(
+        wave_extrapolation=(None, zero_extrap),
+        time_extrapolation=None,
+        t0=0.0,
+        fail_on_out_of_bounds=False,
+    )
+    with pytest.warns(UserWarning):
+        values = model.evaluate_sed(np.array([-10.0, 0.0, 10.0, 110.0]), np.array([2000.0]))
+    assert np.allclose(values, np.array([[1080.0], [1100.0], [1120.0], [1320.0]]))
+
 
 def test_linear_linear_model_ooo_time() -> None:
     """Test the _LinearLinearTestModel with extrapolators on out-of-order times."""
