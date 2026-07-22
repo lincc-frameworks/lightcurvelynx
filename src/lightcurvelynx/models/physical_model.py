@@ -687,7 +687,7 @@ class SEDModel(BasePhysicalModel):
         # We do the extrapolation in two steps: first for wavelengths and then for times.
         # The result is that we combine the extrapolation for both dimensions at the corners.
         if before_wave_queries is not None or after_wave_queries is not None:
-            new_computed_flux = np.empty((len(query_times), len(wavelengths)))
+            new_computed_flux = np.zeros((len(query_times), len(wavelengths)))
             in_bounds_mask = np.full(len(wavelengths), True)
 
             if before_wave_queries is not None:
@@ -728,7 +728,7 @@ class SEDModel(BasePhysicalModel):
 
         # Do a similiar process for time extrapolation.
         if before_time_queries is not None or after_time_queries is not None:
-            new_computed_flux = np.empty((len(times), len(wavelengths)))
+            new_computed_flux = np.zeros((len(times), len(wavelengths)))
             in_bounds_mask = np.full(len(times), True)
 
             if before_time_queries is not None:
@@ -1127,7 +1127,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         # Then do extrapolation for times that fell outside the model's bounds. These might
         # not be in order, so we use masks to keep track of where they go.
         if before_time_queries is not None or after_time_queries is not None:
-            new_computed_flux = np.empty(len(times))
+            new_computed_flux = np.zeros(len(times))
             in_bounds_mask = np.full(len(times), True)
 
             if before_time_queries is not None:
@@ -1193,7 +1193,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         params = self.get_local_params(state)
 
         # Compute the bandflux for each filter.
-        bandfluxes = np.empty(len(times))
+        bandfluxes = np.zeros(len(times))
         for filter_name in np.unique(filters):
             filter_mask = filters == filter_name
             bandfluxes[filter_mask] = self.compute_bandflux_with_extrapolation(
