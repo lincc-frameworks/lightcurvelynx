@@ -591,7 +591,8 @@ class SEDModel(BasePhysicalModel):
                     )
                 )
 
-        # Check if the wavelengths are sorted and, if not, create sorting indices.
+        # Check if the wavelengths are sorted and, if not, create sorting indices. We do this AFTER we
+        # augment the query waves in case the new boundary points interleave with the original queries.
         if len(query_waves) > 1 and not np.all(query_waves[:-1] <= query_waves[1:]):
             w_idx = np.argsort(query_waves)
             w_inv_idx = np.argsort(w_idx)
@@ -661,7 +662,8 @@ class SEDModel(BasePhysicalModel):
                     (query_times[valid_mask], max_valid_time - np.arange(n_select_time_after - 1, -1, -1))
                 )
 
-        # Check if the times are sorted and, if not, create sorting indices.
+        # Check if the times are sorted and, if not, create sorting indices. We do this AFTER we
+        # augment the query times in case the new boundary points interleave with the original queries.
         if len(query_times) > 1 and not np.all(query_times[:-1] <= query_times[1:]):
             t_idx = np.argsort(query_times)
             t_inv_idx = np.argsort(t_idx)
@@ -673,17 +675,19 @@ class SEDModel(BasePhysicalModel):
         # Use the sorted query times and wavelengths so they are strictly increasing.
         computed_flux = self.compute_sed(query_times[t_idx], query_waves[w_idx], graph_state)
         if t_inv_idx is not None:
-            # Unsort the results based on time (if needed)
+            # Unsort the results based on time (if needed). Unsort the results so that the
+            # order is the same as the original times with the padded times at the front and back.
             computed_flux = computed_flux[t_inv_idx, :]
         if w_inv_idx is not None:
-            # Unsort the results based on wavelength (if needed)
+            # Unsort the results based on wavelength (if needed). Unsort the results so that the order
+            # is the same as the original wavelengths with the padded wavelengths at the front and back.
             computed_flux = computed_flux[:, w_inv_idx]
 
         # Stage 4: ----- Perform the extrapolation for wavelengths and times -----
         # We do the extrapolation in two steps: first for wavelengths and then for times.
         # The result is that we combine the extrapolation for both dimensions at the corners.
         if before_wave_queries is not None or after_wave_queries is not None:
-            new_computed_flux = np.zeros((len(query_times), len(wavelengths)))
+            new_computed_flux = np.empty((len(query_times), len(wavelengths)))
             in_bounds_mask = np.full(len(wavelengths), True)
 
             if before_wave_queries is not None:
@@ -724,7 +728,7 @@ class SEDModel(BasePhysicalModel):
 
         # Do a similiar process for time extrapolation.
         if before_time_queries is not None or after_time_queries is not None:
-            new_computed_flux = np.zeros((len(times), len(wavelengths)))
+            new_computed_flux = np.empty((len(times), len(wavelengths)))
             in_bounds_mask = np.full(len(times), True)
 
             if before_time_queries is not None:
@@ -1105,7 +1109,8 @@ class BandfluxModel(BasePhysicalModel, ABC):
                     (query_times[valid_mask], max_valid_time - np.arange(n_select_time_after - 1, -1, -1))
                 )
 
-        # Check if the times are sorted and, if not, create sorting indices.
+        # Check if the times are sorted and, if not, create sorting indices. We do this AFTER we
+        # augment the query times in case the new boundary points interleave with the original queries.
         if len(query_times) > 1 and not np.all(query_times[:-1] <= query_times[1:]):
             t_idx = np.argsort(query_times)
             t_inv_idx = np.argsort(t_idx)
@@ -1113,7 +1118,8 @@ class BandfluxModel(BasePhysicalModel, ABC):
             t_idx = slice(None)
             t_inv_idx = None
 
-        # Get the band flux at all times (except those we will extrapolate).
+        # Get the band flux at all times (except those we will extrapolate). If needed, unsort the results
+        # so the order is the same as the original with the padded points at the front and back.
         computed_flux = self.compute_bandflux(query_times[t_idx], filter, state)
         if t_inv_idx is not None:
             computed_flux = computed_flux[t_inv_idx]
@@ -1121,7 +1127,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         # Then do extrapolation for times that fell outside the model's bounds. These might
         # not be in order, so we use masks to keep track of where they go.
         if before_time_queries is not None or after_time_queries is not None:
-            new_computed_flux = np.zeros(len(times))
+            new_computed_flux = np.empty(len(times))
             in_bounds_mask = np.full(len(times), True)
 
             if before_time_queries is not None:
@@ -1187,7 +1193,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         params = self.get_local_params(state)
 
         # Compute the bandflux for each filter.
-        bandfluxes = np.zeros(len(times))
+        bandfluxes = np.empty(len(times))
         for filter_name in np.unique(filters):
             filter_mask = filters == filter_name
             bandfluxes[filter_mask] = self.compute_bandflux_with_extrapolation(
