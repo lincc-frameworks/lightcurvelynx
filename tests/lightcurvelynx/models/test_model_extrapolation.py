@@ -237,6 +237,24 @@ def test_linear_linear_model_extrapolators() -> None:
     assert np.allclose(values[0, :], expected[0, :])
     assert np.allclose(values[1, :], expected[-1, :])
 
+    # Test with all times before.
+    all_before_times = np.array([-10.0, -5.0])
+    values = model.evaluate_sed(all_before_times, query_waves)
+    assert np.allclose(values[0, :], expected[0, :])
+    assert np.allclose(values[1, :], 0.5 * (expected[0, :] + expected[1, :]))
+
+    # Test with all times after.
+    all_after_times = np.array([110.0, 120.0])
+    values = model.evaluate_sed(all_after_times, query_waves)
+    assert np.allclose(values[0, :], 0.5 * (expected[-2, :] + expected[-1, :]))
+    assert np.allclose(values[1, :], expected[-1, :])
+
+    # Test all wavelengths before.
+    all_before_waves = np.array([900.0, 950.0])
+    values = model.evaluate_sed(query_times, all_before_waves)
+    assert np.allclose(values[:, 0], expected[:, 0])
+    assert np.allclose(values[:, 1], [486.0, 540.0, 630.0, 720.0, 576.0])
+
     # We fail creation if given invalid numbers or types of extrapolators.
     with pytest.raises(ValueError):
         _ = _LinearLinearTestModel(
