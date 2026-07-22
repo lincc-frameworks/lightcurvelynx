@@ -1051,17 +1051,18 @@ class BandfluxModel(BasePhysicalModel, ABC):
         if t0 is None:
             t0 = 0.0
 
-        # We check if we can do extrapolation for times before the valid time range and, if so, modify
-        # the queries and set up the data we need.
-        min_query_time = np.min(times)
+        # We check if we need to do extrapolation on times before the valid time range and, if so,
+        # compute a mask of those query points (these might not be in order).
         min_valid_phase = self.minphase(filter=filter, graph_state=state)
         if min_valid_phase is None:
-            min_valid_time = min_query_time
+            min_valid_time = np.min(times)
         else:
             min_valid_time = min_valid_phase + t0
+        before_time_mask = query_times < min_valid_time
 
         before_time_queries = None
-        if min_query_time < min_valid_time:
+        n_select_time_before = 0
+        if np.any(before_time_mask):
             if self._time_extrap_before is None:
                 warnings.warn(
                     "Some times are less than the model's defined bounds and no time "
@@ -1069,26 +1070,21 @@ class BandfluxModel(BasePhysicalModel, ABC):
                     "extrapolation using the 'time_extrapolation' parameter."
                 )
             else:
-                # Add the boundary point at the start for extrapolation and compute
-                # the list of times to extrapolate.
-                valid_mask = query_times >= min_valid_time
-                before_time_queries = query_times[~valid_mask]
+                before_time_queries = query_times[before_time_mask]
                 n_select_time_before = self._time_extrap_before.nfit
-                query_times = np.concatenate(
-                    (min_valid_time + np.arange(n_select_time_before), query_times[valid_mask])
-                )
 
-        # We check if we can do extrapolation for times after the valid time range and, if so, modify
-        # the queries and set up the data we need.
-        max_query_time = np.max(times)
+        # We check if we need to do extrapolation on times after the valid time range and, if so,
+        # compute a mask of those query points (these might not be in order).
         max_valid_phase = self.maxphase(filter=filter, graph_state=state)
         if max_valid_phase is None:
-            max_valid_time = max_query_time
+            max_valid_time = np.max(times)
         else:
             max_valid_time = max_valid_phase + t0
+        after_time_mask = query_times > max_valid_time
 
         after_time_queries = None
-        if max_query_time > max_valid_time:
+        n_select_time_after = 0
+        if np.any(after_time_mask):
             if self._time_extrap_after is None:
                 warnings.warn(
                     "Some times are greater than the model's defined bounds and no time "
@@ -1096,66 +1092,72 @@ class BandfluxModel(BasePhysicalModel, ABC):
                     "extrapolation using the 'time_extrapolation' parameter."
                 )
             else:
-                # Add the boundary point at the end for extrapolation and compute
-                # the list of times to extrapolate.
-                valid_mask = query_times <= max_valid_time
-                after_time_queries = query_times[~valid_mask]
+                after_time_queries = query_times[after_time_mask]
                 n_select_time_after = self._time_extrap_after.nfit
-                query_times = np.concatenate(
-                    (query_times[valid_mask], max_valid_time - np.arange(n_select_time_after - 1, -1, -1))
-                )
 
-        # Check if the times are sorted and, if not, create sorting indices.
-        if len(query_times) > 1 and not np.all(query_times[:-1] <= query_times[1:]):
-            t_idx = np.argsort(query_times)
+        # Create an updated query time array with added boundary points for extrapolation.
+        if n_select_time_before > 0 and n_select_time_after > 0:
+            padded_times = np.concatenate(
+                (
+                    min_valid_time + np.arange(n_select_time_before),
+                    query_times[~before_time_mask & ~after_time_mask],
+                    max_valid_time - np.arange(n_select_time_after - 1, -1, -1),
+                )
+            )
+        else:
+            padded_times = query_times
+
+        # Check if the times are sorted and, if not, create sorting indices. We do this AFTER we
+        # augment the query times in case the new boundary points interleave with the original queries.
+        if len(padded_times) > 1 and not np.all(padded_times[:-1] <= padded_times[1:]):
+            t_idx = np.argsort(padded_times)
             t_inv_idx = np.argsort(t_idx)
         else:
             t_idx = slice(None)
             t_inv_idx = None
 
-        # Get the band flux at all times (except those we will extrapolate).
-        computed_flux = self.compute_bandflux(query_times[t_idx], filter, state)
+        # Get the band flux at all query times (except those we will extrapolate).
+        computed_flux = self.compute_bandflux(padded_times[t_idx], filter, state)
+
+        # Unsort the results if needed. After this step computed_flux will be in the same order as
+        # the input times with n_select_time_before prepended and n_select_time_after appended
+        # (if applicable).
         if t_inv_idx is not None:
             computed_flux = computed_flux[t_inv_idx]
 
         # Then do extrapolation for times that fell outside the model's bounds. These might
         # not be in order, so we use masks to keep track of where they go.
         if before_time_queries is not None or after_time_queries is not None:
-            new_computed_flux = np.zeros(len(times))
-            in_bounds_mask = np.full(len(times), True)
+            new_computed_flux = np.empty(len(query_times))
 
             if before_time_queries is not None:
                 # Compute the flux values before the model's first valid time. We need the shape of the
                 # flux values to be (T, W=1) for the extrapolation, so we add a new axis.
-                before_time_mask = times < min_valid_time
                 extrapolated_values = self._time_extrap_before.extrapolate_time(
-                    query_times[:n_select_time_before],
+                    padded_times[:n_select_time_before],
                     computed_flux[:n_select_time_before, np.newaxis],
                     before_time_queries,
                 )
                 new_computed_flux[before_time_mask] = extrapolated_values[:, 0]
-                in_bounds_mask[before_time_mask] = False
 
-                # Drop the first entry (which was added for extrapolation).
+                # Drop the first n_select_time_before entries (added for extrapolation).
                 computed_flux = computed_flux[n_select_time_before:]
 
             if after_time_queries is not None:
                 # Compute the flux values after the model's last valid time. We need the shape of the
                 # flux values to be (T, W=1) for the extrapolation, so we add a new axis.
-                after_time_mask = times > max_valid_time
                 extrapolated_values = self._time_extrap_after.extrapolate_time(
-                    query_times[-n_select_time_after:],
+                    padded_times[-n_select_time_after:],
                     computed_flux[-n_select_time_after:, np.newaxis],
                     after_time_queries,
                 )
                 new_computed_flux[after_time_mask] = extrapolated_values[:, 0]
-                in_bounds_mask[after_time_mask] = False
 
-                # Drop the last entry (which was added for extrapolation).
+                # Drop the last n_select_time_after entries (added for extrapolation).
                 computed_flux = computed_flux[:-n_select_time_after]
 
             # Fill in the valid flux values.
-            new_computed_flux[in_bounds_mask] = computed_flux
+            new_computed_flux[~before_time_mask & ~after_time_mask] = computed_flux
             computed_flux = new_computed_flux
 
         return computed_flux
