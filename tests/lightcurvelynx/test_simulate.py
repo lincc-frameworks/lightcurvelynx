@@ -1723,8 +1723,9 @@ def test_simulate_save_nested_with_parameter_arrays():
     sample_states = math_node.sample_parameters(num_samples=num_samples)
 
     # Create a nest results frame including the array values.
+    index = list(range(num_samples))
     results_dict = {
-        "id": [i for i in range(num_samples)],
+        "id": index,
         "ra": np.full(num_samples, 15.0),
         "dec": np.full(num_samples, -10.0),
         "params": [state.to_dict() for state in sample_states],
@@ -1733,7 +1734,6 @@ def test_simulate_save_nested_with_parameter_arrays():
         "mjd": np.full(num_samples * 2, 59000.0),
     }
 
-    index = [i for i in range(num_samples)]
     nested_index = [i % num_samples for i in range(2 * num_samples)]
     results = NestedFrame(data=results_dict, index=index)
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)

@@ -345,7 +345,7 @@ def _simulate_lightcurves_batch(simulation_info):
     ra = np.atleast_1d(model.get_param(sample_states, "ra"))
     dec = np.atleast_1d(model.get_param(sample_states, "dec"))
     results_dict = {
-        "id": [i for i in range(num_samples)],
+        "id": list(range(num_samples)),
         "ra": ra.tolist(),
         "dec": dec.tolist(),
         "nobs": [0] * num_samples,
@@ -545,7 +545,7 @@ def _simulate_lightcurves_batch(simulation_info):
 
     # Create the nested frame and either save it to a file or return it directly.
     logger.info("Compiling results.")
-    results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
+    results = NestedFrame(data=results_dict, index=list(range(num_samples)))
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
     results = results.join_nested(nested_frame, "lightcurve")
 
@@ -953,7 +953,7 @@ def compute_noise_free_lightcurves(
         nested_index.extend([idx] * len(lc["times"]))
 
     # Create the nested results frame.
-    results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
+    results = NestedFrame(data=results_dict, index=list(range(num_samples)))
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
     results = results.join_nested(nested_frame, "lightcurve")
     return results
