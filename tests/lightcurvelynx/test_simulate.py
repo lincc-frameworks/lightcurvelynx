@@ -17,6 +17,7 @@ from lightcurvelynx.math_nodes.given_sampler import (
     TableSampler,
 )
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.math_nodes.state_expansion_node import StateExpansionNode
 from lightcurvelynx.models.basic_models import ConstantSEDModel, SinWaveModel, StepModel
 from lightcurvelynx.models.physical_model import SEDModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
@@ -1709,6 +1710,82 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
     # Check that the "is_saturated" column is True for all observations.
     assert "is_saturated" in lightcurve.columns
     assert np.all(lightcurve["is_saturated"])
+
+
+class _DuplicatingConstantSEDModel(ConstantSEDModel):
+    """A model with a constant SED over both wavelength and time that repeats entries.
+
+    Parameters
+    ----------
+    brightness : parameter
+        The inherent brightness.
+    repeats : parameter
+        The number of times to duplicate the observations.
+    **kwargs : dict, optional
+        Any additional keyword arguments.
+    """
+
+    def __init__(self, brightness, repeats, **kwargs):
+        super().__init__(brightness, **kwargs)
+        self.add_parameter(
+            "number_of_duplicates",
+            StateExpansionNode(repeats=repeats).repeats,
+        )
+
+
+def test_simulate_expanded_state(test_data_dir):
+    """Test an end to end run with state expansion nodes."""
+    # Load the OpSim data and passband data for the griz filters only.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim. Duplicate the observations per row.
+    given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
+    given_repeats = [1, 2, 1, 3, 1]
+    source = _DuplicatingConstantSEDModel(
+        brightness=GivenValueList(given_brightness),
+        repeats=GivenValueList(given_repeats),
+        t0=0.0,
+        ra=GivenValueList(opsim_db["ra"].values[0:5]),
+        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    results = simulate_lightcurves(
+        source,
+        5,
+        survey_info,
+        param_cols=["source.brightness"],
+        progress_bar=False,  # Disable progress bar for testing
+    )
+    assert len(results) == 8
+    assert np.all(results["nobs"].values >= 1)
+    assert np.allclose(results["z"].values, 0.0)
+    assert np.allclose(results["t0"].values, 0.0)
+
+    # Check that we correctly repeated values.
+    assert np.allclose(results["ra"].values[0], opsim_db["ra"].values[0])
+    assert np.allclose(results["ra"].values[1:3], opsim_db["ra"].values[1])
+    assert np.allclose(results["ra"].values[3], opsim_db["ra"].values[2])
+    assert np.allclose(results["ra"].values[4:7], opsim_db["ra"].values[3])
+    assert np.allclose(results["ra"].values[7], opsim_db["ra"].values[4])
+    assert np.allclose(results["dec"].values[0], opsim_db["dec"].values[0])
+    assert np.allclose(results["dec"].values[1:3], opsim_db["dec"].values[1])
+    assert np.allclose(results["dec"].values[3], opsim_db["dec"].values[2])
+    assert np.allclose(results["dec"].values[4:7], opsim_db["dec"].values[3])
+    assert np.allclose(results["dec"].values[7], opsim_db["dec"].values[4])
+    assert np.allclose(results["source_brightness"].values[0], given_brightness[0])
+    assert np.allclose(results["source_brightness"].values[1:3], given_brightness[1])
+    assert np.allclose(results["source_brightness"].values[3], given_brightness[2])
+    assert np.allclose(results["source_brightness"].values[4:7], given_brightness[3])
+    assert np.allclose(results["source_brightness"].values[7], given_brightness[4])
 
 
 def test_simulate_save_nested_with_parameter_arrays():
