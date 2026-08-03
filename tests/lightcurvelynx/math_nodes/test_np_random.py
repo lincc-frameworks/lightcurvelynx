@@ -36,6 +36,15 @@ def test_numpy_random_uniform():
     assert np.all(values >= 10.0)
     assert np.abs(np.mean(values) - 15.0) < 0.5
 
+    # We can specify the range with lists of values.
+    np_node4 = NumpyRandomFunc("uniform", low=[0.0, 10.0], high=[1.0, 20.0], seed=100, size=2)
+    values = np.array([np_node4.generate() for _ in range(1000)])
+    assert values.shape == (1000, 1, 2)
+    assert np.all(values[:, 0, 0] <= 1.0)
+    assert np.all(values[:, 0, 0] >= 0.0)
+    assert np.all(values[:, 0, 1] <= 20.0)
+    assert np.all(values[:, 0, 1] >= 10.0)
+
     # We fail with invalid sizes.
     with pytest.raises(ValueError):
         NumpyRandomFunc("uniform", size=(10, -1))
