@@ -336,10 +336,6 @@ class TableSampler(FunctionNode):
         """Return the number of items in the table."""
         return self._num_values
 
-    def reset(self):
-        """Reset the next index to use. Only used for in-order sampling."""
-        self.next_ind = 0
-
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
 
