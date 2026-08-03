@@ -235,8 +235,9 @@ class BasicMathNode(FunctionNode):
             elif isinstance(node, ast.Call):
                 # Check that this is just a math function name, with no library prefix.
                 if not isinstance(node.func, ast.Name):
+                    func_str = ast.unparse(node.func)
                     raise ValueError(
-                        f"Unsupported function call {ast.dump(node.func)}. Only basic math "
+                        f"Unsupported function call '{func_str}'. Only basic math "
                         "operations are allowed. The backend should be set via the 'backend' "
                         "argument, not by using a library prefix."
                     )
