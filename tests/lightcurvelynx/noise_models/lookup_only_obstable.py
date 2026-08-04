@@ -53,7 +53,10 @@ class LookupOnlyObsTable:
             The values for each row in the table.
         """
         if indices is None:
-            indices = np.arange(len(self.table_values))
+            indices = slice(None)
+            num_indices = len(self.table_values)
+        else:
+            num_indices = len(indices)
 
         # Prioritize columns that are in the table.
         if key in self.table_values.columns:
@@ -62,10 +65,10 @@ class LookupOnlyObsTable:
         # Otherwise fall back to the survey values if they are defined.
         value = self.const_values.get(key, None)
         if value is None:
-            return np.full((len(indices),), default)
-        if isinstance(value, float | int):
+            return np.full((num_indices,), default)
+        if isinstance(value, float | int | np.float64 | np.int64):
             # Use the same value for all rows.
-            return np.full((len(indices),), value)
+            return np.full((num_indices,), value)
         if isinstance(value, dict):
             # We have a dictionary mapping the values for each filter to the values for those rows.
             if "filter" not in self.table_values.columns:
@@ -74,7 +77,7 @@ class LookupOnlyObsTable:
                 )
 
             # Map the values for each filter to the rows in the table.
-            result = np.zeros(len(indices), dtype=float)
+            result = np.zeros(num_indices, dtype=float)
             for fil, val in value.items():
                 result[self.table_values["filter"][indices] == fil] = val
             return result

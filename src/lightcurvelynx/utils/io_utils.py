@@ -169,6 +169,7 @@ def write_results_as_hats(base_catalog_path, results, *, catalog_name=None, over
         catalog_name=catalog_name,
         as_collection=False,
         overwrite=overwrite,
+        create_summary=False,
     )
 
 

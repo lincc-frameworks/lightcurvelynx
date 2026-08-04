@@ -144,6 +144,15 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         A dictionary where the keys are the column names of the data used for
         training the flow and the values are _ColumnNormalizationData objects that
         contain the information needed to normalize and denormalize the data for prediction.
+    flux_floor : float, optional
+        A positive lower bound applied to the bandflux *conditioning* input of the
+        flow, in the same units as the bandflux (e.g. nJy). Simulated bandfluxes can
+        be zero or negative, which the log-transform of a normalized ``bandflux``
+        column cannot handle, so values below the floor are raised to it before
+        being fed to the flow. The noise itself is still centered on the original
+        (unfloored) bandflux. If None and the ``bandflux`` column was normalized
+        with a log transform, the minimum bandflux seen during training is used
+        (below it the flow is extrapolating anyway).
     """
 
     def __init__(
@@ -152,6 +161,7 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         *,
         input_col_map=None,
         normalizer_data=None,
+        flux_floor=None,
     ):
         # Validate the pzflow object has the expected output column
         # and save its name.
@@ -166,6 +176,9 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         # Save the meta data.
         self._input_col_map = input_col_map if input_col_map is not None else {}
         self._normalizer_data = normalizer_data if normalizer_data is not None else {}
+        if flux_floor is not None and flux_floor <= 0:
+            raise ValueError("flux_floor must be positive.")
+        self._flux_floor = flux_floor
         self._update_required_values()
 
     def add_column_mapping(self, flow_input_name, obs_table_col_name):
@@ -182,6 +195,23 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
             The name of the column in the ObsTable that should be used for this parameter.
         """
         self._input_col_map[flow_input_name] = obs_table_col_name
+
+    def _bandflux_floor(self):
+        """Return the lower bound for the bandflux conditioning input (in the same
+        units as the bandflux, e.g. nJy), or None.
+
+        An explicit ``flux_floor`` takes precedence. Otherwise, if the ``bandflux``
+        column was normalized with a log transform, the minimum bandflux seen during
+        training is used (``denormalize(0.0)`` of the normalizer).
+        """
+        # Use getattr for models pickled before flux_floor was introduced.
+        flux_floor = getattr(self, "_flux_floor", None)
+        if flux_floor is not None:
+            return flux_floor
+        normalizer = self._normalizer_data.get("bandflux")
+        if normalizer is not None and normalizer.log_transform:
+            return normalizer.denormalize(0.0)
+        return None
 
     def _update_required_values(self):
         """Update the list of required values based on the current input_col_map."""
@@ -271,7 +301,10 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
             input_params = {}
             for col in self._flow.conditional_columns:
                 if col == "bandflux" and bandflux is not None:
-                    values = bandflux
+                    # Raise the conditioning input to the flux floor (if any); the noise
+                    # below is still centered on the original, unfloored bandflux.
+                    floor = self._bandflux_floor()
+                    values = bandflux if floor is None else np.maximum(bandflux, floor)
                 else:
                     key = self._input_col_map.get(col, col)
                     values = obs_table.get_value_per_row(key, indices=indices)
@@ -322,6 +355,7 @@ def learn_pzflow_noise_model(
     *,
     noise_column=None,
     normalize=True,
+    flux_floor=None,
     **kwargs,
 ):
     """Train a pzflow model to predict noise parameters (standard deviation of the noise) for
@@ -340,6 +374,11 @@ def learn_pzflow_noise_model(
         Whether to normalize the data for training the flow. This can help the
         flow learn the distribution more effectively, especially if the data has
         a large dynamic range or is highly skewed.
+    flux_floor : float, optional
+        A positive lower bound applied to the bandflux conditioning input when the
+        model is queried, in the same units as the training ``bandflux`` column
+        (e.g. nJy); see PZFlowNoiseModel. If None (default) and ``normalize`` is
+        True, the minimum training bandflux is used.
     **kwargs
         Additional parameters for training the flow.
 
@@ -384,4 +423,5 @@ def learn_pzflow_noise_model(
     return PZFlowNoiseModel(
         flow_obj=flow,
         normalizer_data=normalizer_data,
+        flux_floor=flux_floor,
     )

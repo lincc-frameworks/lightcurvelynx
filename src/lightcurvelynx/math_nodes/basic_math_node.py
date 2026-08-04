@@ -225,7 +225,7 @@ class BasicMathNode(FunctionNode):
             Any additional keyword arguments, including the variable
             assignments.
         """
-        tree = ast.parse(expression)
+        tree = ast.parse(expression, mode="eval")
 
         # Walk the tree and confirm that it only contains the basic math.
         for node in ast.walk(tree):
@@ -233,6 +233,14 @@ class BasicMathNode(FunctionNode):
                 # Nothing to do, this is a valid operation for the ast.
                 continue
             elif isinstance(node, ast.Call):
+                # Check that this is just a math function name, with no library prefix.
+                if not isinstance(node.func, ast.Name):
+                    func_str = ast.unparse(node.func)
+                    raise ValueError(
+                        f"Unsupported function call '{func_str}'. Only basic math "
+                        "operations are allowed. The backend should be set via the 'backend' "
+                        "argument, not by using a library prefix."
+                    )
                 # Check that function calls are only using items on the allow list.
                 if node.func.id not in self._math_map:
                     raise ValueError(f"Unsupported function {node.func.id}")

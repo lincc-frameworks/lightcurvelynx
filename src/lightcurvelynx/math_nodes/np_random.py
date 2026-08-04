@@ -133,6 +133,10 @@ class NumpyRandomFunc(FunctionNode):
             target_size = (graph_state.num_samples, *self.sample_size)
             for key in args:
                 arg_value = args[key]
+                if isinstance(arg_value, list):
+                    # Convert lists to arrays so we can broadcast them.
+                    arg_value = np.asarray(arg_value)
+                    args[key] = arg_value
                 if isinstance(arg_value, np.ndarray) and arg_value.shape != target_size:
                     # Add new axes for the sample_size dimensions, then broadcast
                     expanded_shape = arg_value.shape + (1,) * len(self.sample_size)

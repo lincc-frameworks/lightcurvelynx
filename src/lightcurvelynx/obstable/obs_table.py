@@ -314,7 +314,10 @@ class ObsTable:
             The values for each row in the table.
         """
         if indices is None:
-            indices = np.arange(len(self._table))
+            indices = slice(None)  # All indices
+            num_rows = len(self._table)
+        else:
+            num_rows = len(indices)
 
         # Prioritize columns that are in the table.
         if key in self._table.columns:
@@ -325,13 +328,17 @@ class ObsTable:
         # Otherwise fall back to the survey values if they are defined.
         value = self.survey_values.get(key, None)
         if value is None:
-            return np.full((len(indices),), default)
-        if isinstance(value, float | int):
+            return np.full((num_rows,), default)
+        if isinstance(value, float | int | np.float64 | np.int64):
             # Use the same value for all rows.
-            return np.full((len(indices),), value)
+            return np.full((num_rows,), value)
         if isinstance(value, dict):
+            # Check that we have a filter column to do the mapping.
+            if "filter" not in self._table.columns:
+                raise ValueError("Cannot map dictionary values to rows because 'filter' column is missing.")
+
             # Map the values for each filter to the rows in the table.
-            result = np.zeros(len(indices), dtype=float)
+            result = np.zeros(num_rows, dtype=float)
             for filt in self.filters:
                 if filt not in value:
                     raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{filt}'")
@@ -992,7 +999,7 @@ class ObsTable:
         # Convert saturation thresholds to nJy.
         saturation_mags_njy = {}
         for filt, mag in self._saturation_mags.items():
-            if not isinstance(mag, int | float):
+            if not isinstance(mag, int | float | np.float64 | np.int64):
                 raise ValueError("Saturation thresholds must be numeric.")
             saturation_mags_njy[filt] = mag2flux(mag)
 
