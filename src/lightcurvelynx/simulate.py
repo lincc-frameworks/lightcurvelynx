@@ -443,7 +443,8 @@ def _simulate_lightcurves_batch(simulation_info):
             if len(np.unique(obs_times)) != nobs:
                 warnings.warn(
                     "Found duplicate observation times in a single survey. "
-                    "This may indicate an issue with the ObsTable."
+                    "This may be due to the ObsTable providing ccd level info,"
+                    "or may indicate an issue with the ObsTable."
                 )
 
             # Split on whether we are evaluating bandfluxes or spectra.
