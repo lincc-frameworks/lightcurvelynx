@@ -419,7 +419,7 @@ class MultiSEDTemplateModel(SEDModel):
 
         super().__init__(**kwargs)
 
-        all_inds = [i for i in range(len(templates))]
+        all_inds = list(range(len(templates)))
         self._sampler_node = GivenValueSampler(all_inds, weights=weights)
         self.add_parameter(
             "selected_template",
