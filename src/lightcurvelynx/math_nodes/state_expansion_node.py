@@ -113,7 +113,7 @@ class StateExpansionNode(FunctionNode):
         # If new parameters to add are not None, we compute the repeats array from the length
         # of the subparameters for each sample.
         if len(self.new_param_names) > 0:
-            if graph_state.num_samples == 1 and isinstance(param_values, Mapping):
+            if isinstance(param_values, Mapping):
                 # If num_samples is 1, we expect a single dictionary instead of a list of dictionaries
                 # (because of the way the sampling process works). We wrap it in a list to make it consistent.
                 param_values = [param_values]
@@ -122,11 +122,12 @@ class StateExpansionNode(FunctionNode):
                     f"The number of subparameter dictionaries ({len(param_values)}) must match the "
                     f"number of samples in the graph state ({graph_state.num_samples})."
                 )
-            repeats = [0] * graph_state.num_samples
 
-            # We get the first dictionary to compute the column names.
+            # We get the first dictionary in the list to compute the column names, compute the number
+            # of repeats for that row, and initialize the concatenation dictionary.
             column_names_set = set(self.new_param_names)
             concat_values = {col: [] for col in self.new_param_names}
+            repeats = [0] * graph_state.num_samples
             for idx, subparam_dict in enumerate(param_values):
                 # Make sure each dictionary has the required column names (keys).
                 if not column_names_set.issubset(subparam_dict.keys()):
@@ -136,7 +137,7 @@ class StateExpansionNode(FunctionNode):
                         f"{', '.join(column_names_set)}. Missing keys: {', '.join(missing_cols)}."
                     )
 
-                # Use the first column to compute the number of repeats for this sample.
+                # Use the first column in the dictionary to compute the number of repeats for this sample.
                 repeats[idx] = len(subparam_dict[self.new_param_names[0]])
 
                 # For each entry in the dictionary, check that the length matches the number of repeats
