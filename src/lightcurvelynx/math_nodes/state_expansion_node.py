@@ -9,6 +9,8 @@ Note
 This class is experimental and may be removed in the future.
 """
 
+from collections.abc import Mapping
+
 import numpy as np
 
 from lightcurvelynx.base_models import FunctionNode
@@ -35,10 +37,10 @@ class StateExpansionNode(FunctionNode):
     param_names : list of str, optional
         A list of parameters to unpack from the param_values argument.
         Default: None
-    param_values : parameter
-        A list of dictionaries where each dictionary contains the same keys (new column names)
-        and the values for each parameter. The number of dictionaries must be the same as the
-        number of samples in the graph state.
+    param_values : parameter, optional
+        A parameter that produces a list of dictionaries where each dictionary contains the same
+        keys (new column names) and the values for each parameter. The number of dictionaries
+        produced must be the same as the number of samples in the graph state.
         Default: None
     repeats: int or list of int, optional
         The number of repeats for each sample. If an int is provided, it is applied to
@@ -111,6 +113,10 @@ class StateExpansionNode(FunctionNode):
         # If new parameters to add are not None, we compute the repeats array from the length
         # of the subparameters for each sample.
         if len(self.new_param_names) > 0:
+            if graph_state.num_samples == 1 and isinstance(param_values, Mapping):
+                # If num_samples is 1, we expect a single dictionary instead of a list of dictionaries
+                # (because of the way the sampling process works). We wrap it in a list to make it consistent.
+                param_values = [param_values]
             if len(param_values) != graph_state.num_samples:
                 raise ValueError(
                     f"The number of subparameter dictionaries ({len(param_values)}) must match the "
@@ -151,16 +157,18 @@ class StateExpansionNode(FunctionNode):
 
         # Use the repeats list to expand the graph state. Save the information about the
         # original indices and the sub-indices for each sample before and after expansion.
-        org_inds = np.arange(graph_state.num_samples).repeat(repeats)
-        sub_inds = np.concatenate([np.arange(r) for r in repeats])
+        sample_offset = graph_state.sample_offset
+        if sample_offset is None:
+            sample_offset = 0
+        original_indices = np.arange(sample_offset, sample_offset + graph_state.num_samples)
+        org_inds = np.repeat(original_indices, repeats)
+        sub_inds = np.concatenate([np.arange(repeat) for repeat in repeats])
         graph_state.repeat(repeats)
-        results = [org_inds, sub_inds]
 
-        # Add columns for any subparameters we need to concatenate.
-        for col, values in concat_values.items():
-            graph_state.set(self.node_string, col, values)
-            results.append(values)
-
-        # Save and return the old indices and the subindices as the result.
+        # Return the original indices, sub-indices, and any new parameter values as a result.
+        # These will get automatically added to the graph state by _save_results.
+        results = [org_inds, sub_inds, *concat_values.values()]
+        if graph_state.num_samples == 1:
+            results = [value[0] for value in results]
         self._save_results(results, graph_state)
         return results

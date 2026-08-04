@@ -52,6 +52,13 @@ def test_state_expansion_node():
     assert new_state["exp"]["sub_inds"].tolist() == [0, 1, 2, 0, 1, 2, 0, 1, 2]
     assert new_state["exp"]["repeats"].tolist() == [3, 3, 3, 3, 3, 3, 3, 3, 3]
 
+    # We can use num_samples=1 and still get the correct expansion.
+    single_state = exp_node.sample_parameters(num_samples=1)
+    assert single_state.num_samples == 3
+    assert single_state["exp"]["org_inds"].tolist() == [0, 0, 0]
+    assert single_state["exp"]["sub_inds"].tolist() == [0, 1, 2]
+    assert single_state["exp"]["repeats"].tolist() == [3, 3, 3]
+
     # We can chain the nodes.
     exp_node2 = StateExpansionNode(repeats=2, node_label="exp2")
     add_node = _AddModel(
@@ -84,6 +91,18 @@ def test_state_expansion_node():
         _ = StateExpansionNode(node_label="bad_exp")
 
 
+def test_state_expansion_node_offset():
+    """Test that we can create and query a StateExpansionNode with an sample offset."""
+    exp_node = StateExpansionNode(repeats=3, node_label="exp")
+    state = exp_node.sample_parameters(num_samples=2, sample_offset=5)
+
+    # We ask for 2 samples, but force 3 repeats of each.
+    assert state.num_samples == 6
+    assert state["exp"]["org_inds"].tolist() == [5, 5, 5, 6, 6, 6]
+    assert state["exp"]["sub_inds"].tolist() == [0, 1, 2, 0, 1, 2]
+    assert state["exp"]["repeats"].tolist() == [3, 3, 3, 3, 3, 3]
+
+
 def test_state_expansion_node_subparameters():
     """Test that we can create and query a StateExpansionNode from subparameters."""
     sub_param_list = [
@@ -109,6 +128,15 @@ def test_state_expansion_node_subparameters():
     assert state["exp"]["a"].tolist() == [1, 2, 5, 6, 7, 9, 10]
     assert state["exp"]["b"].tolist() == [3, 4, 7, 8, 9, 13, 14]
     assert "c" not in state["exp"]
+
+    # Check that we correctly flatten when num_samples is 1.
+    sub_param_node.reset()  # Reset the list of subparameters.
+    state = exp_node.sample_parameters(num_samples=1)
+    assert state.num_samples == 2
+    assert state["exp"]["org_inds"].tolist() == [0, 0]
+    assert state["exp"]["sub_inds"].tolist() == [0, 1]
+    assert state["exp"]["a"].tolist() == [1, 2]
+    assert state["exp"]["b"].tolist() == [3, 4]
 
     # We fail if we give bad combinations of parameters to the node.
     with pytest.raises(ValueError):
