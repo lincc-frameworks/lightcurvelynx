@@ -95,7 +95,7 @@ class RomanPoissonFluxNoiseModel(PoissonFluxNoiseModel):
     def __init__(self):
         super().__init__()
 
-    def compute_flux_error(self, bandflux, obs_table, indices):
+    def compute_flux_error(self, bandflux, obs_table, indices, **kwargs):
         """Compute the flux error for the given bandflux and observation parameters.
 
         Parameters
@@ -106,6 +106,8 @@ class RomanPoissonFluxNoiseModel(PoissonFluxNoiseModel):
             Table containing the observation parameters needed to compute the noise.
         indices : array_like of int
             Indices of the observations in the ObsTable for which to compute the noise.
+        **kwargs
+            Additional keyword arguments to pass to the noise computation function.
 
         Returns
         -------
