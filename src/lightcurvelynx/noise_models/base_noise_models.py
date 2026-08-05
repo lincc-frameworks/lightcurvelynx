@@ -178,8 +178,8 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
     # Note that both nexposure and zp_err_mag can fall back to default values.
     _required_values = ["exptime", "sky_bg_e", "psf_footprint", "zp", "read_noise", "dark_current"]
 
-    def __init__(self):
-        pass
+    def __init__(self, err_scale=1.0):
+        self.err_scale = err_scale
 
     def compute_flux_error(self, bandflux, obs_table, indices):
         """Compute the flux error for the given bandflux and observation parameters.
@@ -270,6 +270,8 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
             obs_table=obs_table,
             indices=indices,
         )
+
+        flux_err *= self.err_scale
 
         # Make sure the array is a numpy array.
         flux_err = np.asarray(flux_err)
