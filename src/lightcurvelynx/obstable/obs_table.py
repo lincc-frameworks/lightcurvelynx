@@ -202,7 +202,7 @@ class ObsTable:
         if saturation_mags is not None:
             self._saturation_njy = {}
             for filt, mag in saturation_mags.items():
-                if not isinstance(mag, int | float | np.float64 | np.int64):
+                if not isinstance(mag, int | float | np.float64 | np.int64):  # pragma: no cover
                     raise ValueError("Saturation thresholds must be numeric.")
                 self._saturation_njy[filt] = mag2flux(mag)
 
