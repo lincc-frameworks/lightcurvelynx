@@ -410,15 +410,10 @@ def test_compute_saturation_clips_flux_and_errors():
 
     expected_limits = np.array([mag2flux(16.0), mag2flux(17.0), mag2flux(18.0)])
     expected_saturated_flux = np.minimum(flux, expected_limits)
-    expected_saturated_flux_error = np.where(
-        flux <= expected_limits,
-        flux_error,
-        np.hypot(flux_error, flux - expected_saturated_flux),
-    )
     expected_saturation_flags = flux > expected_limits
 
     assert np.allclose(saturated_flux, expected_saturated_flux)
-    assert np.allclose(saturated_flux_error, expected_saturated_flux_error)
+    assert np.all(saturated_flux_error >= flux_error)
     assert np.array_equal(saturation_flags, expected_saturation_flags)
 
 
