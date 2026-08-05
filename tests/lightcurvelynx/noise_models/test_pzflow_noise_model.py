@@ -113,6 +113,53 @@ def test_pzflow_noise_model(test_data_dir):
         )
 
 
+def test_pzflow_noise_model_err_scale(test_data_dir):
+    """Test that err_scale scales both the reported flux error and the
+    noise applied to the bandflux for PZFlowNoiseModel."""
+    _ = pytest.importorskip("pzflow")
+
+    rng_for_data = np.random.default_rng(2024)
+    num_samples = 20
+    dummy_table = {"zp_vals": rng_for_data.normal(loc=25.0, scale=0.5, size=num_samples)}
+    dummy_consts = {"readout_noise": 1.0}
+    obs_table = LookupOnlyObsTable(dummy_table, const_values=dummy_consts)
+
+    bandflux = np.linspace(400.0, 600.0, num_samples)
+    err_scale = 2.0
+
+    base_model = PZFlowNoiseModel.from_file(
+        test_data_dir / "fake_noise_flow.pkl",
+        input_col_map={"zp": "zp_vals"},
+    )
+    scaled_model = PZFlowNoiseModel.from_file(
+        test_data_dir / "fake_noise_flow.pkl",
+        input_col_map={"zp": "zp_vals"},
+    )
+    scaled_model._err_scale = err_scale
+
+    rng_for_base = np.random.default_rng(2024)
+    _, base_flux_err = base_model.apply_noise(
+        bandflux,
+        obs_table=obs_table,
+        indices=np.arange(num_samples),
+        rng=rng_for_base,
+    )
+
+    rng_for_scaled = np.random.default_rng(2024)
+    scaled_flux, scaled_flux_err = scaled_model.apply_noise(
+        bandflux,
+        obs_table=obs_table,
+        indices=np.arange(num_samples),
+        rng=rng_for_scaled,
+    )
+    assert np.allclose(scaled_flux_err, base_flux_err * err_scale)
+
+    rng_for_expected = np.random.default_rng(2024)
+    _ = rng_for_expected.integers(0, 1e9)  # consume the pzflow seed draw
+    expected_flux = rng_for_expected.normal(loc=bandflux, scale=scaled_flux_err)
+    assert np.allclose(scaled_flux, expected_flux)
+
+
 def test_pzflow_noise_model_fail(test_data_dir):
     """Test that the PZFlowNoiseModel fails the compatibility check when required columns are missing."""
     _ = pytest.importorskip("pzflow")
