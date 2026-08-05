@@ -36,11 +36,11 @@ def get_fnu_to_flam_multiplier(fnu_unit, wave_unit, flam_unit):
     Parameters
     ----------
     fnu_unit : astropy.units.Unit
-        The unit for the output flux_fnu values.
+        The unit for the input flux_fnu values.
     wave_unit : astropy.units.Unit
         The unit for the wavelength values.
     flam_unit : astropy.units.Unit
-        The unit for the input flux_flam values.
+        The unit for the output flux_flam values.
 
     Returns
     -------
