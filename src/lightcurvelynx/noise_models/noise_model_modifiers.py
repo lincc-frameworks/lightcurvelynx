@@ -32,7 +32,7 @@ class LinearTransformFluxNoiseModel(FluxNoiseModel):
         self.flux_err_offset = flux_err_offset
 
         # Copy the required values from the base noise model to ensure compatibility with ObsTable.
-        self._required_values = base_noise_model.required_values
+        self._required_values = base_noise_model.required_values.copy()
 
     def compute_flux_error(self, bandflux, **kwargs):
         """Compute a base flux error for the given bandflux and observation parameters, and then
@@ -87,7 +87,7 @@ class GivenLinearTransformFluxNoiseModel(FluxNoiseModel):
         self.flux_err_offset_col = flux_err_offset_col
 
         # Copy the required values from the base noise model to ensure compatibility with ObsTable.
-        self._required_values = base_noise_model.required_values
+        self._required_values = base_noise_model.required_values.copy()
 
     def compute_flux_error(self, bandflux, *, obs_table=None, indices=None, **kwargs):
         """Compute a base flux error for the given bandflux and observation parameters, and then
