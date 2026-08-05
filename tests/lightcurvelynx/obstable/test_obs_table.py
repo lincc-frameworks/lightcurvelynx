@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 from astropy.coordinates import SkyCoord
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.obstable.obs_table import ObsTable
 from regions import CircleSkyRegion
 
@@ -384,6 +385,41 @@ def test_create_obs_table_saturation():
 
     ops_data = ObsTable(pdf, saturation_mags=saturation_mags)
     assert ops_data._saturation_mags is not None
+    assert ops_data._saturation_njy is not None
+    assert ops_data._saturation_njy["r"] == pytest.approx(mag2flux(16.0))
+
+
+def test_compute_saturation_clips_flux_and_errors():
+    """Test that compute_saturation clips fluxes to the per-filter thresholds."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0]),
+        "ra": np.array([15.0, 30.0, 45.0]),
+        "dec": np.array([-10.0, -5.0, 0.0]),
+        "zp": np.ones(3),
+        "filter": np.array(["r", "g", "i"]),
+    }
+    ops_data = ObsTable(values, saturation_mags={"r": 16.0, "g": 17.0, "i": 18.0})
+
+    flux = np.array([mag2flux(15.0), mag2flux(17.5), mag2flux(18.5)])
+    flux_error = np.array([1.0, 2.0, 3.0])
+    index = np.array([0, 1, 2])
+
+    saturated_flux, saturated_flux_error, saturation_flags = ops_data.compute_saturation(
+        flux, flux_error, index
+    )
+
+    expected_limits = np.array([mag2flux(16.0), mag2flux(17.0), mag2flux(18.0)])
+    expected_saturated_flux = np.minimum(flux, expected_limits)
+    expected_saturated_flux_error = np.where(
+        flux <= expected_limits,
+        flux_error,
+        np.hypot(flux_error, flux - expected_saturated_flux),
+    )
+    expected_saturation_flags = flux > expected_limits
+
+    assert np.allclose(saturated_flux, expected_saturated_flux)
+    assert np.allclose(saturated_flux_error, expected_saturated_flux_error)
+    assert np.array_equal(saturation_flags, expected_saturation_flags)
 
 
 def test_obs_table_filter_rows():
