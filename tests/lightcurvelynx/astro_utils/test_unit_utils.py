@@ -152,6 +152,26 @@ def test_fnu_to_flam():
     ]
     assert np.allclose(flam, expected, rtol=1e-2)
 
+    # The code works with a single vector of wavelengths.
+    flam2 = fnu_to_flam(
+        fnu,
+        [6000, 6050, 7000, 7025],  # Wavelengths are a single vector, not a matrix.
+        wave_unit=u.AA,
+        flam_unit=u.erg / u.second / u.cm**2 / u.AA,
+        fnu_unit=u.nJy,
+    )
+    assert np.allclose(flam2, expected, rtol=1e-2)
+
+    # We fail with incompatible dimensions.
+    with pytest.raises(ValueError):
+        _ = fnu_to_flam(
+            fnu,
+            [[6000, 6050, 7000, 7025], [6000, 6050, 7000, 7025]],
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.second / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+
 
 def test_flam_to_fnu_to_flam():
     """Test that flam_to_fnu(fnu_to_flam) is the identity."""
