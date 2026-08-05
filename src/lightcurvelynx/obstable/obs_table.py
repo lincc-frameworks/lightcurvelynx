@@ -82,8 +82,8 @@ class ObsTable:
         The saturation thresholds in magnitudes for each filter. If unspecified, an
         instrument-specific default will be used, if available.
     _saturation_njy : dict, optional
-        The saturation thresholds in nJy for each filter. If unspecified, an
-        instrument-specific default will be used, if available.
+        The saturation thresholds converted to nJy for each filter (derived from
+        `_saturation_mags`).
     """
 
     _required_columns = ["ra", "dec", "time"]
