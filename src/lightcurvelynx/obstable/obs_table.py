@@ -323,12 +323,9 @@ class ObsTable:
         numpy.ndarray
             The values for each row in the table.
         """
-        table_len = len(self._table)
         if indices is None:
             indices = slice(None)  # All indices
-            num_rows = table_len
-        elif isinstance(indices, slice):
-            num_rows = len(range(*indices.indices(table_len)))
+            num_rows = len(self._table)
         else:
             num_rows = len(indices)
 
