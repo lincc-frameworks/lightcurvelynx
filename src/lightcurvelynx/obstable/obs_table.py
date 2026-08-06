@@ -961,7 +961,7 @@ class ObsTable:
             # by using the class accessor (__getitem__), instead of the table one.
             if col not in self:
                 raise KeyError(f"Unrecognized column name {col}")
-            results[col] = self[col].iloc[neighbors].to_numpy()
+            results[col] = self[col].to_numpy()[neighbors]
         return results
 
     def compute_saturation(self, flux, flux_error, index):
@@ -1005,7 +1005,7 @@ class ObsTable:
 
         true_flux = np.asarray(flux)
         true_flux_error = np.asarray(flux_error)
-        filters = np.asarray(self._table["filter"].iloc[index])
+        filters = np.asarray(self._table["filter"].to_numpy()[index])
 
         if len(flux) != len(flux_error) or len(flux) != len(filters):
             raise ValueError("Input arrays must have the same length.")
