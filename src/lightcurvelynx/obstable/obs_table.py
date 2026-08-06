@@ -323,17 +323,20 @@ class ObsTable:
         numpy.ndarray
             The values for each row in the table.
         """
+        table_len = len(self._table)
         if indices is None:
             indices = slice(None)  # All indices
-            num_rows = len(self._table)
+            num_rows = table_len
+        elif isinstance(indices, slice):
+            num_rows = len(range(*indices.indices(table_len)))
         else:
             num_rows = len(indices)
 
         # Prioritize columns that are in the table.
         if key in self._table.columns:
-            return self._table[key].iloc[indices].to_numpy()
+            return self._table[key].to_numpy()[indices]
         if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
-            return self._table[self._inv_colmap[key]].iloc[indices].to_numpy()
+            return self._table[self._inv_colmap[key]].to_numpy()[indices]
 
         # Otherwise fall back to the survey values if they are defined.
         value = self.survey_values.get(key, None)
@@ -346,13 +349,14 @@ class ObsTable:
             # Check that we have a filter column to do the mapping.
             if "filter" not in self._table.columns:
                 raise ValueError("Cannot map dictionary values to rows because 'filter' column is missing.")
+            filter_list = self._table["filter"].to_numpy()[indices]
 
             # Map the values for each filter to the rows in the table.
             result = np.zeros(num_rows, dtype=float)
             for filt in self.filters:
                 if filt not in value:
                     raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{filt}'")
-                result[self._table["filter"].iloc[indices] == filt] = value[filt]
+                result[filter_list == filt] = value[filt]
             return result
         raise TypeError(f"Unsupported type for '{key}': {type(value)}")
 
