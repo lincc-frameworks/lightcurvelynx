@@ -115,12 +115,30 @@ class ConstantFluxNoiseModel(FluxNoiseModel):
     noise_level : float
         The (constant) standard deviation of the noise to apply to the bandflux
         measurements, in the same units as the input bandflux.
+    err_scale : float
+        A multiplicative scale factor applied to ``noise_level`` before it is
+        used to generate and report noise.
     """
 
-    def __init__(self, noise_level):
+    def __init__(self, noise_level, err_scale=1.0):
+        """Create a ConstantFluxNoiseModel.
+
+        Parameters
+        ----------
+        noise_level : float
+            The (constant) standard deviation of the noise to apply to the
+            bandflux measurements, in the same units as the input bandflux.
+        err_scale : float, optional
+            A multiplicative scale factor applied to the flux error standard
+            deviation (here, ``noise_level``) before it is used to sample
+            noise and before it is returned. Useful for inflating or
+            deflating reported uncertainties, e.g. to simulate a
+            mis-calibrated error budget. Default is 1.0.
+        """
         if noise_level < 0:
             raise ValueError("Noise level must be non-negative.")
         self.noise_level = noise_level
+        self.err_scale = err_scale
 
     def apply_noise(
         self,
@@ -154,8 +172,9 @@ class ConstantFluxNoiseModel(FluxNoiseModel):
         if rng is None:
             rng = np.random.default_rng()
 
-        noisy_bandflux = rng.normal(loc=bandflux, scale=self.noise_level)
-        return noisy_bandflux, np.full_like(bandflux, self.noise_level, dtype=float)
+        scale = self.noise_level * self.err_scale
+        noisy_bandflux = rng.normal(loc=bandflux, scale=scale)
+        return noisy_bandflux, np.full_like(bandflux, scale, dtype=float)
 
 
 class PoissonFluxNoiseModel(FluxNoiseModel):
@@ -178,8 +197,19 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
     # Note that both nexposure and zp_err_mag can fall back to default values.
     _required_values = ["exptime", "sky_bg_e", "psf_footprint", "zp", "read_noise", "dark_current"]
 
-    def __init__(self):
-        pass
+    def __init__(self, err_scale=1.0):
+        """Create a PoissonFluxNoiseModel.
+
+        Parameters
+        ----------
+        err_scale : float, optional
+            A multiplicative scale factor applied to the computed flux error
+            standard deviation before it is used to sample noise and before
+            it is returned. Useful for inflating or deflating reported
+            uncertainties, e.g. to simulate a mis-calibrated error budget.
+            Default is 1.0.
+        """
+        self.err_scale = err_scale
 
     def compute_flux_error(self, bandflux, obs_table, indices):
         """Compute the flux error for the given bandflux and observation parameters.
@@ -273,6 +303,7 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
 
         # Make sure the array is a numpy array.
         flux_err = np.asarray(flux_err)
+        flux_err *= self.err_scale
 
         # Generate the actual noisy bandflux measurements.
         rng = np.random.default_rng(rng)
@@ -290,8 +321,19 @@ class GivenNoiseModel(FluxNoiseModel):
 
     _required_values = ["bandflux_error"]
 
-    def __init__(self):
-        pass
+    def __init__(self, err_scale=1.0):
+        """Create a GivenNoiseModel.
+
+        Parameters
+        ----------
+        err_scale : float, optional
+            A multiplicative scale factor applied to the flux error standard
+            deviation (the ``bandflux_error`` column) before it is used to
+            sample noise and before it is returned. Useful for inflating or
+            deflating reported uncertainties, e.g. to simulate a
+            mis-calibrated error budget. Default is 1.0.
+        """
+        self.err_scale = err_scale
 
     def apply_noise(
         self,
@@ -338,7 +380,7 @@ class GivenNoiseModel(FluxNoiseModel):
             raise ValueError("Length of indices must match length of bandflux.")
 
         flux_err = obs_table.get_value_per_row("bandflux_error", indices=indices)
-        flux_err = np.asarray(flux_err, dtype=float)
+        flux_err = np.asarray(flux_err, dtype=float) * self.err_scale
 
         # Generate the actual noisy bandflux measurements.
         rng = np.random.default_rng(rng)
@@ -360,8 +402,19 @@ class FiveSigmaDepthNoiseModel(FluxNoiseModel):
 
     _required_values = ["five_sigma_depth"]
 
-    def __init__(self):
-        pass
+    def __init__(self, err_scale=1.0):
+        """Create a FiveSigmaDepthNoiseModel.
+
+        Parameters
+        ----------
+        err_scale : float, optional
+            A multiplicative scale factor applied to the flux error standard
+            deviation derived from ``five_sigma_depth`` before it is used to
+            sample noise and before it is returned. Useful for inflating or
+            deflating reported uncertainties, e.g. to simulate a
+            mis-calibrated error budget. Default is 1.0.
+        """
+        self.err_scale = err_scale
 
     def apply_noise(
         self,
@@ -411,6 +464,7 @@ class FiveSigmaDepthNoiseModel(FluxNoiseModel):
         # This uses five_sigma_depth in AB magnitudes, so we convert it to bandflux in nJy first.
         five_sigma_depth = obs_table.get_value_per_row("five_sigma_depth", indices=indices)
         flux_err = mag2flux(five_sigma_depth) / 5.0
+        flux_err *= self.err_scale
 
         # Generate the actual noisy bandflux measurements.
         rng = np.random.default_rng(rng)

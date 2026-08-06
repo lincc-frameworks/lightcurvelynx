@@ -153,6 +153,12 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         (unfloored) bandflux. If None and the ``bandflux`` column was normalized
         with a log transform, the minimum bandflux seen during training is used
         (below it the flow is extrapolating anyway).
+    err_scale : float, optional
+        A multiplicative scale factor applied to the flux error standard
+        deviation sampled from the flow before it is used to generate noise
+        and before it is returned. Useful for inflating or deflating reported
+        uncertainties, e.g. to simulate a mis-calibrated error budget.
+        Default is 1.0.
     """
 
     def __init__(
@@ -162,6 +168,7 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         input_col_map=None,
         normalizer_data=None,
         flux_floor=None,
+        err_scale=1.0,
     ):
         # Validate the pzflow object has the expected output column
         # and save its name.
@@ -179,6 +186,7 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         if flux_floor is not None and flux_floor <= 0:
             raise ValueError("flux_floor must be positive.")
         self._flux_floor = flux_floor
+        self._err_scale = err_scale
         self._update_required_values()
 
     def add_column_mapping(self, flow_input_name, obs_table_col_name):
@@ -332,6 +340,9 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         if self._normalizer_data.get(self._output_column) is not None:
             normalizer = self._normalizer_data[self._output_column]
             flux_err = normalizer.denormalize(flux_err)
+
+        # Use getattr for models pickled before err_scale was introduced.
+        flux_err = flux_err * getattr(self, "_err_scale", 1.0)
 
         # Apply noise to the input bandflux using the sampled noise parameters.
         noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)

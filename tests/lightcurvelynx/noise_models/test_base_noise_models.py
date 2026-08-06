@@ -51,6 +51,23 @@ def test_constant_flux_noise_model_apply_noise_with_zero_noise_level():
     assert_allclose(flux_err, np.zeros_like(bandflux))
 
 
+def test_constant_flux_noise_model_err_scale():
+    """Test that err_scale scales both the reported flux error and the
+    noise applied to the bandflux for ConstantFluxNoiseModel."""
+    noise_level = 0.5
+    err_scale = 2.5
+    bandflux = np.array([1.0, 2.0, 3.0])
+    model = ConstantFluxNoiseModel(noise_level=noise_level, err_scale=err_scale)
+
+    rng_for_model = np.random.default_rng(99)
+    flux, flux_err = model.apply_noise(bandflux, rng=rng_for_model)
+    assert_allclose(flux_err, np.full_like(bandflux, noise_level * err_scale))
+
+    rng_for_expected = np.random.default_rng(99)
+    expected_flux = rng_for_expected.normal(loc=bandflux, scale=noise_level * err_scale)
+    assert_allclose(flux, expected_flux)
+
+
 def test_poisson_flux_noise_model():
     """Test that the PoissonFluxNoiseModel correctly computes flux errors
     and applies noise to the bandflux."""
@@ -116,6 +133,51 @@ def test_poisson_flux_noise_model():
         rng=rng_for_model,
     )
     assert not np.any(bandflux == flux)
+    assert_allclose(flux_err, expected_flux_err)
+
+    rng_for_expected = np.random.default_rng(2024)
+    expected_flux = rng_for_expected.normal(loc=bandflux, scale=expected_flux_err)
+    assert_allclose(flux, expected_flux)
+
+
+def test_poisson_flux_noise_model_err_scale():
+    """Test that err_scale scales both the reported flux error and the
+    noise applied to the bandflux for PoissonFluxNoiseModel."""
+    err_scale = 1.5
+    model = PoissonFluxNoiseModel(err_scale=err_scale)
+
+    bandflux = np.array([100.0, 200.0, 200.0])
+    dummy_data = {
+        "exptime": np.array([30.0, 35.0, 40.0]),
+        "nexposure": np.array([1, 2, 1]),
+        "sky_bg_e": np.array([100.0, 110.0, 120.0]),
+        "psf_footprint": np.array([2.0, 2.5, 3.0]),
+        "zp": np.array([25.0, 26.0, 27.0]),
+        "read_noise": np.array([4.0, 4.5, 5.0]),
+        "dark_current": np.array([0.01, 0.02, 0.03]),
+        "zp_err_mag": np.array([0.001, 0.002, 0.003]),
+    }
+    obs_table = LookupOnlyObsTable(dummy_data)
+
+    expected_flux_err = err_scale * poisson_bandflux_std(
+        bandflux,
+        total_exposure_time=dummy_data["exptime"],
+        exposure_count=dummy_data["nexposure"],
+        psf_footprint=dummy_data["psf_footprint"],
+        sky=dummy_data["sky_bg_e"],
+        zp=dummy_data["zp"],
+        readout_noise=dummy_data["read_noise"],
+        dark_current=dummy_data["dark_current"],
+        zp_err_mag=dummy_data["zp_err_mag"],
+    )
+
+    rng_for_model = np.random.default_rng(2024)
+    flux, flux_err = model.apply_noise(
+        bandflux,
+        obs_table=obs_table,
+        indices=np.array([0, 1, 2]),
+        rng=rng_for_model,
+    )
     assert_allclose(flux_err, expected_flux_err)
 
     rng_for_expected = np.random.default_rng(2024)
@@ -267,6 +329,33 @@ def test_given_noise_model():
     assert_allclose(flux, expected_flux)
 
 
+def test_given_noise_model_err_scale():
+    """Test that err_scale scales both the reported flux error and the
+    noise applied to the bandflux for GivenNoiseModel."""
+    err_scale = 3.0
+    model = GivenNoiseModel(err_scale=err_scale)
+
+    bandflux = np.array([100.0, 200.0, 300.0])
+    dummy_data = {
+        "bandflux_error": np.array([5.0, 10.0, 15.0]),
+    }
+    obs_table = LookupOnlyObsTable(dummy_data)
+
+    rng_for_model = np.random.default_rng(42)
+    flux, flux_err = model.apply_noise(
+        bandflux,
+        obs_table=obs_table,
+        indices=np.array([0, 1, 2]),
+        rng=rng_for_model,
+    )
+    expected_flux_err = dummy_data["bandflux_error"] * err_scale
+    assert_allclose(flux_err, expected_flux_err)
+
+    rng_for_expected = np.random.default_rng(42)
+    expected_flux = rng_for_expected.normal(loc=bandflux, scale=expected_flux_err)
+    assert_allclose(flux, expected_flux)
+
+
 def test_given_noise_model_per_filter():
     """Test that the GivenNoiseModel correctly reads per-filter flux errors
     from the ObsTable and applies noise to the bandflux."""
@@ -344,6 +433,37 @@ def test_five_sigma_depth_noise_model():
 
     expected_bandflux_error = mag2flux(ops_data["five_sigma_depth"].to_numpy()) / 5.0
     assert np.allclose(flux_err, expected_bandflux_error)
+
+
+def test_five_sigma_depth_noise_model_err_scale():
+    """Test that err_scale scales both the reported flux error and the
+    noise applied to the bandflux for FiveSigmaDepthNoiseModel."""
+    err_scale = 0.5
+    table_values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "filter": np.array(["r", "g", "r", "i", "g"]),
+        "five_sigma_depth": 20.0 + np.arange(5),
+    }
+    ops_data = LookupOnlyObsTable(table_values=table_values)
+
+    noise_model = FiveSigmaDepthNoiseModel(err_scale=err_scale)
+    bandflux = np.array([1000.0, 2000.0, 1500.0, 2500.0, 3000.0])
+
+    rng_for_model = np.random.default_rng(2024)
+    flux, flux_err = noise_model.apply_noise(
+        bandflux,
+        obs_table=ops_data,
+        indices=np.array([0, 1, 2, 3, 4]),
+        rng=rng_for_model,
+    )
+    expected_flux_err = err_scale * mag2flux(ops_data["five_sigma_depth"].to_numpy()) / 5.0
+    assert_allclose(flux_err, expected_flux_err)
+
+    rng_for_expected = np.random.default_rng(2024)
+    expected_flux = rng_for_expected.normal(loc=bandflux, scale=expected_flux_err)
+    assert_allclose(flux, expected_flux)
 
 
 def test_five_sigma_depth_noise_model_nans():
