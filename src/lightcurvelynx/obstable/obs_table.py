@@ -331,9 +331,9 @@ class ObsTable:
 
         # Prioritize columns that are in the table.
         if key in self._table.columns:
-            return self._table[key].iloc[indices].to_numpy()
+            return self._table[key].to_numpy()[indices]
         if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
-            return self._table[self._inv_colmap[key]].iloc[indices].to_numpy()
+            return self._table[self._inv_colmap[key]].to_numpy()[indices]
 
         # Otherwise fall back to the survey values if they are defined.
         value = self.survey_values.get(key, None)
@@ -346,13 +346,14 @@ class ObsTable:
             # Check that we have a filter column to do the mapping.
             if "filter" not in self._table.columns:
                 raise ValueError("Cannot map dictionary values to rows because 'filter' column is missing.")
+            filter_list = self._table["filter"].to_numpy()[indices]
 
             # Map the values for each filter to the rows in the table.
             result = np.zeros(num_rows, dtype=float)
             for filt in self.filters:
                 if filt not in value:
                     raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{filt}'")
-                result[self._table["filter"].iloc[indices] == filt] = value[filt]
+                result[filter_list == filt] = value[filt]
             return result
         raise TypeError(f"Unsupported type for '{key}': {type(value)}")
 
@@ -957,7 +958,7 @@ class ObsTable:
             # by using the class accessor (__getitem__), instead of the table one.
             if col not in self:
                 raise KeyError(f"Unrecognized column name {col}")
-            results[col] = self[col].iloc[neighbors].to_numpy()
+            results[col] = self[col].to_numpy()[neighbors]
         return results
 
     def compute_saturation(self, flux, flux_error, index):
@@ -1001,7 +1002,7 @@ class ObsTable:
 
         true_flux = np.asarray(flux)
         true_flux_error = np.asarray(flux_error)
-        filters = np.asarray(self._table["filter"].iloc[index])
+        filters = np.asarray(self._table["filter"].to_numpy()[index])
 
         if len(flux) != len(flux_error) or len(flux) != len(filters):
             raise ValueError("Input arrays must have the same length.")
