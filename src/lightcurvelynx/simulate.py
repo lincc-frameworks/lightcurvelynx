@@ -431,22 +431,16 @@ def _simulate_lightcurves_batch(simulation_info):
         object_nested_dict = {key: [] for key in nested_dict}
 
         for survey_idx in range(num_surveys):
-            # Find the indices and times where the current model is seen.
+            # Find the indices, times, and filters where the current model is seen. Skip any
+            # surveys where the model is not seen at all.
             obs_index = np.asarray(all_obs_matches[survey_idx][idx])
             if len(obs_index) == 0:
-                obs_times = []
-                obs_filters = []
-            else:
-                obs_times = all_times[survey_idx][obs_index]
-
-                # Extract the filters for this observation.
-                obs_filters = all_filters[survey_idx][obs_index]
-
-            # Skip all computation for objects that we do not see in this survey.
-            nobs = len(obs_times)
-            if nobs == 0:
                 continue
+            obs_times = all_times[survey_idx][obs_index]
+            obs_filters = all_filters[survey_idx][obs_index]
 
+            # Check for duplicate observation times in the same survey.
+            nobs = len(obs_times)
             if len(np.unique(obs_times)) != nobs:
                 warnings.warn(
                     "Found duplicate observation times in a single survey. "
@@ -458,18 +452,18 @@ def _simulate_lightcurves_batch(simulation_info):
             if isinstance(passbands[survey_idx], Spectrograph):
                 # This is a spectrograph, so we compute the spectra for the spectra column.
                 sg_waves = passbands[survey_idx].waves
-                if nobs > 0:
-                    sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
-                    measured_flux = passbands[survey_idx].evaluate(sed)
 
-                    # TODO: Simulate spectrograph noise.
+                sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
+                measured_flux = passbands[survey_idx].evaluate(sed)
 
-                    # We append each spectral as a separate entry in the spectra nested dictionary.
-                    for obs_idx, obs_time in enumerate(obs_times):
-                        spectra_dict["mjd"].append(obs_time)
-                        spectra_dict["waves"].append(sg_waves)
-                        spectra_dict["measured_flux"].append(measured_flux[obs_idx])
-                        spectra_dict["instrument"].append(passbands[survey_idx].instrument)
+                # TODO: Simulate spectrograph noise.
+
+                # We append each spectral as a separate entry in the spectra nested dictionary.
+                for obs_idx, obs_time in enumerate(obs_times):
+                    spectra_dict["mjd"].append(obs_time)
+                    spectra_dict["waves"].append(sg_waves)
+                    spectra_dict["measured_flux"].append(measured_flux[obs_idx])
+                    spectra_dict["instrument"].append(passbands[survey_idx].instrument)
 
                 # Add the new entries to the spectra_index.
                 spectra_index.extend([idx] * nobs)
