@@ -19,7 +19,12 @@ from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 
 
 class FluxNoiseModel(ABC):
-    """An abstract baseclass noise model for simulating bandflux measurements."""
+    """An abstract baseclass noise model for simulating bandflux measurements.
+
+    Noise is applied by computing `flux_err`, which is the standard deviation of Gaussian noise
+    to apply to the input bandflux measurements. Subclasses must implement the `compute_flux_error`
+    method to compute the noise parameters.
+    """
 
     # A list of column names that must be present in the ObsTable for this noise model to work.
     _required_values = []
@@ -30,6 +35,23 @@ class FluxNoiseModel(ABC):
         return self._required_values
 
     @abstractmethod
+    def compute_flux_error(self, bandflux, **kwargs):
+        """Compute the flux error for the given bandflux and observation parameters.
+
+        Parameters
+        ----------
+        bandflux : array_like of float
+            Source bandflux in nJy.
+        **kwargs
+            Additional parameters for the noise model.
+
+        Returns
+        -------
+        flux_err : numpy.ndarray
+            The standard deviation of the bandflux measurement error (in nJy)
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
     def apply_noise(
         self,
         bandflux,
@@ -60,14 +82,29 @@ class FluxNoiseModel(ABC):
 
         Returns
         -------
-        flux : array_like
+        flux : numpy.ndarray
             The updated flux measurements after applying noise, in the same
             units as the input bandflux.
-        flux_err : array_like
+        flux_err : numpy.ndarray
             The bandflux measurement error used for applying noise, in the
             same units as the input bandflux.
         """
-        raise NotImplementedError("Subclasses must implement this method.")
+        # Define the random number generator if not provided.
+        rng = np.random.default_rng(rng)
+
+        # Compute the standard deviation of the noise and make sure it is a numpy array.
+        flux_err = self.compute_flux_error(
+            bandflux,
+            obs_table=obs_table,
+            indices=indices,
+            rng=rng,
+            **kwargs,
+        )
+        flux_err = np.asarray(flux_err)
+
+        # Generate the actual noisy bandflux measurements.
+        noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)
+        return noisy_bandflux, flux_err
 
     def check_compatibility(self, obs_table, fail_on_incompatible=False):
         """Check if the noise model is compatible with the given ObsTable.
@@ -140,41 +177,22 @@ class ConstantFluxNoiseModel(FluxNoiseModel):
         self.noise_level = noise_level
         self.err_scale = err_scale
 
-    def apply_noise(
-        self,
-        bandflux,
-        *,
-        rng=None,
-        **kwargs,
-    ):
-        """Compute the noise parameters for given observations in
-        an ObsTable and apply noise to the input bandflux.
+    def compute_flux_error(self, bandflux, **kwargs):
+        """Compute the flux error for the given bandflux and observation parameters.
 
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
-        rng : np.random.Generator, optional
-            The random number generator to use for applying noise. If None,
-            a default generator will be used.
+            Source bandflux in nJy.
         **kwargs
             Additional parameters for the noise model.
 
         Returns
         -------
-        flux : array_like
-            The updated flux measurements after applying noise, in the same
-            units as the input bandflux.
-        flux_err : array_like
-            The bandflux measurement error used for applying noise, in the
-            same units as the input bandflux.
+        flux_err : numpy.ndarray
+            The standard deviation of the bandflux measurement error (in nJy)
         """
-        if rng is None:
-            rng = np.random.default_rng()
-
-        scale = self.noise_level * self.err_scale
-        noisy_bandflux = rng.normal(loc=bandflux, scale=scale)
-        return noisy_bandflux, np.full_like(bandflux, scale, dtype=float)
+        return np.full_like(bandflux, self.noise_level * self.err_scale, dtype=float)
 
 
 class PoissonFluxNoiseModel(FluxNoiseModel):
@@ -211,7 +229,7 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
         """
         self.err_scale = err_scale
 
-    def compute_flux_error(self, bandflux, obs_table, indices):
+    def compute_flux_error(self, bandflux, *, obs_table=None, indices=None, **kwargs):
         """Compute the flux error for the given bandflux and observation parameters.
 
         Parameters
@@ -222,12 +240,21 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
             Table containing the observation parameters needed to compute the noise.
         indices : array_like of int
             Indices of the observations in the ObsTable for which to compute the noise.
+        **kwargs
+            Additional parameters for the noise model.
 
         Returns
         -------
-        flux_err : array_like
+        flux_err : numpy.ndarray
             The standard deviation of the bandflux measurement error (in nJy)
         """
+        if obs_table is None:  # pragma: no cover
+            raise ValueError("ObsTable must be provided for PoissonFluxNoiseModel.")
+        if indices is None:  # pragma: no cover
+            raise ValueError("Indices must be provided for PoissonFluxNoiseModel.")
+        if len(indices) != len(bandflux):  # pragma: no cover
+            raise ValueError("Length of indices must match length of bandflux.")
+
         # Extract the features needed to compute the noise from the ObsTable.
         total_exposure_time = obs_table.get_value_per_row("exptime", indices=indices)
         exposure_count = obs_table.get_value_per_row("nexposure", indices=indices, default=1)
@@ -239,7 +266,7 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
         zp_err_mag = obs_table.get_value_per_row("zp_err_mag", indices=indices, default=0.0)
 
         # Compute the flux error standard deviation.
-        return poisson_bandflux_std(
+        base_noise = poisson_bandflux_std(
             bandflux,
             total_exposure_time=total_exposure_time,
             exposure_count=exposure_count,
@@ -250,65 +277,7 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
             dark_current=dark_current,
             zp_err_mag=zp_err_mag,
         )
-
-    def apply_noise(
-        self,
-        bandflux,
-        *,
-        obs_table=None,
-        indices=None,
-        rng=None,
-        **kwargs,
-    ):
-        """Compute the noise parameters for given observations in
-        an ObsTable and apply noise to the input bandflux.
-
-        Parameters
-        ----------
-        bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
-        obs_table : ObsTable, optional
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
-        indices : array_like of int, optional
-            Indices of the observations in the ObsTable to which noise should
-            be applied.
-        rng : np.random.Generator, optional
-            The random number generator to use for applying noise. If None,
-            a default generator will be used.
-        **kwargs
-            Additional parameters for the noise model.
-
-        Returns
-        -------
-        flux : array_like
-            The updated flux measurements after applying noise, in the same
-            units as the input bandflux.
-        flux_err : array_like
-            The bandflux measurement error used for applying noise, in the
-            same units as the input bandflux.
-        """
-        if obs_table is None:
-            raise ValueError("ObsTable must be provided for PoissonFluxNoiseModel.")
-        if indices is None:
-            raise ValueError("Indices must be provided for PoissonFluxNoiseModel.")
-        if len(indices) != len(bandflux):
-            raise ValueError("Length of indices must match length of bandflux.")
-
-        flux_err = self.compute_flux_error(
-            bandflux,
-            obs_table=obs_table,
-            indices=indices,
-        )
-
-        # Make sure the array is a numpy array.
-        flux_err = np.asarray(flux_err)
-        flux_err *= self.err_scale
-
-        # Generate the actual noisy bandflux measurements.
-        rng = np.random.default_rng(rng)
-        noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)
-        return noisy_bandflux, flux_err
+        return np.asarray(base_noise, dtype=float) * self.err_scale
 
 
 class GivenNoiseModel(FluxNoiseModel):
@@ -335,42 +304,26 @@ class GivenNoiseModel(FluxNoiseModel):
         """
         self.err_scale = err_scale
 
-    def apply_noise(
-        self,
-        bandflux,
-        *,
-        obs_table=None,
-        indices=None,
-        rng=None,
-        **kwargs,
-    ):
-        """Compute the noise parameters for given observations in
-        an ObsTable and apply noise to the input bandflux.
+    def compute_flux_error(self, bandflux, *, obs_table=None, indices=None, **kwargs):
+        """Compute the flux error for the given bandflux and observation parameters.
 
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
-        obs_table : ObsTable, optional
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
-        indices : array_like of int, optional
-            Indices of the observations in the ObsTable to which noise should
-            be applied.
-        rng : np.random.Generator, optional
-            The random number generator to use for applying noise. If None,
-            a default generator will be used.
+            Source bandflux in nJy.
+        obs_table : ObsTable
+            Table containing the observation parameters needed to compute the noise.
+            Not used in this noise model, but included for compatibility with the base class.
+        indices : array_like of int
+            Indices of the observations in the ObsTable for which to compute the noise.
+            Not used in this noise model, but included for compatibility with the base class.
         **kwargs
             Additional parameters for the noise model.
 
         Returns
         -------
-        flux : array_like
-            The updated flux measurements after applying noise, in the same
-            units as the input bandflux.
-        flux_err : array_like
-            The bandflux measurement error used for applying noise, in the
-            same units as the input bandflux.
+        flux_err : numpy.ndarray
+            The standard deviation of the bandflux measurement error (in nJy)
         """
         if obs_table is None:
             raise ValueError("ObsTable must be provided for GivenNoiseModel.")
@@ -381,11 +334,7 @@ class GivenNoiseModel(FluxNoiseModel):
 
         flux_err = obs_table.get_value_per_row("bandflux_error", indices=indices)
         flux_err = np.asarray(flux_err, dtype=float) * self.err_scale
-
-        # Generate the actual noisy bandflux measurements.
-        rng = np.random.default_rng(rng)
-        noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)
-        return noisy_bandflux, flux_err
+        return flux_err
 
 
 class FiveSigmaDepthNoiseModel(FluxNoiseModel):
@@ -416,42 +365,24 @@ class FiveSigmaDepthNoiseModel(FluxNoiseModel):
         """
         self.err_scale = err_scale
 
-    def apply_noise(
-        self,
-        bandflux,
-        *,
-        obs_table=None,
-        indices=None,
-        rng=None,
-        **kwargs,
-    ):
-        """Compute the noise parameters for given observations in
-        an ObsTable and apply noise to the input bandflux.
+    def compute_flux_error(self, bandflux, *, obs_table=None, indices=None, **kwargs):
+        """Compute the flux error for the given bandflux and observation parameters.
 
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
-        obs_table : ObsTable, optional
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
-        indices : array_like of int, optional
-            Indices of the observations in the ObsTable to which noise should
-            be applied.
-        rng : np.random.Generator, optional
-            The random number generator to use for applying noise. If None,
-            a default generator will be used.
+            Source bandflux in nJy.
+        obs_table : ObsTable
+            Table containing the observation parameters needed to compute the noise.
+        indices : array_like of int
+            Indices of the observations in the ObsTable for which to compute the noise.
         **kwargs
             Additional parameters for the noise model.
 
         Returns
         -------
-        flux : array_like
-            The updated flux measurements after applying noise, in the same
-            units as the input bandflux.
-        flux_err : array_like
-            The bandflux measurement error used for applying noise, in the
-            same units as the input bandflux.
+        flux_err : numpy.ndarray
+            The standard deviation of the bandflux measurement error (in nJy)
         """
         if obs_table is None:
             raise ValueError("ObsTable must be provided for FiveSigmaDepthNoiseModel.")
@@ -465,8 +396,4 @@ class FiveSigmaDepthNoiseModel(FluxNoiseModel):
         five_sigma_depth = obs_table.get_value_per_row("five_sigma_depth", indices=indices)
         flux_err = mag2flux(five_sigma_depth) / 5.0
         flux_err *= self.err_scale
-
-        # Generate the actual noisy bandflux measurements.
-        rng = np.random.default_rng(rng)
-        noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)
-        return noisy_bandflux, flux_err
+        return flux_err
