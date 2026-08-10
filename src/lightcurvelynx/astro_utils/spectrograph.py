@@ -18,6 +18,8 @@ class Spectrograph:
         The end of each wavelength bin in Angstroms.
     waves : np.ndarray
         The center of each wavelength bin in Angstroms.
+    waves_sigma : np.ndarray, optional
+        The sigma for each wavelength bin in Angstroms.
     bin_widths : np.ndarray
         The width of each wavelength bin in Angstroms.
     instrument : str
@@ -33,6 +35,7 @@ class Spectrograph:
         waves_max,
         *,
         scale=None,
+        waves_sigma=None,
         instrument: str | None = None,
     ):
         if len(waves_min) != len(waves_max):
@@ -49,7 +52,6 @@ class Spectrograph:
         self.waves_max = np.asarray(waves_max)
         self.waves = (self.waves_min + self.waves_max) / 2
         self.bin_widths = self.waves_max - self.waves_min
-        self.instrument = instrument if instrument is not None else "Spectrograph"
 
         # Scale is the multiplicative factor to apply to each bin's flux. If None, we use 1.0 for all bins.
         if scale is None:
@@ -57,6 +59,10 @@ class Spectrograph:
         elif len(scale) != len(self.waves_min):
             raise ValueError("Scale array must have the same length as the number of bins in the spectra.")
         self.scale = np.asarray(scale)
+
+        # Save the other spectrograph properties if provided.
+        self.instrument = instrument if instrument is not None else "Spectrograph"
+        self.waves_sigma = np.asarray(waves_sigma) if waves_sigma is not None else None
 
     def __str__(self) -> str:
         """Return a string representation of the spectra filter."""
@@ -107,6 +113,58 @@ class Spectrograph:
         waves_min = bin_centers - bin_width / 2
         waves_max = bin_centers + bin_width / 2
         return cls(waves_min, waves_max, **kwargs)
+
+    @classmethod
+    def from_snana_file(cls, filename: str, **kwargs):
+        """Create a Spectrograph from a SNANA spectrograph file. This is an ASCII file
+        with the following lines:
+
+        DOCUMENTATION:
+            ...
+        DOCUMENTATION_END:
+        INSTRUMENT:  <name>
+        MAGREF_LIST:  <magref1>  <magref2>
+        TEXPOSE_LIST: <t_1>  <t_2> ... <t_n>
+
+        SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
+        SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
+        SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
+
+        Parameters
+        ----------
+        filename : str
+            The path to the SNANA spectra file.
+        **kwargs
+            Additional keyword arguments to pass to the Spectrograph constructor.
+
+        Returns
+        -------
+        Spectrograph
+            A Spectrograph object with bins defined by the SNANA spectra file.
+        """
+        waves_min = []
+        waves_max = []
+        waves_sigma = []
+        instrument = None
+
+        with open(filename, "r") as f:
+            for line in f:
+                if line.startswith("#"):
+                    continue  # Skip comment lines
+                line = line.strip()
+
+                # Handle a limited number of line tags.
+                if line.startswith("INSTRUMENT:"):
+                    instrument = line.split(":", 1)[1].strip()
+                elif line.startswith("SPECBIN:"):
+                    line = line.split(":", 1)[1].strip()
+                    cols = line.split()
+                    if len(cols) < 3:
+                        raise ValueError(f"Invalid SPECBIN line: {line}")
+                    waves_min.append(float(cols[0]))
+                    waves_max.append(float(cols[1]))
+                    waves_sigma.append(float(cols[2]))
+        return cls(waves_min, waves_max, waves_sigma=waves_sigma, instrument=instrument, **kwargs)
 
     def bin_width(self, index):
         """Get the width of the bin at the given index.

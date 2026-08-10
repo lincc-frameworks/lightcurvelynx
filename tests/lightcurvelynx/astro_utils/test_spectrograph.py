@@ -158,3 +158,32 @@ def test_create_spectrograph_with_scale():
     bad_scale = np.array([1.0, 0.8])
     with pytest.raises(ValueError):
         _ = Spectrograph(spgraph.waves_min, spgraph.waves_max, scale=bad_scale)
+
+
+def test_from_snana_file(test_data_dir):
+    """Test that we can read a Spectrograph object from a SNANA specbin file."""
+    file_name = test_data_dir / "fake_snana_spectro_no_noise.dat"
+    spgraph = Spectrograph.from_snana_file(file_name)
+    assert spgraph.instrument == "FAKE_TEST"
+
+    wave_mid = [
+        4050.0,
+        4150.0,
+        4250.0,
+        4350.0,
+        4450.0,
+        4550.0,
+        4650.0,
+        4750.0,
+        4850.0,
+        5075.0,
+        5175.0,
+        5275.0,
+        5375.0,
+        5475.0,
+    ]
+    assert np.allclose(spgraph.waves, wave_mid)
+    assert np.allclose(spgraph.bin_widths[0:9], 100.0)
+    assert np.allclose(spgraph.bin_widths[9:14], 50.0)
+    assert np.allclose(spgraph.waves_sigma[0:9], 0.35)
+    assert np.allclose(spgraph.waves_sigma[9:14], 0.40)
