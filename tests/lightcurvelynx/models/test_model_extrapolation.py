@@ -321,7 +321,8 @@ def test_linear_linear_model_diff_extrapolators() -> None:
     )
     assert np.allclose(values, expected)
 
-    # We can specify extrapolators that are not used because the times or wavelengths are in bounds.
+    # Test a bunch of edge cases (everything before, nothing before, etc.) to make sure the model
+    # behaves as expected.
     values = model.evaluate_sed(query_times[2:], query_waves)  # No times before
     assert np.allclose(values, expected[2:, :])
 
