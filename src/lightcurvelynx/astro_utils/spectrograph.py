@@ -84,6 +84,41 @@ class Spectrograph:
         return True
 
     @classmethod
+    def from_midpoints(cls, wave_midpoints, bin_width, **kwargs):
+        """Create a Spectrograph from the midpoints and widths of the bins.
+
+        Parameters
+        ----------
+        wave_midpoints : array-like
+            The midpoints of each wavelength bin in Angstroms.
+        bin_width : float or array-like
+            The width of each wavelength bin in Angstroms.
+        **kwargs
+            Additional keyword arguments to pass to the Spectrograph constructor.
+
+        Returns
+        -------
+        Spectrograph
+            A Spectrograph object with bins defined by the midpoints and widths.
+        """
+        wave_midpoints = np.asarray(wave_midpoints)
+        if bin_width is None:
+            raise ValueError("bin_width must be provided.")
+        if np.isscalar(bin_width):
+            bin_widths = np.full_like(wave_midpoints, bin_width)
+        else:
+            bin_widths = np.asarray(bin_width)
+
+        if any(bin_widths <= 0):
+            raise ValueError("All bin widths must be positive.")
+        if len(wave_midpoints) != len(bin_widths):
+            raise ValueError("wave_midpoints and bin_widths must have the same length.")
+
+        waves_min = wave_midpoints - bin_widths / 2
+        waves_max = wave_midpoints + bin_widths / 2
+        return cls(waves_min, waves_max, **kwargs)
+
+    @classmethod
     def from_regular_grid(cls, wave_start: float, wave_end: float, bin_width: float, **kwargs):
         """Create a Spectrograph with regularly spaced bins.
 

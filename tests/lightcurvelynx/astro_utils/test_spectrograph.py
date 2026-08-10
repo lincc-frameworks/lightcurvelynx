@@ -160,6 +160,33 @@ def test_create_spectrograph_with_scale():
         _ = Spectrograph(spgraph.waves_min, spgraph.waves_max, scale=bad_scale)
 
 
+def test_from_midpoints():
+    """Test that we can create a Spectrograph object from midpoints and bin widths."""
+    midpoints = np.array([4000.0, 4500.0, 5000.0])
+    bin_widths = np.array([100.0, 200.0, 300.0])
+    spgraph = Spectrograph.from_midpoints(midpoints, bin_widths)
+    assert np.allclose(spgraph.waves_min, np.array([3950.0, 4400.0, 4850.0]))
+    assert np.allclose(spgraph.waves_max, np.array([4050.0, 4600.0, 5150.0]))
+    assert np.allclose(spgraph.waves, midpoints)
+    assert np.allclose(spgraph.bin_widths, bin_widths)
+
+    # Try a scalar bin width.
+    spgraph = Spectrograph.from_midpoints(midpoints, 100.0, instrument="scalar_binwidth_sg")
+    assert np.allclose(spgraph.waves_min, np.array([3950.0, 4450.0, 4950.0]))
+    assert np.allclose(spgraph.waves_max, np.array([4050.0, 4550.0, 5050.0]))
+    assert np.allclose(spgraph.waves, midpoints)
+    assert np.allclose(spgraph.bin_widths, np.array([100.0, 100.0, 100.0]))
+    assert spgraph.instrument == "scalar_binwidth_sg"
+
+    #  We fail on invalid bin widths.
+    with pytest.raises(ValueError):
+        _ = Spectrograph.from_midpoints(midpoints, None)
+    with pytest.raises(ValueError):
+        _ = Spectrograph.from_midpoints(midpoints, np.array([100.0, 200.0]))
+    with pytest.raises(ValueError):
+        _ = Spectrograph.from_midpoints(midpoints, np.array([100.0, -200.0, 300.0]))
+
+
 def test_from_snana_file(test_data_dir):
     """Test that we can read a Spectrograph object from a SNANA specbin file."""
     file_name = test_data_dir / "fake_snana_spectro_no_noise.dat"
