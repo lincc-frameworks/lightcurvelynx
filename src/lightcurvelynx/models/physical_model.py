@@ -727,7 +727,7 @@ class SEDModel(BasePhysicalModel):
             new_computed_flux[:, in_bounds_mask] = computed_flux[:, start_idx:end_idx]
             computed_flux = new_computed_flux
 
-        # Do a similiar process for time extrapolation.
+        # Do a similar process for time extrapolation.
         if before_time_queries is not None or after_time_queries is not None:
             new_computed_flux = np.empty((len(times), len(wavelengths)))
             in_bounds_mask = np.full(len(times), True)
