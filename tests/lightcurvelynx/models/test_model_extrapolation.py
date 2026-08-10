@@ -322,20 +322,38 @@ def test_linear_linear_model_diff_extrapolators() -> None:
     assert np.allclose(values, expected)
 
     # We can specify extrapolators that are not used because the times or wavelengths are in bounds.
-    values = model.evaluate_sed(query_times[2:], query_waves)  # None before time
+    values = model.evaluate_sed(query_times[2:], query_waves)  # No times before
     assert np.allclose(values, expected[2:, :])
 
-    values = model.evaluate_sed(query_times[:3], query_waves)  # None after time
+    values = model.evaluate_sed(query_times[:1], query_waves)  # All times before
+    assert np.allclose(values, expected[:1, :])
+
+    values = model.evaluate_sed(query_times[:3], query_waves)  # No times after
     assert np.allclose(values, expected[:3, :])
 
-    values = model.evaluate_sed(query_times, query_waves[1:])  # None before wavelength
+    values = model.evaluate_sed(query_times[4:], query_waves)  # All times after
+    assert np.allclose(values, expected[4:, :])
+
+    values = model.evaluate_sed(query_times, query_waves[1:])  # No wavelengths before
     assert np.allclose(values, expected[:, 1:])
 
-    values = model.evaluate_sed(query_times, query_waves[:3])  # None after wavelength
+    values = model.evaluate_sed(query_times, query_waves[3:])  # All wavelengths after
+    assert np.allclose(values, expected[:, 3:])
+
+    values = model.evaluate_sed(query_times, query_waves[:3])  # No wavelengths after
     assert np.allclose(values, expected[:, :3])
+
+    values = model.evaluate_sed(query_times, query_waves[:1])  # All wavelengths before
+    assert np.allclose(values, expected[:, :1])
 
     values = model.evaluate_sed(query_times[2:4], query_waves[1:3])  # All valid
     assert np.allclose(values, expected[2:4, 1:3])
+
+    values = model.evaluate_sed(query_times[:1], query_waves[:1])  # Everything before
+    assert np.allclose(values, expected[:1, :1])
+
+    values = model.evaluate_sed(query_times[4:], query_waves[3:])  # Everything after
+    assert np.allclose(values, expected[4:, 3:])
 
     # We fail if we use any Nones since the model doesn't know how to extrapolate.
     model = _LinearLinearTestModel(
