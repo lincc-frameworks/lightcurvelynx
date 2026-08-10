@@ -62,7 +62,13 @@ class Spectrograph:
 
         # Save the other spectrograph properties if provided.
         self.instrument = instrument if instrument is not None else "Spectrograph"
-        self.waves_sigma = np.asarray(waves_sigma) if waves_sigma is not None else None
+        if waves_sigma is None:
+            self.waves_sigma = None
+        else:
+            waves_sigma = np.asarray(waves_sigma)
+            if len(waves_sigma) != len(self.waves_min):
+                raise ValueError("waves_sigma must have the same length as waves_min/waves_max.")
+            self.waves_sigma = waves_sigma
 
     def __str__(self) -> str:
         """Return a string representation of the spectra filter."""
@@ -101,15 +107,15 @@ class Spectrograph:
         Spectrograph
             A Spectrograph object with bins defined by the midpoints and widths.
         """
-        wave_midpoints = np.asarray(wave_midpoints)
+        wave_midpoints = np.asarray(wave_midpoints, dtype=float)
         if bin_width is None:
             raise ValueError("bin_width must be provided.")
         if np.isscalar(bin_width):
-            bin_widths = np.full_like(wave_midpoints, bin_width)
+            bin_widths = np.full(wave_midpoints.shape, float(bin_width), dtype=float)
         else:
-            bin_widths = np.asarray(bin_width)
+            bin_widths = np.asarray(bin_width, dtype=float)
 
-        if any(bin_widths <= 0):
+        if np.any(bin_widths <= 0):
             raise ValueError("All bin widths must be positive.")
         if len(wave_midpoints) != len(bin_widths):
             raise ValueError("wave_midpoints and bin_widths must have the same length.")
