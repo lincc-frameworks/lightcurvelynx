@@ -558,9 +558,9 @@ class SEDModel(BasePhysicalModel):
                 # the list of wavelengths to extrapolate.
                 valid_mask = query_waves >= min_valid_wave
                 before_wave_queries = query_waves[~valid_mask]
-                n_select_wave_before = self._wave_extrap_before.nfit
+                n_added_wave_before = self._wave_extrap_before.nfit
                 query_waves = np.concatenate(
-                    (min_valid_wave + 10.0 * np.arange(n_select_wave_before), query_waves[valid_mask])
+                    (min_valid_wave + 10.0 * np.arange(n_added_wave_before), query_waves[valid_mask])
                 )
 
         # We check if we can do extrapolation for after the last valid wavelength and, if so, modify
@@ -583,11 +583,11 @@ class SEDModel(BasePhysicalModel):
                 # the list of wavelengths to extrapolate.
                 valid_mask = query_waves <= max_valid_wave
                 after_wave_queries = query_waves[~valid_mask]
-                n_select_wave_after = self._wave_extrap_after.nfit
+                n_added_wave_after = self._wave_extrap_after.nfit
                 query_waves = np.concatenate(
                     (
                         query_waves[valid_mask],
-                        max_valid_wave - 10.0 * np.arange(n_select_wave_after - 1, -1, -1),
+                        max_valid_wave - 10.0 * np.arange(n_added_wave_after - 1, -1, -1),
                     )
                 )
 
@@ -630,9 +630,9 @@ class SEDModel(BasePhysicalModel):
                 # the list of times to extrapolate.
                 valid_mask = query_times >= min_valid_time
                 before_time_queries = query_times[~valid_mask]
-                n_select_time_before = self._time_extrap_before.nfit
+                n_added_time_before = self._time_extrap_before.nfit
                 query_times = np.concatenate(
-                    (min_valid_time + np.arange(n_select_time_before), query_times[valid_mask])
+                    (min_valid_time + np.arange(n_added_time_before), query_times[valid_mask])
                 )
 
         # We check if we can do extrapolation for times after the valid time range and, if so, modify
@@ -657,9 +657,9 @@ class SEDModel(BasePhysicalModel):
                 # the list of times to extrapolate.
                 valid_mask = query_times <= max_valid_time
                 after_time_queries = query_times[~valid_mask]
-                n_select_time_after = self._time_extrap_after.nfit
+                n_added_time_after = self._time_extrap_after.nfit
                 query_times = np.concatenate(
-                    (query_times[valid_mask], max_valid_time - np.arange(n_select_time_after - 1, -1, -1))
+                    (query_times[valid_mask], max_valid_time - np.arange(n_added_time_after - 1, -1, -1))
                 )
 
         # Check if the times are sorted and, if not, create sorting indices. We do this AFTER we
@@ -694,33 +694,33 @@ class SEDModel(BasePhysicalModel):
                 # Compute the flux values before the model's first valid wavelength and
                 # fill the extrapolated values in the correct locations.
                 before_wave_mask = wavelengths < min_valid_wave
-                before_fit_waves = query_waves[0:n_select_wave_before]
+                before_fit_waves = query_waves[0:n_added_wave_before]
                 extrapolated_values = self._wave_extrap_before.extrapolate_wavelength(
                     before_fit_waves,
-                    computed_flux[:, 0:n_select_wave_before],
+                    computed_flux[:, 0:n_added_wave_before],
                     before_wave_queries,
                 )
                 new_computed_flux[:, before_wave_mask] = extrapolated_values
                 in_bounds_mask[before_wave_mask] = False
 
                 # Drop the first column (which was added for extrapolation).
-                computed_flux = computed_flux[:, n_select_wave_before:]
+                computed_flux = computed_flux[:, n_added_wave_before:]
 
             if after_wave_queries is not None:
                 # Compute the flux values after the model's last valid wavelength and
                 # fill the extrapolated values in the correct locations.
                 after_wave_mask = wavelengths > max_valid_wave
-                after_fit_waves = query_waves[-n_select_wave_after:]
+                after_fit_waves = query_waves[-n_added_wave_after:]
                 extrapolated_values = self._wave_extrap_after.extrapolate_wavelength(
                     after_fit_waves,
-                    computed_flux[:, -n_select_wave_after:],
+                    computed_flux[:, -n_added_wave_after:],
                     after_wave_queries,
                 )
                 new_computed_flux[:, after_wave_mask] = extrapolated_values
                 in_bounds_mask[after_wave_mask] = False
 
                 # Drop the last column (which was added for extrapolation).
-                computed_flux = computed_flux[:, :-n_select_wave_after]
+                computed_flux = computed_flux[:, :-n_added_wave_after]
 
             # Fill in the non-extrapolated values and rename it to computed_flux.
             new_computed_flux[:, in_bounds_mask] = computed_flux
@@ -735,33 +735,33 @@ class SEDModel(BasePhysicalModel):
                 # Compute the flux values before the model's first valid time and
                 # fill the extrapolated values in the correct locations.
                 before_time_mask = times < min_valid_time
-                before_fit_times = query_times[:n_select_time_before]
+                before_fit_times = query_times[:n_added_time_before]
                 extrapolated_values = self._time_extrap_before.extrapolate_time(
                     before_fit_times,
-                    computed_flux[:n_select_time_before, :],
+                    computed_flux[:n_added_time_before, :],
                     before_time_queries,
                 )
                 new_computed_flux[before_time_mask, :] = extrapolated_values
                 in_bounds_mask[before_time_mask] = False
 
                 # Drop the first row (which was added for extrapolation).
-                computed_flux = computed_flux[n_select_time_before:, :]
+                computed_flux = computed_flux[n_added_time_before:, :]
 
             if after_time_queries is not None:
                 # Compute the flux values after the model's last valid time and
                 # fill the extrapolated values in the correct locations.
                 after_time_mask = times > max_valid_time
-                after_fit_times = query_times[-n_select_time_after:]
+                after_fit_times = query_times[-n_added_time_after:]
                 extrapolated_values = self._time_extrap_after.extrapolate_time(
                     after_fit_times,
-                    computed_flux[-n_select_time_after:, :],
+                    computed_flux[-n_added_time_after:, :],
                     after_time_queries,
                 )
                 new_computed_flux[after_time_mask, :] = extrapolated_values
                 in_bounds_mask[after_time_mask] = False
 
                 # Drop the last row (which was added for extrapolation).
-                computed_flux = computed_flux[:-n_select_time_after, :]
+                computed_flux = computed_flux[:-n_added_time_after, :]
 
             # Fill in the non-extrapolated values and rename it to computed_flux.
             new_computed_flux[in_bounds_mask, :] = computed_flux
@@ -1077,9 +1077,9 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 # the list of times to extrapolate.
                 valid_mask = query_times >= min_valid_time
                 before_time_queries = query_times[~valid_mask]
-                n_select_time_before = self._time_extrap_before.nfit
+                n_added_time_before = self._time_extrap_before.nfit
                 query_times = np.concatenate(
-                    (min_valid_time + np.arange(n_select_time_before), query_times[valid_mask])
+                    (min_valid_time + np.arange(n_added_time_before), query_times[valid_mask])
                 )
 
         # We check if we can do extrapolation for times after the valid time range and, if so, modify
@@ -1104,9 +1104,9 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 # the list of times to extrapolate.
                 valid_mask = query_times <= max_valid_time
                 after_time_queries = query_times[~valid_mask]
-                n_select_time_after = self._time_extrap_after.nfit
+                n_added_time_after = self._time_extrap_after.nfit
                 query_times = np.concatenate(
-                    (query_times[valid_mask], max_valid_time - np.arange(n_select_time_after - 1, -1, -1))
+                    (query_times[valid_mask], max_valid_time - np.arange(n_added_time_after - 1, -1, -1))
                 )
 
         # Check if the times are sorted and, if not, create sorting indices. We do this AFTER we
@@ -1135,30 +1135,30 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 # flux values to be (T, W=1) for the extrapolation, so we add a new axis.
                 before_time_mask = times < min_valid_time
                 extrapolated_values = self._time_extrap_before.extrapolate_time(
-                    query_times[:n_select_time_before],
-                    computed_flux[:n_select_time_before, np.newaxis],
+                    query_times[:n_added_time_before],
+                    computed_flux[:n_added_time_before, np.newaxis],
                     before_time_queries,
                 )
                 new_computed_flux[before_time_mask] = extrapolated_values[:, 0]
                 in_bounds_mask[before_time_mask] = False
 
                 # Drop the first entry (which was added for extrapolation).
-                computed_flux = computed_flux[n_select_time_before:]
+                computed_flux = computed_flux[n_added_time_before:]
 
             if after_time_queries is not None:
                 # Compute the flux values after the model's last valid time. We need the shape of the
                 # flux values to be (T, W=1) for the extrapolation, so we add a new axis.
                 after_time_mask = times > max_valid_time
                 extrapolated_values = self._time_extrap_after.extrapolate_time(
-                    query_times[-n_select_time_after:],
-                    computed_flux[-n_select_time_after:, np.newaxis],
+                    query_times[-n_added_time_after:],
+                    computed_flux[-n_added_time_after:, np.newaxis],
                     after_time_queries,
                 )
                 new_computed_flux[after_time_mask] = extrapolated_values[:, 0]
                 in_bounds_mask[after_time_mask] = False
 
                 # Drop the last entry (which was added for extrapolation).
-                computed_flux = computed_flux[:-n_select_time_after]
+                computed_flux = computed_flux[:-n_added_time_after]
 
             # Fill in the valid flux values.
             new_computed_flux[in_bounds_mask] = computed_flux
