@@ -393,6 +393,8 @@ def _simulate_lightcurves_batch(simulation_info):
         "mjd": [],
         "waves": [],
         "measured_flux": [],
+        "measured_flux_perfect": [],
+        "measured_flux_error": [],
         "instrument": [],
     }
 
@@ -454,15 +456,28 @@ def _simulate_lightcurves_batch(simulation_info):
                 sg_waves = passbands[survey_idx].waves
 
                 sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
-                measured_flux = passbands[survey_idx].evaluate(sed)
+                measured_flux_perfect = passbands[survey_idx].evaluate(sed)
 
-                # TODO: Simulate spectrograph noise.
+                # Simulate spectrograph noise.
+                noise_model = simulation_info.survey_info[survey_idx].noise_model
+                if noise_model is None:
+                    measured_flux = np.copy(measured_flux_perfect)
+                    measured_flux_error = np.zeros_like(measured_flux_perfect)
+                else:
+                    measured_flux, measured_flux_error = noise_model.apply_noise(
+                        measured_flux_perfect,
+                        obs_table=obstable[survey_idx],
+                        indices=obs_index,
+                        rng=rng,
+                    )
 
                 # We append each spectral as a separate entry in the spectra nested dictionary.
                 for obs_idx, obs_time in enumerate(obs_times):
                     spectra_dict["mjd"].append(obs_time)
                     spectra_dict["waves"].append(sg_waves)
+                    spectra_dict["measured_flux_perfect"].append(measured_flux_perfect[obs_idx])
                     spectra_dict["measured_flux"].append(measured_flux[obs_idx])
+                    spectra_dict["measured_flux_error"].append(measured_flux_error[obs_idx])
                     spectra_dict["instrument"].append(passbands[survey_idx].instrument)
 
                 # Add the new entries to the spectra_index.
@@ -478,6 +493,7 @@ def _simulate_lightcurves_batch(simulation_info):
                     rng_info=rng,
                 )
 
+                # Simulate bandflux noise.
                 noise_model = simulation_info.survey_info[survey_idx].noise_model
                 if noise_model is None:
                     bandfluxes = np.copy(bandfluxes_perfect)
