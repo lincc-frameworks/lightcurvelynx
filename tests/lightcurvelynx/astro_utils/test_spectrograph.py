@@ -38,24 +38,25 @@ def test_create_spectrograph_from_regular_grid():
 
 def test_create_spectrograph_from_irregular_grid():
     """Test that we can create and query a Spectrograph object."""
-    waves = np.array([3500.0, 4000.0, 5000.0, 7000.0, 7500.0, 8000.0])
-    spgraph = Spectrograph(waves, instrument="custom_spectrograph")
+    waves_min = np.array([3500.0, 4000.0, 5000.0, 7000.0, 7500.0, 8000.0])
+    waves_max = np.array([4000.0, 5000.0, 7000.0, 7500.0, 8000.0, 8500.0])
+    spgraph = Spectrograph(waves_min, waves_max, instrument="custom_spectrograph")
     assert spgraph.instrument == "custom_spectrograph"
     assert len(spgraph) == 6
-    assert np.array_equal(spgraph.waves, waves)
+    assert np.array_equal(spgraph.waves, (waves_min + waves_max) / 2)
 
     l_val, h_val = spgraph.wave_bounds()
-    assert l_val == 3250.0
-    assert h_val == 8250.0
+    assert l_val == 3500.0
+    assert h_val == 8500.0
 
     assert spgraph.bin_width(0) == pytest.approx(500.0)
-    assert spgraph.bin_width(1) == pytest.approx(750.0)
-    assert spgraph.bin_width(2) == pytest.approx(1500.0)
-    assert spgraph.bin_width(3) == pytest.approx(1250.0)
+    assert spgraph.bin_width(1) == pytest.approx(1000.0)
+    assert spgraph.bin_width(2) == pytest.approx(2000.0)
+    assert spgraph.bin_width(3) == pytest.approx(500.0)
     assert spgraph.bin_width(4) == pytest.approx(500.0)
     assert spgraph.bin_width(5) == pytest.approx(500.0)
 
-    assert str(spgraph) == "custom_spectrograph (spectra) [3250.0A - 8250.0A]"
+    assert str(spgraph) == "custom_spectrograph (spectra) [3500.0A - 8500.0A]"
     # Two dimensional fluxes to spec_fluxes
     values = np.random.random((10, len(spgraph)))
     spec_fluxes = spgraph.evaluate(values)
@@ -67,9 +68,18 @@ def test_create_spectrograph_from_irregular_grid():
     assert np.allclose(spec_fluxes_3d, values_3d)
 
     # Test that we fail to create a Spectrograph object with invalid parameters.
-    bad_waves = np.array([4000.0, 3500.0, 5000.0])
     with pytest.raises(ValueError):
-        _ = Spectrograph(bad_waves)
+        # waves_min and waves_max have different lengths
+        _ = Spectrograph([1000.0, 2000.0], [2000.0, 3000.0, 4000.0])
+    with pytest.raises(ValueError):
+        # waves_min is not in strictly increasing order
+        _ = Spectrograph([1000.0, 3000.0, 2999.0], [2000.0, 3000.0, 4000.0])
+    with pytest.raises(ValueError):
+        # waves_max is not in strictly increasing order
+        _ = Spectrograph([1000.0, 2000.0, 3000.0], [2000.0, 1000.0, 4000.0])
+    with pytest.raises(ValueError):
+        # waves_max is not greater than waves_min
+        _ = Spectrograph([1000.0, 2000.0, 3000.0], [2000.0, 1500.0, 4000.0])
 
 
 def test_spectrograph_equals():
@@ -137,15 +147,14 @@ def test_create_spectrograph_with_scale():
     assert np.allclose(results, expected)
 
     # Test equality with scales.
-    waves = np.copy(spgraph.waves)
-    spgraph2 = Spectrograph(waves, scale=scale)
+    spgraph2 = Spectrograph(spgraph.waves_min, spgraph.waves_max, scale=scale)
     assert spgraph == spgraph2
 
     different_scale = np.array([0.5, 1.0, 1.0, 1.0, 0.9])
-    spgraph3 = Spectrograph(waves, scale=different_scale)
+    spgraph3 = Spectrograph(spgraph.waves_min, spgraph.waves_max, scale=different_scale)
     assert spgraph != spgraph3
 
     # Test with a mismatched scale length.
     bad_scale = np.array([1.0, 0.8])
     with pytest.raises(ValueError):
-        _ = Spectrograph(waves, scale=bad_scale)
+        _ = Spectrograph(spgraph.waves_min, spgraph.waves_max, scale=bad_scale)

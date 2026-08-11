@@ -12,53 +12,68 @@ class Spectrograph:
 
     Attributes
     ----------
+    waves_min : np.ndarray
+        The start of each wavelength bin in Angstroms.
+    waves_max : np.ndarray
+        The end of each wavelength bin in Angstroms.
     waves : np.ndarray
-        The wavelengths at the center of each bin in Angstroms.
+        The center of each wavelength bin in Angstroms.
+    bin_widths : np.ndarray
+        The width of each wavelength bin in Angstroms.
     instrument : str
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : np.ndarray
         The multiplicative factor to apply to each bin's flux to capture sensor
         sensitivity, etc. If None, we use 1.0 for all bins.
-    wave_min : float
-        The minimum wavelength of the spectra in Angstroms.
-    wave_max : float
-        The maximum wavelength of the spectra in Angstroms.
     """
 
     def __init__(
         self,
-        waves: np.array,
+        waves_min,
+        waves_max,
         *,
-        scale: np.ndarray | None = None,
+        scale=None,
         instrument: str | None = None,
     ):
-        if np.any(np.diff(waves) <= 0):
-            raise ValueError("waves must be in strictly increasing order.")
-        self.waves = waves
-        self.instrument = instrument if instrument is not None else "Spectrograph"
-
-        self.wave_min = self.waves[0] - 0.5 * self.bin_width(0)
-        self.wave_max = self.waves[-1] + 0.5 * self.bin_width(len(self.waves) - 1)
+        if len(waves_min) != len(waves_max):
+            raise ValueError("waves_min and waves_max must have the same length.")
+        if np.any(np.diff(waves_min) <= 0):
+            raise ValueError("waves_min must be in strictly increasing order.")
+        if np.any(np.diff(waves_max) <= 0):
+            raise ValueError("waves_max must be in strictly increasing order.")
+        if np.any(waves_max <= waves_min):
+            raise ValueError(
+                "Each element of waves_max must be greater than the corresponding element of waves_min."
+            )
+        self.waves_min = np.asarray(waves_min)
+        self.waves_max = np.asarray(waves_max)
+        self.waves = (self.waves_min + self.waves_max) / 2
+        self.bin_widths = self.waves_max - self.waves_min
 
         # Scale is the multiplicative factor to apply to each bin's flux. If None, we use 1.0 for all bins.
         if scale is None:
-            scale = np.ones(len(self.waves))
-        elif len(scale) != len(self.waves):
+            scale = np.ones(len(self.waves_min))
+        elif len(scale) != len(self.waves_min):
             raise ValueError("Scale array must have the same length as the number of bins in the spectra.")
-        self.scale = scale
+        self.scale = np.asarray(scale)
+
+        # Save the other spectrograph properties if provided.
+        self.instrument = instrument if instrument is not None else "Spectrograph"
 
     def __str__(self) -> str:
         """Return a string representation of the spectra filter."""
-        return f"{self.instrument} (spectra) [{self.wave_min}A - {self.wave_max}A]"
+        return f"{self.instrument} (spectra) [{self.waves_min[0]}A - {self.waves_max[-1]}A]"
 
     def __len__(self) -> int:
         return len(self.waves)
 
     def __eq__(self, other) -> bool:
         """Determine if two passbands have equal values for the processed tables."""
-        if len(self.waves) != len(other.waves):
+        if len(self.waves_min) != len(other.waves_min):
             return False
-        if not np.allclose(self.waves, other.waves):
+        if not np.allclose(self.waves_min, other.waves_min):
+            return False
+        if not np.allclose(self.waves_max, other.waves_max):
             return False
         if not np.allclose(self.scale, other.scale):
             return False
@@ -91,7 +106,44 @@ class Spectrograph:
 
         # We use the wavelength at the center of each bin.
         bin_centers = np.arange(wave_start + bin_width / 2, wave_end, bin_width)
-        return cls(bin_centers, **kwargs)
+        waves_min = bin_centers - bin_width / 2
+        waves_max = bin_centers + bin_width / 2
+        return cls(waves_min, waves_max, **kwargs)
+
+    @classmethod
+    def from_midpoints(cls, wave_midpoints, bin_width, **kwargs):
+        """Create a Spectrograph from the midpoints and widths of the bins.
+
+        Parameters
+        ----------
+        wave_midpoints : array-like
+            The midpoints of each wavelength bin in Angstroms.
+        bin_width : float or array-like
+            The width of each wavelength bin in Angstroms.
+        **kwargs
+            Additional keyword arguments to pass to the Spectrograph constructor.
+
+        Returns
+        -------
+        Spectrograph
+            A Spectrograph object with bins defined by the midpoints and widths.
+        """
+        wave_midpoints = np.asarray(wave_midpoints, dtype=float)
+        if bin_width is None:
+            raise ValueError("bin_width must be provided.")
+        if np.isscalar(bin_width):
+            bin_widths = np.full(wave_midpoints.shape, float(bin_width), dtype=float)
+        else:
+            bin_widths = np.asarray(bin_width, dtype=float)
+
+        if np.any(bin_widths <= 0):
+            raise ValueError("All bin widths must be positive.")
+        if len(wave_midpoints) != len(bin_widths):
+            raise ValueError("wave_midpoints and bin_widths must have the same length.")
+
+        waves_min = wave_midpoints - bin_widths / 2
+        waves_max = wave_midpoints + bin_widths / 2
+        return cls(waves_min, waves_max, **kwargs)
 
     def bin_width(self, index):
         """Get the width of the bin at the given index.
@@ -106,19 +158,9 @@ class Spectrograph:
         float
             The width of the bin in Angstroms.
         """
-        if index < 0 or index >= len(self.waves):
-            raise IndexError(f"Index {index} out of bounds for {len(self.waves)} bin widths.")
-        elif index == 0:
-            # The center of the bin is at waves[0], so we assume the lower bound is symmetric
-            # about that point: 2.0 * (center_1 - center_0) / 2.0
-            return self.waves[1] - self.waves[0]
-        elif index == len(self.waves) - 1:
-            # The center of the bin is at waves[-1], so we assume the upper bound is symmetric
-            # about that point 2.0 * (center_N-1 - center_N-2) / 2.0
-            return self.waves[-1] - self.waves[-2]
-        else:
-            # Half the distance to the neighboring bins on either side.
-            return (self.waves[index + 1] - self.waves[index - 1]) / 2
+        if index < 0 or index >= len(self.waves_min):
+            raise IndexError(f"Index {index} out of bounds for {len(self.waves_min)} bin widths.")
+        return self.bin_widths[index]
 
     def wave_bounds(self):
         """Get the minimum and maximum wavelength for this spectra.
@@ -130,7 +172,7 @@ class Spectrograph:
         max_wave : float
             The maximum wavelength.
         """
-        return self.wave_min, self.wave_max
+        return self.waves_min[0], self.waves_max[-1]
 
     def evaluate(
         self,
