@@ -67,7 +67,7 @@ def test_constant_spectrograph_noise_model_fail():
 
 
 def test_constant_spectrograph_noise_model_check_compatibility():
-    """Use a ConstantSpectrographNoiseModel with overriden required_values to test
+    """Use a ConstantSpectrographNoiseModel with overridden required_values to test
     check_compatibility behavior."""
     model = ConstantSpectrographNoiseModel(noise_level=0.5)
     table_values = {

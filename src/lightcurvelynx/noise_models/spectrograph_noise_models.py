@@ -167,7 +167,7 @@ class ConstantSpectrographNoiseModel(SpectrographNoiseModel):
         ----------
         noise_level : float
             The (constant) standard deviation of the noise to apply to the
-            bandflux measurements, in the same units as the input bandflux.
+            spectrograph flux measurements, in the same units as the input measurements.
         spectrograph : Spectrograph, optional
             The spectrograph object containing the instrument parameters.
         """
