@@ -19,7 +19,7 @@ from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 
 
 class FluxNoiseModel(ABC):
-    """An abstract baseclass noise model for simulating bandflux measurements.
+    """An abstract base class noise model for simulating bandflux measurements.
 
     Noise is applied by computing `flux_err`, which is the standard deviation of Gaussian noise
     to apply to the input bandflux measurements. Subclasses must implement the `compute_flux_error`
