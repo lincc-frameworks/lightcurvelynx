@@ -108,10 +108,12 @@ def test_interp_methods_agree_at_nodes() -> None:
     # At exact node wavelengths (columns 0 and 2) all methods must agree.
     for method in ["linear", "pchip", "cubic"]:
         assert np.allclose(
-            results["sine"][:, 0], results[method][:, 0]
+            results["sine"][:, 0],
+            results[method][:, 0],
         ), f"sine and {method} disagree at left node"
         assert np.allclose(
-            results["sine"][:, 2], results[method][:, 2]
+            results["sine"][:, 2],
+            results[method][:, 2],
         ), f"sine and {method} disagree at right node"
 
     # Between the nodes the shapes differ — sine and linear should not match.
@@ -149,7 +151,8 @@ def test_coh_sigma_zero() -> None:
         result = eff.apply(flux, wavelengths=wavelengths, snia_scatter_seed=42)
         # Scatter should vary across wavelengths (chromatic); first and last values should differ.
         assert not np.isclose(
-            result[0, 0], result[0, -1]
+            result[0, 0],
+            result[0, -1],
         ), f"{model}: scatter appears uniform with coh_sigma=0"
 
 
