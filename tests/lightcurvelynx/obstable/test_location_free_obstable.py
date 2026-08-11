@@ -44,6 +44,38 @@ def test_create_location_free_obstable():
         _ = LocationFreeObsTable({"filter": np.random.choice(["g", "r", "i"], size=num_points)})
 
 
+def test_location_free_obstable_bad_queries():
+    """Check that we fail for invalid range search queries."""
+    num_points = 50
+    values = {
+        "time": 59000.0 + np.arange(num_points),
+        "filter": np.random.choice(["g", "r", "i"], size=num_points),
+    }
+    obs_table = LocationFreeObsTable(values)
+
+    with pytest.raises(ValueError):
+        # No query RA or Dec provided.
+        _ = obs_table.range_search(None, None)
+    with pytest.raises(ValueError):
+        # Query RA and Dec have different lengths.
+        _ = obs_table.range_search([10.0, 20.0], [30.0])
+    with pytest.raises(ValueError):
+        # Query RA and Dec contain NaN.
+        _ = obs_table.range_search([10.0, np.nan], [30.0, 40.0])
+    with pytest.raises(ValueError):
+        # t_min has a different length than query RA and Dec.
+        _ = obs_table.range_search([10.0, 20.0], [30.0, 40.0], t_min=[59000.0])
+    with pytest.raises(ValueError):
+        # t_max has a different length than query RA and Dec.
+        _ = obs_table.range_search([10.0, 20.0], [30.0, 40.0], t_max=[59000.0])
+    with pytest.raises(ValueError):
+        # Query RA and Dec are not convertible to float.
+        _ = obs_table.range_search(["not_a_number"], [30.0])
+    with pytest.raises(ValueError):
+        # Query RA and Dec are not 1D arrays.
+        _ = obs_table.range_search([[10.0, 20.0]], [[30.0, 40.0]])
+
+
 def test_location_free_obstable_build_moc():
     """Test that the MOC built from an LocationFreeObsTable covers the entire sky."""
     num_points = 50

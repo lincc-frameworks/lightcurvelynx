@@ -237,6 +237,24 @@ def test_linear_linear_model_extrapolators() -> None:
     assert np.allclose(values[0, :], expected[0, :])
     assert np.allclose(values[1, :], expected[-1, :])
 
+    # Test with all times before.
+    all_before_times = np.array([-10.0, -5.0])
+    values = model.evaluate_sed(all_before_times, query_waves)
+    assert np.allclose(values[0, :], expected[0, :])
+    assert np.allclose(values[1, :], 0.5 * (expected[0, :] + expected[1, :]))
+
+    # Test with all times after.
+    all_after_times = np.array([110.0, 120.0])
+    values = model.evaluate_sed(all_after_times, query_waves)
+    assert np.allclose(values[0, :], 0.5 * (expected[-2, :] + expected[-1, :]))
+    assert np.allclose(values[1, :], expected[-1, :])
+
+    # Test all wavelengths before.
+    all_before_waves = np.array([900.0, 950.0])
+    values = model.evaluate_sed(query_times, all_before_waves)
+    assert np.allclose(values[:, 0], expected[:, 0])
+    assert np.allclose(values[:, 1], [486.0, 540.0, 630.0, 720.0, 576.0])
+
     # We fail creation if given invalid numbers or types of extrapolators.
     with pytest.raises(ValueError):
         _ = _LinearLinearTestModel(
@@ -303,6 +321,41 @@ def test_linear_linear_model_diff_extrapolators() -> None:
     )
     assert np.allclose(values, expected)
 
+    # Test a bunch of edge cases (everything before, nothing before, etc.) to make sure the model
+    # behaves as expected.
+    values = model.evaluate_sed(query_times[2:], query_waves)  # No times before
+    assert np.allclose(values, expected[2:, :])
+
+    values = model.evaluate_sed(query_times[:1], query_waves)  # All times before
+    assert np.allclose(values, expected[:1, :])
+
+    values = model.evaluate_sed(query_times[:3], query_waves)  # No times after
+    assert np.allclose(values, expected[:3, :])
+
+    values = model.evaluate_sed(query_times[4:], query_waves)  # All times after
+    assert np.allclose(values, expected[4:, :])
+
+    values = model.evaluate_sed(query_times, query_waves[1:])  # No wavelengths before
+    assert np.allclose(values, expected[:, 1:])
+
+    values = model.evaluate_sed(query_times, query_waves[3:])  # All wavelengths after
+    assert np.allclose(values, expected[:, 3:])
+
+    values = model.evaluate_sed(query_times, query_waves[:3])  # No wavelengths after
+    assert np.allclose(values, expected[:, :3])
+
+    values = model.evaluate_sed(query_times, query_waves[:1])  # All wavelengths before
+    assert np.allclose(values, expected[:, :1])
+
+    values = model.evaluate_sed(query_times[2:4], query_waves[1:3])  # All valid
+    assert np.allclose(values, expected[2:4, 1:3])
+
+    values = model.evaluate_sed(query_times[:1], query_waves[:1])  # Everything before
+    assert np.allclose(values, expected[:1, :1])
+
+    values = model.evaluate_sed(query_times[4:], query_waves[3:])  # Everything after
+    assert np.allclose(values, expected[4:, 3:])
+
     # We fail if we use any Nones since the model doesn't know how to extrapolate.
     model = _LinearLinearTestModel(
         wave_extrapolation=(wave_linear, zero_extrap),
@@ -322,13 +375,25 @@ def test_linear_linear_model_diff_extrapolators() -> None:
         with pytest.raises(ValueError):
             _ = model.evaluate_sed(query_times, query_waves)
 
+    # We if the model doesn't fail on None, we should get a warning about extrapolation
+    # and then the model should give its best prediction.
+    model = _LinearLinearTestModel(
+        wave_extrapolation=(None, zero_extrap),
+        time_extrapolation=None,
+        t0=0.0,
+        fail_on_out_of_bounds=False,
+    )
+    with pytest.warns(UserWarning):
+        values = model.evaluate_sed(np.array([-10.0, 0.0, 10.0, 110.0]), np.array([2000.0]))
+    assert np.allclose(values, np.array([[1080.0], [1100.0], [1120.0], [1320.0]]))
+
 
 def test_linear_linear_model_ooo_time() -> None:
     """Test the _LinearLinearTestModel with extrapolators on out-of-order times."""
     time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
 
     query_waves = np.array([2000.0])
-    query_times = np.array([-10.0, 0.0, -15.0, 50.0, 125.0, 100.0, 75.0, 120.0])
+    query_times = np.array([-10.0, 0.0, -15.0, 50.0, 60.0, 55.0, 125.0, 100.0, 75.0, 120.0])
 
     # Start to (zero, linear) for wavelength, and (linear, zero) for time.
     model = _LinearLinearTestModel(
@@ -336,7 +401,9 @@ def test_linear_linear_model_ooo_time() -> None:
         t0=0.0,
     )
     values = model.evaluate_sed(query_times, query_waves)
-    expected = np.array([[990.0], [1100.0], [935.0], [1200.0], [975.0], [1300.0], [1250.0], [1040.0]])
+    expected = np.array(
+        [[990.0], [1100.0], [935.0], [1200.0], [1220.0], [1210.0], [975.0], [1300.0], [1250.0], [1040.0]]
+    )
     assert np.allclose(values, expected)
 
     # We can do extrapolations on just before (none after)
@@ -365,7 +432,9 @@ def test_linear_linear_model_ooo_time() -> None:
         t0=5.0,
     )
     values = model4.evaluate_sed(query_times, query_waves)
-    expected = np.array([[935.0], [1045.0], [880.0], [1190.0], [1040.0], [1290.0], [1240.0], [1105.0]])
+    expected = np.array(
+        [[935.0], [1045.0], [880.0], [1190.0], [1210.0], [1200.0], [1040.0], [1290.0], [1240.0], [1105.0]]
+    )
     assert np.allclose(values, expected)
 
     # With no extrapolation (and no failing), we should just query the model.
@@ -376,7 +445,9 @@ def test_linear_linear_model_ooo_time() -> None:
     )
     with pytest.warns(UserWarning):
         values5 = model5.evaluate_sed(query_times, query_waves)
-    expected5 = np.array([[1080.0], [1100.0], [1070.0], [1200.0], [1350.0], [1300.0], [1250.0], [1340.0]])
+    expected5 = np.array(
+        [[1080.0], [1100.0], [1070.0], [1200.0], [1220.0], [1210.0], [1350.0], [1300.0], [1250.0], [1340.0]]
+    )
     assert np.allclose(values5, expected5)
 
 
@@ -417,6 +488,32 @@ def test_linear_linear_model_ooo_wavelength() -> None:
         values3 = model3.evaluate_sed(query_times, query_waves)
     expected3 = np.array([560.0, 700.0, 1200.0, 420.0, 6300.0, 2700.0, 6250.0])
     assert np.allclose(values3, expected3)
+
+
+def test_linear_bandflux_model_all_out_of_bounds():
+    """Test the _LinearBandfluxTestModel with extrapolators when all times are out of bounds."""
+    time_linear = LinearDecay(decay_width=100.0)  # 100 days to zero
+    model = _LinearBandfluxTestModel(time_extrapolation=(time_linear, time_linear), t0=0.0)
+    state = model.sample_parameters(num_samples=1)
+
+    # All the times are before.
+    query_times = np.array([-50.0, -40.0, -30.0])
+    values = model.compute_bandflux_with_extrapolation(query_times, "r", state)
+    expected = np.array([50.0, 60.0, 70.0])
+    assert np.allclose(values, expected)
+
+    # All the times are after. Extrapolation linearly down from 150.0 to 0 over
+    # 100 days or 1.5 per day.
+    query_times = np.array([150.0, 160.0, 170.0])
+    values = model.compute_bandflux_with_extrapolation(query_times, "r", state)
+    expected = np.array([75.0, 60.0, 45.0])
+    assert np.allclose(values, expected)
+
+    # Some times before and some after (but none in bounds).
+    query_times = np.array([-50.0, -40.0, 150.0, 160.0])
+    values = model.compute_bandflux_with_extrapolation(query_times, "r", state)
+    expected = np.array([50.0, 60.0, 75.0, 60.0])
+    assert np.allclose(values, expected)
 
 
 def test_linear_bandflux_model_ooo_time():
@@ -503,3 +600,24 @@ def test_linear_fit_extrapolation():
     values = model.evaluate_sed(all_oob_times, query_waves)
     assert np.allclose(values[0, :], expected[0, :])
     assert np.allclose(values[1, :], expected[6, :])
+
+
+def test_linear_fit_extrapolation_interleave():
+    """Test the linear fit extrapolator when the added times at the start
+    interleave with the query times.
+    """
+    query_waves = np.array([2000.0, 3000.0])
+    query_times = np.array([-10.0, 0.5, 50.0, 60.0, 70.0, 99.5, 120.0])
+
+    # With nfit=2, the times should be added at the start at 0.0 and 1.0
+    # and at the end at 99.0 and 100.0.
+    time_linear = LinearFit(nfit=2)
+    model = _LinearLinearTestModel(
+        time_extrapolation=(time_linear, time_linear),
+        t0=0.0,
+    )
+    values = model.evaluate_sed(query_times, query_waves)
+    assert np.allclose(values[0, :], [1080.0, 1580.0])  # The (extrapolated) value at -10 days is correct.
+    assert np.allclose(values[1, :], [1101.0, 1601.0])  # The value at 0.5 days is correct.
+    assert np.allclose(values[5, :], [1299.0, 1799.0])  # The value at 99.5 days is correct.
+    assert np.allclose(values[6, :], [1340.0, 1840.0])  # The (extrapolated) value at 120 days is correct.

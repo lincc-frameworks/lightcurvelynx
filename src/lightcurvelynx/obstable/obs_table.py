@@ -81,6 +81,9 @@ class ObsTable:
     _saturation_mags : dict, optional
         The saturation thresholds in magnitudes for each filter. If unspecified, an
         instrument-specific default will be used, if available.
+    _saturation_njy : dict, optional
+        The saturation thresholds converted to nJy for each filter (derived from
+        `_saturation_mags`).
     """
 
     _required_columns = ["ra", "dec", "time"]
@@ -193,8 +196,15 @@ class ObsTable:
         # Derive any additional noise columns the survey might need.
         self._derive_noise_columns()
 
-        # Save the saturation thresholds.
+        # Save the saturation thresholds in magnitudes and convert a copy to nJy for each filter.
         self._saturation_mags = saturation_mags
+        self._saturation_njy = None
+        if saturation_mags is not None:
+            self._saturation_njy = {}
+            for filt, mag in saturation_mags.items():
+                if not isinstance(mag, int | float | np.float64 | np.int64):  # pragma: no cover
+                    raise ValueError("Saturation thresholds must be numeric.")
+                self._saturation_njy[filt] = mag2flux(mag)
 
         # Update all of the cached data.
         self._update_cached_data()
@@ -321,9 +331,9 @@ class ObsTable:
 
         # Prioritize columns that are in the table.
         if key in self._table.columns:
-            return self._table[key].iloc[indices].to_numpy()
+            return self._table[key].to_numpy()[indices]
         if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
-            return self._table[self._inv_colmap[key]].iloc[indices].to_numpy()
+            return self._table[self._inv_colmap[key]].to_numpy()[indices]
 
         # Otherwise fall back to the survey values if they are defined.
         value = self.survey_values.get(key, None)
@@ -336,13 +346,14 @@ class ObsTable:
             # Check that we have a filter column to do the mapping.
             if "filter" not in self._table.columns:
                 raise ValueError("Cannot map dictionary values to rows because 'filter' column is missing.")
+            filter_list = self._table["filter"].to_numpy()[indices]
 
             # Map the values for each filter to the rows in the table.
             result = np.zeros(num_rows, dtype=float)
             for filt in self.filters:
                 if filt not in value:
                     raise ValueError(f"Dictionary for '{key}' does not have a value for filter '{filt}'")
-                result[self._table["filter"].iloc[indices] == filt] = value[filt]
+                result[filter_list == filt] = value[filt]
             return result
         raise TypeError(f"Unsupported type for '{key}': {type(value)}")
 
@@ -947,7 +958,7 @@ class ObsTable:
             # by using the class accessor (__getitem__), instead of the table one.
             if col not in self:
                 raise KeyError(f"Unrecognized column name {col}")
-            results[col] = self[col].iloc[neighbors].to_numpy()
+            results[col] = self[col].to_numpy()[neighbors]
         return results
 
     def compute_saturation(self, flux, flux_error, index):
@@ -985,26 +996,19 @@ class ObsTable:
             - A boolean array indicating which points are saturated. A size S x T array
               where S is the number of samples in the graph state and T is the number of time points.
         """
-        if self._saturation_mags is None:
+        if self._saturation_njy is None:
             logger.info("Saturation thresholds not provided. Skipping saturation computation.")
             return flux, flux_error, np.full(flux.shape, False)
 
         true_flux = np.asarray(flux)
         true_flux_error = np.asarray(flux_error)
-        filters = np.asarray(self._table["filter"].iloc[index])
+        filters = np.asarray(self._table["filter"].to_numpy()[index])
 
         if len(flux) != len(flux_error) or len(flux) != len(filters):
             raise ValueError("Input arrays must have the same length.")
 
-        # Convert saturation thresholds to nJy.
-        saturation_mags_njy = {}
-        for filt, mag in self._saturation_mags.items():
-            if not isinstance(mag, int | float | np.float64 | np.int64):
-                raise ValueError("Saturation thresholds must be numeric.")
-            saturation_mags_njy[filt] = mag2flux(mag)
-
         # Map the filter list to saturation limits.
-        limits = np.array([saturation_mags_njy.get(filt, np.inf) for filt in filters])
+        limits = np.array([self._saturation_njy.get(filt, np.inf) for filt in filters])
 
         # Calculate the saturated flux and flux error.
         saturated_flux = np.minimum(true_flux, limits)

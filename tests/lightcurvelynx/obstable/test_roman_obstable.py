@@ -76,5 +76,13 @@ def test_noise_calculation():
     assert np.all(fluxerr_nJy > 0.0)
 
     magerr = 1.086 * fluxerr_nJy / flux_nJy
-
     np.testing.assert_allclose(magerr, expected_magerr, rtol=0.2)
+
+    # Test that we can scale the error by a factor of 2.0
+    noise_model2 = RomanPoissonFluxNoiseModel(err_scale=2.0)
+    _, fluxerr_nJy2 = noise_model2.apply_noise(
+        flux_nJy,
+        obs_table=roman_obstable,
+        indices=[0],
+    )
+    assert np.allclose(fluxerr_nJy2, 2.0 * fluxerr_nJy)

@@ -94,7 +94,6 @@ class FluxExtrapolationModel(abc.ABC):
         flux : numpy.ndarray
             A T x W2 matrix of extrapolated values.
         """
-        # We transpose the result to turn the W2 x T matrix into a T x W matrix.
         return self._extrapolate(last_waves, last_fluxes, query_waves)
 
 

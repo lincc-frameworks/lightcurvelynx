@@ -207,7 +207,7 @@ class SEDTemplate:
             # Create the modulo times for periodic evaluation and an inverse mapping to original order.
             times = np.mod(times, self.period)
             argsort_idx = np.argsort(times)
-            inv_idx = np.zeros_like(argsort_idx)
+            inv_idx = np.empty_like(argsort_idx)
             inv_idx[argsort_idx] = np.arange(len(times))
 
             sed_values = self.interp(times[argsort_idx], wavelengths, grid=True)
@@ -419,7 +419,7 @@ class MultiSEDTemplateModel(SEDModel):
 
         super().__init__(**kwargs)
 
-        all_inds = [i for i in range(len(templates))]
+        all_inds = list(range(len(templates)))
         self._sampler_node = GivenValueSampler(all_inds, weights=weights)
         self.add_parameter(
             "selected_template",

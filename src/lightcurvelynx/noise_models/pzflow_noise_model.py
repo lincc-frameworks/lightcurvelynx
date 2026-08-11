@@ -153,6 +153,12 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         (unfloored) bandflux. If None and the ``bandflux`` column was normalized
         with a log transform, the minimum bandflux seen during training is used
         (below it the flow is extrapolating anyway).
+    err_scale : float, optional
+        A multiplicative scale factor applied to the flux error standard
+        deviation sampled from the flow before it is used to generate noise
+        and before it is returned. Useful for inflating or deflating reported
+        uncertainties, e.g. to simulate a mis-calibrated error budget.
+        Default is 1.0.
     """
 
     def __init__(
@@ -162,6 +168,7 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         input_col_map=None,
         normalizer_data=None,
         flux_floor=None,
+        err_scale=1.0,
     ):
         # Validate the pzflow object has the expected output column
         # and save its name.
@@ -179,6 +186,7 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         if flux_floor is not None and flux_floor <= 0:
             raise ValueError("flux_floor must be positive.")
         self._flux_floor = flux_floor
+        self._err_scale = err_scale
         self._update_required_values()
 
     def add_column_mapping(self, flow_input_name, obs_table_col_name):
@@ -251,42 +259,27 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
 
         return noise_model
 
-    def apply_noise(
-        self,
-        bandflux,
-        *,
-        obs_table=None,
-        indices=None,
-        rng=None,
-        **kwargs,
-    ):
-        """Compute the noise parameters for given observations in
-        an ObsTable and apply noise to the input bandflux.
+    def compute_flux_error(self, bandflux, *, obs_table=None, indices=None, rng=None, **kwargs):
+        """Compute the flux error for the given bandflux and observation parameters.
 
         Parameters
         ----------
         bandflux : array_like of float
-            Source bandflux in energy units, e.g. nJy.
-        obs_table : ObsTable, optional
-            Table containing the observation parameters, including all
-            parameters needed to compute the noise.
-        indices : array_like of int, optional
-            Indices of the observations in the ObsTable to which noise should
-            be applied.
+            Source bandflux in nJy.
+        obs_table : ObsTable
+            Table containing the observation parameters needed to compute the noise.
+        indices : array_like of int
+            Indices of the observations in the ObsTable for which to compute the noise.
         rng : np.random.Generator, optional
-            The random number generator to use for applying noise. If None,
+            The random number generator to use for sampling from the flow. If None,
             a default generator will be used.
         **kwargs
             Additional parameters for the noise model.
 
         Returns
         -------
-        flux : array_like
-            The updated flux measurements after applying noise, in the same
-            units as the input bandflux.
-        flux_err : array_like
-            The bandflux measurement error used for applying noise, in the
-            same units as the input bandflux.
+        flux_err : numpy.ndarray
+            The standard deviation of the bandflux measurement error (in nJy).
         """
         if obs_table is None:
             raise ValueError("ObsTable must be provided for PZFlowNoiseModel.")
@@ -295,6 +288,9 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         num_samples = len(bandflux)
         if len(indices) != num_samples:
             raise ValueError("Length of indices must match length of bandflux.")
+
+        # Set up the random number generator.
+        rng = np.random.default_rng(rng)
 
         # Get the input parameters for the flow (if there are any).
         if self._flow.conditional_columns is not None and len(self._flow.conditional_columns) > 0:
@@ -333,9 +329,9 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
             normalizer = self._normalizer_data[self._output_column]
             flux_err = normalizer.denormalize(flux_err)
 
-        # Apply noise to the input bandflux using the sampled noise parameters.
-        noisy_bandflux = rng.normal(loc=bandflux, scale=flux_err)
-        return noisy_bandflux, flux_err
+        # Use getattr for models pickled before err_scale was introduced.
+        flux_err = flux_err * getattr(self, "_err_scale", 1.0)
+        return flux_err
 
     def save_to_file(self, filename):
         """Save the PZFlowNoiseModel to a file.
