@@ -479,7 +479,7 @@ def read_snana_spectrograph_data(input_file):
             A W x M x T matrix of signal-to-noise ratios, where W is the number of
             spectrograph bins, M is the number of reference magnitudes, and T is
             the number of exposure times.
-    Other meta data from the file may also ne included.
+    Other meta data from the file may also be included.
     """
     input_file = Path(input_file)
     logging.debug(f"Loading SNANA SPECBIN data from {input_file}")
