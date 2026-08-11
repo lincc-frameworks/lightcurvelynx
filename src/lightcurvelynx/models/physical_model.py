@@ -595,7 +595,8 @@ class SEDModel(BasePhysicalModel):
         # augment the query waves in case the new boundary points interleave with the original queries.
         if len(query_waves) > 1 and not np.all(query_waves[:-1] <= query_waves[1:]):
             w_idx = np.argsort(query_waves)
-            w_inv_idx = np.argsort(w_idx)
+            w_inv_idx = np.empty_like(w_idx)
+            w_inv_idx[w_idx] = np.arange(w_idx.size)
         else:
             w_idx = slice(None)
             w_inv_idx = None
@@ -666,7 +667,8 @@ class SEDModel(BasePhysicalModel):
         # augment the query times in case the new boundary points interleave with the original queries.
         if len(query_times) > 1 and not np.all(query_times[:-1] <= query_times[1:]):
             t_idx = np.argsort(query_times)
-            t_inv_idx = np.argsort(t_idx)
+            t_inv_idx = np.empty_like(t_idx)
+            t_inv_idx[t_idx] = np.arange(t_idx.size)
         else:
             t_idx = slice(None)
             t_inv_idx = None
@@ -1115,7 +1117,8 @@ class BandfluxModel(BasePhysicalModel, ABC):
         # augment the query times in case the new boundary points interleave with the original queries.
         if len(query_times) > 1 and not np.all(query_times[:-1] <= query_times[1:]):
             t_idx = np.argsort(query_times)
-            t_inv_idx = np.argsort(t_idx)
+            t_inv_idx = np.empty_like(t_idx)
+            t_inv_idx[t_idx] = np.arange(t_idx.size)
         else:
             t_idx = slice(None)
             t_inv_idx = None
