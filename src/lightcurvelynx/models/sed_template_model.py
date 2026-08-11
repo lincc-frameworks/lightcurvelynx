@@ -207,7 +207,7 @@ class SEDTemplate:
             # Create the modulo times for periodic evaluation and an inverse mapping to original order.
             times = np.mod(times, self.period)
             argsort_idx = np.argsort(times)
-            inv_idx = np.zeros_like(argsort_idx)
+            inv_idx = np.empty_like(argsort_idx)
             inv_idx[argsort_idx] = np.arange(len(times))
 
             sed_values = self.interp(times[argsort_idx], wavelengths, grid=True)
