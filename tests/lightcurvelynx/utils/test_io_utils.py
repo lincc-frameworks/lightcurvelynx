@@ -9,6 +9,7 @@ from lightcurvelynx.utils.io_utils import (
     read_grid_data,
     read_lclib_data,
     read_numpy_data,
+    read_snana_spectrograph_data,
     read_sqlite_table,
     write_numpy_data,
     write_results_as_hats,
@@ -198,6 +199,30 @@ def test_read_lclib_data(test_data_dir):
         for col in expected_cols:
             assert col in curve.colnames
         assert np.all((curve["type"].data == "S") | (curve["type"].data == "T"))
+
+
+def test_read_snana_spectrograph_data(test_data_dir):
+    """Test reading a SNANA spectrograph data from a text file."""
+    spec_file = test_data_dir / "fake_snana_spectrograph.dat"
+    data = read_snana_spectrograph_data(spec_file)
+
+    assert data["instrument"] == "FAKE_SPECTRO"
+    assert np.allclose(data["magref"], [19.0, 23.0])
+    assert np.allclose(data["texpose"], [120.0, 3600.0, 7200.0])
+    assert data["other_meta"] == "hello"
+    assert np.allclose(data["waves_min"], [4000.0, 4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 5500.0, 7000.0])
+    assert np.allclose(data["waves_max"], [4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 4200.0, 6000.0, 7100.0])
+    assert np.allclose(data["waves_sigma"], [0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38])
+
+    assert data["snr"].shape == (8, 2, 3)  # W x M x T
+    base_noise = np.array([[50.01, 100.8, 148.36], [3.14, 4.90, 6.55]])
+    for w in range(8):
+        assert np.allclose(data["snr"][w, :, :], base_noise + w * 0.001, atol=1e-8)
+
+    # We have dropped some tags that we do not need.
+    assert "documentation" not in data
+    assert "magref_list" not in data
+    assert "texpose_list" not in data
 
 
 def test_read_sqlite_table(test_data_dir):
