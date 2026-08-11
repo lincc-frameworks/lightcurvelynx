@@ -1158,8 +1158,6 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 )
                 new_computed_flux[after_time_mask] = extrapolated_values[:, 0]
                 in_bounds_mask[after_time_mask] = False
-
-                # Drop the last entry (which was added for extrapolation).
                 end_idx = -n_added_time_after
             else:
                 end_idx = None
