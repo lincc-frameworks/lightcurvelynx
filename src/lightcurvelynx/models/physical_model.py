@@ -687,7 +687,7 @@ class SEDModel(BasePhysicalModel):
         # We do the extrapolation in two steps: first for wavelengths and then for times.
         # The result is that we combine the extrapolation for both dimensions at the corners.
         if before_wave_queries is not None or after_wave_queries is not None:
-            new_computed_flux = np.zeros((len(query_times), len(wavelengths)))
+            new_computed_flux = np.empty((len(query_times), len(wavelengths)))
             in_bounds_mask = np.full(len(wavelengths), True)
 
             if before_wave_queries is not None:
@@ -702,9 +702,9 @@ class SEDModel(BasePhysicalModel):
                 )
                 new_computed_flux[:, before_wave_mask] = extrapolated_values
                 in_bounds_mask[before_wave_mask] = False
-
-                # Drop the first column (which was added for extrapolation).
-                computed_flux = computed_flux[:, n_added_wave_before:]
+                start_idx = n_added_wave_before
+            else:
+                start_idx = None
 
             if after_wave_queries is not None:
                 # Compute the flux values after the model's last valid wavelength and
@@ -718,17 +718,18 @@ class SEDModel(BasePhysicalModel):
                 )
                 new_computed_flux[:, after_wave_mask] = extrapolated_values
                 in_bounds_mask[after_wave_mask] = False
+                end_idx = -n_added_wave_after
+            else:
+                end_idx = None
 
-                # Drop the last column (which was added for extrapolation).
-                computed_flux = computed_flux[:, :-n_added_wave_after]
-
-            # Fill in the non-extrapolated values and rename it to computed_flux.
-            new_computed_flux[:, in_bounds_mask] = computed_flux
+            # Fill in the non-extrapolated values (dropping the first and last few values at the
+            # wavelengths added for extrapolation) and rename the array to computed_flux.
+            new_computed_flux[:, in_bounds_mask] = computed_flux[:, start_idx:end_idx]
             computed_flux = new_computed_flux
 
-        # Do a similiar process for time extrapolation.
+        # Do a similar process for time extrapolation.
         if before_time_queries is not None or after_time_queries is not None:
-            new_computed_flux = np.zeros((len(times), len(wavelengths)))
+            new_computed_flux = np.empty((len(times), len(wavelengths)))
             in_bounds_mask = np.full(len(times), True)
 
             if before_time_queries is not None:
@@ -743,9 +744,9 @@ class SEDModel(BasePhysicalModel):
                 )
                 new_computed_flux[before_time_mask, :] = extrapolated_values
                 in_bounds_mask[before_time_mask] = False
-
-                # Drop the first row (which was added for extrapolation).
-                computed_flux = computed_flux[n_added_time_before:, :]
+                start_idx = n_added_time_before
+            else:
+                start_idx = None
 
             if after_time_queries is not None:
                 # Compute the flux values after the model's last valid time and
@@ -759,12 +760,13 @@ class SEDModel(BasePhysicalModel):
                 )
                 new_computed_flux[after_time_mask, :] = extrapolated_values
                 in_bounds_mask[after_time_mask] = False
+                end_idx = -n_added_time_after
+            else:
+                end_idx = None
 
-                # Drop the last row (which was added for extrapolation).
-                computed_flux = computed_flux[:-n_added_time_after, :]
-
-            # Fill in the non-extrapolated values and rename it to computed_flux.
-            new_computed_flux[in_bounds_mask, :] = computed_flux
+            # Fill in the non-extrapolated values (dropping the first and last few values at the
+            # times added for extrapolation) and rename the array to computed_flux.
+            new_computed_flux[in_bounds_mask, :] = computed_flux[start_idx:end_idx, :]
             computed_flux = new_computed_flux
 
         return computed_flux
@@ -1127,7 +1129,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         # Then do extrapolation for times that fell outside the model's bounds. These might
         # not be in order, so we use masks to keep track of where they go.
         if before_time_queries is not None or after_time_queries is not None:
-            new_computed_flux = np.zeros(len(times))
+            new_computed_flux = np.empty(len(times))
             in_bounds_mask = np.full(len(times), True)
 
             if before_time_queries is not None:
@@ -1141,9 +1143,9 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 )
                 new_computed_flux[before_time_mask] = extrapolated_values[:, 0]
                 in_bounds_mask[before_time_mask] = False
-
-                # Drop the first entry (which was added for extrapolation).
-                computed_flux = computed_flux[n_added_time_before:]
+                start_idx = n_added_time_before
+            else:
+                start_idx = None
 
             if after_time_queries is not None:
                 # Compute the flux values after the model's last valid time. We need the shape of the
@@ -1156,12 +1158,13 @@ class BandfluxModel(BasePhysicalModel, ABC):
                 )
                 new_computed_flux[after_time_mask] = extrapolated_values[:, 0]
                 in_bounds_mask[after_time_mask] = False
+                end_idx = -n_added_time_after
+            else:
+                end_idx = None
 
-                # Drop the last entry (which was added for extrapolation).
-                computed_flux = computed_flux[:-n_added_time_after]
-
-            # Fill in the valid flux values.
-            new_computed_flux[in_bounds_mask] = computed_flux
+            # Fill in the valid flux values for the non-extrapolated times (dropping the first and last few
+            # values at the times added for extrapolation)
+            new_computed_flux[in_bounds_mask] = computed_flux[start_idx:end_idx]
             computed_flux = new_computed_flux
 
         return computed_flux
