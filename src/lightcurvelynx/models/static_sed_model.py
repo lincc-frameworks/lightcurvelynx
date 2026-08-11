@@ -65,7 +65,7 @@ class StaticSEDModel(SEDModel):
         super().__init__(**kwargs)
 
         # Create a parameter that indicates which SED was sampled in each simulation.
-        all_inds = [i for i in range(len(self.sed_values))]
+        all_inds = list(range(len(self.sed_values)))
         self._sampler_node = GivenValueSampler(all_inds, weights=weights)
         self.add_parameter(
             "selected_idx",
@@ -244,7 +244,7 @@ class StaticBandfluxModel(BandfluxModel):
         super().__init__(**kwargs)
 
         # Create a parameter that indicates which bandflux mapping was sampled in each simulation.
-        all_inds = [i for i in range(len(self.bandflux_values))]
+        all_inds = list(range(len(self.bandflux_values)))
         self._sampler_node = GivenValueSampler(all_inds, weights=weights)
         self.add_parameter("selected_idx", value=self._sampler_node, allow_gradient=False)
 

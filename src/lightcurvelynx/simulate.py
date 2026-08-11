@@ -29,7 +29,8 @@ class SimulationInfo:
         The model to draw from. This may have its own parameters which
         will be randomly sampled with each draw.
     num_samples : int
-        The number of samples.
+        The number of initially requested parameter sets for fresh sampling. Some nodes
+        may produce more realized rows (e.g., strong lensing).
     survey_info : List of SurveyInfo
         The SurveyInfo objects from which to extract information for the samples.
     obs_time_window_offset : tuple(float, float), optional
@@ -67,6 +68,9 @@ class SimulationInfo:
         Whether to save the full filter names in the results (including survey prefix).
     progress_bar : bool
         Whether to show a progress bar during the simulation.
+    graph_state : GraphState, optional
+        The predefined graph state to use to replay a previous simulation. If None,
+        a new graph state is sampled.
     kwargs : dict
         Additional keyword arguments to pass to the simulation function.
     """
@@ -87,6 +91,7 @@ class SimulationInfo:
         output_file_path=None,
         save_full_filter_names=False,
         progress_bar=True,
+        graph_state=None,
         **kwargs,
     ):
         self.model = model
@@ -109,6 +114,15 @@ class SimulationInfo:
         if self.num_samples <= 0:
             raise ValueError("Number of samples must be a positive integer.")
 
+        # Link the graph state if one is provided.
+        if graph_state is not None and graph_state.num_samples != self.num_samples:
+            raise ValueError(
+                f"Graph state has {graph_state.num_samples} samples, but simulation is set to "
+                f"{self.num_samples} samples."
+            )
+        self.graph_state = graph_state
+
+        # If an output file path is provided, check that the directory exists.
         if output_file_path is not None:
             self.output_file_path = Path(output_file_path)
             if not self.output_file_path.parent.exists():
@@ -174,6 +188,12 @@ class SimulationInfo:
             else:
                 batch_output_file_path = None
 
+            # If we have a graph state, take a slice for this batch.
+            if self.graph_state is not None:
+                batch_graph_state = self.graph_state.extract_slice(start_idx, end_idx)
+            else:
+                batch_graph_state = None
+
             # Create a subset of the batch. Most information is the same (references to the
             # same objects), except for the number of samples and the RNG.
             batch_info = SimulationInfo(
@@ -190,6 +210,7 @@ class SimulationInfo:
                 output_file_path=batch_output_file_path,
                 save_full_filter_names=self.save_full_filter_names,
                 progress_bar=False,  # Don't show per-batch progress bars.
+                graph_state=batch_graph_state,
                 **self.kwargs,
             )
             batches.append(batch_info)
@@ -295,23 +316,33 @@ def _simulate_lightcurves_batch(simulation_info):
     # Extract the parameters from the SimulationInfo that are used repeated
     # (so we have shorter names).
     model = simulation_info.model
-    num_samples = simulation_info.num_samples
+    requested_num_samples = simulation_info.num_samples
     obstable = [info.obstable for info in simulation_info.survey_info]
     passbands = [info.passbands for info in simulation_info.survey_info]
     obstable_save_cols = simulation_info.obstable_save_cols
     rng = simulation_info.rng
     num_surveys = len(obstable)
 
-    # Sample the parameter space of this model. We do this once for all surveys, so the
-    # object use the same parameters across all observations.
-    if num_samples <= 0:
-        raise ValueError("Invalid number of samples.")
-    logger.info(f"Sampling {num_samples} parameter sets from the model.")
-    sample_states = model.sample_parameters(
-        num_samples=num_samples,
-        rng_info=rng,
-        sample_offset=sample_offset,
-    )
+    # Sample the parameter space of this model if it is not already provided. We do this once for
+    # all surveys, so each object uses the same parameters across all observations.
+    if requested_num_samples <= 0:
+        raise ValueError(f"Invalid number of samples requested {requested_num_samples}.")
+    if simulation_info.graph_state is not None:
+        logger.info("Using provided graph state to sample parameters.")
+        sample_states = simulation_info.graph_state
+    else:
+        logger.info(f"Sampling {requested_num_samples} parameter sets from the model.")
+        sample_states = model.sample_parameters(
+            num_samples=requested_num_samples,
+            rng_info=rng,
+            sample_offset=sample_offset,
+        )
+
+    # Check the actual number of samples realized. This may be different from the requested number of
+    # samples if the model has a state expansion (e.g., strong lensing) or any type of filtering.
+    realized_num_samples = sample_states.num_samples
+    if realized_num_samples != requested_num_samples:
+        logger.info(f"Sampled {requested_num_samples} sources into {realized_num_samples} rows.")
 
     # Create a dictionary for the object level information, including any saved parameters.
     # Some of these are placeholders (e.g. nobs) until they can be filled in during the simulation.
@@ -321,10 +352,10 @@ def _simulate_lightcurves_batch(simulation_info):
     ra = np.atleast_1d(model.get_param(sample_states, "ra"))
     dec = np.atleast_1d(model.get_param(sample_states, "dec"))
     results_dict = {
-        "id": [i for i in range(num_samples)],
+        "id": list(range(realized_num_samples)),
         "ra": ra.tolist(),
         "dec": dec.tolist(),
-        "nobs": [0] * num_samples,
+        "nobs": [0] * realized_num_samples,
         "t0": np.atleast_1d(model.get_param(sample_states, "t0")).tolist(),
         "z": np.atleast_1d(model.get_param(sample_states, "redshift")).tolist(),
     }
@@ -386,7 +417,7 @@ def _simulate_lightcurves_batch(simulation_info):
     logger.info("Simulating light curves for each object.")
     for idx, state in tqdm(
         enumerate(sample_states),
-        total=num_samples,
+        total=realized_num_samples,
         desc="Simulating",
         unit="obj",
         disable=not simulation_info.progress_bar,
@@ -400,44 +431,39 @@ def _simulate_lightcurves_batch(simulation_info):
         object_nested_dict = {key: [] for key in nested_dict}
 
         for survey_idx in range(num_surveys):
-            # Find the indices and times where the current model is seen.
+            # Find the indices, times, and filters where the current model is seen. Skip any
+            # surveys where the model is not seen at all.
             obs_index = np.asarray(all_obs_matches[survey_idx][idx])
             if len(obs_index) == 0:
-                obs_times = []
-                obs_filters = []
-            else:
-                obs_times = all_times[survey_idx][obs_index]
-
-                # Extract the filters for this observation.
-                obs_filters = all_filters[survey_idx][obs_index]
-
-            # Skip all computation for objects that we do not see in this survey.
-            nobs = len(obs_times)
-            if nobs == 0:
                 continue
+            obs_times = all_times[survey_idx][obs_index]
+            obs_filters = all_filters[survey_idx][obs_index]
 
+            # Check for duplicate observation times in the same survey.
+            nobs = len(obs_times)
             if len(np.unique(obs_times)) != nobs:
                 warnings.warn(
                     "Found duplicate observation times in a single survey. "
-                    "This may indicate an issue with the ObsTable."
+                    "This may be due to the ObsTable providing ccd level info,"
+                    "or may indicate an issue with the ObsTable."
                 )
 
             # Split on whether we are evaluating bandfluxes or spectra.
             if isinstance(passbands[survey_idx], Spectrograph):
                 # This is a spectrograph, so we compute the spectra for the spectra column.
                 sg_waves = passbands[survey_idx].waves
-                if nobs > 0:
-                    sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
-                    measured_flux = passbands[survey_idx].evaluate(sed)
 
-                    # TODO: Simulate spectrograph noise.
+                sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
+                measured_flux = passbands[survey_idx].evaluate(sed)
 
-                    # We append each spectral as a separate entry in the spectra nested dictionary.
-                    for obs_idx, obs_time in enumerate(obs_times):
-                        spectra_dict["mjd"].append(obs_time)
-                        spectra_dict["waves"].append(sg_waves)
-                        spectra_dict["measured_flux"].append(measured_flux[obs_idx])
-                        spectra_dict["instrument"].append(passbands[survey_idx].instrument)
+                # TODO: Simulate spectrograph noise.
+
+                # We append each spectral as a separate entry in the spectra nested dictionary.
+                for obs_idx, obs_time in enumerate(obs_times):
+                    spectra_dict["mjd"].append(obs_time)
+                    spectra_dict["waves"].append(sg_waves)
+                    spectra_dict["measured_flux"].append(measured_flux[obs_idx])
+                    spectra_dict["instrument"].append(passbands[survey_idx].instrument)
 
                 # Add the new entries to the spectra_index.
                 spectra_index.extend([idx] * nobs)
@@ -484,10 +510,8 @@ def _simulate_lightcurves_batch(simulation_info):
                 object_nested_dict["obs_idx"].append(obs_index)
                 for col in obstable_save_cols:
                     if len(obs_index) > 0:
-                        col_data = (
-                            obstable[survey_idx][col].values[obs_index]
-                            if col in obstable[survey_idx]
-                            else np.full(nobs, None)
+                        col_data = obstable[survey_idx].get_value_per_row(
+                            col, indices=obs_index, default=None
                         )
                         object_nested_dict[col].append(col_data)
 
@@ -521,7 +545,7 @@ def _simulate_lightcurves_batch(simulation_info):
 
     # Create the nested frame and either save it to a file or return it directly.
     logger.info("Compiling results.")
-    results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
+    results = NestedFrame(data=results_dict, index=list(range(realized_num_samples)))
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
     results = results.join_nested(nested_frame, "lightcurve")
 
@@ -600,6 +624,7 @@ def simulate_lightcurves(
     batch_size=100_000,
     save_full_filter_names=False,
     progress_bar=True,
+    graph_state=None,
 ):
     """Generate a number of simulations of the given model and information
     from one or more surveys. The result data can either be returned directly
@@ -617,7 +642,9 @@ def simulate_lightcurves(
         sampled with each draw. This object's parameters (e.g., ra, dec) will be saved
         to the result columns.
     num_samples : int
-        The number of samples.
+        The number of initially requested parameter sets for fresh sampling. Some nodes
+        may produce more realized rows (e.g., strong lensing). For replay this must
+        match the number of samples in the ``graph_state``.
     survey_info : SurveyInfo, ObsTable, List of SurveyInfo, or List of ObsTable
         The SurveyInfo object(s) from which to extract information for the samples. If ObsTables
         are passed instead, they will be converted to SurveyInfo objects internally using
@@ -671,6 +698,9 @@ def simulate_lightcurves(
         Whether to save the full filter names in the results (including survey prefix).
     progress_bar : bool
         Whether to show a progress bar during the simulation.
+    graph_state : GraphState, optional
+        The predefined graph state to use to replay a previous simulation. If None,
+        a new graph state is sampled.
 
     Returns
     -------
@@ -741,6 +771,7 @@ def simulate_lightcurves(
         output_file_path=output_file_path,
         save_full_filter_names=save_full_filter_names,
         progress_bar=progress_bar,
+        graph_state=graph_state,
     )
 
     # If we are given a number of jobs, make sure the batch size is not larger than
@@ -924,7 +955,7 @@ def compute_noise_free_lightcurves(
         nested_index.extend([idx] * len(lc["times"]))
 
     # Create the nested results frame.
-    results = NestedFrame(data=results_dict, index=[i for i in range(num_samples)])
+    results = NestedFrame(data=results_dict, index=list(range(num_samples)))
     nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
     results = results.join_nested(nested_frame, "lightcurve")
     return results

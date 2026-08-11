@@ -170,6 +170,8 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             elif "zp_mag_e" in self:
                 zp_values = mag2flux(self["zp_mag_e"])
                 self.add_column("zp", zp_values, overwrite=True)
+        if "zp" in self:
+            self.filter_invalid_rows(["zp"])
 
         # Compute the PSF footprint in pixel^2 if not already provided.
         if "psf_footprint" not in self:
@@ -195,6 +197,8 @@ class SkyMapperObsTable(ObsTable, CiteClass):
                 # https://smtn-002.lsst.io/v/OPSIM-1171/index.html.
                 psf_footprint = GAUSS_EFF_AREA2FWHM_SQ * (seeing / pixel_scale) ** 2
                 self.add_column("psf_footprint", psf_footprint, overwrite=True)
+        if "psf_footprint" in self:
+            self.filter_invalid_rows(["psf_footprint"])
 
         # Compute the sky background in electrons/pixel^2 if not already provided.
         if "sky_bg_e" not in self and "skybrightness" in self and "zp" in self and "pixel_scale" in self:
@@ -206,6 +210,8 @@ class SkyMapperObsTable(ObsTable, CiteClass):
             zp = self["zp"]
             sky = mag2flux(skybrightness) * pixel_scale**2 / zp
             self.add_column("sky_bg_e", sky, overwrite=True)
+        if "sky_bg_e" in self:
+            self.filter_invalid_rows(["sky_bg_e"])
 
     def build_moc(
         self,

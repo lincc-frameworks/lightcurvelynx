@@ -1,26 +1,55 @@
+from functools import lru_cache
+
 import numpy as np
 from astropy import constants as const
 
 
-def bulk_convert_matrix(mat, in_units, out_units):
-    """Bulk convert a numpy matrix from one set of units to another.
+# Cache the conversion factors to avoid repeated calculations. We expect this
+# to be more efficient because the models use the same units for each evaluation.
+@lru_cache(maxsize=32)
+def get_flam_to_fnu_multiplier(flam_unit, wave_unit, fnu_unit):
+    """Get the multiplier for flam to fnu conversion.
 
     Parameters
     ----------
-    mat : numpy.ndarray
-        The numpy matrix of values to convert.
-    in_units : astropy.units
-        The current (input) units of the matrix.
-    out_units : astropy.units
-        The desired (output) units of the matrix.
+    flam_unit : astropy.units.Unit
+        The unit for the input flux_flam values.
+    wave_unit : astropy.units.Unit
+        The unit for the wavelength values.
+    fnu_unit : astropy.units.Unit
+        The unit for the output flux_fnu values.
 
     Returns
     -------
-    output : numpy.ndarray
-        The converted numpy matrix of values.
+    multiplier : float
+        The multiplier for the conversion from flam to fnu.
     """
-    multipler = (1.0 * in_units).to_value(out_units)
-    return multipler * mat
+    input_units = (flam_unit * wave_unit * wave_unit) / const.c.unit
+    multiplier = (1.0 * input_units).to_value(fnu_unit)
+    return multiplier
+
+
+@lru_cache(maxsize=32)
+def get_fnu_to_flam_multiplier(fnu_unit, wave_unit, flam_unit):
+    """Get the multiplier for fnu to flam conversion.
+
+    Parameters
+    ----------
+    fnu_unit : astropy.units.Unit
+        The unit for the input flux_fnu values.
+    wave_unit : astropy.units.Unit
+        The unit for the wavelength values.
+    flam_unit : astropy.units.Unit
+        The unit for the output flux_flam values.
+
+    Returns
+    -------
+    multiplier : float
+        The multiplier for the conversion from fnu to flam.
+    """
+    input_units = (fnu_unit * const.c.unit) / (wave_unit * wave_unit)
+    multiplier = (1.0 * input_units).to_value(flam_unit)
+    return multiplier
 
 
 def flam_to_fnu(flux_flam, wavelengths, *, wave_unit, flam_unit, fnu_unit):
@@ -64,9 +93,9 @@ def flam_to_fnu(flux_flam, wavelengths, *, wave_unit, flam_unit, fnu_unit):
         ) from err
 
     # convert flux in flam_unit (e.g. ergs/s/cm^2/A) to fnu_unit (e.g. nJy or ergs/s/cm^2/Hz)
-    input_units = (flam_unit * wave_unit * wave_unit) / const.c.unit
+    multiplier = get_flam_to_fnu_multiplier(flam_unit, wave_unit, fnu_unit)
     flux_fnu = flux_flam * (wavelengths**2) / const.c.value
-    return bulk_convert_matrix(flux_fnu, input_units, fnu_unit)
+    return multiplier * flux_fnu
 
 
 def fnu_to_flam(flux_fnu, wavelengths, *, wave_unit, flam_unit, fnu_unit):
@@ -111,6 +140,6 @@ def fnu_to_flam(flux_fnu, wavelengths, *, wave_unit, flam_unit, fnu_unit):
         ) from err
 
     # convert flux in fnu_unit (e.g. nJy or ergs/s/cm^2/Hz) to flam_unit (e.g. ergs/s/cm^2/A)
-    input_units = (fnu_unit * const.c.unit) / (wave_unit * wave_unit)
+    multiplier = get_fnu_to_flam_multiplier(fnu_unit, wave_unit, flam_unit)
     flux_flam = flux_fnu * const.c.value / wavelengths**2
-    return bulk_convert_matrix(flux_flam, input_units, flam_unit)
+    return multiplier * flux_flam

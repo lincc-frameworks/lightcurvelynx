@@ -73,9 +73,13 @@ def test_basic_math_node_multi_dim():
 
 def test_basic_math_node_fail():
     """Test that we perform the needed checks for a math node."""
-    # Imports not allowed
-    with pytest.raises(ValueError):
+    # Imports not allowed. They will fail with a SyntaxError in eval mode.
+    with pytest.raises(SyntaxError):
         _ = BasicMathNode("import os")
+
+    # Prefixes shouldn't be included.
+    with pytest.raises(ValueError):
+        _ = BasicMathNode("np.sin(1.0)")
 
     # Ifs not allowed (won't work with JAX)
     with pytest.raises(ValueError):

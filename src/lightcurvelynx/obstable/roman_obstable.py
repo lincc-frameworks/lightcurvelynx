@@ -92,10 +92,10 @@ def _assign_survey_component(row, pass_map):
 class RomanPoissonFluxNoiseModel(PoissonFluxNoiseModel):
     """A subclass of PoissonFluxNoiseModel for Roman survey data."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, err_scale=1.0, **kwargs):
+        super().__init__(err_scale=err_scale, **kwargs)
 
-    def compute_flux_error(self, bandflux, obs_table, indices):
+    def compute_flux_error(self, bandflux, obs_table, indices, **kwargs):
         """Compute the flux error for the given bandflux and observation parameters.
 
         Parameters
@@ -106,10 +106,12 @@ class RomanPoissonFluxNoiseModel(PoissonFluxNoiseModel):
             Table containing the observation parameters needed to compute the noise.
         indices : array_like of int
             Indices of the observations in the ObsTable for which to compute the noise.
+        **kwargs
+            Additional keyword arguments to pass to the noise computation function.
 
         Returns
         -------
-        flux_err : array_like
+        flux_err : numpy.ndarray
             The standard deviation of the bandflux measurement error (in nJy)
         """
         exptime = obs_table["exptime"].iloc[indices].to_numpy()
@@ -120,7 +122,7 @@ class RomanPoissonFluxNoiseModel(PoissonFluxNoiseModel):
             obs_table["thermal_countrate"].iloc[indices].to_numpy(),
         )
 
-        return poisson_bandflux_std(
+        base_flux_err = poisson_bandflux_std(
             bandflux,  # nJy
             total_exposure_time=exptime,  # seconds
             exposure_count=1,
@@ -131,6 +133,7 @@ class RomanPoissonFluxNoiseModel(PoissonFluxNoiseModel):
             dark_current=obs_table.safe_get_survey_value("dark_current"),
             zp_err_mag=obs_table.safe_get_survey_value("zp_err_mag"),
         )
+        return base_flux_err * self.err_scale
 
 
 class RomanObsTable(ObsTable):

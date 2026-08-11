@@ -32,8 +32,8 @@ The key columns in the nested light curve DataFrame are:
 
     * ``mjd``: The Modified Julian Date of the observation.
     * ``filter``: The filter name for the observation.
-    * ``flux``: The observed flux in nJy for the object at that time and filter. This is what is read out of the sensor.
-    * ``fluxerr``: The uncertainty on the observed flux.
+    * ``flux``: The observed flux in nJy for the object at that time and filter, including noise. This is what is read out of the sensor.
+    * ``fluxerr``: The uncertainty on the observed flux. See the :doc:`noise models <noise_models>` page for more information on how this is computed.
     * ``flux_perfect``: The underlying flux (in nJy) for the object as it reaches the Earth's atmosphere. This represents the object's flux with all effects applied (except atmosphere/sensor noise).
 
 The nested light curve DataFrame also contains book keeping information that can be useful in ad hoc post analysis:

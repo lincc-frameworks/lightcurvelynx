@@ -169,6 +169,7 @@ def write_results_as_hats(base_catalog_path, results, *, catalog_name=None, over
         catalog_name=catalog_name,
         as_collection=False,
         overwrite=overwrite,
+        create_summary=False,
     )
 
 
@@ -438,6 +439,113 @@ def read_lclib_data(input_file):
         raise ValueError(f"Unsupported file format: {suffix}.")
 
     return curves
+
+
+def read_snana_spectrograph_data(input_file):
+    """Read SNANA spectrograph file.
+
+    This is an ASCII file with the following lines:
+        DOCUMENTATION:
+            ...
+        DOCUMENTATION_END:
+        INSTRUMENT:  <name>
+        MAGREF_LIST:  <magref1>  <magref2>
+        TEXPOSE_LIST: <t_1>  <t_2> ... <t_n>
+        SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
+        SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
+        SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
+
+    Parameters
+    ----------
+    input_file : str or Path
+        The path to the SNANA spectrograph data file.
+
+    Returns
+    -------
+    A dictionary with all of the relevant data from the file, including:
+        instrument : str or None
+            The instrument name.
+        magref: np.array
+            An array of reference magnitudes.
+        texpose : np.array
+            An array of exposure times.
+        wave_min : np.array
+            An array of minimum wavelengths for each spectrograph bin.
+        wave_max : np.array
+            An array of maximum wavelengths for each spectrograph bin.
+        wave_sigma : np.array
+            An array of wavelength sigmas for each spectrograph bin.
+        snr : np.array
+            A W x M x T matrix of signal-to-noise ratios, where W is the number of
+            spectrograph bins, M is the number of reference magnitudes, and T is
+            the number of exposure times.
+    Other meta data from the file may also be included.
+    """
+    input_file = Path(input_file)
+    logging.debug(f"Loading SNANA SPECBIN data from {input_file}")
+    if not input_file.is_file():
+        raise FileNotFoundError(f"File {input_file} not found.")
+
+    meta_done = False
+    data_dict = {}
+    waves_min = []
+    waves_max = []
+    waves_sigma = []
+    snr = []
+
+    with open(input_file, "r") as f:
+        for line in f:
+            if "#" in line:
+                line = line.split("#")[0]  # Remove comments from end of lines.
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue  # Skip empty or comment lines
+
+            # We process the meta data lines first, and then the SPECBIN lines.
+            if not line.startswith("SPECBIN:"):
+                if meta_done:
+                    raise ValueError(f"Meta data lines must come before SPECBIN lines. Found: {line}")
+                key = line.split(":", 1)[0].strip()
+                value = line.split(":", 1)[1].strip()
+                if len(value) > 0:
+                    data_dict[key.lower()] = value
+            else:
+                if not meta_done:
+                    # Extract the meta data values we need to process the SPECBIN lines.
+                    magref = np.asarray([float(x) for x in data_dict.get("magref_list", "").split()])
+                    numM = len(magref)
+                    texpose = np.asarray([float(x) for x in data_dict.get("texpose_list", "").split()])
+                    numT = len(texpose)
+                    meta_done = True
+
+                line = line.split(":", 1)[1].strip()
+                cols = line.split()
+                if len(cols) != 3 + numT * numM:  # pragma: no cover
+                    raise ValueError(f"Invalid SPECBIN line (expected {3 + numT * numM} columns): {line}")
+
+                # Extract the wavelength bin information from the first three columns.
+                waves_min.append(float(cols[0]))
+                waves_max.append(float(cols[1]))
+                waves_sigma.append(float(cols[2]))
+
+                # Extract the SNR values and reshape to a 2D array of shape M x T.
+                snr_values = np.asarray([float(x) for x in cols[3:]])
+                snr_values = snr_values.reshape(numT, numM).T  # Shape: M x T
+                snr.append(snr_values)
+
+    # Convert lists to numpy arrays and store them with the metadata.
+    data_dict["magref"] = magref
+    data_dict["texpose"] = texpose
+    data_dict["waves_min"] = np.asarray(waves_min)
+    data_dict["waves_max"] = np.asarray(waves_max)
+    data_dict["waves_sigma"] = np.asarray(waves_sigma)
+    data_dict["snr"] = np.asarray(snr)  # Shape: W x M x T
+
+    # Delete the (unneeded) string versions of the magref and texpose lists.
+    del data_dict["magref_list"]
+    del data_dict["texpose_list"]
+
+    return data_dict
 
 
 def read_sqlite_table(db_path, table_name=None, sql_query=None):

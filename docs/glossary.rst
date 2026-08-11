@@ -21,6 +21,8 @@ Glossary
 
 **node_label**: The node label is a unique identifier for each ``ParameterizedNode`` that allows the simulation (and the user) to track which Python object (and thus which part of the simulation) is using a particular parameter value. All parameters are indexed by a combination of node label and parameter name so that multiple ``ParameterizedNode`` objects can use the same parameter name without inadvertently overwriting each other's values. If a node label is not specified, LightCurveLynx automatically assigns one.
 
+**noise model**: A noise model is a subclass of the ``FluxNoiseModel`` class that simulates the noise in the observations. Noise models are applied to the bandflux measurements to simulate the effects of atmospheric and detector noise. See the :doc:`noise models <noise_models>` page for more information.
+
 **Observer Frame**: The reference frame of the observer. Observations in the observer frame account for effects such as redshift.
 
 **ObsTable**: The ``ObsTable`` represents the set of data about the individual observations being simulated, including where the telescope is pointing (RA, Dec) and conditions affecting the detector noise.

@@ -119,7 +119,7 @@ class MultiObjectModel(SEDModel):
                     )
             self.obs_frame_effects.append(effect)
 
-    def sample_parameters(self, given_args=None, num_samples=1, rng_info=None):
+    def sample_parameters(self, given_args=None, num_samples=1, rng_info=None, sample_offset=0):
         """Sample the model's underlying parameters if they are provided by a function
         or ParameterizedModel.
 
@@ -134,9 +134,10 @@ class MultiObjectModel(SEDModel):
         rng_info : numpy.random._generator.Generator, optional
             A given numpy random number generator to use for this computation. If not
             provided, the function uses the node's random number generator.
-        **kwargs : dict, optional
-            All the keyword arguments, including the values needed to sample
-            parameters.
+        sample_offset : int
+            An optional offset to add to the graph state for any stateful nodes.
+            This allows the system to better support testing and parallelized sampling.
+            Default: 0 (no offset)
 
         Returns
         -------
@@ -149,7 +150,7 @@ class MultiObjectModel(SEDModel):
 
         # We use the same seen_nodes for all sampling calls so each node
         # is sampled at most one time regardless of link structure.
-        graph_state = GraphState(num_samples)
+        graph_state = GraphState(num_samples, sample_offset=sample_offset)
         if given_args is not None:
             graph_state.update(given_args, all_fixed=True)
 

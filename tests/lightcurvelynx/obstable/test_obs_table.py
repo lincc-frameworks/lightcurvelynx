@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 from astropy.coordinates import SkyCoord
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
+from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.obstable.obs_table import ObsTable
 from regions import CircleSkyRegion
 
@@ -262,17 +263,21 @@ def test_get_value_per_row():
     ops_data = ObsTable(
         values,
         dark_current=0.1,
+        nexposures=3,
         ext_coeff={"u": 0.1, "g": 0.2, "r": 0.3, "i": 0.4, "z": 0.5, "y": 0.6},
         pixel_scale=0.1,
         radius=1.0,
         read_noise=None,
         other_value="STRING",
+        numpy_float=np.float64(4.0),
+        numpy_int=np.int64(5),
         zp_per_sec={"u": 25.0, "g": 26.0, "r": 27.0, "i": 28.0, "z": 29.0, "y": 30.0},
         bad_mapping={"a": 1.0, "b": 2.0, "r": 3.0},
         colmap={"custom_col": "renamed"},
     )
+    num_rows = len(ops_data)
 
-    # We can get the value per row for a column (including renamed ones).
+    # We can get the value per row for an existing column (including renamed ones).
     assert np.allclose(ops_data.get_value_per_row("ra"), values["ra"])
     assert np.allclose(ops_data.get_value_per_row("dec"), values["dec"])
     assert np.allclose(ops_data.get_value_per_row("custom_col"), values["renamed"])
@@ -285,12 +290,18 @@ def test_get_value_per_row():
         values["renamed"][inds],
     )
 
-    # We can get a constant from the survey values.
-    assert np.allclose(ops_data.get_value_per_row("dark_current"), np.full(len(ops_data), 0.1))
+    # We can provide empty indices.
+    assert len(ops_data.get_value_per_row("ra", indices=[])) == 0
+
+    # We can get a constant from the survey values (float, int, numpy float, numpy int).
+    assert np.allclose(ops_data.get_value_per_row("dark_current"), np.full(num_rows, 0.1))
     assert np.allclose(
         ops_data.get_value_per_row("dark_current", indices=inds),
         np.full(len(inds), 0.1),
     )
+    assert np.allclose(ops_data.get_value_per_row("nexposures"), np.full(num_rows, 3))
+    assert np.allclose(ops_data.get_value_per_row("numpy_float"), np.full(num_rows, 4.0))
+    assert np.allclose(ops_data.get_value_per_row("numpy_int"), np.full(num_rows, 5))
 
     # If we look up a dictionary, map the values using the filter column.
     assert np.allclose(
@@ -300,6 +311,7 @@ def test_get_value_per_row():
         ops_data.get_value_per_row("ext_coeff", indices=inds),
         np.array([0.3, 0.2, 0.3, 0.4, 0.2, 0.3, 0.4, 0.2])[inds],
     )
+    assert len(ops_data.get_value_per_row("ext_coeff", indices=[])) == 0
 
     # We fail if we have a dictionary that doesn't have all the needed filters.
     with pytest.raises(ValueError):
@@ -312,6 +324,11 @@ def test_get_value_per_row():
     # We don't know how to handle strings.
     with pytest.raises(TypeError):
         _ = ops_data.get_value_per_row("other_value")
+
+    # We fail if there is a dictionary backed key and we don't have a filter column.
+    ops_data._table.drop("filter", axis=1, inplace=True)
+    with pytest.raises(ValueError):
+        _ = ops_data.get_value_per_row("ext_coeff")
 
 
 def test_obs_table_add_columns():
@@ -368,6 +385,36 @@ def test_create_obs_table_saturation():
 
     ops_data = ObsTable(pdf, saturation_mags=saturation_mags)
     assert ops_data._saturation_mags is not None
+    assert ops_data._saturation_njy is not None
+    assert ops_data._saturation_njy["r"] == pytest.approx(mag2flux(16.0))
+
+
+def test_compute_saturation_clips_flux_and_errors():
+    """Test that compute_saturation clips fluxes to the per-filter thresholds."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0]),
+        "ra": np.array([15.0, 30.0, 45.0]),
+        "dec": np.array([-10.0, -5.0, 0.0]),
+        "zp": np.ones(3),
+        "filter": np.array(["r", "g", "i"]),
+    }
+    ops_data = ObsTable(values, saturation_mags={"r": 16.0, "g": 17.0, "i": 18.0})
+
+    flux = np.array([mag2flux(15.0), mag2flux(17.5), mag2flux(18.5)])
+    flux_error = np.array([1.0, 2.0, 3.0])
+    index = np.array([0, 1, 2])
+
+    saturated_flux, saturated_flux_error, saturation_flags = ops_data.compute_saturation(
+        flux, flux_error, index
+    )
+
+    expected_limits = np.array([mag2flux(16.0), mag2flux(17.0), mag2flux(18.0)])
+    expected_saturated_flux = np.minimum(flux, expected_limits)
+    expected_saturation_flags = flux > expected_limits
+
+    assert np.allclose(saturated_flux, expected_saturated_flux)
+    assert np.all(saturated_flux_error >= flux_error)
+    assert np.array_equal(saturation_flags, expected_saturation_flags)
 
 
 def test_obs_table_filter_rows():
@@ -428,6 +475,24 @@ def test_obs_table_filter_rows():
     bad_mask = [True] * (len(ops_data) - 1)
     with pytest.raises(ValueError):
         _ = ops_data.filter_rows(bad_mask)
+
+
+def test_obs_table_filter_invalid_rows():
+    """Test that we can filter out rows with invalid values in the required columns."""
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
+        "ra": np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]),
+        "dec": np.array([-1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0, -8.0]),
+        "zp": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, np.nan, 7.0]),
+        "sky_bg_e": np.array([0.0, np.nan, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]),
+        "filter": np.array(["r", "g", "i", "r", "g", "i", "r", "g"]),
+    }
+    ops_data = ObsTable(values)
+
+    # Filter out rows with invalid values in the specified columns.
+    ops_data = ops_data.filter_invalid_rows(["ra", "dec", "zp", "sky_bg_e", "filter", "time"])
+    assert len(ops_data) == 6
+    assert np.allclose(ops_data._table["time"], [0.0, 2.0, 3.0, 4.0, 5.0, 7.0])
 
 
 def test_get_value_per_row_uses_positional_indices_for_table_columns():
@@ -926,7 +991,6 @@ def test_obstable_make_resampled_table():
         pixel_scale=0.112,
         radius=1.03,
         survey_other=1.2,
-        apply_saturation=True,
         saturation_mags=saturation_mags,
     )
 
@@ -985,7 +1049,6 @@ def test_obstable_make_resampled_table_overwrite():
         values,
         detector_footprint=detector_footprint,
         saturation_mags=saturation_mags,
-        apply_saturation=True,
     )
 
     # Create a resampled ObsTable with some new values.

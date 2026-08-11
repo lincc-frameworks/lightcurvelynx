@@ -20,6 +20,20 @@ def test_flam_to_fnu():
     )
     assert np.allclose(fnu, [1.0, 1.0e15 / c])
 
+    # Include some tests using values from an older implementation to ensure that nothing has changed.
+    flam = [697.713, 697.713, 697.713, 1013.715, 1013.715, 1013.715, 489.0754, 489.0754, 489.0754]
+    wave = [5000, 5010, 5020, 5000, 5010, 5020, 5000, 5010, 5020]
+    fnu = flam_to_fnu(
+        flam,
+        wave,
+        wave_unit=u.AA,
+        flam_unit=u.erg / u.second / u.cm**2 / u.AA,
+        fnu_unit=u.nJy,
+    )
+
+    expected = [5.82e23, 5.84e23, 5.86e23, 8.45e23, 8.49e23, 8.52e23, 4.08e23, 4.09e23, 4.11e23]
+    assert np.allclose(fnu, expected, rtol=1e-2)
+
 
 def test_flam_to_fnu_matrix():
     """Test flam to fnu conversion when dealing with a matrix of observations."""
@@ -49,6 +63,32 @@ def test_flam_to_fnu_matrix():
     expected = np.array([[1.0, 1.0e15 / c], [1.0e7 / c, 2.0e13 / c], [1.0, 1.0e6]])
     assert np.allclose(fnu, expected)
 
+    # Include some tests using values from an older implementation to ensure that nothing has changed.
+    flam = [
+        [148.55, 148.55, 148.55, 148.55],
+        [414.47, 414.47, 414.47, 414.47],
+        [491.29, 491.29, 491.29, 491.29],
+    ]
+    wave = [
+        [6000, 6050, 7000, 7025],
+        [6000, 6050, 7000, 7025],
+        [6000, 6050, 7000, 7025],
+    ]
+    fnu = flam_to_fnu(
+        flam,
+        wave,
+        wave_unit=u.AA,
+        flam_unit=u.erg / u.second / u.cm**2 / u.AA,
+        fnu_unit=u.nJy,
+    )
+
+    expected = [
+        [1.78e23, 1.81e23, 2.43e23, 2.45e23],
+        [4.98e23, 5.06e23, 6.77e23, 6.82e23],
+        [5.90e23, 6.00e23, 8.03e23, 8.09e23],
+    ]
+    assert np.allclose(fnu, expected, rtol=1e-2)
+
     # Fail if the dimensions are not compatible.
     with pytest.raises(ValueError):
         _ = flam_to_fnu(
@@ -66,6 +106,70 @@ def test_flam_to_fnu_matrix():
             wave_unit=u.AA,
             flam_unit=u.erg / u.second / u.cm**2 / u.AA,
             fnu_unit=u.erg / u.second / u.cm**2 / u.Hz,
+        )
+
+
+def test_fnu_to_flam():
+    """Test fnu to flam conversion using values from an older implementation to ensure
+    that nothing has changed.
+    """
+    fnu = [5.82e23, 5.84e23, 5.86e23, 8.45e23, 8.49e23, 8.52e23, 4.08e23, 4.09e23, 4.11e23]
+    wave = [5000, 5010, 5020, 5000, 5010, 5020, 5000, 5010, 5020]
+    flam = fnu_to_flam(
+        fnu,
+        wave,
+        wave_unit=u.AA,
+        flam_unit=u.erg / u.second / u.cm**2 / u.AA,
+        fnu_unit=u.nJy,
+    )
+
+    expected = [697.713, 697.713, 697.713, 1013.715, 1013.715, 1013.715, 489.0754, 489.0754, 489.0754]
+    assert np.allclose(flam, expected, rtol=1e-2)
+
+    # Test as a matrix.
+    fnu = [
+        [1.78e23, 1.81e23, 2.43e23, 2.45e23],
+        [4.98e23, 5.06e23, 6.77e23, 6.82e23],
+        [5.90e23, 6.00e23, 8.03e23, 8.09e23],
+    ]
+    wave = [
+        [6000, 6050, 7000, 7025],
+        [6000, 6050, 7000, 7025],
+        [6000, 6050, 7000, 7025],
+    ]
+    flam = fnu_to_flam(
+        fnu,
+        wave,
+        wave_unit=u.AA,
+        flam_unit=u.erg / u.second / u.cm**2 / u.AA,
+        fnu_unit=u.nJy,
+    )
+
+    expected = [
+        [148.55, 148.55, 148.55, 148.55],
+        [414.47, 414.47, 414.47, 414.47],
+        [491.29, 491.29, 491.29, 491.29],
+    ]
+    assert np.allclose(flam, expected, rtol=1e-2)
+
+    # The code works with a single vector of wavelengths.
+    flam2 = fnu_to_flam(
+        fnu,
+        [6000, 6050, 7000, 7025],  # Wavelengths are a single vector, not a matrix.
+        wave_unit=u.AA,
+        flam_unit=u.erg / u.second / u.cm**2 / u.AA,
+        fnu_unit=u.nJy,
+    )
+    assert np.allclose(flam2, expected, rtol=1e-2)
+
+    # We fail with incompatible dimensions.
+    with pytest.raises(ValueError):
+        _ = fnu_to_flam(
+            fnu,
+            [[6000, 6050, 7000, 7025], [6000, 6050, 7000, 7025]],
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.second / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
         )
 
 
