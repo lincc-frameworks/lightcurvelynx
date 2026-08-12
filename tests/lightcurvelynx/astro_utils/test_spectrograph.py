@@ -104,14 +104,14 @@ def test_create_spectrograph_ooo():
     assert h_val == 8000.0
     assert str(spgraph) == "custom_spectrograph (spectra) [3000.0A - 8000.0A]"
 
-    # One dimensional fluxes to spec_fluxes. The input is in wavelength order and
+    # One dimensional fluxes to spec_fluxes. The measurement is in wavelength order and
     # the output is in bin order.
     values = np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0])
     expected = np.array([20.0, 10.0, 40.0, 50.0, 60.0, 30.0])
     spec_fluxes = spgraph.evaluate(values)
     assert np.allclose(spec_fluxes, expected)
 
-    # Two dimensional fluxes to spec_fluxes. The input is in wavelength order and
+    # Two dimensional fluxes to spec_fluxes. The measurement is in wavelength order and
     # the output is in bin order.
     values = np.array([[10.0, 20.0, 30.0, 40.0, 50.0, 60.0]])
     expected = np.array([[20.0, 10.0, 40.0, 50.0, 60.0, 30.0]])
@@ -147,13 +147,13 @@ def test_create_spectrograph_with_scale():
     assert spgraph.num_bins == 5
 
     # One dimensional fluxes to spec_fluxes
-    input = np.array([50.0, 40.0, 20.0, 20.0, 10.0])
+    measurement = np.array([50.0, 40.0, 20.0, 20.0, 10.0])
     expected = np.array([25.0, 40.0, 20.0, 20.0, 8.0])
-    results = spgraph.evaluate(input)
+    results = spgraph.evaluate(measurement)
     assert np.allclose(results, expected)
 
     # Two dimensional fluxes to spec_fluxes
-    input = np.array(
+    measurement = np.array(
         [
             [10.0, 20.0, 30.0, 40.0, 50.0],
             [5.0, 15.0, 25.0, 35.0, 45.0],
@@ -165,11 +165,11 @@ def test_create_spectrograph_with_scale():
             [2.5, 15.0, 25.0, 35.0, 36.0],
         ]
     )
-    results = spgraph.evaluate(input)
+    results = spgraph.evaluate(measurement)
     assert np.allclose(results, expected)
 
     # Three dimensional fluxes to bandfluxes
-    input = np.array(
+    measurement = np.array(
         [
             [
                 [10.0, 20.0, 30.0, 40.0, 50.0],
@@ -193,7 +193,7 @@ def test_create_spectrograph_with_scale():
             ],
         ]
     )
-    results = spgraph.evaluate(input)
+    results = spgraph.evaluate(measurement)
     assert np.allclose(results, expected)
 
     # Test equality with scales.
@@ -241,13 +241,13 @@ def test_create_spectrograph_wave_step():
     assert np.allclose(spgraph.waves, sample_waves, atol=0.2)
 
     # Test one dimensional fluxes to spec_fluxes
-    input1 = np.array([0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0])  # Number query waves
+    measurement1 = np.array([0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0])  # Number query waves
     expected1 = np.array([5.0, 20.0, 30.0, 45.0, 75.0])  # Number bins
-    results1 = spgraph.evaluate(input1)
+    results1 = spgraph.evaluate(measurement1)
     assert np.allclose(results1, expected1)
 
     # Test two dimensional flux densities to spec_fluxes
-    input2 = np.array(
+    measurement2 = np.array(
         [
             [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0],
             [5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0, 95.0],
@@ -259,13 +259,13 @@ def test_create_spectrograph_wave_step():
             [10.0, 25.0, 35.0, 50.0, 80.0],
         ]
     )  # Number bins by num times
-    results2 = spgraph.evaluate(input2)
+    results2 = spgraph.evaluate(measurement2)
     assert np.allclose(results2, expected2)
 
     # Test three dimensional fluxes to bandfluxes
-    input3 = np.array([input2, input2 + 2.0])
+    measurement3 = np.array([measurement2, measurement2 + 2.0])
     expected3 = np.array([expected2, expected2 + 2.0])
-    results3 = spgraph.evaluate(input3)
+    results3 = spgraph.evaluate(measurement3)
     assert np.allclose(results3, expected3)
 
     # We fail to create a Spectrograph object with an invalid wave_step (<= 0.0).
@@ -302,7 +302,7 @@ def test_create_spectrograph_wave_step_overlap():
     assert np.allclose(spgraph.waves, sample_waves, atol=0.2)
 
     # Test two dimensional flux densities to spec_fluxes
-    input2 = np.array(
+    measurement2 = np.array(
         [
             [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0],
             [5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0],
@@ -324,17 +324,17 @@ def test_create_spectrograph_wave_step_overlap():
             ],
         ]
     )  # Number bins by num times
-    results2 = spgraph.evaluate(input2)
+    results2 = spgraph.evaluate(measurement2)
     assert np.allclose(results2, expected2)
 
     # Test three dimensional fluxes to bandfluxes
-    input3 = np.array([input2, input2 + 2.0, 0.5 * input2])
+    measurement3 = np.array([measurement2, measurement2 + 2.0, 0.5 * measurement2])
     expected3 = np.array([expected2, expected2 + 2.0, 0.5 * expected2])
-    results3 = spgraph.evaluate(input3)
+    results3 = spgraph.evaluate(measurement3)
     assert np.allclose(results3, expected3)
 
     # We fail if the flux density matrix has a different number of entries from
     # the wave samples. Here we use the number of bins.
     with pytest.raises(ValueError):
-        input_bad = np.array([[1.0, 2.0, 3.0, 4.0]])
-        _ = spgraph.evaluate(input_bad)
+        measurement_bad = np.array([[1.0, 2.0, 3.0, 4.0]])
+        _ = spgraph.evaluate(measurement_bad)

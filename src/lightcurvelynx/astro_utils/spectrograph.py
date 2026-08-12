@@ -249,7 +249,7 @@ class Spectrograph:
         # Check that we have a valid flux density matrix.
         if flux_density_matrix.size == 0:
             raise ValueError("Empty flux density matrix used.")
-        if flux_density_matrix.ndim > 3:
+        if flux_density_matrix.ndim < 1 or flux_density_matrix.ndim > 3:
             raise ValueError("Invalid flux density matrix. Must be 1, 2, or 3-dimensional.")
         if flux_density_matrix.shape[-1] != len(self.waves):
             raise ValueError(
