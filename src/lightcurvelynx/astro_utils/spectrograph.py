@@ -33,7 +33,10 @@ class Spectrograph:
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : np.ndarray
         The multiplicative factor to apply to each bin's flux to capture sensor
-        sensitivity, etc. If None, no scaling is applied and the fluxes are returned as-is.
+        sensitivity, etc. If None, we use 1.0 for all bins.
+    wavelength_resolution : np.ndarray
+        The Gaussian sigma wavelength resolution for each bin in Angstroms.
+        TODO: determine a default resolution
     """
 
     def __init__(
@@ -41,9 +44,10 @@ class Spectrograph:
         waves_min,
         waves_max,
         *,
+        scale=None,
+        wavelength_resolution=None,
         instrument: str | None = None,
         wave_step: float | None = None,
-        scale=None,
     ):
         """Initialize the Spectrograph object.
 
@@ -238,6 +242,7 @@ class Spectrograph:
     def evaluate(
         self,
         flux_density_matrix: np.ndarray,
+        smear: bool = True,
     ) -> np.ndarray:
         """Calculate the measured values for each bin in the spectrograph.
 
@@ -246,6 +251,9 @@ class Spectrograph:
         flux_density_matrix : np.ndarray
             A 1D, 2D or 3D array of flux densities. The last dimension contains the flux density values
             at the wavelengths specified by self.waves for a single sample.
+        smear : bool, optional
+            Whether to smear the flux density values across the bins using the wavelength resolution. 
+            Default is True.
 
         Returns
         -------
