@@ -277,7 +277,7 @@ class Spectrograph:
         else:
             bin_flux_density = np.tensordot(flux_density_matrix, self._bin_averaging, axes=([-1], [0]))
 
-        # Multiple by any per-bin scaling factors.
+        # Multiply by any per-bin scaling factors.
         if self.scale is None:
             scaled_bin_flux_density = bin_flux_density
         else:
