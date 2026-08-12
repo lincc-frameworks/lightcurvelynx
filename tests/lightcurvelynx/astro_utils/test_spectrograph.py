@@ -245,6 +245,7 @@ def test_create_spectrograph_wave_step():
     expected1 = np.array([5.0, 20.0, 30.0, 45.0, 75.0])  # Number bins
     results1 = spgraph.evaluate(measurement1)
     assert np.allclose(results1, expected1)
+    assert results1.shape == (spgraph.num_bins,)
 
     # Test two dimensional flux densities to spec_fluxes
     measurement2 = np.array(
@@ -261,12 +262,14 @@ def test_create_spectrograph_wave_step():
     )  # Number bins by num times
     results2 = spgraph.evaluate(measurement2)
     assert np.allclose(results2, expected2)
+    assert results2.shape == (2, spgraph.num_bins)
 
     # Test three dimensional fluxes to bandfluxes
     measurement3 = np.array([measurement2, measurement2 + 2.0])
     expected3 = np.array([expected2, expected2 + 2.0])
     results3 = spgraph.evaluate(measurement3)
     assert np.allclose(results3, expected3)
+    assert results3.shape == (2, 2, spgraph.num_bins)
 
     # We fail to create a Spectrograph object with an invalid wave_step (<= 0.0).
     with pytest.raises(ValueError):

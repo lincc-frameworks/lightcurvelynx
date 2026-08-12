@@ -27,6 +27,8 @@ class Spectrograph:
     waves : np.ndarray
         The points at which to evaluate the flux density of the object in Angstroms. By default
         this is the midpoint of each bin.
+    num_query_waves : int
+        The number of wavelength points at which to evaluate the flux density of the object.
     instrument : str
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : np.ndarray
@@ -98,7 +100,12 @@ class Spectrograph:
                 self.waves.extend(wave_points)
                 wave_to_bin_map.extend([bin_idx] * num_points)
             self.waves = np.array(self.waves)
+
+            # In the waves original order save the mapping from wave index to bin index and a mapping
+            # of bin index to where the bin starts in the waves array.
             self._wave_to_bin_map = np.array(wave_to_bin_map, dtype=int)
+            self._bin_starts = np.concatenate(([0], np.cumsum(self._bin_counts)[:-1]))
+        self.num_query_waves = len(self.waves)
 
         # Make sure that the query waves are in strictly increasing order (this might be different
         # than the bin order).
@@ -251,10 +258,10 @@ class Spectrograph:
             raise ValueError("Empty flux density matrix used.")
         if flux_density_matrix.ndim < 1 or flux_density_matrix.ndim > 3:
             raise ValueError("Invalid flux density matrix. Must be 1, 2, or 3-dimensional.")
-        if flux_density_matrix.shape[-1] != len(self.waves):
+        if flux_density_matrix.shape[-1] != self.num_query_waves:
             raise ValueError(
                 f"Flux density matrix has {flux_density_matrix.shape[-1]} wavelengths, "
-                f"but the Spectrograph has {len(self.waves)} wavelengths."
+                f"but the Spectrograph has {self.num_query_waves} wavelengths."
             )
 
         # Unsort by wavelength -- putting the flux values back into bin order.
@@ -265,15 +272,25 @@ class Spectrograph:
         if self._wave_to_bin_map is None:
             bin_flux_density = flux_density_matrix
         else:
-            original_shape = flux_density_matrix.shape[:-1]
-            flat_flux = flux_density_matrix.reshape(-1, flux_density_matrix.shape[-1])
+            # Reshape the flux density matrix to a 2D array where each row corresponds to
+            # a sample (e.g., if this is 2D then each of the first 2 dimensions are flattened
+            # into one dimension) and each column corresponds to a wavelength.
+            initial_dimensions = flux_density_matrix.shape[:-1]
+            flat_flux = flux_density_matrix.reshape(-1, self.num_query_waves)
+            flat_flux = flat_flux.astype(np.float64, copy=False)
 
-            # Aggregate all wavelengths that map to the same bin without creating a dense W x B matrix.
-            bin_flux_density = np.zeros((flat_flux.shape[0], self.num_bins), dtype=np.float64)
-            row_indices = np.arange(flat_flux.shape[0])[:, np.newaxis]
-            np.add.at(bin_flux_density, (row_indices, self._wave_to_bin_map[np.newaxis, :]), flat_flux)
+            # Add up the fluxes for each wavelength in each bin. This is adding batches of contiguous
+            # columns independently for each row. We can do this efficiently using np.add.reduceat,
+            # since the input data has been reordered so the flux values for each bin are contiguous.
+            bin_flux_density = np.add.reduceat(flat_flux, self._bin_starts, axis=1)
+
+            # Now (for each sample) we divide each bin's summed flux by the number of wavelengths in that bin
+            # to get the average flux density for each bin.
             bin_flux_density /= self._bin_counts[np.newaxis, :]
-            bin_flux_density = bin_flux_density.reshape(*original_shape, self.num_bins)
+
+            # Reshape the bin flux density back to the original dimensions, but with the last dimension
+            # corresponding to bins.
+            bin_flux_density = bin_flux_density.reshape(*initial_dimensions, self.num_bins)
 
         # Multiply by any per-bin scaling factors.
         if self.scale is None:
