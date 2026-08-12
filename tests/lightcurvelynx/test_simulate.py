@@ -22,8 +22,10 @@ from lightcurvelynx.models.basic_models import ConstantSEDModel, SinWaveModel, S
 from lightcurvelynx.models.physical_model import SEDModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
 from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel
+from lightcurvelynx.noise_models.spectrograph_noise_models import ConstantSpectrographNoiseModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.obstable.opsim import OpSim
+from lightcurvelynx.obstable.spectrograph_table import SpectrographObsTable
 from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
 from lightcurvelynx.simulate import (
     SimulationInfo,
@@ -1361,7 +1363,25 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
     }
     obstable2 = OpSim(obsdata2)
     spectrograph = Spectrograph.from_regular_grid(2000.0, 10000.0, 100.0, instrument="survey2")
-    survey_info2 = SurveyInfo(obstable=obstable2, passbands=spectrograph)
+    survey_info2 = SurveyInfo(
+        obstable=obstable2,
+        passbands=spectrograph,
+        noise_model=ConstantSpectrographNoiseModel(1.0),
+    )
+
+    # The third survey points at a single location on the sky and uses a spectrograph.
+    obsdata3 = {
+        "time": [1.1],
+        "ra": [0.0],
+        "dec": [10.0],
+    }
+    obstable3 = SpectrographObsTable(obsdata3)
+    spectrograph2 = Spectrograph.from_regular_grid(3000.0, 9000.0, 100.0, instrument="survey3")
+    survey_info3 = SurveyInfo(
+        obstable=obstable3,
+        passbands=spectrograph2,
+        noise_model=None,  # No noise model.
+    )
 
     # Create a constant SED model with known brightnesses and RA, dec values that
     # match the (0.0, 10.0) pointing.
@@ -1369,11 +1389,11 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
     results = simulate_lightcurves(
         model,
         1,
-        [survey_info1, survey_info2],
+        [survey_info1, survey_info2, survey_info3],
         progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results) == 1
-    assert results["nobs"][0] == 4
+    assert results["nobs"][0] == 5
     assert "lightcurve" in results
     assert "spectra" in results
 
@@ -1385,14 +1405,26 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
     assert np.array_equal(lightcurve["survey_idx"], np.array([0, 0]))
 
     # Check that the spectra were simulated correctly. Waves and measured fluxes should have
-    # an array per-nested entry.
+    # an array per-nested entry. The measured_flux_perfect should all be around 100 (since we used
+    # a constant SED model with brightness=100.0) and measured_flux_error should all be 1.0.
     spectra = results.iloc[0]["spectra"]
-    assert np.allclose(spectra["mjd"], np.array([0.5, 2.5]))
+    assert np.allclose(spectra["mjd"], np.array([0.5, 2.5, 1.1]))
     assert np.shape(spectra.iloc[0]["waves"]) == (80,)
     assert np.shape(spectra.iloc[1]["waves"]) == (80,)
+    assert np.shape(spectra.iloc[2]["waves"]) == (60,)
     assert np.shape(spectra.iloc[0]["measured_flux"]) == (80,)
     assert np.shape(spectra.iloc[1]["measured_flux"]) == (80,)
-    assert np.array_equal(spectra["instrument"], ["survey2", "survey2"])
+    assert np.shape(spectra.iloc[2]["measured_flux"]) == (60,)
+    assert np.allclose(spectra.iloc[0]["measured_flux_perfect"], 100.0 * np.ones(80))
+    assert np.allclose(spectra.iloc[1]["measured_flux_perfect"], 100.0 * np.ones(80))
+    assert np.allclose(spectra.iloc[2]["measured_flux_perfect"], 100.0 * np.ones(60))
+    assert np.allclose(spectra.iloc[0]["measured_flux_error"], np.ones(80))
+    assert np.allclose(spectra.iloc[1]["measured_flux_error"], np.ones(80))
+    assert np.allclose(spectra.iloc[2]["measured_flux_error"], np.zeros(60))
+    assert not np.allclose(spectra.iloc[0]["measured_flux"], spectra.iloc[0]["measured_flux_perfect"])
+    assert not np.allclose(spectra.iloc[1]["measured_flux"], spectra.iloc[1]["measured_flux_perfect"])
+    assert np.allclose(spectra.iloc[2]["measured_flux"], spectra.iloc[2]["measured_flux_perfect"])
+    assert np.array_equal(spectra["instrument"], ["survey2", "survey2", "survey3"])
 
     # Check that we can save the full results to a file.
     with tempfile.TemporaryDirectory() as tmpdir:
