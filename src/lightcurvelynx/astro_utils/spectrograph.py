@@ -257,22 +257,6 @@ class Spectrograph:
         )
         return padded_bins_min, padded_bins_max
 
-    def _oversample_padded_bins(self, oversampling=10):
-        """Compute the oversampled padded bins to evaluate the flux density of the object.
-
-        Parameters
-        ----------
-        oversampling : int, optional
-            The factor by which to oversample the bins. Default is 10.
-
-        Returns
-        -------
-        oversampled_bins : np.ndarray
-            A 2D array of shape (num_padded_bins, oversampling) representing the oversampled padded bins.
-        """
-        return
-
-
     def _compute_smear_matrix(self, n_sigma=3):
         """Compute the smearing matrix for the spectrograph based on the wavelength resolution.
 
@@ -312,11 +296,6 @@ class Spectrograph:
             smear_matrix[i, j] = gaussian_integral(lam_sig0, lam_sig1)
 
         return smear_matrix
-
-    @property
-    def bin_centers(self) -> np.ndarray:
-        """Get the center of each wavelength bin in Angstroms."""
-        return (self.waves_min + self.waves_max) / 2
 
     @property
     def bin_centers(self) -> np.ndarray:
