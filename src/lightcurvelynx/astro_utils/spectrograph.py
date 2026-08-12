@@ -176,6 +176,8 @@ class Spectrograph:
                 return False
             if not np.allclose(self.scale, other.scale):
                 return False
+        if not np.allclose(self.wavelength_resolution, other.wavelength_resolution):
+            return False
         return True
     
 
