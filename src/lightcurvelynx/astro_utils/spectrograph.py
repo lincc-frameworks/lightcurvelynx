@@ -77,7 +77,8 @@ class Spectrograph:
         # Compute the locations at which to evaluate the flux density of the object.
         # By default, we use the midpoint of each bin. If wave_step is provided, we create a grid of points
         # within each bin with the specified step size.
-        self._bin_averaging = None
+        self._wave_to_bin_map = None
+        self._bin_counts = None
         if wave_step is None:
             self.waves = (self.waves_min + self.waves_max) / 2
         else:
@@ -87,35 +88,26 @@ class Spectrograph:
             # Add multiple wave points per bin to give approximately the desired wave_step.
             self.waves = []
             wave_to_bin_map = []
+            self._bin_counts = np.zeros(self.num_bins, dtype=int)
             for bin_idx, (w_min, w_max) in enumerate(zip(self.waves_min, self.waves_max, strict=False)):
                 num_points = int(np.ceil((w_max - w_min) / wave_step))
+                self._bin_counts[bin_idx] = num_points
 
                 # Evenly space points throughout the bin, excluding the start and end points.
                 wave_points = np.linspace(w_min, w_max, num_points + 2)[1:-1]
                 self.waves.extend(wave_points)
                 wave_to_bin_map.extend([bin_idx] * num_points)
             self.waves = np.array(self.waves)
-            wave_to_bin_map = np.array(wave_to_bin_map)
-
-            # Compute the matrix that we will use for averaging. This will be large (number of bins times
-            # number of waves), but it will allow us to compute the average flux density for each bin
-            # without using Python loops.
-            bin_counts = np.bincount(wave_to_bin_map, minlength=self.num_bins).astype(float)
-            self._bin_averaging = (
-                wave_to_bin_map[:, np.newaxis] == np.arange(self.num_bins)[np.newaxis, :]
-            ).astype(float)
-            self._bin_averaging /= bin_counts[np.newaxis, :]
+            self._wave_to_bin_map = np.array(wave_to_bin_map, dtype=int)
 
         # Make sure that the query waves are in strictly increasing order (this might be different
         # than the bin order).
-        self._wave_to_bin_order = None
+        self._wave_sorted_to_org_order = None
         if not np.all(np.diff(self.waves) > 0):
             bin_to_wave_order = np.argsort(self.waves)
-            print("bin_to_wave_order:", bin_to_wave_order)
             self.waves = self.waves[bin_to_wave_order]
-            self._wave_to_bin_order = np.empty(self.waves.shape, dtype=int)
-            self._wave_to_bin_order[bin_to_wave_order] = np.arange(len(self.waves))
-            print("self._wave_to_bin_order:", self._wave_to_bin_order)
+            self._wave_sorted_to_org_order = np.empty(self.waves.shape, dtype=int)
+            self._wave_sorted_to_org_order[bin_to_wave_order] = np.arange(len(self.waves))
 
         # Scale is the multiplicative factor to apply to each bin's flux.
         if scale is not None:
@@ -266,16 +258,22 @@ class Spectrograph:
             )
 
         # Unsort by wavelength -- putting the flux values back into bin order.
-        if self._wave_to_bin_order is not None:
-            flux_density_matrix = flux_density_matrix[..., self._wave_to_bin_order]
+        if self._wave_sorted_to_org_order is not None:
+            flux_density_matrix = flux_density_matrix[..., self._wave_sorted_to_org_order]
 
-        # For each bin, we compute the average flux density over the wavelengths in that bin.
-        if self._bin_averaging is None:
+        # For each bin, compute average flux density over wavelengths in that bin.
+        if self._wave_to_bin_map is None:
             bin_flux_density = flux_density_matrix
-        elif flux_density_matrix.ndim <= 2:
-            bin_flux_density = flux_density_matrix @ self._bin_averaging
         else:
-            bin_flux_density = np.tensordot(flux_density_matrix, self._bin_averaging, axes=([-1], [0]))
+            original_shape = flux_density_matrix.shape[:-1]
+            flat_flux = flux_density_matrix.reshape(-1, flux_density_matrix.shape[-1])
+
+            # Aggregate all wavelengths that map to the same bin without creating a dense W x B matrix.
+            bin_flux_density = np.zeros((flat_flux.shape[0], self.num_bins), dtype=np.float64)
+            row_indices = np.arange(flat_flux.shape[0])[:, np.newaxis]
+            np.add.at(bin_flux_density, (row_indices, self._wave_to_bin_map[np.newaxis, :]), flat_flux)
+            bin_flux_density /= self._bin_counts[np.newaxis, :]
+            bin_flux_density = bin_flux_density.reshape(*original_shape, self.num_bins)
 
         # Multiply by any per-bin scaling factors.
         if self.scale is None:
