@@ -41,7 +41,7 @@ class Spectrograph:
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : float | np.ndarray | None
         The multiplicative factor to apply to each bin's flux to capture sensor
-        sensitivity, etc. If None, no scaling is applied and the fluxes are returned as-is.
+        sensitivity, etc. If None, no scaling is applied.
     wavelength_resolution : np.ndarray
         The Gaussian sigma wavelength resolution for each bin in Angstroms.
         TODO: determine a default resolution
