@@ -297,7 +297,7 @@ def test_create_spectrograph_wave_step_overlap():
         3660.0,  # Bin 0 - Sample 3 (out of order)
         3676.7,  # Bin 1 - Sample 1
         3775.0,  # Bin 2 - Sample 0
-        3805.0,  # Bin 2 - Sample 1 (bind width < step size, so only one sample)
+        3805.0,  # Bin 2 - Sample 1 (bin width < step size, so only one sample)
     ]
     assert np.allclose(spgraph.waves, sample_waves, atol=0.2)
 

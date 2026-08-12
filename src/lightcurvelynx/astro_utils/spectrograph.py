@@ -237,8 +237,8 @@ class Spectrograph:
         Parameters
         ----------
         flux_density_matrix : np.ndarray
-            A 1D, 2D or 3D array of flux densities. The last dimension (flux_density_matrix[..., -1])
-            contains the flux density values at the wavelengths specified by self.waves for a single sample.
+            A 1D, 2D or 3D array of flux densities. The last dimension contains the flux density values
+            at the wavelengths specified by self.waves for a single sample.
 
         Returns
         -------
