@@ -107,11 +107,11 @@ class Spectrograph:
             self._bin_starts = np.concatenate(([0], np.cumsum(self._bin_counts)[:-1]))
         self.num_query_waves = len(self.waves)
 
-        # Make sure that the query waves are in strictly increasing order (this might be different
-        # than the bin order).
+        # Ensure query waves are in increasing order (may differ from bin order). If there are ties,
+        # use a stable sort so the ordering is deterministic.
         self._wave_sorted_to_org_order = None
         if not np.all(np.diff(self.waves) > 0):
-            bin_to_wave_order = np.argsort(self.waves)
+            bin_to_wave_order = np.argsort(self.waves, kind="stable")
             self.waves = self.waves[bin_to_wave_order]
             self._wave_sorted_to_org_order = np.empty(self.waves.shape, dtype=int)
             self._wave_sorted_to_org_order[bin_to_wave_order] = np.arange(len(self.waves))
