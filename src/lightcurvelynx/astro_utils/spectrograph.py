@@ -3,7 +3,13 @@ and provides methods to compute fluxes for each bin.
 """
 
 import numpy as np
+import scipy
 
+def gaussian_integral(nsig_low, nsig_high):
+    """
+    Compute the integral of a Gaussian between two limits in units of sigma.
+    """
+    return 0.5 * (scipy.special.erf(nsig_high / np.sqrt(2.0)) - scipy.special.erf(nsig_low / np.sqrt(2.0)))
 
 class Spectrograph:
     """Models all of the bins of a spectrograph, producing bandfluxes for each
@@ -33,7 +39,10 @@ class Spectrograph:
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : np.ndarray
         The multiplicative factor to apply to each bin's flux to capture sensor
-        sensitivity, etc. If None, no scaling is applied and the fluxes are returned as-is.
+        sensitivity, etc. If None, we use 1.0 for all bins.
+    wavelength_resolution : np.ndarray
+        The Gaussian sigma wavelength resolution for each bin in Angstroms.
+        TODO: determine a default resolution
     """
 
     def __init__(
@@ -41,9 +50,10 @@ class Spectrograph:
         waves_min,
         waves_max,
         *,
+        scale=None,
+        wavelength_resolution=None,
         instrument: str | None = None,
         wave_step: float | None = None,
-        scale=None,
     ):
         """Initialize the Spectrograph object.
 
@@ -62,6 +72,9 @@ class Spectrograph:
         scale : array-like, optional
             The multiplicative factor to apply to each bin's flux. If None, no scaling is applied and
             the fluxes are returned as-is.
+        wavelength_resolution : np.ndarray
+            The Gaussian sigma wavelength resolution for each bin in Angstroms.
+            TODO: determine a default resolution
         """
         self.waves_min = np.asarray(waves_min)
         self.waves_max = np.asarray(waves_max)
@@ -125,9 +138,13 @@ class Spectrograph:
             self.scale = np.asarray(scale)
         else:
             self.scale = None
+        self.wavelength_resolution = wavelength_resolution if wavelength_resolution is not None else np.zeros(self.num_bins)
 
         # Save the other spectrograph properties if provided.
         self.instrument = instrument if instrument is not None else "Spectrograph"
+
+        # compute the smear matrix, if there are wavelength resolutions
+        self.smear_matrix = self._compute_smear_matrix() if self.wavelength_resolution is not None else None
 
     def __str__(self) -> str:
         """Return a string representation of the spectra filter."""
@@ -155,7 +172,50 @@ class Spectrograph:
                 return False
             if not np.allclose(self.scale, other.scale):
                 return False
+        if not np.allclose(self.wavelength_resolution, other.wavelength_resolution):
+            return False
         return True
+    
+
+    def _compute_smear_matrix(self, n_sigma=3):
+        """Compute the smearing matrix for the spectrograph based on the wavelength resolution.
+
+        Parameters
+        ----------
+        n_sigma : int, optional
+            The number of standard deviations to consider for the Gaussian smearing. Default is 3.
+
+        Returns
+        -------
+        smear_matrix : np.ndarray
+            A 2D array of shape (num_bins, num_bins) representing the smearing matrix.
+            where smear_matrix[i, j] represents the fraction of flux from bin j that smears into i
+        """
+        if self.wavelength_resolution is None:
+            raise ValueError("wavelength_resolution must be provided to compute the smear matrix.")
+
+        smear_matrix = np.zeros((self.num_bins, self.num_bins))
+        for i in range(self.num_bins):
+            sigma = self.wavelength_resolution[i]
+
+            # no smearing if sigma is zero
+            if sigma == 0.0:
+                smear_matrix[i, i] = 1.0
+                continue
+
+            # Determine the range of the smearing
+            lambda_bin = self.bin_widths[i]
+            n_bins_index = int(n_sigma * sigma / lambda_bin + 0.5)
+            j_low = max(i - n_bins_index, 0)
+            j_high = min(i + n_bins_index, self.num_bins - 1)
+            j = np.arange(j_low, j_high + 1)
+
+            # compute GINT
+            lam_sig0 = (self.waves_min[j] - self.waves[i]) / sigma
+            lam_sig1 = (self.waves_max[j] - self.waves[i]) / sigma
+            smear_matrix[i, j] = gaussian_integral(lam_sig0, lam_sig1)
+
+        return smear_matrix
 
     @classmethod
     def from_regular_grid(cls, wave_start: float, wave_end: float, bin_width: float, **kwargs):
@@ -238,6 +298,7 @@ class Spectrograph:
     def evaluate(
         self,
         flux_density_matrix: np.ndarray,
+        smear: bool = True,
     ) -> np.ndarray:
         """Calculate the measured values for each bin in the spectrograph.
 
@@ -246,6 +307,9 @@ class Spectrograph:
         flux_density_matrix : np.ndarray
             A 1D, 2D or 3D array of flux densities. The last dimension contains the flux density values
             at the wavelengths specified by self.waves for a single sample.
+        smear : bool, optional
+            Whether to smear the flux density values across the bins using the wavelength resolution. 
+            Default is True.
 
         Returns
         -------
@@ -303,6 +367,9 @@ class Spectrograph:
         # smearing matrix in the __init__ method and then apply it here. This will allow us to model
         # the effects of the spectrograph's point spread function on the measured fluxes.
         # For now, we will skip this step.
+
+        if smear and self.smear_matrix is not None:
+            scaled_bin_flux_density @= self.smear_matrix 
 
         # Return the scaled bin flux density matrix.
         return scaled_bin_flux_density
