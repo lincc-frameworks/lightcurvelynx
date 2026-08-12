@@ -176,12 +176,6 @@ class Spectrograph:
                 return False
             if not np.allclose(self.scale, other.scale):
                 return False
-        if not np.allclose(self.wavelength_resolution, other.wavelength_resolution):
-            return False
-        if self.instrument != other.instrument:  # pragma: no cover
-            return False
-        if not np.allclose(self.scale, other.scale):
-            return False
         return True
     
 
@@ -373,9 +367,6 @@ class Spectrograph:
         # smearing matrix in the __init__ method and then apply it here. This will allow us to model
         # the effects of the spectrograph's point spread function on the measured fluxes.
         # For now, we will skip this step.
-
-        if smear and self.smear_matrix is not None:
-            bin_flux @= self.smear_matrix 
 
         # Return the final result.
         return bin_flux
