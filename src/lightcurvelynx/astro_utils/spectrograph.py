@@ -270,42 +270,40 @@ class Spectrograph:
                 f"but the Spectrograph has {self.num_query_waves} wavelengths."
             )
 
+        # Reshape the flux density matrix to a 2D array where each row corresponds to
+        # a sample (e.g., if this is 3D then each of the first 2 dimensions are flattened
+        # into one dimension) and each column corresponds to a wavelength.
+        # We do this so we can efficiently perform integration, scaling, etc. on all samples
+        # at once regardless of whether the input is 1D, 2D, or 3D.
+        initial_dimensions = flux_density_matrix.shape[:-1]
+        flat_flux_density = flux_density_matrix.reshape(-1, self.num_query_waves)
+
         # For each bin, compute average flux density over wavelengths in that bin.
         if self._wave_to_bin_map is None:
             # We only used the center points, so we can copy the flux density directly.
-            bin_flux_density = flux_density_matrix
+            ave_bin_flux_density_flat = flat_flux_density
         else:
-            # Reshape the flux density matrix to a 2D array where each row corresponds to
-            # a sample (e.g., if this is 2D then each of the first 2 dimensions are flattened
-            # into one dimension) and each column corresponds to a wavelength.
-            initial_dimensions = flux_density_matrix.shape[:-1]
-            flat_flux = flux_density_matrix.reshape(-1, self.num_query_waves)
-            flat_flux = flat_flux.astype(np.float64, copy=False)
-
-            # Add up the fluxes for each wavelength in each bin. This is adding batches of contiguous
+            # Average the fluxes for each wavelength in each bin. We sum batches of contiguous
             # columns independently for each row. We can do this efficiently using np.add.reduceat,
             # since the input data has been reordered so the flux values for each bin are contiguous.
-            bin_flux_density = np.add.reduceat(flat_flux, self._bin_starts, axis=1)
+            ave_bin_flux_density_flat = np.add.reduceat(flat_flux_density, self._bin_starts, axis=1)
+            ave_bin_flux_density_flat /= self._bin_counts[np.newaxis, :]
 
-            # Now (for each sample) we divide each bin's summed flux by the number of wavelengths in that bin
-            # to get the average flux density for each bin.
-            bin_flux_density /= self._bin_counts[np.newaxis, :]
-
-            # Reshape the bin flux density back to the original dimensions, but with the last dimension
-            # corresponding to bins.
-            bin_flux_density = bin_flux_density.reshape(*initial_dimensions, self.num_bins)
+        # TODO? Multiple by bin widths to get total flux in each bin instead of average flux density.
+        # We also might need to handle flam vs fnu conversions here.
 
         # Multiply by any per-bin scaling factors.
-        if self.scale is None:
-            scaled_bin_flux_density = bin_flux_density
-        else:
-            scale_view = self.scale.reshape((1,) * (bin_flux_density.ndim - 1) + (-1,))
-            scaled_bin_flux_density = bin_flux_density * scale_view
+        if self.scale is not None:
+            ave_bin_flux_density_flat *= self.scale[np.newaxis, :]
+
+        # Reshape the bin flux density back to the original dimensions, but with the last dimension
+        # corresponding to bins.
+        bin_flux = ave_bin_flux_density_flat.reshape(*initial_dimensions, self.num_bins)
 
         # If we want to add per-bin smearing, we can do that here. We should pre-compute a B x B
         # smearing matrix in the __init__ method and then apply it here. This will allow us to model
         # the effects of the spectrograph's point spread function on the measured fluxes.
         # For now, we will skip this step.
 
-        # Return the scaled bin flux density matrix.
-        return scaled_bin_flux_density
+        # Return the final result.
+        return bin_flux
