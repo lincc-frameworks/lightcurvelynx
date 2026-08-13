@@ -22,8 +22,6 @@ class Spectrograph:
         The width of each wavelength bin in Angstroms.
     query_waves : np.ndarray
         The points at which to evaluate the flux density of the spectral model in Angstroms.
-    num_query_waves : int
-        The number of wavelength points at which to evaluate the flux density of the spectral model.
     instrument : str
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : np.ndarray
