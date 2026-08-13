@@ -23,7 +23,7 @@ class Spectrograph:
     waves_max : np.ndarray
         The end of each wavelength bin in Angstroms.
     num_bins : int
-        The number of bins in the spectra.
+        The number of bins of the spectrograph.
     bin_widths : np.ndarray
         The width of each wavelength bin in Angstroms.
     all_bin_min : float
@@ -31,10 +31,10 @@ class Spectrograph:
     all_bin_max : float
         The maximum bin boundary of the spectra in Angstroms.
     waves : np.ndarray
-        The points at which to evaluate the flux density of the object in Angstroms. By default
-        this is the midpoint of each bin.
+        The points at which to evaluate the flux density of the spectral model in Angstroms. By default
+        this is the midpoint of each bin (when `wave_step` is None or small enough).
     num_query_waves : int
-        The number of wavelength points at which to evaluate the flux density of the object.
+        The number of wavelength points at which to evaluate the flux density of the spectral model.
     instrument : str
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : np.ndarray
@@ -238,7 +238,7 @@ class Spectrograph:
         return cls(waves_min, waves_max, **kwargs)
 
     def wave_bounds(self):
-        """Get the minimum and maximum bin boundaries for this spectra.
+        """Get the minimum and maximum wavelength bin boundaries for this spectra.
 
         Returns
         -------
