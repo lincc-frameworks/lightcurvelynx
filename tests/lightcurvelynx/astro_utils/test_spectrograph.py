@@ -80,50 +80,17 @@ def test_create_spectrograph_from_irregular_grid():
         _ = Spectrograph([1000.0, 2000.0, 3000.0], [2000.0, 1500.0, 4000.0])
 
 
-def test_create_spectrograph_ooo():
-    """Test that we can create and query a Spectrograph object with out-of-order
-    and overlapping bin boundaries. We don't expect these in practice, but we want
-    to test that the code can handle them.
-    """
-    waves_min = np.array([3500.0, 3000.0, 5000.0, 7000.0, 7000.0, 4000.0])
-    waves_max = np.array([4000.0, 4000.0, 7000.0, 7500.0, 8000.0, 5000.0])
-    spgraph = Spectrograph(waves_min, waves_max, instrument="custom_spectrograph")
-    assert spgraph.instrument == "custom_spectrograph"
-    assert spgraph.num_bins == 6
-    assert len(spgraph) == 6
+def test_create_spectrograph_from_bad_bins():
+    """Test that we fail if the bins overlap or are not in increasing order."""
+    waves_min_overlap = np.array([3500.0, 4000.0, 5000.0, 7000.0, 7500.0])
+    waves_max_overlap = np.array([4000.0, 5000.0, 7100.0, 7500.0, 8000.0])
+    with pytest.raises(ValueError):
+        _ = Spectrograph(waves_min_overlap, waves_max_overlap)
 
-    # The query waves should be the average of the min and max waves, sorted in increasing order.
-    wave_samples = [3500.0, 3750.0, 4500.0, 6000.0, 7250.0, 7500.0]
-    assert np.array_equal(spgraph.waves, wave_samples)
-
-    # The bin widths should correspond to the given order.
-    assert np.allclose(spgraph.bin_widths, [500.0, 1000.0, 2000.0, 500.0, 1000.0, 1000.0])
-
-    # The bounds and widths should be based on the bin bounds.
-    l_val, h_val = spgraph.wave_bounds()
-    assert l_val == 3000.0
-    assert h_val == 8000.0
-    assert str(spgraph) == "custom_spectrograph (spectra) [3000.0A - 8000.0A]"
-
-    # One dimensional fluxes to spec_fluxes. The measurement is in wavelength order and
-    # the output is in bin order.
-    values = np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0])
-    expected = np.array([20.0, 10.0, 40.0, 50.0, 60.0, 30.0])
-    spec_fluxes = spgraph.evaluate(values)
-    assert np.allclose(spec_fluxes, expected)
-
-    # Two dimensional fluxes to spec_fluxes. The measurement is in wavelength order and
-    # the output is in bin order.
-    values = np.array([[10.0, 20.0, 30.0, 40.0, 50.0, 60.0]])
-    expected = np.array([[20.0, 10.0, 40.0, 50.0, 60.0, 30.0]])
-    spec_fluxes = spgraph.evaluate(values)
-    assert np.allclose(spec_fluxes, expected)
-
-    # Three dimensional fluxes to spec_fluxes
-    values_3d = np.array([[[10.0, 20.0, 30.0, 40.0, 50.0, 60.0]]])
-    expected_3d = np.array([[[20.0, 10.0, 40.0, 50.0, 60.0, 30.0]]])
-    spec_fluxes_3d = spgraph.evaluate(values_3d)
-    assert np.allclose(spec_fluxes_3d, expected_3d)
+    waves_min_ooo = np.array([3500.0, 4000.0, 7000.0, 5000.0])
+    waves_max_ooo = np.array([4000.0, 5000.0, 7500.0, 6000.0])
+    with pytest.raises(ValueError):
+        _ = Spectrograph(waves_min_ooo, waves_max_ooo)
 
 
 def test_spectrograph_equals():
@@ -214,11 +181,11 @@ def test_create_spectrograph_with_scale():
         _ = Spectrograph(spgraph.waves_min, spgraph.waves_max, scale=bad_scale)
 
 
-def test_create_spectrograph_wave_step():
-    """Test that we can create and query a Spectrograph object with a minimum wave_step."""
+def test_create_spectrograph_max_wave_step():
+    """Test that we can create and query a Spectrograph object with a max_wave_step."""
     wave_min = np.array([3500.0, 3600.0, 3650.0, 3700.0, 3800.0])
     wave_max = np.array([3600.0, 3650.0, 3700.0, 3800.0, 4000.0])
-    spgraph = Spectrograph(wave_min, wave_max, wave_step=50.0)
+    spgraph = Spectrograph(wave_min, wave_max, max_wave_step=50.0)
 
     # The bin boundaries and widths should be unchanged.
     assert np.allclose(spgraph.waves_min, wave_min)
@@ -226,7 +193,9 @@ def test_create_spectrograph_wave_step():
     assert np.allclose(spgraph.bin_widths, wave_max - wave_min)
     assert spgraph.num_bins == 5
 
-    # The wave samples should be modified to respect the wave_step.
+    # The query waves should be modified to respect the max_wave_step. Note that the samples
+    # are chosen so they are evenly spaced within each bin (instead of evenly spaced across
+    # the entire wavelength range).
     sample_waves = [
         3533.3,  # Bin 0 - Sample 0
         3566.7,  # Bin 0 - Sample 1
@@ -272,73 +241,22 @@ def test_create_spectrograph_wave_step():
     assert np.allclose(results3, expected3)
     assert results3.shape == (2, 2, spgraph.num_bins)
 
-    # We fail to create a Spectrograph object with an invalid wave_step (<= 0.0).
+    # We fail to create a Spectrograph object with an invalid max_wave_step (<= 0.0).
     with pytest.raises(ValueError):
-        _ = Spectrograph(wave_min, wave_max, wave_step=-50.0)
+        _ = Spectrograph(wave_min, wave_max, max_wave_step=-50.0)
 
 
-def test_create_spectrograph_wave_step_overlap():
-    """Test that we can create and query a Spectrograph object with a minimum wave_step
-    and overlapping bins. We don't expect this in practice, but the code should handle it
-    anyway because of how we do dynamic sampling.
-    """
-    wave_min = np.array([3500.0, 3610.0, 3750.0, 3800.0])
-    wave_max = np.array([3700.0, 3710.0, 3800.0, 3810.0])
-    spgraph = Spectrograph(wave_min, wave_max, wave_step=50.0)
+def test_create_spectrograph_unneeded_max_wave_step():
+    """Test that if we set max_wave_step high enough, we just use the midpoints."""
+    wave_min = np.array([3500.0, 3600.0, 3650.0, 3700.0, 3800.0])
+    wave_max = np.array([3600.0, 3650.0, 3700.0, 3800.0, 4000.0])
+    spgraph = Spectrograph(wave_min, wave_max, max_wave_step=2000.0)
 
     # The bin boundaries and widths should be unchanged.
     assert np.allclose(spgraph.waves_min, wave_min)
     assert np.allclose(spgraph.waves_max, wave_max)
     assert np.allclose(spgraph.bin_widths, wave_max - wave_min)
-    assert spgraph.num_bins == 4
+    assert spgraph.num_bins == 5
 
-    # The wave samples should be modified to respect the wave_step.
-    sample_waves = [
-        3540.0,  # Bin 0 - Sample 0
-        3580.0,  # Bin 0 - Sample 1
-        3620.0,  # Bin 0 - Sample 2
-        3643.3,  # Bin 1 - Sample 0
-        3660.0,  # Bin 0 - Sample 3 (out of order)
-        3676.7,  # Bin 1 - Sample 1
-        3775.0,  # Bin 2 - Sample 0
-        3805.0,  # Bin 2 - Sample 1 (bin width < step size, so only one sample)
-    ]
-    assert np.allclose(spgraph.waves, sample_waves, atol=0.2)
-
-    # Test two dimensional flux densities to spec_fluxes
-    measurement2 = np.array(
-        [
-            [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0],
-            [5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0],
-        ]
-    )  # Number query waves by num times
-    expected2 = np.array(
-        [
-            [
-                17.5,  # Bin 0 - Average of 0.0, 10.0, 20.0, and 40.0.
-                40.0,  # Bin 1 - Average of 30.0 and 50.0.
-                60.0,  # Bin 2 - Just 60.0
-                70.0,  # Bin 3 - Just 70.0
-            ],
-            [
-                22.5,  # Bin 0 - Average of 5.0, 15.0, 25.0, and 45.0.
-                45.0,  # Bin 1 - Average of 35.0 and 55.0.
-                65.0,  # Bin 2 - Just 65.0
-                75.0,  # Bin 3 - Just 75.0
-            ],
-        ]
-    )  # Number bins by num times
-    results2 = spgraph.evaluate(measurement2)
-    assert np.allclose(results2, expected2)
-
-    # Test three dimensional fluxes to bandfluxes
-    measurement3 = np.array([measurement2, measurement2 + 2.0, 0.5 * measurement2])
-    expected3 = np.array([expected2, expected2 + 2.0, 0.5 * expected2])
-    results3 = spgraph.evaluate(measurement3)
-    assert np.allclose(results3, expected3)
-
-    # We fail if the flux density matrix has a different number of entries from
-    # the wave samples. Here we use the number of bins.
-    with pytest.raises(ValueError):
-        measurement_bad = np.array([[1.0, 2.0, 3.0, 4.0]])
-        _ = spgraph.evaluate(measurement_bad)
+    # The query waves should still be the bin midpoints.
+    assert np.allclose(spgraph.waves, (wave_min + wave_max) / 2)
