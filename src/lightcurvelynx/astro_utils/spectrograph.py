@@ -21,12 +21,19 @@ class Spectrograph:
     This implementation requires the spectrograph to have non-overlapping bins
     that are provided in order of increasing wavelength.
 
+    Note
+    ----
+    This implementation requires the spectrograph to have non-overlapping bins
+    that are provided in order of increasing wavelength.
+
     Attributes
     ----------
     waves_min : np.ndarray
         The start of each wavelength bin in Angstroms.
     waves_max : np.ndarray
         The end of each wavelength bin in Angstroms.
+    num_bins : int
+        The number of bins of the spectrograph.
     num_bins : int
         The number of bins of the spectrograph.
     bin_widths : np.ndarray
@@ -40,7 +47,7 @@ class Spectrograph:
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : np.ndarray
         The multiplicative factor to apply to each bin's flux to capture sensor
-        sensitivity, etc. If None, we use 1.0 for all bins.
+        sensitivity, etc. If None, no scaling is applied and the fluxes are returned as-is.
     wavelength_resolution : np.ndarray
         The Gaussian sigma wavelength resolution for each bin in Angstroms.
         TODO: determine a default resolution
@@ -52,10 +59,8 @@ class Spectrograph:
         waves_max,
         *,
         scale=None,
-        wavelength_resolution=None,
         instrument: str | None = None,
         max_wave_step: float | None = None,
-        scale=None,
     ):
         """Initialize the Spectrograph object.
 
@@ -157,6 +162,7 @@ class Spectrograph:
 
     def __len__(self) -> int:
         return self.num_bins
+        return self.num_bins
 
     def __eq__(self, other) -> bool:
         """Determine if two spectrographs have equal values for their internal data."""
@@ -178,6 +184,10 @@ class Spectrograph:
             if not np.allclose(self.scale, other.scale):
                 return False
         if not np.allclose(self.wavelength_resolution, other.wavelength_resolution):
+            return False
+        if self.instrument != other.instrument:  # pragma: no cover
+            return False
+        if not np.allclose(self.scale, other.scale):
             return False
         return True
     
