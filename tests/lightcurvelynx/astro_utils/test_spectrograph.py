@@ -112,6 +112,13 @@ def test_create_spectrograph_with_scale():
     scale = np.array([0.5, 1.0, 1.0, 1.0, 0.8])
     spgraph = Spectrograph.from_regular_grid(wave_start=4000, wave_end=5000, bin_width=200.0, scale=scale)
     assert np.allclose(spgraph.query_waves, np.array([4100.0, 4300.0, 4500.0, 4700.0, 4900.0]))
+    assert spgraph.num_bins == 5
+
+    # One dimensional fluxes to spec_fluxes
+    measurement = np.array([50.0, 40.0, 20.0, 20.0, 10.0])
+    expected = np.array([25.0, 40.0, 20.0, 20.0, 8.0])
+    results = spgraph.evaluate(measurement)
+    assert np.allclose(results, expected)
 
     # Two dimensional fluxes to spec_fluxes
     measurement = np.array(
