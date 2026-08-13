@@ -354,13 +354,13 @@ class BasePhysicalModel(ParameterizedNode, ABC):
 
         # If we only have a single sample, we can return the spectrograph fluxes directly.
         if state.num_samples == 1:
-            spectral_fluxes = self.evaluate_sed(times, spectrograph.waves, state)
+            spectral_fluxes = self.evaluate_sed(times, spectrograph.query_waves, state)
             return spectrograph.evaluate(spectral_fluxes)
 
-        # Fill in the band fluxes one at a time and return them all.
+        # Fill in the spectra for each model one at a time and return them all.
         bandfluxes = np.empty((state.num_samples, len(times), len(spectrograph)))
         for sample_num, current_state in enumerate(state):
-            spectral_fluxes = self.evaluate_sed(times, spectrograph.waves, current_state)
+            spectral_fluxes = self.evaluate_sed(times, spectrograph.query_waves, current_state)
             bandfluxes[sample_num, :, :] = spectrograph.evaluate(spectral_fluxes)
         return bandfluxes
 
