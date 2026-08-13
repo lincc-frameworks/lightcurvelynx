@@ -18,9 +18,8 @@ class Spectrograph:
 
     Note
     ----
-    This code is optimized for small, non-overlapping bins that are provided in
-    sorted order, but it will support inputs that do not match these conditions
-    (with more overhead).
+    This implementation requires the spectrograph to have non-overlapping bins
+    that are provided in order of increasing wavelength.
 
     Attributes
     ----------
@@ -32,13 +31,9 @@ class Spectrograph:
         The number of bins of the spectrograph.
     bin_widths : np.ndarray
         The width of each wavelength bin in Angstroms.
-    all_bin_min : float
-        The minimum bin boundary of the spectra in Angstroms.
-    all_bin_max : float
-        The maximum bin boundary of the spectra in Angstroms.
     waves : np.ndarray
         The points at which to evaluate the flux density of the spectral model in Angstroms. By default
-        this is the midpoint of each bin (when `wave_step` is None or small enough).
+        this is the midpoint of each bin (when `max_wave_step` is None or small enough).
     num_query_waves : int
         The number of wavelength points at which to evaluate the flux density of the spectral model.
     instrument : str
@@ -59,19 +54,20 @@ class Spectrograph:
         scale=None,
         wavelength_resolution=None,
         instrument: str | None = None,
-        wave_step: float | None = None,
+        max_wave_step: float | None = None,
+        scale=None,
     ):
         """Initialize the Spectrograph object.
 
         Parameters
         ----------
         waves_min : array-like
-            The start of each wavelength bin in Angstroms.
+            The start of each wavelength bin in Angstroms in order of increasing wavelength.
         waves_max : array-like
-            The end of each wavelength bin in Angstroms.
+            The end of each wavelength bin in Angstroms in order of increasing wavelength.
         instrument : str, optional
             The instrument name for the spectrograph. Default is "Spectrograph".
-        wave_step : float, optional
+        max_wave_step : float, optional
             The maximum step size between wavelength points within each bin that will be evaluated
             and integrated to compute the bin's flux density. The smaller this value, the more
             accurate and expensive the integration. If None, a single sample per bin is used.
@@ -89,36 +85,40 @@ class Spectrograph:
         self.num_bins = len(self.waves_min)
         if len(self.waves_max) != self.num_bins:
             raise ValueError("waves_min and waves_max must have the same length.")
+        if np.any(self.waves_min[1:] < self.waves_max[:-1]):
+            raise ValueError("Wavelength bins must be non-overlapping and in increasing order.")
 
         # Compute the width of each bin and check that none of the bins have negative width.
         self.bin_widths = self.waves_max - self.waves_min
         self.all_bin_min = np.min(self.waves_min)
         self.all_bin_max = np.max(self.waves_max)
-        if np.any(self.bin_widths < 0):
-            raise ValueError("Bins cannot have negative width.")
+        if np.any(self.bin_widths <= 0):
+            raise ValueError("Bins must have positive width.")
 
         # Compute the query wavelengths at which to evaluate the flux density of the object.
-        # By default, we use the midpoint of each bin. However, if wave_step is provided AND
-        # we need to split at least one bin, we will add multiple points per bin until the
-        # maximum gap is LESS than wave_step.
+        # By default, we use the midpoint of each bin. However, if max_wave_step is provided AND
+        # we need to split at least one bin, we will add multiple points per bin (evenly space
+        # throughout the bin) until the maximum gap is LESS than max_wave_step.
         self._wave_to_bin_map = None
         self._bin_counts = None
-        if wave_step is None or np.max(self.bin_widths) <= wave_step:
+        if max_wave_step is None or np.max(self.bin_widths) <= max_wave_step:
             self.waves = (self.waves_min + self.waves_max) / 2
         else:
-            if wave_step <= 0:
-                raise ValueError(f"wave_step must be positive, got {wave_step}.")
+            if max_wave_step <= 0:
+                raise ValueError(f"max_wave_step must be positive, got {max_wave_step}.")
 
-            # For each bin: compute the number of points that are needed and spread them
-            # evenly throughout the bin.
+            # For each bin: compute the number of points that need to be sampled and
+            # spread them evenly throughout the bin.
             self.waves = []
             wave_to_bin_map = []
             self._bin_counts = np.zeros(self.num_bins, dtype=int)
             for bin_idx, (w_min, w_max) in enumerate(zip(self.waves_min, self.waves_max, strict=False)):
-                num_points = int(np.ceil((w_max - w_min) / wave_step))
+                num_points = int(np.ceil((w_max - w_min) / max_wave_step))
                 self._bin_counts[bin_idx] = num_points
 
-                # Evenly space points throughout the bin, excluding the start and end points.
+                # Evenly space points throughout the bin, excluding the start and end points. This is
+                # used (instead of a purely even grid over all wavelengths) to ensure that each bin is
+                # evenly covered and we don't sample some bins at the edge.
                 wave_points = np.linspace(w_min, w_max, num_points + 2)[1:-1]
                 self.waves.extend(wave_points)
                 wave_to_bin_map.extend([bin_idx] * num_points)
@@ -129,18 +129,6 @@ class Spectrograph:
             self._wave_to_bin_map = np.array(wave_to_bin_map, dtype=int)
             self._bin_starts = np.concatenate(([0], np.cumsum(self._bin_counts)[:-1]))
         self.num_query_waves = len(self.waves)
-
-        # Ensure query waves are in increasing order. This may not be the case if the bins overlap
-        # and we are sampling multiple points per bin. If they are not in increasing order, we sort
-        # them (stably) and save the mapping.
-        # Note that we could speed things up a little bit here if we enforce that the bins are
-        # strictly non-overlapping and sorted.
-        self._wave_sorted_to_org_order = None
-        if not np.all(np.diff(self.waves) > 0):
-            bin_to_wave_order = np.argsort(self.waves, kind="stable")
-            self.waves = self.waves[bin_to_wave_order]
-            self._wave_sorted_to_org_order = np.empty(self.waves.shape, dtype=int)
-            self._wave_sorted_to_org_order[bin_to_wave_order] = np.arange(len(self.waves))
 
         # Scale is the multiplicative factor to apply to each bin's flux.
         if scale is not None:
@@ -161,7 +149,7 @@ class Spectrograph:
 
     def __str__(self) -> str:
         """Return a string representation of the spectra filter."""
-        return f"{self.instrument} (spectra) [{self.all_bin_min}A - {self.all_bin_max}A]"
+        return f"{self.instrument} (spectra) [{self.waves_min[0]}A - {self.waves_max[-1]}A]"
 
     def __len__(self) -> int:
         return self.num_bins
@@ -306,7 +294,7 @@ class Spectrograph:
         max_wave : float
             The maximum wavelength.
         """
-        return self.all_bin_min, self.all_bin_max
+        return self.waves_min[0], self.waves_max[-1]
 
     def evaluate(
         self,
@@ -340,11 +328,6 @@ class Spectrograph:
                 f"Flux density matrix has {flux_density_matrix.shape[-1]} wavelengths, "
                 f"but the Spectrograph has {self.num_query_waves} wavelengths."
             )
-
-        # Unsort by wavelength -- putting the flux values back into bin order.
-        # Note: Most of the time we should be able to skip this.
-        if self._wave_sorted_to_org_order is not None:
-            flux_density_matrix = flux_density_matrix[..., self._wave_sorted_to_org_order]
 
         # For each bin, compute average flux density over wavelengths in that bin.
         if self._wave_to_bin_map is None:
