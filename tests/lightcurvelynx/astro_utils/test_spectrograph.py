@@ -9,7 +9,7 @@ def test_create_spectrograph_from_regular_grid():
     assert spgraph.instrument == "Spectrograph"
     assert spgraph.num_bins == 1600
     assert len(spgraph) == 1600  # (11000 - 3000) / 5 = 1600 bins
-    assert np.array_equal(spgraph.waves, np.arange(3000 + 2.5, 11000, 5.0))
+    assert np.array_equal(spgraph.query_waves, np.arange(3000 + 2.5, 11000, 5.0))
 
     l_val, h_val = spgraph.wave_bounds()
     assert l_val == 3000
@@ -45,7 +45,7 @@ def test_create_spectrograph_from_irregular_grid():
     assert spgraph.instrument == "custom_spectrograph"
     assert spgraph.num_bins == 6
     assert len(spgraph) == 6
-    assert np.array_equal(spgraph.waves, (waves_min + waves_max) / 2)
+    assert np.array_equal(spgraph.query_waves, (waves_min + waves_max) / 2)
 
     l_val, h_val = spgraph.wave_bounds()
     assert l_val == 3500.0
@@ -111,7 +111,7 @@ def test_create_spectrograph_with_scale():
     """Test that we can create and query a Spectrograph object."""
     scale = np.array([0.5, 1.0, 1.0, 1.0, 0.8])
     spgraph = Spectrograph.from_regular_grid(wave_start=4000, wave_end=5000, bin_width=200.0, scale=scale)
-    assert np.allclose(spgraph.waves, np.array([4100.0, 4300.0, 4500.0, 4700.0, 4900.0]))
+    assert np.allclose(spgraph.query_waves, np.array([4100.0, 4300.0, 4500.0, 4700.0, 4900.0]))
     assert spgraph.num_bins == 5
 
     # One dimensional fluxes to spec_fluxes
@@ -208,7 +208,7 @@ def test_create_spectrograph_max_wave_step():
         3920.0,  # Bin 4 - Sample 2
         3960.0,  # Bin 4 - Sample 3
     ]
-    assert np.allclose(spgraph.waves, sample_waves, atol=0.2)
+    assert np.allclose(spgraph.query_waves, sample_waves, atol=0.2)
 
     # Test one dimensional fluxes to spec_fluxes
     measurement1 = np.array([0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0])  # Number query waves
@@ -259,4 +259,4 @@ def test_create_spectrograph_unneeded_max_wave_step():
     assert spgraph.num_bins == 5
 
     # The query waves should still be the bin midpoints.
-    assert np.allclose(spgraph.waves, (wave_min + wave_max) / 2)
+    assert np.allclose(spgraph.query_waves, (wave_min + wave_max) / 2)

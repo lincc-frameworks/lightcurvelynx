@@ -453,7 +453,7 @@ def _simulate_lightcurves_batch(simulation_info):
             # Split on whether we are evaluating bandfluxes or spectra.
             if isinstance(passbands[survey_idx], Spectrograph):
                 # This is a spectrograph, so we compute the spectra for the spectra column.
-                sg_waves = passbands[survey_idx].waves
+                sg_waves = passbands[survey_idx].query_waves
 
                 sed = model.evaluate_sed(obs_times, sg_waves, state, rng_info=rng)
                 measured_flux_perfect = passbands[survey_idx].evaluate(sed)
