@@ -31,7 +31,7 @@ class Spectrograph:
         The number of bins of the spectrograph.
     bin_widths : np.ndarray
         The width of each wavelength bin in Angstroms.
-    waves : np.ndarray
+    query_waves : np.ndarray
         The points at which to evaluate the flux density of the spectral model in Angstroms. By default
         this is the midpoint of each bin (when `max_wave_step` is None or small enough).
     num_query_waves : int
@@ -102,14 +102,14 @@ class Spectrograph:
         self._wave_to_bin_map = None
         self._bin_counts = None
         if max_wave_step is None or np.max(self.bin_widths) <= max_wave_step:
-            self.waves = (self.waves_min + self.waves_max) / 2
+            self.query_waves = (self.waves_min + self.waves_max) / 2
         else:
             if max_wave_step <= 0:
                 raise ValueError(f"max_wave_step must be positive, got {max_wave_step}.")
 
             # For each bin: compute the number of points that need to be sampled and
             # spread them evenly throughout the bin.
-            self.waves = []
+            query_waves = []
             wave_to_bin_map = []
             self._bin_counts = np.zeros(self.num_bins, dtype=int)
             for bin_idx, (w_min, w_max) in enumerate(zip(self.waves_min, self.waves_max, strict=False)):
@@ -120,15 +120,19 @@ class Spectrograph:
                 # used (instead of a purely even grid over all wavelengths) to ensure that each bin is
                 # evenly covered and we don't sample some bins at the edge.
                 wave_points = np.linspace(w_min, w_max, num_points + 2)[1:-1]
-                self.waves.extend(wave_points)
+                query_waves.extend(wave_points)
                 wave_to_bin_map.extend([bin_idx] * num_points)
-            self.waves = np.array(self.waves)
+            self.query_waves = np.array(query_waves, dtype=float)
 
             # In the waves original order save the mapping from wave index to bin index and a mapping
             # of bin index to where the bin starts in the waves array.
             self._wave_to_bin_map = np.array(wave_to_bin_map, dtype=int)
             self._bin_starts = np.concatenate(([0], np.cumsum(self._bin_counts)[:-1]))
-        self.num_query_waves = len(self.waves)
+        self.num_query_waves = len(self.query_waves)
+
+        # The query wavelengths should always be in increasing order.
+        if not np.all(np.diff(self.query_waves) > 0):  # pragma: no cover
+            raise ValueError("Query wavelengths are not in increasing order.")
 
         # Scale is the multiplicative factor to apply to each bin's flux.
         if scale is not None:
@@ -164,7 +168,7 @@ class Spectrograph:
             return False
         if not np.allclose(self.bin_widths, other.bin_widths):  # pragma: no cover
             return False
-        if not np.allclose(self.waves, other.waves):  # pragma: no cover
+        if not np.allclose(self.query_waves, other.query_waves):  # pragma: no cover
             return False
         if self.instrument != other.instrument:
             return False
@@ -307,7 +311,8 @@ class Spectrograph:
         ----------
         flux_density_matrix : np.ndarray
             A 1D, 2D or 3D array of flux densities. The last dimension contains the flux density values
-            at the wavelengths specified by self.waves for a single sample.
+            at the wavelengths specified by self.query_waves for a single sample. The other dimensions
+            are used to represent multiple times (2D and 3D) and multiple objects (3D).
         smear : bool, optional
             Whether to smear the flux density values across the bins using the wavelength resolution. 
             Default is True.
