@@ -83,6 +83,8 @@ class Spectrograph:
             return False
         if not np.allclose(self.waves_max, other.waves_max):
             return False
+        if not np.allclose(self.bin_widths, other.bin_widths):  # pragma: no cover
+            return False
         if self.instrument != other.instrument:  # pragma: no cover
             return False
         if not np.allclose(self.scale, other.scale):
