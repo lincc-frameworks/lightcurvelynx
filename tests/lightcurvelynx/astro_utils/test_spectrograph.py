@@ -81,8 +81,9 @@ def test_create_spectrograph_from_irregular_grid():
 
 
 def test_create_spectrograph_ooo():
-    """Test that we can create and query a Spectrograph object with out-of-order and overlapping
-    bin boundaries.
+    """Test that we can create and query a Spectrograph object with out-of-order
+    and overlapping bin boundaries. We don't expect these in practice, but we want
+    to test that the code can handle them.
     """
     waves_min = np.array([3500.0, 3000.0, 5000.0, 7000.0, 7000.0, 4000.0])
     waves_max = np.array([4000.0, 4000.0, 7000.0, 7500.0, 8000.0, 5000.0])
@@ -278,8 +279,8 @@ def test_create_spectrograph_wave_step():
 
 def test_create_spectrograph_wave_step_overlap():
     """Test that we can create and query a Spectrograph object with a minimum wave_step
-    and overlapping bins. This might not be a realistic use case, but we want to test that
-    the code can handle it.
+    and overlapping bins. We don't expect this in practice, but the code should handle it
+    anyway because of how we do dynamic sampling.
     """
     wave_min = np.array([3500.0, 3610.0, 3750.0, 3800.0])
     wave_max = np.array([3700.0, 3710.0, 3800.0, 3810.0])
