@@ -10,6 +10,7 @@ class Spectrograph:
     bin in the spectra. This class operates similarly to a PassbandGroup, but
     only contains a single "filter" named "spectra" that contains all of the bins.
 
+    Note
     ----
     This code is optimized for small, non-overlapping bins that are provided in
     sorted order, but it will support inputs that do not match these conditions
