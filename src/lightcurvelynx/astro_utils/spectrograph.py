@@ -41,8 +41,6 @@ class Spectrograph:
     query_waves : np.ndarray
         The points at which to evaluate the flux density of the spectral model in Angstroms. By default
         this is the midpoint of each bin (when `max_wave_step` is None or small enough).
-    num_query_waves : int
-        The number of wavelength points at which to evaluate the flux density of the spectral model.
     instrument : str
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : np.ndarray
@@ -95,8 +93,6 @@ class Spectrograph:
 
         # Compute the width of each bin and check that none of the bins have negative width.
         self.bin_widths = self.waves_max - self.waves_min
-        self.all_bin_min = np.min(self.waves_min)
-        self.all_bin_max = np.max(self.waves_max)
         if np.any(self.bin_widths <= 0):
             raise ValueError("Bins must have positive width.")
 
@@ -133,7 +129,6 @@ class Spectrograph:
             # of bin index to where the bin starts in the waves array.
             self._wave_to_bin_map = np.array(wave_to_bin_map, dtype=int)
             self._bin_starts = np.concatenate(([0], np.cumsum(self._bin_counts)[:-1]))
-        self.num_query_waves = len(self.query_waves)
 
         # The query wavelengths should always be in increasing order.
         if not np.all(np.diff(self.query_waves) > 0):  # pragma: no cover
@@ -142,9 +137,7 @@ class Spectrograph:
         # Scale is the multiplicative factor to apply to each bin's flux.
         if scale is not None:
             if len(scale) != self.num_bins:
-                raise ValueError(
-                    "Scale array must have the same length as the number of bins in the spectra."
-                )
+                raise ValueError("Scale array must have the same length as the number of bins.")
             self.scale = np.asarray(scale)
         else:
             self.scale = None
@@ -174,9 +167,9 @@ class Spectrograph:
             return False
         if not np.allclose(self.bin_widths, other.bin_widths):  # pragma: no cover
             return False
-        if not np.allclose(self.query_waves, other.query_waves):  # pragma: no cover
+        if self.instrument != other.instrument:  # pragma: no cover
             return False
-        if self.instrument != other.instrument:
+        if not np.allclose(self.query_waves, other.query_waves):  # pragma: no cover
             return False
         if self.scale is not None or other.scale is not None:
             if self.scale is None or other.scale is None:
@@ -338,10 +331,12 @@ class Spectrograph:
             raise ValueError("Empty flux density matrix used.")
         if flux_density_matrix.ndim < 1 or flux_density_matrix.ndim > 3:
             raise ValueError("Invalid flux density matrix. Must be 1, 2, or 3-dimensional.")
-        if flux_density_matrix.shape[-1] != self.num_query_waves:
+
+        num_query_waves = len(self.query_waves)
+        if flux_density_matrix.shape[-1] != num_query_waves:
             raise ValueError(
                 f"Flux density matrix has {flux_density_matrix.shape[-1]} wavelengths, "
-                f"but the Spectrograph has {self.num_query_waves} wavelengths."
+                f"but the Spectrograph has {num_query_waves} wavelengths."
             )
 
         # Reshape the flux density matrix to a 2D array where each row corresponds to
@@ -350,7 +345,7 @@ class Spectrograph:
         # We do this so we can efficiently perform integration, scaling, etc. on all samples
         # at once regardless of whether the input is 1D, 2D, or 3D.
         initial_dimensions = flux_density_matrix.shape[:-1]
-        flat_flux_density = flux_density_matrix.reshape(-1, self.num_query_waves)
+        flat_flux_density = flux_density_matrix.reshape(-1, num_query_waves)
 
         # For each bin, compute average flux density over wavelengths in that bin.
         if self._wave_to_bin_map is None:
