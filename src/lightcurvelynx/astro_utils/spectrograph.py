@@ -21,6 +21,11 @@ class Spectrograph:
     This implementation requires the spectrograph to have non-overlapping bins
     that are provided in order of increasing wavelength.
 
+    Note
+    ----
+    This implementation requires the spectrograph to have non-overlapping bins
+    that are provided in order of increasing wavelength.
+
     Attributes
     ----------
     waves_min : np.ndarray
@@ -181,6 +186,7 @@ class Spectrograph:
 
     def __len__(self) -> int:
         return self.num_bins
+        return self.num_bins
 
     def __eq__(self, other) -> bool:
         """Determine if two spectrographs have equal values for their internal data."""
@@ -202,6 +208,10 @@ class Spectrograph:
             if not np.allclose(self.scale, other.scale):
                 return False
         if not np.allclose(self.wavelength_resolution, other.wavelength_resolution):
+            return False
+        if self.instrument != other.instrument:  # pragma: no cover
+            return False
+        if not np.allclose(self.scale, other.scale):
             return False
         return True
     
