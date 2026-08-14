@@ -26,13 +26,14 @@ class Spectrograph:
     bin_widths : np.ndarray
         The width of each wavelength bin in Angstroms.
     query_waves : np.ndarray
-        The points at which to evaluate the flux density of the spectral model in Angstroms. By default
-        this is the midpoint of each bin (when `max_wave_step` is None or small enough).
+        The points at which to evaluate the flux density of the spectral model in Angstroms. By
+        default this is the midpoint of each bin (when `max_wave_step` is None or large enough
+        to fully cover each bin).
     instrument : str
         The instrument name for the spectrograph. Default is "Spectrograph".
     scale : float | np.ndarray | None
         The multiplicative factor to apply to each bin's flux to capture sensor
-        sensitivity, etc. If None, no scaling is applied and the fluxes are returned as-is.
+        sensitivity, etc. If None, no additional scaling is applied.
     """
 
     def __init__(
@@ -55,19 +56,21 @@ class Spectrograph:
         instrument : str, optional
             The instrument name for the spectrograph. Default is "Spectrograph".
         max_wave_step : float, optional
-            The maximum step size between wavelength points within each bin that will be evaluated
-            and integrated to compute the bin's flux density. The smaller this value, the more
+            The maximum allowed step size between wavelength points evaluated within each bin
+            that are evaluated while computing the bin's flux. The smaller this value, the more
             accurate and expensive the integration. If None, a single sample per bin is used.
             Default: None
         scale : float | array-like, optional
-            The multiplicative factor to apply to each bin's flux. If None, no scaling is applied and
-            the fluxes are returned as-is.
+            The multiplicative factor to apply to each bin's flux. If None, no additional scaling
+            is applied.
             Default: None
         """
         # Check that the input arrays are valid and convert them to numpy arrays.
         self.waves_min = np.asarray(waves_min, dtype=float)
         self.waves_max = np.asarray(waves_max, dtype=float)
         self.num_bins = len(self.waves_min)
+        if self.num_bins <= 0:  # pragma: no cover
+            raise ValueError("Spectrograph must have at least one bin.")
         if len(self.waves_max) != self.num_bins:
             raise ValueError("waves_min and waves_max must have the same length.")
         if np.any(self.waves_min[1:] < self.waves_max[:-1]):
@@ -101,10 +104,11 @@ class Spectrograph:
                 num_points = int(np.ceil((w_max - w_min) / max_wave_step))
                 self._bin_counts[bin_idx] = num_points
 
-                # Evenly space points throughout the bin, excluding the start and end points. This is
-                # used (instead of a purely even grid over all wavelengths) to ensure that each bin is
-                # evenly covered and we don't sample some bins at the edge.
-                wave_points = np.linspace(w_min, w_max, num_points + 2)[1:-1]
+                # Split the bin into num_points equal-width sub-bins and evaluate at each
+                # sub-bin's midpoint, so the evaluation points match the widths used for
+                # integration below.
+                sub_bin_edges = np.linspace(w_min, w_max, num_points + 1)
+                wave_points = (sub_bin_edges[:-1] + sub_bin_edges[1:]) / 2
                 query_waves.extend(wave_points)
                 wave_to_bin_map.extend([bin_idx] * num_points)
                 query_widths.extend([(w_max - w_min) / num_points] * num_points)
@@ -263,8 +267,7 @@ class Spectrograph:
         -------
         measured_flux : np.ndarray
             An array with the same number of dimensions as flux_density_matrix, but with the last
-            dimension corresponding to bins in the spectrograph. The measured fluxes are in fnu
-            units flux*dlambda/lambda**2.
+            dimension corresponding to bins in the spectrograph.
         """
         # Check that we have a valid flux density matrix.
         if flux_density_matrix.size == 0:
