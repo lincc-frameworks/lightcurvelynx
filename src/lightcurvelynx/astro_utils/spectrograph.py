@@ -59,11 +59,7 @@ class Spectrograph:
         scale=None,
         instrument: str | None = None,
         max_wave_step: float | None = None,
-<<<<<<< HEAD
-=======
-        scale=None,
         wavelength_resolution: np.ndarray | None = None,
->>>>>>> 785a30bb (function to snana bin padding)
     ):
         """Initialize the Spectrograph object.
 
