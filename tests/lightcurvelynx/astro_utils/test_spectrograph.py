@@ -233,16 +233,16 @@ def test_create_spectrograph_max_wave_step():
     # are chosen so they are evenly spaced within each bin (instead of evenly spaced across
     # the entire wavelength range).
     sample_waves = [
-        3533.3,  # Bin 0 - Sample 0
-        3566.7,  # Bin 0 - Sample 1
+        3525.0,  # Bin 0 - Sample 0
+        3575.0,  # Bin 0 - Sample 1
         3625.0,  # Bin 1 - Sample 0
         3675.0,  # Bin 2 - Sample 0
-        3733.3,  # Bin 3 - Sample 0
-        3766.7,  # Bin 3 - Sample 1
-        3840.0,  # Bin 4 - Sample 0
-        3880.0,  # Bin 4 - Sample 1
-        3920.0,  # Bin 4 - Sample 2
-        3960.0,  # Bin 4 - Sample 3
+        3725.0,  # Bin 3 - Sample 0
+        3775.0,  # Bin 3 - Sample 1
+        3825.0,  # Bin 4 - Sample 0
+        3875.0,  # Bin 4 - Sample 1
+        3925.0,  # Bin 4 - Sample 2
+        3975.0,  # Bin 4 - Sample 3
     ]
     assert np.allclose(spgraph.query_waves, sample_waves, atol=0.2)
 
