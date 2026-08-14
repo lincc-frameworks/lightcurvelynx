@@ -1415,9 +1415,18 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
     assert np.shape(spectra.iloc[0]["measured_flux"]) == (80,)
     assert np.shape(spectra.iloc[1]["measured_flux"]) == (80,)
     assert np.shape(spectra.iloc[2]["measured_flux"]) == (60,)
-    assert np.allclose(spectra.iloc[0]["measured_flux_perfect"], 100.0 * np.ones(80))
-    assert np.allclose(spectra.iloc[1]["measured_flux_perfect"], 100.0 * np.ones(80))
-    assert np.allclose(spectra.iloc[2]["measured_flux_perfect"], 100.0 * np.ones(60))
+    assert np.allclose(
+        spectra.iloc[0]["measured_flux_perfect"],
+        100.0 * spectrograph.bin_widths[None, :],
+    )
+    assert np.allclose(
+        spectra.iloc[1]["measured_flux_perfect"],
+        100.0 * spectrograph.bin_widths[None, :],
+    )
+    assert np.allclose(
+        spectra.iloc[2]["measured_flux_perfect"],
+        100.0 * spectrograph2.bin_widths[None, :],
+    )
     assert np.allclose(spectra.iloc[0]["measured_flux_error"], np.ones(80))
     assert np.allclose(spectra.iloc[1]["measured_flux_error"], np.ones(80))
     assert np.allclose(spectra.iloc[2]["measured_flux_error"], np.zeros(60))

@@ -318,6 +318,11 @@ class Spectrograph:
         """Get the center of each wavelength bin in Angstroms."""
         return (self.waves_min + self.waves_max) / 2
 
+    @property
+    def bin_centers(self) -> np.ndarray:
+        """Get the center of each wavelength bin in Angstroms."""
+        return (self.waves_min + self.waves_max) / 2
+
     @classmethod
     def from_regular_grid(cls, wave_start: float, wave_end: float, bin_width: float, **kwargs):
         """Create a Spectrograph with regularly spaced bins.
