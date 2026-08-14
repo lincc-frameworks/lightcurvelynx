@@ -59,6 +59,11 @@ class Spectrograph:
         scale=None,
         instrument: str | None = None,
         max_wave_step: float | None = None,
+<<<<<<< HEAD
+=======
+        scale=None,
+        wavelength_resolution: np.ndarray | None = None,
+>>>>>>> 785a30bb (function to snana bin padding)
     ):
         """Initialize the Spectrograph object.
 
@@ -146,6 +151,9 @@ class Spectrograph:
         # Save the other spectrograph properties if provided.
         self.instrument = instrument if instrument is not None else "Spectrograph"
 
+        # compute padded, higher-resolution bins 
+        self.padded_bins = self._compute_padded_bins(oversampling=10)
+
         # compute the smear matrix, if there are wavelength resolutions
         self.smear_matrix = self._compute_smear_matrix() if self.wavelength_resolution is not None else None
 
@@ -180,6 +188,73 @@ class Spectrograph:
             return False
         return True
     
+
+    def _compute_padded_bins(self):
+        """Compute the padded bins for the spectrograph.
+
+        Parameters
+        ----------
+        oversampling : int, optional
+            The factor by which to oversample the bins. Default is 10.
+
+        Returns
+        -------
+        padded_bins : np.ndarray
+            A 2D array of shape (num_bins, oversampling) representing the padded bins.
+        """
+
+        # determine the extended region
+            # snana expanded by 2.5 sigma of the edge bins
+        sigma_blue = self.wavelength_resolution[0]
+        width_blue = self.bin_widths[0]
+        num_pad_blue = int(2.5 * sigma_blue / width_blue) + 1 if sigma_blue > 0 else 0
+        pad_blue_min = self.waves_min[0] - width_blue * np.arange(num_pad_blue, 0, -1)
+        pad_blue_max = pad_blue_min + width_blue
+
+
+        red_edge_idx = -2 if self.num_bins >= 2 else -1 # snana takes the 2nd to last bin
+        sigma_red = self.wavelength_resolution[red_edge_idx]
+        width_red = self.bin_widths[red_edge_idx]
+        num_pad_red = int(2.5 * sigma_red / width_red) + 1 if sigma_red > 0 else 0
+        pad_red_min = self.waves_max[-1] + width_red * np.arange(num_pad_red)
+        pad_red_max = pad_red_min + width_red
+
+        # combine the original bins with the padded bins
+        padded_bins_min = np.concatenate((pad_blue_min, self.waves_min, pad_red_min))
+        padded_bins_max = np.concatenate((pad_blue_max, self.waves_max, pad_red_max))
+        # bin centers for the padded bins
+        padded_bins = (padded_bins_max - padded_bins_min)/2
+
+        padded_wavelength_resolution = np.concatenate([
+            np.full(num_pad_blue, sigma_blue), 
+            self.wavelength_resolution,
+            np.full(num_pad_red, sigma_red)
+        ])
+
+        is_padding = np.concatenate(
+            [
+                np.ones(self.num_pad_blue, dtype=bool),
+                np.zeros(self.num_bins, dtype=bool),
+                np.ones(self.num_pad_red, dtype=bool),
+            ]
+        )
+        return padded_bins, padded_bins_min, padded_bins_max, padded_wavelength_resolution, is_padding
+
+    def _oversample_padded_bins(self, oversampling=10):
+        """Compute the oversampled padded bins to evaluate the flux density of the object.
+
+        Parameters
+        ----------
+        oversampling : int, optional
+            The factor by which to oversample the bins. Default is 10.
+
+        Returns
+        -------
+        oversampled_bins : np.ndarray
+            A 2D array of shape (num_padded_bins, oversampling) representing the oversampled padded bins.
+        """
+        return
+
 
     def _compute_smear_matrix(self, n_sigma=3):
         """Compute the smearing matrix for the spectrograph based on the wavelength resolution.
@@ -369,6 +444,9 @@ class Spectrograph:
         # smearing matrix in the __init__ method and then apply it here. This will allow us to model
         # the effects of the spectrograph's point spread function on the measured fluxes.
         # For now, we will skip this step.
+
+        if smear and self.smear_matrix is not None:
+            bin_flux @= self.smear_matrix
 
         # Return the final result.
         return bin_flux
