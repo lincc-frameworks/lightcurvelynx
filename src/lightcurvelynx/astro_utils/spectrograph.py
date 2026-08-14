@@ -59,6 +59,7 @@ class Spectrograph:
         scale=None,
         instrument: str | None = None,
         max_wave_step: float | None = None,
+        oversample_factor: int = 10,
         wavelength_resolution: np.ndarray | None = None,
     ):
         """Initialize the Spectrograph object.
@@ -76,6 +77,10 @@ class Spectrograph:
             and integrated to compute the bin's flux density. The smaller this value, the more
             accurate and expensive the integration. If None, a single sample per bin is used.
             Default: None
+        oversample_factor: int, optional
+            If max_wave_step is not provided, divide each bin into this many sub-bins to evaluate 
+            the flux density of the object at a resolution higher than the spectrograph's.
+            Default: 10
         scale : float | array-like, optional
             The multiplicative factor to apply to each bin's flux. If None, no scaling is applied and
             the fluxes are returned as-is.
@@ -98,38 +103,46 @@ class Spectrograph:
             raise ValueError("Bins must have positive width.")
 
         # Compute the query wavelengths at which to evaluate the flux density of the object.
-        # By default, we use the midpoint of each bin. However, if max_wave_step is provided AND
+        # By default, we evaluate at 10x the bin resolution.
+        # However, if max_wave_step is provided AND
         # we need to split at least one bin, we will add multiple points per bin (evenly space
         # throughout the bin) until the maximum gap is LESS than max_wave_step.
         self._wave_to_bin_map = None
         self._bin_counts = None
-        if max_wave_step is None or np.max(self.bin_widths) <= max_wave_step:
-            self.query_waves = (self.waves_min + self.waves_max) / 2
-        else:
-            if max_wave_step <= 0:
-                raise ValueError(f"max_wave_step must be positive, got {max_wave_step}.")
+        if max_wave_step is not None:
+            if np.max(self.bin_widths) <= max_wave_step:
+                self.query_waves = (self.waves_min + self.waves_max) / 2
+            else:
+                if max_wave_step <= 0:
+                    raise ValueError(f"max_wave_step must be positive, got {max_wave_step}.")
 
-            # For each bin: compute the number of points that need to be sampled and
-            # spread them evenly throughout the bin.
-            query_waves = []
-            wave_to_bin_map = []
-            self._bin_counts = np.zeros(self.num_bins, dtype=int)
-            for bin_idx, (w_min, w_max) in enumerate(zip(self.waves_min, self.waves_max, strict=False)):
-                num_points = int(np.ceil((w_max - w_min) / max_wave_step))
-                self._bin_counts[bin_idx] = num_points
+        # For each bin: compute the number of points that need to be sampled and
+        # spread them evenly throughout the bin.
+        query_waves = []
+        wave_to_bin_map = []
+        self._bin_counts = np.zeros(self.num_bins, dtype=int)
+        padded_bins_min, padded_bins_max = self._compute_padded_bins()
+        for bin_idx, (w_min, w_max) in enumerate(zip(padded_bins_min, padded_bins_max, strict=False)):
 
-                # Evenly space points throughout the bin, excluding the start and end points. This is
-                # used (instead of a purely even grid over all wavelengths) to ensure that each bin is
-                # evenly covered and we don't sample some bins at the edge.
-                wave_points = np.linspace(w_min, w_max, num_points + 2)[1:-1]
-                query_waves.extend(wave_points)
-                wave_to_bin_map.extend([bin_idx] * num_points)
-            self.query_waves = np.array(query_waves, dtype=float)
+            # determine num points via max_wave_step or oversampling factor
+            if max_wave_step is not None:
+                num_points = int(np.ceil((w_max - w_min) / max_wave_step)) + 2
+            else:
+                num_points = oversample_factor + 1
+            self._bin_counts[bin_idx] = num_points
 
-            # In the waves original order save the mapping from wave index to bin index and a mapping
-            # of bin index to where the bin starts in the waves array.
-            self._wave_to_bin_map = np.array(wave_to_bin_map, dtype=int)
-            self._bin_starts = np.concatenate(([0], np.cumsum(self._bin_counts)[:-1]))
+            # Evenly space points throughout the bin, excluding the start and end points. This is
+            # used (instead of a purely even grid over all wavelengths) to ensure that each bin is
+            # evenly covered and we don't sample some bins at the edge.
+            wave_points = np.linspace(w_min, w_max, num_points)[1:-1]
+            query_waves.extend(wave_points)
+            wave_to_bin_map.extend([bin_idx] * num_points)
+        self.query_waves = np.array(query_waves, dtype=float)
+
+        # In the waves original order save the mapping from wave index to bin index and a mapping
+        # of bin index to where the bin starts in the waves array.
+        self._wave_to_bin_map = np.array(wave_to_bin_map, dtype=int)
+        self._bin_starts = np.concatenate(([0], np.cumsum(self._bin_counts)[:-1]))
 
         # The query wavelengths should always be in increasing order.
         if not np.all(np.diff(self.query_waves) > 0):  # pragma: no cover
@@ -158,7 +171,6 @@ class Spectrograph:
         return f"{self.instrument} (spectra) [{self.waves_min[0]}A - {self.waves_max[-1]}A]"
 
     def __len__(self) -> int:
-        return self.num_bins
         return self.num_bins
 
     def __eq__(self, other) -> bool:
@@ -221,7 +233,7 @@ class Spectrograph:
         # bin centers for the padded bins
         padded_bins = (padded_bins_max - padded_bins_min)/2
 
-        padded_wavelength_resolution = np.concatenate([
+        padded_wavelength_resolution = np.concatenate([ # TODO: needed?
             np.full(num_pad_blue, sigma_blue), 
             self.wavelength_resolution,
             np.full(num_pad_red, sigma_red)
@@ -234,7 +246,7 @@ class Spectrograph:
                 np.ones(self.num_pad_red, dtype=bool),
             ]
         )
-        return padded_bins, padded_bins_min, padded_bins_max, padded_wavelength_resolution, is_padding
+        return padded_bins_min, padded_bins_max
 
     def _oversample_padded_bins(self, oversampling=10):
         """Compute the oversampled padded bins to evaluate the flux density of the object.
