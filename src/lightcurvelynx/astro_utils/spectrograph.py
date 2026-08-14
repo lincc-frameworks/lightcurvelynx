@@ -110,15 +110,24 @@ class Spectrograph:
             raise ValueError(f"oversample_factor must be a positive integer, got {oversample_factor}.")
 
         # Compute the query wavelengths at which to evaluate the flux density of the object.
-        # By default, we evaluate at 10x the bin resolution.
+        # First, we pad the bins to account for smearing later.
+        # Then, we evaluate at 10x the bin resolution.
         # However, if max_wave_step is provided AND
         # we need to split at least one bin, we will add multiple points per bin (evenly space
         # throughout the bin) until the maximum gap is LESS than max_wave_step.
         self._wave_to_bin_map = None
+        padded_min, padded_max, padded_resolution, is_padding = self._compute_padded_bins()
+        self.padded_min = padded_min
+        self.padded_max = padded_max
+        self.padded_widths = padded_max - padded_min
+        self.padded_resolution = padded_resolution
+        self.is_padding = is_padding
+        self.num_padded_bins = len(self.padded_min)
         if (max_wave_step is None or np.max(self.bin_widths) <= max_wave_step) and oversample_factor == 1:
-            self.query_waves = (self.waves_min + self.waves_max) / 2
-            self._query_widths = self.bin_widths
-            self._bin_counts = np.ones(self.num_bins, dtype=int)
+            self.query_waves = (self.padded_min + self.padded_max) / 2
+            self._query_widths = self.padded_widths
+            self._bin_counts = np.ones(self.num_padded_bins, dtype=int)
+            wave_to_bin_map = list(range(self.num_padded_bins))
         else:
             if max_wave_step is not None and max_wave_step <= 0:
                     raise ValueError(f"max_wave_step must be positive, got {max_wave_step}.")
@@ -128,8 +137,8 @@ class Spectrograph:
             query_waves = []
             wave_to_bin_map = []
             query_widths = []  # The width of each query wavelength point (used for integration).
-            self._bin_counts = np.zeros(self.num_bins, dtype=int)
-            for bin_idx, (w_min, w_max) in enumerate(zip(self.waves_min, self.waves_max, strict=False)):
+            self._bin_counts = np.zeros(self.num_padded_bins, dtype=int)
+            for bin_idx, (w_min, w_max) in enumerate(zip(self.padded_min, self.padded_max, strict=False)):
 
                 # Determine the number of points based on argument used
                 if max_wave_step is not None:
@@ -173,9 +182,6 @@ class Spectrograph:
 
         # Save the other spectrograph properties if provided.
         self.instrument = instrument if instrument is not None else "Spectrograph"
-
-        # compute padded, higher-resolution bins 
-        self.padded_bins = self._compute_padded_bins(oversampling=10)
 
         # compute the smear matrix, if there are wavelength resolutions
         self.smear_matrix = self._compute_smear_matrix() if self.wavelength_resolution is not None else None
@@ -242,23 +248,21 @@ class Spectrograph:
         # combine the original bins with the padded bins
         padded_bins_min = np.concatenate((pad_blue_min, self.waves_min, pad_red_min))
         padded_bins_max = np.concatenate((pad_blue_max, self.waves_max, pad_red_max))
-        # bin centers for the padded bins
-        padded_bins = (padded_bins_max - padded_bins_min)/2
 
         padded_wavelength_resolution = np.concatenate([ # TODO: needed?
-            np.full(num_pad_blue, sigma_blue), 
+            np.full(num_pad_blue, sigma_blue),
             self.wavelength_resolution,
             np.full(num_pad_red, sigma_red)
         ])
 
         is_padding = np.concatenate(
             [
-                np.ones(self.num_pad_blue, dtype=bool),
+                np.ones(num_pad_blue, dtype=bool),
                 np.zeros(self.num_bins, dtype=bool),
-                np.ones(self.num_pad_red, dtype=bool),
+                np.ones(num_pad_red, dtype=bool),
             ]
         )
-        return padded_bins_min, padded_bins_max
+        return padded_bins_min, padded_bins_max, padded_wavelength_resolution, is_padding
 
     def _compute_smear_matrix(self, n_sigma=3):
         """Compute the smearing matrix for the spectrograph based on the wavelength resolution.
@@ -274,29 +278,31 @@ class Spectrograph:
             A 2D array of shape (num_bins, num_bins) representing the smearing matrix.
             where smear_matrix[i, j] represents the fraction of flux from bin j that smears into i
         """
-        if self.wavelength_resolution is None:
-            raise ValueError("wavelength_resolution must be provided to compute the smear matrix.")
 
-        smear_matrix = np.zeros((self.num_bins, self.num_bins))
-        for i in range(self.num_bins):
-            sigma = self.wavelength_resolution[i]
-
-            # no smearing if sigma is zero
-            if sigma == 0.0:
-                smear_matrix[i, i] = 1.0
-                continue
+        smear_matrix = np.zeros((self.num_padded_bins, self.num_padded_bins))
+        for i in range(self.num_padded_bins):
+            sigma = self.padded_resolution[i]
 
             # Determine the range of the smearing
-            lambda_bin = self.bin_widths[i]
+            lambda_bin = self.padded_widths[i]
             n_bins_index = int(n_sigma * sigma / lambda_bin + 0.5)
             j_low = max(i - n_bins_index, 0)
-            j_high = min(i + n_bins_index, self.num_bins - 1)
-            j = np.arange(j_low, j_high + 1)
+            j_high = min(i + n_bins_index, self.num_padded_bins - 1)
+            bin_center = (self.padded_min[i] + self.padded_max[i]) / 2
 
-            # compute GINT
-            lam_sig0 = (self.waves_min[j] - self.waves[i]) / sigma
-            lam_sig1 = (self.waves_max[j] - self.waves[i]) / sigma
-            smear_matrix[i, j] = gaussian_integral(lam_sig0, lam_sig1)
+            # get smearing factor, if the bin is not padding
+            for j in range(j_low, j_high + 1):
+                # skip if in the padded region
+                if self.is_padding[j]:
+                    continue
+
+                if sigma > 0:
+                    # compute the limits of the Gaussian integral in units of sigma
+                    lam_sig0 = (self.padded_min[j] - bin_center) / sigma
+                    lam_sig1 = (self.padded_max[j] - bin_center) / sigma
+                    smear_matrix[i, j] = gaussian_integral(lam_sig0, lam_sig1)
+                else: # sigma == 0, no smearing to outer bins
+                    smear_matrix[i, j] = 0.0 if i != j else 1.0
 
         return smear_matrix
 
@@ -445,21 +451,19 @@ class Spectrograph:
             # that the query flux values for each bin are contiguous.
             spectro_bin_flux_flat = np.add.reduceat(query_bin_flux_flat, self._bin_starts, axis=1)
 
-        # Multiply by any per-bin scaling factors.
-        if self.scale is not None:
-            spectro_bin_flux_flat *= self.scale[np.newaxis, :]
-
         # Reshape the bin flux density back to the original dimensions, but with the last
         # dimension corresponding to the number of bins.
-        spectro_bin_flux = spectro_bin_flux_flat.reshape(*initial_dimensions, self.num_bins)
+        spectro_bin_flux = spectro_bin_flux_flat.reshape(*initial_dimensions, self.num_padded_bins)
 
-        # If we want to add per-bin smearing, we can do that here. We should pre-compute a B x B
+        # Add per-bin smearing. By computing a B x B
         # smearing matrix in the __init__ method and then apply it here. This will allow us to model
         # the effects of the spectrograph's point spread function on the measured fluxes.
-        # For now, we will skip this step.
-
         if smear and self.smear_matrix is not None:
             spectro_bin_flux @= self.smear_matrix
 
-        # Return the final result.
-        return spectro_bin_flux
+        # Multiply by any per-bin scaling factors.
+        if self.scale is not None:
+            spectro_bin_flux *= self.scale
+
+        # Return the final result in the spectrograph's native bins.
+        return spectro_bin_flux[..., ~self.is_padding]
