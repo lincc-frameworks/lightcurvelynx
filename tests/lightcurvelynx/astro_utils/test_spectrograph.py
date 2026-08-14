@@ -23,12 +23,14 @@ def test_create_spectrograph_from_regular_grid():
     # Two dimensional fluxes to spec_fluxes
     values = np.random.random((10, len(spgraph)))
     spec_fluxes = spgraph.evaluate(values)
-    assert np.allclose(spec_fluxes, values)
+    expected = values * spgraph.bin_widths[np.newaxis, :]
+    assert np.allclose(spec_fluxes, expected)
 
     # Three dimensional fluxes to spec_fluxes
     values_3d = np.random.random((4, 10, len(spgraph)))
     spec_fluxes_3d = spgraph.evaluate(values_3d)
-    assert np.allclose(spec_fluxes_3d, values_3d)
+    expected_3d = values_3d * spgraph.bin_widths[np.newaxis, np.newaxis, :]
+    assert np.allclose(spec_fluxes_3d, expected_3d)
 
     # Test that we fail to create a Spectrograph object with invalid parameters.
     with pytest.raises(ValueError):
@@ -56,12 +58,14 @@ def test_create_spectrograph_from_irregular_grid():
     # Two dimensional fluxes to spec_fluxes
     values = np.random.random((10, len(spgraph)))
     spec_fluxes = spgraph.evaluate(values)
-    assert np.allclose(spec_fluxes, values)
+    expected = values * spgraph.bin_widths[np.newaxis, :]
+    assert np.allclose(spec_fluxes, expected)
 
     # Three dimensional fluxes to spec_fluxes
     values_3d = np.random.random((4, 10, len(spgraph)))
     spec_fluxes_3d = spgraph.evaluate(values_3d)
-    assert np.allclose(spec_fluxes_3d, values_3d)
+    expected_3d = values_3d * spgraph.bin_widths[np.newaxis, np.newaxis, :]
+    assert np.allclose(spec_fluxes_3d, expected_3d)
 
     # We fail a query if the flux density matrix is empty.
     with pytest.raises(ValueError):
@@ -116,7 +120,7 @@ def test_create_spectrograph_with_scale():
 
     # One dimensional fluxes to spec_fluxes
     measurement = np.array([50.0, 40.0, 20.0, 20.0, 10.0])
-    expected = np.array([25.0, 40.0, 20.0, 20.0, 8.0])
+    expected = np.array([25.0, 40.0, 20.0, 20.0, 8.0]) * spgraph.bin_widths
     results = spgraph.evaluate(measurement)
     assert np.allclose(results, expected)
 
@@ -127,11 +131,14 @@ def test_create_spectrograph_with_scale():
             [5.0, 15.0, 25.0, 35.0, 45.0],
         ]
     )
-    expected = np.array(
-        [
-            [5.0, 20.0, 30.0, 40.0, 40.0],
-            [2.5, 15.0, 25.0, 35.0, 36.0],
-        ]
+    expected = (
+        np.array(
+            [
+                [5.0, 20.0, 30.0, 40.0, 40.0],
+                [2.5, 15.0, 25.0, 35.0, 36.0],
+            ]
+        )
+        * spgraph.bin_widths[np.newaxis, :]
     )
     results = spgraph.evaluate(measurement)
     assert np.allclose(results, expected)
@@ -149,17 +156,20 @@ def test_create_spectrograph_with_scale():
             ],
         ]
     )
-    expected = np.array(
-        [
+    expected = (
+        np.array(
             [
-                [5.0, 20.0, 30.0, 40.0, 40.0],
-                [2.5, 15.0, 25.0, 35.0, 36.0],
-            ],
-            [
-                [4.0, 18.0, 28.0, 38.0, 38.4],
-                [2.0, 14.0, 24.0, 34.0, 35.2],
-            ],
-        ]
+                [
+                    [5.0, 20.0, 30.0, 40.0, 40.0],
+                    [2.5, 15.0, 25.0, 35.0, 36.0],
+                ],
+                [
+                    [4.0, 18.0, 28.0, 38.0, 38.4],
+                    [2.0, 14.0, 24.0, 34.0, 35.2],
+                ],
+            ]
+        )
+        * spgraph.bin_widths[np.newaxis, np.newaxis, :]
     )
     results = spgraph.evaluate(measurement)
     assert np.allclose(results, expected)
@@ -211,8 +221,8 @@ def test_create_spectrograph_max_wave_step():
     assert np.allclose(spgraph.query_waves, sample_waves, atol=0.2)
 
     # Test one dimensional fluxes to spec_fluxes
-    measurement1 = np.array([0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0])  # Number query waves
-    expected1 = np.array([5.0, 20.0, 30.0, 45.0, 75.0])  # Number bins
+    measurement1 = np.array([0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0])
+    expected1 = np.array([5.0, 20.0, 30.0, 45.0, 75.0]) * spgraph.bin_widths
     results1 = spgraph.evaluate(measurement1)
     assert np.allclose(results1, expected1)
     assert results1.shape == (spgraph.num_bins,)
@@ -224,19 +234,36 @@ def test_create_spectrograph_max_wave_step():
             [5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0, 95.0],
         ]
     )  # Number query waves by num times
-    expected2 = np.array(
-        [
-            [5.0, 20.0, 30.0, 45.0, 75.0],
-            [10.0, 25.0, 35.0, 50.0, 80.0],
-        ]
-    )  # Number bins by num times
+    expected2 = (
+        np.array(
+            [
+                [5.0, 20.0, 30.0, 45.0, 75.0],
+                [10.0, 25.0, 35.0, 50.0, 80.0],
+            ]
+        )
+        * spgraph.bin_widths[np.newaxis, :]
+    )
     results2 = spgraph.evaluate(measurement2)
     assert np.allclose(results2, expected2)
     assert results2.shape == (2, spgraph.num_bins)
 
     # Test three dimensional fluxes to bandfluxes
     measurement3 = np.array([measurement2, measurement2 + 2.0])
-    expected3 = np.array([expected2, expected2 + 2.0])
+    expected3 = (
+        np.array(
+            [
+                [
+                    [5.0, 20.0, 30.0, 45.0, 75.0],
+                    [10.0, 25.0, 35.0, 50.0, 80.0],
+                ],
+                [
+                    [7.0, 22.0, 32.0, 47.0, 77.0],
+                    [12.0, 27.0, 37.0, 52.0, 82.0],
+                ],
+            ]
+        )
+        * spgraph.bin_widths[np.newaxis, np.newaxis, :]
+    )
     results3 = spgraph.evaluate(measurement3)
     assert np.allclose(results3, expected3)
     assert results3.shape == (2, 2, spgraph.num_bins)

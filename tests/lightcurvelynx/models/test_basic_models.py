@@ -54,7 +54,7 @@ def test_constant_sed_model() -> None:
     # When evaluating spectra, we get one result for each bin.
     sg_pbg = Spectrograph.from_regular_grid(wave_start=4000, wave_end=8000, bin_width=200.0)
     values2 = model.evaluate_spectra(times, sg_pbg, state)
-    expected2 = np.full((len(times), len(sg_pbg)), 10.0)
+    expected2 = np.full((len(times), len(sg_pbg)), 10.0) * sg_pbg.bin_widths[None, :]
     assert np.allclose(values2, expected2)
 
     # We can do multiple samples as well.
@@ -207,7 +207,10 @@ def test_linear_wavelength_model() -> None:
     # When evaluating spectra, we get one result for each bin.
     sg_pbg = Spectrograph.from_regular_grid(wave_start=4000, wave_end=5000, bin_width=200.0)
     values2 = model.evaluate_spectra(times, sg_pbg, state)
-    expected2 = np.tile(np.array([411.0, 431.0, 451.0, 471.0, 491.0]), (len(times), 1))
+    expected2 = np.tile(
+        np.array([411.0, 431.0, 451.0, 471.0, 491.0]) * sg_pbg.bin_widths[None, :],
+        (len(times), 1),
+    )
     assert np.allclose(values2, expected2)
 
 
