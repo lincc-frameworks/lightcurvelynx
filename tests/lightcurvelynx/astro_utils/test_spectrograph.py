@@ -112,7 +112,7 @@ def test_spectrograph_equals():
 
 
 def test_create_spectrograph_with_scale():
-    """Test that we can create and query a Spectrograph object."""
+    """Test that we can create and query a Spectrograph object with a scale."""
     scale = np.array([0.5, 1.0, 1.0, 1.0, 0.8])
     spgraph = Spectrograph.from_regular_grid(wave_start=4000, wave_end=5000, bin_width=200.0, scale=scale)
     assert np.allclose(spgraph.query_waves, np.array([4100.0, 4300.0, 4500.0, 4700.0, 4900.0]))
@@ -189,6 +189,32 @@ def test_create_spectrograph_with_scale():
     bad_scale = np.array([1.0, 0.8])
     with pytest.raises(ValueError):
         _ = Spectrograph(spgraph.waves_min, spgraph.waves_max, scale=bad_scale)
+
+
+def test_create_spectrograph_with_float_scale():
+    """Test that we can create and query a Spectrograph object with a scalar float scale."""
+    spgraph = Spectrograph.from_regular_grid(wave_start=4000, wave_end=5000, bin_width=200.0, scale=0.5)
+    assert np.allclose(spgraph.query_waves, np.array([4100.0, 4300.0, 4500.0, 4700.0, 4900.0]))
+    assert spgraph.num_bins == 5
+
+    # Make sure the scale is applied correctly to the fluxes.
+    measurement = np.array(
+        [
+            [10.0, 20.0, 30.0, 40.0, 50.0],
+            [5.0, 15.0, 25.0, 35.0, 45.0],
+        ]
+    )
+    expected = (
+        np.array(
+            [
+                [5.0, 10.0, 15.0, 20.0, 25.0],
+                [2.5, 7.5, 12.5, 17.5, 22.5],
+            ]
+        )
+        * spgraph.bin_widths[np.newaxis, :]
+    )
+    results = spgraph.evaluate(measurement)
+    assert np.allclose(results, expected)
 
 
 def test_create_spectrograph_max_wave_step():

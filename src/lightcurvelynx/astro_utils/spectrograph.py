@@ -30,7 +30,7 @@ class Spectrograph:
         this is the midpoint of each bin (when `max_wave_step` is None or small enough).
     instrument : str
         The instrument name for the spectrograph. Default is "Spectrograph".
-    scale : np.ndarray
+    scale : float | np.ndarray | None
         The multiplicative factor to apply to each bin's flux to capture sensor
         sensitivity, etc. If None, no scaling is applied and the fluxes are returned as-is.
     """
@@ -122,9 +122,12 @@ class Spectrograph:
 
         # Scale is the multiplicative factor to apply to each bin's flux.
         if scale is not None:
-            if len(scale) != self.num_bins:
-                raise ValueError("Scale array must have the same length as the number of bins.")
-            self.scale = np.asarray(scale)
+            if np.isscalar(scale):
+                self.scale = np.full(self.num_bins, float(scale), dtype=float)
+            else:
+                if len(scale) != self.num_bins:
+                    raise ValueError("Scale array must have the same length as the number of bins.")
+                self.scale = np.asarray(scale)
         else:
             self.scale = None
 
