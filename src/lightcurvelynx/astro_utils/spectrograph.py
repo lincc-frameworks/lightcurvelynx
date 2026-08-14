@@ -186,7 +186,6 @@ class Spectrograph:
 
     def __len__(self) -> int:
         return self.num_bins
-        return self.num_bins
 
     def __eq__(self, other) -> bool:
         """Determine if two spectrographs have equal values for their internal data."""
