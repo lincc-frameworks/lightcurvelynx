@@ -42,8 +42,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         The name used to set the source.
     source_param_names : list
         A list of the source model's parameters that we need to set.
-    meta_data : dict
-        A dictionary of meta data about the model.
+    model_metadata : redback.model_library.ModelMetadata | None
+        Additional metadata provided about the model.
 
     Parameters
     ----------
@@ -69,7 +69,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
     time_extrapolation : tuple of Extrapolation, optional
         The extrapolation method to use for times outside the model's bounds.
         If nothing is provided, then the code adds zero padding.
-    model_metadata : ModelMetadata, optional
+    model_metadata : redback.model_library.ModelMetadata, optional
         The additional redback meta data. This can be accessed via redback's
         get_model_metadata(<MODEL_NAME>) function.
     **kwargs : dict, optional
