@@ -259,7 +259,7 @@ def test_redback_models_phase_from_metadata() -> None:
     assert model.minphase() == pytest.approx(0.001)
     assert model.maxphase() == pytest.approx(10.0)
 
-    # We can evalute the model.
+    # We can evaluate the model.
     state = model.sample_parameters()
     times = np.array([-10.0, -5.0, 0.5, 10.0, 15.0]) + t0
     waves_ang = np.array([1000.0, 2000.0])

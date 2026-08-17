@@ -161,7 +161,9 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             self.source_name = source.__name__
             self.source = source
 
-        # Check if the source has a metadata attribute that we should include.
+        # Store any passed-in / auto-extracted model metadata.
+        if model_metadata is None and hasattr(self.source, "model_metadata"):
+            model_metadata = self.source.model_metadata
         self.model_metadata = model_metadata
 
         # Check if the model has a citation parameter we should include.
