@@ -93,7 +93,11 @@ class Spectrograph:
         self.waves_min = np.asarray(waves_min, dtype=float)
         self.waves_max = np.asarray(waves_max, dtype=float)
         self.num_bins = len(self.waves_min)
-        self.wavelength_resolution = np.asarray(wavelength_resolution, dtype=float) if wavelength_resolution is not None else np.zeros(self.num_bins, dtype=float)
+
+        oversample_factor = 1 if wavelength_resolution is None else oversample_factor
+        self.wavelength_resolution = np.asarray(wavelength_resolution, dtype=float) \
+            if wavelength_resolution is not None else np.zeros(self.num_bins, dtype=float)
+        
         if self.num_bins <= 0:  # pragma: no cover
             raise ValueError("Spectrograph must have at least one bin.")
         if len(self.waves_max) != self.num_bins:
@@ -206,7 +210,11 @@ class Spectrograph:
             return False
         if not np.allclose(self.bin_widths, other.bin_widths):  # pragma: no cover
             return False
+        if not np.allclose(self.wavelength_resolution, other.wavelength_resolution):
+            return False
         if self.instrument != other.instrument:  # pragma: no cover
+            return False
+        if len(self.query_waves) != len(other.query_waves):
             return False
         if not np.allclose(self.query_waves, other.query_waves):  # pragma: no cover
             return False
@@ -279,7 +287,7 @@ class Spectrograph:
         -------
         smear_matrix : np.ndarray
             A 2D array of shape (num_bins, num_bins) representing the smearing matrix.
-            where smear_matrix[i, j] represents the fraction of flux from bin j that smears into i
+            where smear_matrix[i, j] represents the fraction of flux from bin i that smears into j
         """
 
         smear_matrix = np.zeros((self.num_padded_bins, self.num_padded_bins))
