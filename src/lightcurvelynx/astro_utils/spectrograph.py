@@ -93,6 +93,7 @@ class Spectrograph:
         self.waves_min = np.asarray(waves_min, dtype=float)
         self.waves_max = np.asarray(waves_max, dtype=float)
         self.num_bins = len(self.waves_min)
+        self.wavelength_resolution = np.asarray(wavelength_resolution, dtype=float) if wavelength_resolution is not None else np.zeros(self.num_bins, dtype=float)
         if self.num_bins <= 0:  # pragma: no cover
             raise ValueError("Spectrograph must have at least one bin.")
         if len(self.waves_max) != self.num_bins:
@@ -108,6 +109,8 @@ class Spectrograph:
         # check the oversample_factor
         if type(oversample_factor) is not int or oversample_factor < 1:
             raise ValueError(f"oversample_factor must be a positive integer, got {oversample_factor}.")
+
+        
 
         # Compute the query wavelengths at which to evaluate the flux density of the object.
         # First, we pad the bins to account for smearing later.
@@ -461,9 +464,12 @@ class Spectrograph:
         if smear and self.smear_matrix is not None:
             spectro_bin_flux @= self.smear_matrix
 
+        # get the flux in the spectrograph's native bins (not the padded bins)
+        spectro_bin_flux = spectro_bin_flux[..., ~self.is_padding]
+
         # Multiply by any per-bin scaling factors.
         if self.scale is not None:
             spectro_bin_flux *= self.scale
 
         # Return the final result in the spectrograph's native bins.
-        return spectro_bin_flux[..., ~self.is_padding]
+        return spectro_bin_flux
