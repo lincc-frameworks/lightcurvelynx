@@ -71,7 +71,9 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         If nothing is provided, then the code adds zero padding.
     model_metadata : redback.model_library.ModelMetadata, optional
         The additional redback meta data. This can be accessed via redback's
-        get_model_metadata(<MODEL_NAME>) function.
+        get_model_metadata(<MODEL_NAME>) function. If the source is provided by name
+        and no model_metadata is provided, the code will attempt to fetch metadata using
+        this function.
     **kwargs : dict, optional
         Any additional keyword arguments.
 
