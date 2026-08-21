@@ -570,7 +570,7 @@ def test_graph_state_equal():
     state6 = GraphState(num_samples=2)
     assert state5 != state6
 
-    # Two states are not equal if they have sets of parameters.
+    # Two states are not equal if they have different sets of parameters.
     state7 = GraphState(num_samples=2)
     state7.set("a", "v1", [1.0, 1.0])
     state7.set("a", "v2", [2.0, 2.0])
