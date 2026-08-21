@@ -170,7 +170,7 @@ class SEDBasisModel:
             if filter not in self.sed_values:
                 raise ValueError(f"Filter {filter} not found in SED basis model.")
 
-            filter_mask = np.array(filters) == filter
+            filter_mask = np.asarray(filters) == filter
             sed_values = self.compute_sed(filter, wavelengths)
             flux_density[filter_mask, :] = np.outer(bandfluxes[filter_mask], sed_values)
 
