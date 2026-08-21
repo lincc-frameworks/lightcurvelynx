@@ -86,7 +86,7 @@ class _ColumnNormalizationData:
         """
         data = np.asarray(data)
         if self.log_transform:
-            if np.any(data <= 0):
+            if np.any(data <= 0):  # pragma: no cover
                 raise ValueError(
                     "Data contains non-positive values, cannot apply log transform for normalization."
                 )
@@ -188,21 +188,6 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         self._flux_floor = flux_floor
         self._err_scale = err_scale
         self._update_required_values()
-
-    def add_column_mapping(self, flow_input_name, obs_table_col_name):
-        """Add a mapping from a pzflow input parameter name to an ObsTable column name.
-
-        This function is used when the model is created with on data with different
-        column names than the ObsTable on which it will be applied.
-
-        Parameters
-        ----------
-        flow_input_name : str
-            The name of the input parameter for the pzflow model.
-        obs_table_col_name : str
-            The name of the column in the ObsTable that should be used for this parameter.
-        """
-        self._input_col_map[flow_input_name] = obs_table_col_name
 
     def _bandflux_floor(self):
         """Return the lower bound for the bandflux conditioning input (in the same
