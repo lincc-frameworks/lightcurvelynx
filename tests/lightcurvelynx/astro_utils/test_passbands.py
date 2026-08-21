@@ -55,6 +55,18 @@ def test_trim_transmission_by_quantile():
     assert np.allclose(trimmed_table[:, 0], waves[8:90])
     assert np.allclose(trimmed_table[:, 1], values[8:90])
 
+    # NaN value should raise a ValueError.
+    with pytest.raises(ValueError):
+        Passband.trim_transmission_by_quantile(np.array([[1000, np.nan], [1005, 0.6]]), 0.1)
+
+    # Negative transmission value should raise a ValueError.
+    with pytest.raises(ValueError):
+        Passband.trim_transmission_by_quantile(np.array([[1000, -0.5], [1005, 0.6]]), 0.1)
+
+    # A transmission curve with zero total area should raise a ValueError.
+    with pytest.raises(ValueError):
+        Passband.trim_transmission_by_quantile(np.array([[1000, 0.0], [1005, 0.0]]), 0.1)
+
 
 def test_normalize_transmission():
     """Test that we can normalize a transmission table."""

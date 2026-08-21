@@ -510,7 +510,7 @@ class PassbandGroup:
         self._filter_to_name = {}
         for full_name, pb_obj in self.passbands.items():
             if pb_obj.filter_name in self._filter_to_name:
-                logger.info("Multiple passband objects detected for filter {pb_obj.filter_name}")
+                logger.info(f"Multiple passband objects detected for filter {pb_obj.filter_name}")
                 self._filter_to_name[pb_obj.filter_name].append(full_name)
             else:
                 self._filter_to_name[pb_obj.filter_name] = [full_name]
@@ -673,6 +673,8 @@ class PassbandGroup:
             A dictionary of bandfluxes with passband full names as keys and np.ndarrays of
             bandfluxes as values.
         """
+        if flux_density_matrix.ndim != 2:
+            raise ValueError("Flux density matrix must be a 2D array.")
         if flux_density_matrix.size == 0 or len(self.waves) != len(flux_density_matrix[0]):
             flux_density_matrix_num_cols = 0 if flux_density_matrix.size == 0 else len(flux_density_matrix[0])
             raise ValueError(
@@ -791,6 +793,7 @@ class Passband:
         self.delta_wave = delta_wave
 
         # Perform validation of the transmission table.
+        table_values = np.atleast_2d(table_values).astype(float)
         if table_values.shape[1] != 2:
             raise ValueError("Passband requires an input table with exactly two columns.")
         diffs = np.diff(table_values[:, 0])
@@ -1086,7 +1089,9 @@ class Passband:
             raise ValueError(f"Unsupported file format for transmission table: {table_path.suffix}")
 
         # Check that the table has the correct shape
-        if loaded_table.size == 0 or loaded_table.shape[1] != 2:
+        if loaded_table.size == 0:
+            raise ValueError("Transmission table is empty.")
+        if loaded_table.ndim != 2 or loaded_table.shape[1] != 2:
             raise ValueError("Transmission table must have exactly 2 columns.")
 
         # If the table is given in nanometers, convert to Angstroms (by multiplying by 10.0).
@@ -1195,12 +1200,20 @@ class Passband:
         # Separate wavelengths and transmissions
         wavelengths = table[:, 0]
         transmissions = table[:, 1]
+        if np.any(~np.isfinite(transmissions)):
+            raise ValueError("Transmission values contain NaN or Inf; cannot trim passband.")
+        if np.any(transmissions < 0):
+            raise ValueError("Transmission values must be non-negative.")
 
         # Calculate the cumulative sum of the transmission values (area under the curve)
         cumulative_area = scipy.integrate.cumulative_trapezoid(transmissions, x=wavelengths)
 
-        # Normalize cumulative area to range from 0 to 1
-        cumulative_area /= cumulative_area[-1]
+        # Normalize cumulative area to range from 0 to 1, checking that we don't
+        # try to divide by (near) zero.
+        total_area = cumulative_area[-1]
+        if total_area <= np.finfo(float).eps:
+            raise ValueError(f"Not enough total area in transmission curve: {total_area}. ")
+        cumulative_area /= total_area
 
         # Find indices where the cumulative area exceeds the trim quantiles
         lower_bound = max(np.searchsorted(cumulative_area, trim_quantile, side="right") - 1, 0)
@@ -1249,7 +1262,7 @@ class Passband:
         numerators = transmissions / wavelengths_angstrom
         denominator = scipy.integrate.trapezoid(numerators, x=wavelengths_angstrom)
 
-        if denominator == 0:
+        if np.isclose(denominator, 0.0):
             raise ValueError("Denominator is zero; cannot normalize transmission table.")
 
         # Calculate phi_b for each wavelength
