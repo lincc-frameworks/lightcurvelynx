@@ -64,6 +64,7 @@ in roughly alphabetical order of simulation package or simulation type).
 .. toctree::
     :maxdepth: 1
 
+    Rubin DP2 (end to end example) <notebooks/pre_executed/rubin_dp2>
     AGN Damped Random Walk Model <notebooks/pre_executed/agn>
     Basic SNIa Simulation <notebooks/simple_snia>
     Simulating SNIa with Rubin Opsim <notebooks/pre_executed/plasticc_snia>
