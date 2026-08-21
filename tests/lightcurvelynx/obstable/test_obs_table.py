@@ -476,7 +476,7 @@ def test_obs_table_filter_rows():
     with pytest.raises(ValueError):
         _ = ops_data.filter_rows(bad_mask)
 
-    # We throw and error if the rows array is not one-dimensional.
+    # We throw an error if the rows array is not one-dimensional.
     bad_rows = np.array([[True, False]])
     with pytest.raises(ValueError):
         _ = ops_data.filter_rows(bad_rows)
