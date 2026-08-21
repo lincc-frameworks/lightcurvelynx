@@ -13,15 +13,19 @@ class SED:
     Attributes
     ----------
     wavelengths : np.ndarray
-        The wavelength values of the SED.
+        The 1-dimensional array of wavelength values of the SED.
     fluxes : np.ndarray
-        The flux values of the SED.
+        The 1-dimensional array of flux values of the SED.
     """
 
     def __init__(self, wavelengths, fluxes, **kwargs):
-        self.wavelengths = np.array(wavelengths)
-        self.fluxes = np.array(fluxes)
+        self.wavelengths = np.asarray(wavelengths, dtype=float)
+        self.fluxes = np.asarray(fluxes, dtype=float)
 
+        if self.wavelengths.ndim != 1:
+            raise ValueError("Wavelengths must be a 1D array.")
+        if self.fluxes.ndim != 1:
+            raise ValueError("Fluxes must be a 1D array.")
         if len(wavelengths) < 2:
             raise ValueError("SED must have at least two wavelength and flux values.")
         if len(wavelengths) != len(fluxes):
