@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from mocpy import MOC
 
+from lightcurvelynx.astro_utils.coordinate_utils import validate_ra_dec_degrees
 from lightcurvelynx.obstable.obs_table import ObsTable
 
 
@@ -140,24 +141,10 @@ class LocationFreeObsTable(ObsTable):
             If the input is a single query point, this is a 1D array of row indices.
             If the input is an array of query points, this is a list of index arrays (one per query).
         """
-        if query_ra is None or query_dec is None:
-            raise ValueError("Query RA and dec must be provided for range search, but got None.")
-
-        # If the query RA and Dec are scalars, convert them to 1D arrays for consistent processing.
         is_scalar = np.isscalar(query_ra) and np.isscalar(query_dec)
-        try:
-            query_ra = np.atleast_1d(query_ra).astype(float)
-            query_dec = np.atleast_1d(query_dec).astype(float)
-        except ValueError as err:
-            raise ValueError("Query RA and Dec must be convertible to float.") from err
-
+        query_ra, query_dec = validate_ra_dec_degrees(query_ra, query_dec)
         if query_ra.ndim != 1 or query_dec.ndim != 1:
             raise ValueError("Query RA and Dec must be 1-dimensional arrays.")
-        if len(query_ra) != len(query_dec):
-            raise ValueError("Query RA and Dec must have the same length.")
-        if np.any(np.isnan(query_ra)) or np.any(np.isnan(query_dec)):
-            raise ValueError("Query RA and Dec cannot contain NaN.")
-
         num_queries = len(query_ra)
 
         # If t_min is a scalar, convert it to a 1D array for consistent processing.

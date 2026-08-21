@@ -23,10 +23,15 @@ def validate_ra_dec_degrees(ra, dec):
     dec: numpy.ndarray
         Validated declination array in degrees.
     """
+    if ra is None or dec is None:
+        raise ValueError("RA and Dec must not be None.")
+
     ra = np.atleast_1d(ra).astype(float) % 360.0
     dec = np.atleast_1d(dec).astype(float)
     if np.any(dec < -90.0) or np.any(dec > 90.0):
         raise ValueError("Declination values must be in the range [-90, 90] degrees.")
+    if not np.all(np.isfinite(ra)) or not np.all(np.isfinite(dec)):
+        raise ValueError("RA and Dec cannot contain NaN or infinite values.")
 
     # Check that the shapes of RA and Dec match.
     if ra.shape != dec.shape:
