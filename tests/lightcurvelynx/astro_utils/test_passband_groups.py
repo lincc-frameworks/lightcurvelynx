@@ -598,6 +598,10 @@ def test_passband_group_fluxes_to_bandfluxes(passbands_dir):
         bandflux = lsst_passband_group.fluxes_to_bandflux(flux, band_name)
         np.testing.assert_allclose(bandflux, bandfluxes[band_name])
 
+    # Test that we fail with a non-2D flux matrix.
+    with pytest.raises(ValueError):
+        _ = lsst_passband_group.fluxes_to_bandfluxes(np.array([1, 2, 3]))
+
     # Test that we fail with a bad flux matrix (not enough wavelengths).
     with pytest.raises(ValueError):
         _ = lsst_passband_group.fluxes_to_bandfluxes(np.array([[1, 2], [3, 4]]))

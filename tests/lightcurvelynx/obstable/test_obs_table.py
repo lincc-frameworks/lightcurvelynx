@@ -476,6 +476,16 @@ def test_obs_table_filter_rows():
     with pytest.raises(ValueError):
         _ = ops_data.filter_rows(bad_mask)
 
+    # We throw an error if the rows array is not one-dimensional.
+    bad_rows = np.array([[True, False]])
+    with pytest.raises(ValueError):
+        _ = ops_data.filter_rows(bad_rows)
+
+    # We throw an error if the rows array is neither a Boolean mask nor a list of integer indices.
+    bad_rows = np.array([0.5, 1.5])
+    with pytest.raises(ValueError):
+        _ = ops_data.filter_rows(bad_rows)
+
 
 def test_obs_table_filter_invalid_rows():
     """Test that we can filter out rows with invalid values in the required columns."""

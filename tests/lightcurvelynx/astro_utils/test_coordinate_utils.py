@@ -5,7 +5,56 @@ from lightcurvelynx.astro_utils.coordinate_utils import (
     build_moc_from_coords,
     dedup_coords,
     ra_dec_to_cartesian,
+    validate_ra_dec_degrees,
 )
+
+
+def test_validate_ra_dec_degrees():
+    """Test that we can validate RA and Dec arrays."""
+    # No change needed, everything valid.
+    ra = np.array([0, 90, 180, 270])
+    dec = np.array([0, 0, 0, 0])
+    validated_ra, validated_dec = validate_ra_dec_degrees(ra, dec)
+    np.testing.assert_array_equal(validated_ra, ra)
+    np.testing.assert_array_equal(validated_dec, dec)
+
+    # Test RA wrapping
+    ra = np.array([0, 360, 720])
+    dec = np.array([0, 0, 0])
+    validated_ra, validated_dec = validate_ra_dec_degrees(ra, dec)
+    np.testing.assert_array_equal(validated_ra, np.array([0, 0, 0]))
+    np.testing.assert_array_equal(validated_dec, dec)
+
+    # Invalid declination.
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([0], [100])  # Dec out of bounds
+
+    # Test mismatched shapes
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([0, 1], [0])
+
+    # We correctly handle scalar inputs.
+    ra = 180
+    dec = 45
+    validated_ra, validated_dec = validate_ra_dec_degrees(ra, dec)
+    np.testing.assert_array_equal(validated_ra, np.array([180]))
+    np.testing.assert_array_equal(validated_dec, np.array([45]))
+
+    # We fail when either RA or Dec is None.
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees(None, [0])
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([0], None)
+
+    # We fail with non-finite values (NaN or Inf).
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([0], [np.nan])
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([np.nan], [0])
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([0], [np.inf])
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([np.inf], [0])
 
 
 def test_ra_dec_to_cartesian():

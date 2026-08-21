@@ -96,7 +96,8 @@ class SpectrographNoiseModel(ABC):
             same units as the input measurements.
         """
         # Define the random number generator if not provided.
-        rng = np.random.default_rng(rng)
+        if rng is None:
+            rng = np.random.default_rng()
 
         # Compute the standard deviation of the noise and make sure it is a numpy array.
         flux_err = self.compute_flux_error(

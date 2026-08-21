@@ -273,7 +273,7 @@ def results_augment_lightcurves(results, *, min_snr=0.0):
         # Get the index for the t0 entry for each lightcurve MJD and use that
         # to subtract out the reference t0.
         t0 = np.asanyarray(results["t0"])
-        t0_idx = np.array(results["lightcurve"]["mjd"].index)
+        t0_idx = np.asarray(results["lightcurve"]["mjd"].index)
         results["lightcurve.time_rel"] = results["lightcurve.mjd"] - t0[t0_idx]
 
     return results

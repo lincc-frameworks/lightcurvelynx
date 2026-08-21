@@ -9,6 +9,8 @@ from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
 from regions import PixCoord, RectanglePixelRegion, RectangleSkyRegion, SkyRegion
 
+from lightcurvelynx.astro_utils.coordinate_utils import validate_ra_dec_degrees
+
 
 class DetectorFootprint:
     """A wrapper class for representing detector footprints.
@@ -229,13 +231,8 @@ class DetectorFootprint:
         scalar_data = np.isscalar(ra)
 
         # Make all inputs into arrays and confirm they have the same shape.
-        ra = np.atleast_1d(ra)
-        dec = np.atleast_1d(dec)
-        if ra.shape != dec.shape:
-            raise ValueError("ra and dec must have the same shape.")
-
-        center_ra = np.atleast_1d(center_ra)
-        center_dec = np.atleast_1d(center_dec)
+        ra, dec = validate_ra_dec_degrees(ra, dec)
+        center_ra, center_dec = validate_ra_dec_degrees(center_ra, center_dec)
         if center_ra.shape != ra.shape:
             if center_ra.shape != (1,):
                 raise ValueError("center_ra must have the same shape as ra and dec.")
