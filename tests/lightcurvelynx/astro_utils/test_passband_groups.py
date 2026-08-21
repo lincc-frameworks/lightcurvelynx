@@ -62,7 +62,7 @@ def create_toy_passband_group(path, delta_wave=5.0, trim_quantile=None):
     return PassbandGroup(passbands)
 
 
-def test_passband_group_access(tmp_path):
+def test_passband_group_access():
     """Test that we can create a passband group and access the individual passbands."""
     table_vals = np.array([[100, 0.5], [200, 0.75], [300, 0.25]])
     pb_list = [
@@ -117,7 +117,7 @@ def test_passband_group_access(tmp_path):
     assert np.array_equal(pb_group.mask_by_filter(filters), expected)
 
 
-def test_passband_group_create(tmp_path):
+def test_passband_group_create():
     """Test that we can create passband groups with different inputs."""
     table_vals = np.array([[100, 0.5], [200, 0.75], [300, 0.25]])
     pb1 = Passband(table_vals, "survey1", "a", trim_quantile=None)
@@ -134,8 +134,12 @@ def test_passband_group_create(tmp_path):
     with pytest.raises(ValueError):
         _ = PassbandGroup(given_passbands=[])
 
+    # We throw and error if we get invalid input.
+    with pytest.raises(TypeError):
+        _ = PassbandGroup(given_passbands=[123])  # Invalid type
 
-def test_passband_group_process_transmission_tables(tmp_path):
+
+def test_passband_group_process_transmission_tables():
     """Test that we can create reprocess the passbands in a group."""
     table_vals = np.array([[100, 0.5], [200, 0.75], [300, 0.25]])
     pb1 = Passband(table_vals, "survey1", "a", delta_wave=5.0, trim_quantile=None)

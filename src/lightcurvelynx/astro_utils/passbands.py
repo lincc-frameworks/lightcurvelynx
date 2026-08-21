@@ -406,7 +406,7 @@ class PassbandGroup:
 
         # Download the table if it does not exist or if force_download is True.
         success = download_data_file_if_needed(table_path, table_url, force_download=force_download)
-        if not success:
+        if not success:  # pragma: no cover
             raise RuntimeError(f"Failed to download Roman passband table from {table_url}.")
 
         # Load the table, convert the wavelengths from microns to Angstroms, create Passband objects.
@@ -894,7 +894,7 @@ class Passband:
 
         # Download the table if it does not exist or if force_download is True.
         success = download_data_file_if_needed(table_path, table_url, force_download=force_download)
-        if not success:
+        if not success:  # pragma: no cover
             raise RuntimeError(f"Failed to download passband table from {table_url}.")
 
         # Load the table and create the passband.
@@ -1262,7 +1262,7 @@ class Passband:
         numerators = transmissions / wavelengths_angstrom
         denominator = scipy.integrate.trapezoid(numerators, x=wavelengths_angstrom)
 
-        if np.isclose(denominator, 0.0):
+        if np.isclose(denominator, 0.0):  # pragma: no cover
             raise ValueError("Denominator is zero; cannot normalize transmission table.")
 
         # Calculate phi_b for each wavelength
