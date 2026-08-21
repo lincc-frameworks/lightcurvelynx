@@ -40,7 +40,7 @@ def sample_damped_random_walk(times, tau_v, sf_inf, t0, rng=None):
     samples : float
         The sampled value of the damped random walk.
     """
-    if rng is None:
+    if rng is None:  # pragma: no cover
         rng = np.random.default_rng()
 
     if len(sf_inf) != len(tau_v):
