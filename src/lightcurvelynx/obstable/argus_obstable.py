@@ -9,6 +9,7 @@ from astropy.coordinates import SkyCoord
 from cdshealpix import skycoord_to_healpix
 from mocpy import MOC
 
+from lightcurvelynx.astro_utils.coordinate_utils import validate_ra_dec_degrees
 from lightcurvelynx.astro_utils.zeropoint import calculate_zp_from_maglim
 from lightcurvelynx.consts import GAUSS_EFF_AREA2FWHM_SQ
 from lightcurvelynx.obstable.obs_table import ObsTable
@@ -285,10 +286,7 @@ class ArgusHealpixObsTable(ObsTable):
         """
         # If the query RA and Dec are scalars, convert them to 1D arrays for consistent processing.
         is_scalar = np.isscalar(query_ra) and np.isscalar(query_dec)
-        query_ra = np.atleast_1d(query_ra)
-        query_dec = np.atleast_1d(query_dec)
-        if len(query_ra) != len(query_dec):
-            raise ValueError("Query RA and Dec must have the same length.")
+        query_ra, query_dec = validate_ra_dec_degrees(query_ra, query_dec)
 
         # Bulk compute the healpix ids for all query points.
         coords = SkyCoord(query_ra * u.deg, query_dec * u.deg, frame="icrs")
