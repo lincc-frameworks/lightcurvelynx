@@ -57,7 +57,7 @@ def test_single_static_sed_from_numpy() -> None:
     with pytest.warns(UserWarning):
         # Warns for wavelengths outside the SED range.
         values2 = model.evaluate_spectra(times, sg_pbg, None)
-    expected_row = np.array([17.5, 20.0, 20.0, 17.5, 12.5, 0.0])
+    expected_row = np.array([17.5, 20.0, 20.0, 17.5, 12.5, 0.0]) * sg_pbg.bin_widths[None, :]
     expected_all = np.tile(expected_row, (5, 1))
     assert np.allclose(values2, expected_all)
 
