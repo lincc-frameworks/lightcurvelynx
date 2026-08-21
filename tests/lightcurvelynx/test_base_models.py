@@ -4,6 +4,7 @@ import jax
 import numpy as np
 import pytest
 from lightcurvelynx.base_models import FunctionNode, ParameterizedNode, _ParameterSource
+from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
 
 
@@ -387,8 +388,13 @@ def test_parameterized_node_build_pytree():
     """Test that we can extract the PyTree of a graph."""
     model1 = _PairModel(value1=0.5, value2=1.5, node_label="A")
     model2 = _PairModel(value1=model1.value1, value2=3.0, node_label="B")
-    graph_state = model2.sample_parameters()
 
+    # We fail if the model has never been sampled (and thus node positions are not set)
+    bad_graph_state = GraphState(num_samples=1)
+    with pytest.raises(ValueError):
+        model2.build_pytree(bad_graph_state)
+
+    graph_state = model2.sample_parameters()
     pytree = model2.build_pytree(graph_state)
     assert pytree["A"]["value1"] == 0.5
     assert pytree["A"]["value2"] == 1.5
@@ -428,6 +434,13 @@ def test_function_node_basic():
 
     # We can also compute this result (for testing) by calling generate().
     assert my_func.generate() == 3.0
+
+
+def test_function_node_none():
+    """Test that we can create a function node without a function, but we fail in compute."""
+    my_func = FunctionNode(None, value1=1.0, value2=2.0)
+    with pytest.raises(ValueError):
+        my_func.sample_parameters()
 
 
 def test_function_node_chain():
