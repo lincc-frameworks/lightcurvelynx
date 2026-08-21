@@ -290,7 +290,8 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
             raise ValueError("Length of indices must match length of bandflux.")
 
         # Set up the random number generator.
-        rng = np.random.default_rng(rng)
+        if rng is None:
+            rng = np.random.default_rng()
 
         # Get the input parameters for the flow (if there are any).
         if self._flow.conditional_columns is not None and len(self._flow.conditional_columns) > 0:
@@ -319,7 +320,8 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
             input_df = None
 
         # Sample from the flow to get the noise parameters.
-        rng = np.random.default_rng(rng)
+        if rng is None:
+            rng = np.random.default_rng()
         pzflow_seed = rng.integers(0, 1e9)
         samples = self._flow.sample(nsamples=1, conditions=input_df, seed=pzflow_seed)
         flux_err = np.clip(samples[self._output_column].values, a_min=0, a_max=None)

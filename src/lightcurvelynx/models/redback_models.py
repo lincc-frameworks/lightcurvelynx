@@ -42,6 +42,8 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         The name used to set the source.
     source_param_names : list
         A list of the source model's parameters that we need to set.
+    model_metadata : redback.model_library.ModelMetadata | None
+        Additional metadata provided about the model.
 
     Parameters
     ----------
@@ -67,6 +69,11 @@ class RedbackWrapperModel(SEDModel, CiteClass):
     time_extrapolation : tuple of Extrapolation, optional
         The extrapolation method to use for times outside the model's bounds.
         If nothing is provided, then the code adds zero padding.
+    model_metadata : redback.model_library.ModelMetadata, optional
+        The additional redback meta data. This can be accessed via redback's
+        get_model_metadata(<MODEL_NAME>) function. If the source is provided by name
+        and no model_metadata is provided, the code will attempt to fetch metadata using
+        this function.
     **kwargs : dict, optional
         Any additional keyword arguments.
 
@@ -89,6 +96,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         phase_bounds=None,
         wave_bounds=(None, None),
         time_extrapolation=None,
+        model_metadata=None,
         **kwargs,
     ):
         # Check that the parameters passed in the dictionary and keyword arguments
@@ -143,9 +151,22 @@ class RedbackWrapperModel(SEDModel, CiteClass):
             if source not in redback.model_library.all_models_dict:  # pragma: no cover
                 raise ValueError(f"Redback model '{source}' not found in redback model library.")
             self.source = redback.model_library.all_models_dict[source]
+
+            # If metadata is not passed, see if we can automatically extract it
+            # from the model library.
+            if model_metadata is None:  # pragma: no cover
+                model_metadata = redback.model_library.get_model_metadata(
+                    self.source_name,
+                    default=None,
+                )
         else:
             self.source_name = source.__name__
             self.source = source
+
+        # Store any passed-in / auto-extracted model metadata.
+        if model_metadata is None and hasattr(self.source, "model_metadata"):
+            model_metadata = self.source.model_metadata
+        self.model_metadata = model_metadata
 
         # Check if the model has a citation parameter we should include.
         if hasattr(self.source, "citation"):
@@ -164,12 +185,17 @@ class RedbackWrapperModel(SEDModel, CiteClass):
         self._min_wave = wave_bounds[0]
         self._max_wave = wave_bounds[1]
 
+        # If the phase bounds are manually provided, we use those. Otherwise, we check
+        # the model meta_data (if it exists).
         if phase_bounds is None:
-            raise ValueError(
-                "phase_bounds must be provided for RedbackWrapperModel to indicate when the "
-                "model is valid. These bounds are in days relative to t0. For example, many models "
-                "can use phase_bounds=(1e-3, None)."
-            )
+            if self.model_metadata is not None:
+                phase_bounds = (0.001, self.model_metadata.max_time_days)
+            else:
+                raise ValueError(
+                    "phase_bounds must be provided for RedbackWrapperModel to indicate when the "
+                    "model is valid. These bounds are in days relative to t0. For example, many models "
+                    "can use phase_bounds=(1e-3, None)."
+                )
         if len(phase_bounds) != 2:
             raise ValueError("phase_bounds should be a tuple of (min_phase, max_phase).")
         self._min_phase = phase_bounds[0]
