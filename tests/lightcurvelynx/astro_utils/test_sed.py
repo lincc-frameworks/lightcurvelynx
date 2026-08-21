@@ -24,6 +24,12 @@ def test_create_sed() -> None:
     expected = np.array([0.0, 10.0, 15.0, 20.0, 20.0, 20.0, 15.0, 10.0, 0.0])
     np.testing.assert_array_equal(values, expected)
 
+    # We should fail with 2-dimensional arrays for wavelengths or fluxes.
+    with pytest.raises(ValueError):
+        _ = SED([[100.0, 200.0], [300.0, 400.0]], [10.0, 20.0])
+    with pytest.raises(ValueError):
+        _ = SED([100.0, 200.0], [[10.0, 20.0], [30.0, 40.0]])
+
 
 def test_sed_fail() -> None:
     """Test that we correctly fail on bad SEDs."""

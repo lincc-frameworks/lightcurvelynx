@@ -40,6 +40,22 @@ def test_validate_ra_dec_degrees():
     np.testing.assert_array_equal(validated_ra, np.array([180]))
     np.testing.assert_array_equal(validated_dec, np.array([45]))
 
+    # We fail when either RA or Dec is None.
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees(None, [0])
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([0], None)
+
+    # We fail with non-finite values (NaN or Inf).
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([0], [np.nan])
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([np.nan], [0])
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([0], [np.inf])
+    with pytest.raises(ValueError):
+        validate_ra_dec_degrees([np.inf], [0])
+
 
 def test_ra_dec_to_cartesian():
     """Test the conversion from RA/Dec to Cartesian coordinates."""

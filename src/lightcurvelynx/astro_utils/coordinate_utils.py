@@ -23,10 +23,15 @@ def validate_ra_dec_degrees(ra, dec):
     dec: numpy.ndarray
         Validated declination array in degrees.
     """
+    if ra is None or dec is None:
+        raise ValueError("RA and Dec must not be None.")
+
     ra = np.atleast_1d(ra).astype(float) % 360.0
     dec = np.atleast_1d(dec).astype(float)
     if np.any(dec < -90.0) or np.any(dec > 90.0):
         raise ValueError("Declination values must be in the range [-90, 90] degrees.")
+    if not np.all(np.isfinite(ra)) or not np.all(np.isfinite(dec)):
+        raise ValueError("RA and Dec cannot contain NaN or infinite values.")
 
     # Check that the shapes of RA and Dec match.
     if ra.shape != dec.shape:
@@ -110,7 +115,7 @@ def dedup_coords(ra, dec, threshold=1e-5):
     for idx, matches in enumerate(close_points):
         if len(matches) == 1 or idx == np.min(matches):
             unique_indices.append(idx)
-    unique_indices = np.array(unique_indices)
+    unique_indices = np.asarray(unique_indices)
 
     unique_ra = ra[unique_indices]
     unique_dec = dec[unique_indices]

@@ -43,7 +43,7 @@ def spec_eff_function(peak_imag):
     s1 = 2.36
     s2 = 51.9
 
-    peak_imag = np.array(peak_imag)
+    peak_imag = np.asarray(peak_imag)
     eff = s0 * np.power((1.0 + np.exp(s1 * peak_imag - s2)), -1)
 
     return eff

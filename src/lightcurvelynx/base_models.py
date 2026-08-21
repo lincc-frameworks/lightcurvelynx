@@ -691,6 +691,7 @@ class ParameterizedNode:
                 if graph_state.num_samples == 1:
                     graph_state.set(self.node_string, name, setter.value)
                 else:
+                    # Note we can't use np.full here in case setter.value is an array itself.
                     repeated_value = np.array([setter.value] * graph_state.num_samples)
                     graph_state.set(self.node_string, name, repeated_value)
             elif setter.source_type == _ParameterSource.MODEL_PARAMETER:

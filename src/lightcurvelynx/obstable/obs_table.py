@@ -727,15 +727,19 @@ class ObsTable:
         """
         # Check if we are dealing with a mask of a list of indices.
         rows = np.asarray(rows)
+        if rows.ndim != 1:
+            raise ValueError("Rows array must be one-dimensional.")
         if rows.dtype == bool:
             if len(rows) != len(self._table):
                 raise ValueError(
                     f"Mask length mismatch. Expected {len(self._table)} rows, but found {len(rows)}."
                 )
             mask = rows
-        else:
+        elif np.issubdtype(rows.dtype, np.integer):
             mask = np.full((len(self._table),), False)
             mask[rows] = True
+        else:
+            raise ValueError("Rows array must be either a Boolean mask or a list of integer indices.")
 
         # Filter the rows. Update all of the cached data.
         self._table = self._table[mask]
@@ -1082,7 +1086,7 @@ class ObsTable:
         # If filters were given, set those up as an array of the correct size.
         if filter is not None:
             if isinstance(filter, str):
-                filter = np.array([filter] * num_samples, dtype=object)
+                filter = np.full(num_samples, filter, dtype=object)
             elif len(filter) != num_samples:
                 raise ValueError("If filter is an array, it must have the same length as times.")
 
