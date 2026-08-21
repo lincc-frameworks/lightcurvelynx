@@ -1082,7 +1082,7 @@ class ObsTable:
         # If filters were given, set those up as an array of the correct size.
         if filter is not None:
             if isinstance(filter, str):
-                filter = np.array([filter] * num_samples, dtype=object)
+                filter = np.full(num_samples, filter, dtype=object)
             elif len(filter) != num_samples:
                 raise ValueError("If filter is an array, it must have the same length as times.")
 

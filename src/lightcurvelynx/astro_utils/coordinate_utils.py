@@ -88,7 +88,7 @@ def dedup_coords(ra, dec, threshold=1e-5):
     for idx, matches in enumerate(close_points):
         if len(matches) == 1 or idx == np.min(matches):
             unique_indices.append(idx)
-    unique_indices = np.array(unique_indices)
+    unique_indices = np.asarray(unique_indices)
 
     unique_ra = ra[unique_indices]
     unique_dec = dec[unique_indices]

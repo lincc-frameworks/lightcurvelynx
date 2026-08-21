@@ -496,7 +496,7 @@ class GraphState:
                 f"variable={var_name}: {self.num_samples} vs {len(value)}."
             )
         elif force_copy:
-            self.states[node_name][var_name] = np.array(value.copy())
+            self.states[node_name][var_name] = np.array(value, copy=True)
         else:
             self.states[node_name][var_name] = np.asarray(value)
 
