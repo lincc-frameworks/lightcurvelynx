@@ -56,6 +56,16 @@ def test_column_normalization_data_invalid_input():
         _ColumnNormalizationData(np.array([0.0, -1.0, 2.0]), log_transform=True)
 
 
+def test_column_normalization_data_no_range():
+    """Test that the _ColumnNormalizationData can be created with data
+    that has no range (all values are the same)."""
+    data = np.array([1.0, 1.0])
+    data_normalizer = _ColumnNormalizationData(data, log_transform=False)
+
+    norm_data = data_normalizer.normalize(data)
+    assert np.allclose(norm_data, [0.0, 0.0])
+
+
 def test_pzflow_noise_model(test_data_dir):
     """Test that the PZFlowNoiseModel correctly computes flux errors
     and applies noise to the bandflux."""
@@ -180,7 +190,7 @@ def test_pzflow_noise_model_fail(test_data_dir):
         model.check_compatibility(obs_table, fail_on_incompatible=True)
 
 
-def test_learn_pzflow_noise_model():
+def test_learn_pzflow_noise_model(tmp_path):
     """Test that we can train a PZFlowNoiseModel on synthetic data and that it can
     learn to predict the flux errors."""
     rng = np.random.default_rng(2024)
@@ -202,6 +212,11 @@ def test_learn_pzflow_noise_model():
     assert isinstance(noise_model._normalizer_data["bandflux"], _ColumnNormalizationData)
     assert isinstance(noise_model._normalizer_data["zp"], _ColumnNormalizationData)
     assert isinstance(noise_model._normalizer_data["flux_err"], _ColumnNormalizationData)
+
+    # Check that we can save it to a temporary file.
+    tmpfile = tmp_path / "noise_model.pkl"
+    noise_model.save_to_file(tmpfile)
+    assert tmpfile.exists()
 
 
 def test_pzflow_noise_model_flux_floor():

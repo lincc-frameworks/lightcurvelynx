@@ -709,7 +709,7 @@ class ParameterizedNode:
             elif setter.source_type == _ParameterSource.COMPUTE_OUTPUT:
                 # Computed parameters are set only after all the other (input) parameters.
                 any_compute = True
-            else:
+            else:  # pragma: no cover
                 raise ValueError(f"Invalid _ParameterSource type {setter.source_type}")
 
         # If this is a function node and the parameters depend on the result of its own computation
@@ -854,7 +854,7 @@ class ParameterizedNode:
         if self.node_pos is None:
             raise ValueError(
                 f"Node {self.node_string} is missing position. You must call "
-                "set_graph_positions() before building a pytree."
+                "set_graph_positions() or sample the node before building a pytree."
             )
 
         # Skip nodes that we have already seen.
@@ -1009,7 +1009,7 @@ class FunctionNode(ParameterizedNode):
         if len(self.outputs) == 1:
             graph_state.set(self.node_string, self.outputs[0], results)
         else:
-            if len(results) != len(self.outputs):
+            if len(results) != len(self.outputs):  # pragma: no cover
                 raise ValueError(
                     f"Incorrect number of results returned by {self.func.__name__}. "
                     f"Expected {len(self.outputs)}, but got {results}."

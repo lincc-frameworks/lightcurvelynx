@@ -643,7 +643,7 @@ class GraphState:
         GraphState
             The sliced GraphState.
         """
-        if self.num_samples <= 0:
+        if self.num_samples <= 0:  # pragma: no cover
             raise ValueError("Cannot sample an empty GraphState")
         if start < 0 or stop > self.num_samples or start >= stop:
             raise ValueError(f"Invalid slice [{start}:{stop}] in GraphState with {self.num_samples} entries.")
@@ -689,6 +689,9 @@ class GraphState:
         if isinstance(params, str):
             params = [params]
 
+        if len(params) == 0:
+            raise ValueError("No parameters specified for extraction.")
+
         # Go through all the parameters. If a parameters full name is provided,
         # look it up now and save the result. Otherwise put it into a list to check
         # for in each node.
@@ -704,7 +707,7 @@ class GraphState:
             else:
                 single_params.add(current)
 
-        if len(single_params) == 0:
+        if len(single_params) == 0:  # pragma: no cover
             # Nothing else to do.
             return results
 

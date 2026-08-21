@@ -227,6 +227,11 @@ def test_passband_load_transmission_table(passbands_dir, tmp_path):
         np.array([[1000, 0.4], [1005, 0.6], [1010, 0.7]]),
     )
 
+    # Test that we raise an error if the transmission table does not exist.
+    test_pb_file_name = Path(tmp_path) / "non_existent.dat"
+    with pytest.raises(FileNotFoundError):
+        a_band.load_transmission_table(test_pb_file_name)
+
     # Test that we raise an error if the transmission table is blank
     transmission_table = ""
     test_pb_file_name = Path(tmp_path) / "r.dat"

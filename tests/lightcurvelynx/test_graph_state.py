@@ -570,6 +570,22 @@ def test_graph_state_equal():
     state6 = GraphState(num_samples=2)
     assert state5 != state6
 
+    # Two states are not equal if they have different sets of parameters.
+    state7 = GraphState(num_samples=2)
+    state7.set("a", "v1", [1.0, 1.0])
+    state7.set("a", "v2", [2.0, 2.0])
+    state7.set("b", "v1", [3.0, 3.0])
+    state7.set("c", "v1", [4.0, 4.0])
+
+    state8 = GraphState(num_samples=2)
+    state8.set("a", "v1", [1.0, 1.0])
+    state8.set("a", "v2", [2.0, 2.0])
+    state8.set("b", "v1", [3.0, 3.0])
+    assert state7 != state8  # Different number of parameters
+
+    state8.set("a", "v3", [5.0, 5.0])
+    assert state7 != state8  # Different sets of parameters
+
 
 def test_graph_state_equal_scalars():
     """Test that we use == on GraphStates with scalar values."""
@@ -1024,6 +1040,10 @@ def test_graph_state_extract_parameters():
     with pytest.raises(KeyError):
         _ = state.extract_parameters(["v2", "v100"])
 
+    # We fail if we give no parameters.
+    with pytest.raises(ValueError):
+        _ = state.extract_parameters([])
+
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
 def test_dependency_graph():
@@ -1173,6 +1193,10 @@ def test_dependency_graph_subgraphs():
     assert dep_graph.get_all_dependencies("a.1") == set()
     assert dep_graph.get_all_dependencies("e.1") == set()
 
+    # We fail with an invalid parameter name for get_all_dependencies.
+    with pytest.raises(KeyError):
+        dep_graph.get_all_dependencies("invalid.1")
+
     # We can get the various types of subgraphs for a node, including:
     # 1) All nodes on which this node depends (incoming=True, outgoing=False)
     subgraph1 = dep_graph.build_subgraph("b.1", incoming=True, outgoing=False)
@@ -1194,6 +1218,10 @@ def test_dependency_graph_subgraphs():
     assert set(subgraph3.all_params) == {"a.1", "c.1", "b.1", "c.2", "d.1"}
     assert subgraph3.incoming["b.1"] == set(["a.1", "c.1"])
     assert subgraph3.outgoing["b.1"] == set(["c.2", "d.1"])
+
+    # We fail with an invalid parameter name for build_subgraph.
+    with pytest.raises(KeyError):
+        dep_graph.build_subgraph("invalid.1", incoming=True, outgoing=True)
 
     # Test that we can extract all connected components.
     components = dep_graph.build_connected_components()

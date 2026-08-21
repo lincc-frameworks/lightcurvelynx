@@ -98,7 +98,7 @@ def apply_noise(bandflux, bandflux_err, rng=None):
     ndarray of float
         The noisy bandflux measurement.
     """
-    if rng is None:
+    if rng is None:  # pragma: no cover
         rng = np.random.default_rng()
 
     return rng.normal(loc=bandflux, scale=bandflux_err)
