@@ -8,7 +8,7 @@ Realistic light curve simulations are essential to many time-domain problems.
 Simulations are needed to evaluate observing strategy, characterize biases, 
 and test pipelines. LightCurveLynx aims to provide a flexible, scalable, and user-friendly time-domain simulation software with realistic effects and survey strategies.
 
-For an introduction to the package see our recent [LINCC Frameworks Tech Talk on YouTube](https://www.youtube.com/watch?reload=9&v=H0HqXD2iS94).
+For an introduction to the package see our recent `LINCC Frameworks Tech Talk on YouTube <https://www.youtube.com/watch?reload=9&v=H0HqXD2iS94>`_.
 
 .. figure:: _static/lightcurvelynx-intro.png
    :class: no-scaled-link
