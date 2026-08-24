@@ -108,6 +108,10 @@ def results_append_obstable_data(results, column_name, obstables):
     obs_idx = results["lightcurve.obs_idx"]
     survey_idx = results["lightcurve.survey_idx"]
     unique_survey_idx = np.unique(survey_idx)
+    if np.max(unique_survey_idx) > len(obstables) - 1 or np.min(unique_survey_idx) < 0:
+        raise ValueError(
+            f"Survey indices {unique_survey_idx} out of range for the {len(obstables)} " "provided ObsTables."
+        )  # pragma: no cover
 
     new_col = np.full(len(obs_idx), np.nan)
     for s_idx in unique_survey_idx:
