@@ -483,6 +483,11 @@ def test_results_augment_lightcurves_single():
     assert "time_rel" in results.columns
     assert _allclose(results["time_rel"].values, [0, 1, 2, 3, 4, 5, 6])
 
+    # We fail if the lightcurve doesn't have flux or fluxerr columns.
+    results_invalid = results.drop(columns=["flux", "fluxerr"])
+    with pytest.raises(ValueError):
+        augment_single_lightcurve(results_invalid, min_snr=5)
+
 
 def test_results_augment_lightcurves_single_empty():
     """Test the results_augment_lightcurves function with an empty non-nested frame."""
@@ -603,3 +608,48 @@ def test_results_use_full_filter_names():
 
         results.to_parquet(filename)
         assert filename.exists()
+
+
+def test_results_use_full_filter_names_no_survey():
+    """Test the results_use_full_filter_names function when there is no lightcurve.survey_idx."""
+    # Create a NestedFrame with some empty lightcurves.
+    source_data = {
+        "object_id": [0, 1],
+        "ra": [10.0, 20.0],
+        "dec": [-10.0, -20.0],
+        "nobs": [3, 0],
+        "z": [0.1, 0.2],
+    }
+    results = NestedFrame(data=source_data, index=[0, 1])
+
+    # Create the nested DataFrame for the lightcurves without a survey_idx.
+    nested_data = {
+        "mjd": [59000, 59001, 59002, 59003, 59004, 59005],
+        "flux": [10.0, 12.0, 0.1, 0.2, 5.0, 6.0],
+        "fluxerr": [1.0, 1.0, 1.0, 20.0, 2.0, 1.0],
+        "filter": ["g", "r", "g", "g", "r", "r"],
+    }
+    nested_frame = pd.DataFrame(data=nested_data, index=[0, 0, 1, 1, 1, 1])
+    results = results.join_nested(nested_frame, "lightcurve")
+    assert len(results) == 2
+    assert np.array_equal(results["lightcurve.filter"][0].tolist(), ["g", "r"])
+    assert np.array_equal(results["lightcurve.filter"][1].tolist(), ["g", "g", "r", "r"])
+
+    # Create the passband groups for the test.
+    table_vals = np.array([[4000, 0.5], [5000, 0.75], [6000, 0.5]])
+    passbands1 = PassbandGroup([Passband(table_vals, "survey1", "r"), Passband(table_vals, "survey1", "g")])
+    passbands2 = PassbandGroup([Passband(table_vals, "survey2", "r"), Passband(table_vals, "survey2", "g")])
+
+    # Transform to full filter names. All lightcurves should default to the first survey (survey1)
+    # since there is no survey_idx.
+    res2 = results_use_full_filter_names(results, [passbands1, passbands2])
+    assert res2 is results
+    assert len(results) == 2
+    assert np.array_equal(
+        results["lightcurve.filter"][0].tolist(),
+        ["survey1_g", "survey1_r"],
+    )
+    assert np.array_equal(
+        results["lightcurve.filter"][1].tolist(),
+        ["survey1_g", "survey1_g", "survey1_r", "survey1_r"],
+    )
