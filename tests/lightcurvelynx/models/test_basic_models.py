@@ -220,13 +220,13 @@ def test_linear_wavelength_model() -> None:
     sg_pbg = Spectrograph.from_regular_grid(wave_start=4000, wave_end=5000, bin_width=200.0)
     values2 = model.evaluate_spectra(times, sg_pbg, state)
     expected2_fnu = np.tile(
-        np.array([411.0, 431.0, 451.0, 471.0, 491.0]) * sg_pbg.bin_widths[None, :],
+        np.array([411.0, 431.0, 451.0, 471.0, 491.0]),
         (len(times), 1),
     )
     expected2 = (
         fnu_to_flam(
             expected2_fnu,
-            sg_pbg.bin_centers,
+            sg_pbg.bin_centers[None, :],
             wave_unit=u.AA,
             flam_unit=u.erg / u.s / u.cm**2 / u.AA,
             fnu_unit=u.nJy,

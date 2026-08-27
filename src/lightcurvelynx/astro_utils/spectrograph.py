@@ -306,7 +306,7 @@ class Spectrograph:
 
         # Convert the flux density from F_nu in nJy to F_lambda in erg/s/cm^2/Å before
         # integrating over each wavelength bin.
-        flux_density_flat *= self._flam_conversion[np.newaxis, :]
+        flux_density_flat = flux_density_flat * self._flam_conversion[np.newaxis, :]
 
         # Convert the flux density at each query wavelength into a flux for each query bin.
         # We use rectangular interpolation, so the flux is just the flux density at the query
