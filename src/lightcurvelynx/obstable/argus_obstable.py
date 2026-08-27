@@ -149,7 +149,7 @@ class ArgusHealpixObsTable(ObsTable):
             The WCS for the footprint. Either this or pixel_scale must be provided if
             a footprint is provided as a Astropy region.
         """
-        raise NotImplementedError("ArgusObsTable does not support detector footprints.")
+        raise NotImplementedError("ArgusObsTable does not support detector footprints.")  # pragma: no cover
 
     def _build_spatial_data(self):
         """Construct a mapping of healpix id to row number from the ObsTable."""

@@ -55,7 +55,7 @@ class SpectrographNoiseModel(ABC):
         flux_err : numpy.ndarray
             The standard deviation of the flux measurement error (in erg/s/cm²)
         """
-        raise NotImplementedError("Subclasses must implement this method.")
+        raise NotImplementedError("Subclasses must implement this method.")  # pragma: no cover
 
     def apply_noise(
         self,
