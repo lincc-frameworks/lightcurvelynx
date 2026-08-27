@@ -50,7 +50,7 @@ class FluxNoiseModel(ABC):
         flux_err : numpy.ndarray
             The standard deviation of the bandflux measurement error (in nJy)
         """
-        raise NotImplementedError("Subclasses must implement this method.")
+        raise NotImplementedError("Subclasses must implement this method.")  # pragma: no cover
 
     def apply_noise(
         self,
