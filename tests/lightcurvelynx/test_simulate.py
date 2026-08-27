@@ -6,9 +6,11 @@ import lightcurvelynx.simulate as simulate_module
 import numpy as np
 import pandas as pd
 import pytest
+from astropy import units as u
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
+from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import (
@@ -1415,9 +1417,43 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
     assert np.shape(spectra.iloc[0]["measured_flux"]) == (80,)
     assert np.shape(spectra.iloc[1]["measured_flux"]) == (80,)
     assert np.shape(spectra.iloc[2]["measured_flux"]) == (60,)
-    assert np.allclose(spectra.iloc[0]["measured_flux_perfect"], 100.0 * np.ones(80))
-    assert np.allclose(spectra.iloc[1]["measured_flux_perfect"], 100.0 * np.ones(80))
-    assert np.allclose(spectra.iloc[2]["measured_flux_perfect"], 100.0 * np.ones(60))
+
+    expected_spectro_0 = (
+        fnu_to_flam(
+            np.array([100.0] * 80),
+            spectrograph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * spectrograph.bin_widths
+    )
+    assert np.allclose(spectra.iloc[0]["measured_flux_perfect"], expected_spectro_0)
+
+    expected_spectro_1 = (
+        fnu_to_flam(
+            np.array([100.0] * 80),
+            spectrograph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * spectrograph.bin_widths
+    )
+    assert np.allclose(spectra.iloc[1]["measured_flux_perfect"], expected_spectro_1)
+
+    expected_spectro_2 = (
+        fnu_to_flam(
+            np.array([100.0] * 60),
+            spectrograph2.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * spectrograph2.bin_widths
+    )
+    assert np.allclose(spectra.iloc[2]["measured_flux_perfect"], expected_spectro_2)
+
     assert np.allclose(spectra.iloc[0]["measured_flux_error"], np.ones(80))
     assert np.allclose(spectra.iloc[1]["measured_flux_error"], np.ones(80))
     assert np.allclose(spectra.iloc[2]["measured_flux_error"], np.zeros(60))

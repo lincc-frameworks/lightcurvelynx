@@ -45,7 +45,7 @@ class SpectrographNoiseModel(ABC):
         Parameters
         ----------
         measurements : matrix of float
-            A T x B matrix of flux measurements in energy units (e.g. nJy), where
+            A T x B matrix of flux measurements in energy units (e.g. erg/s/cm²), where
             T is the number of observations and B is the number of spectral bins.
         **kwargs
             Additional parameters for the noise model.
@@ -53,7 +53,7 @@ class SpectrographNoiseModel(ABC):
         Returns
         -------
         flux_err : numpy.ndarray
-            The standard deviation of the flux measurement error (in nJy)
+            The standard deviation of the flux measurement error (in erg/s/cm²)
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
@@ -72,7 +72,7 @@ class SpectrographNoiseModel(ABC):
         Parameters
         ----------
         measurements : matrix of float
-            A T x B matrix of flux measurements in energy units (e.g. nJy), where
+            A T x B matrix of flux measurements in energy units (e.g. erg/s/cm²), where
             T is the number of observations and B is the number of spectral bins.
         obs_table : ObsTable, optional
             Table containing the observation parameters, including all
@@ -93,7 +93,7 @@ class SpectrographNoiseModel(ABC):
             units as the input measurements.
         flux_err : numpy.ndarray
             The T x B matrix of flux measurement error used for applying noise, in the
-            same units as the input measurements.
+            same units as the input measurements (erg/s/cm²).
         """
         # Define the random number generator if not provided.
         if rng is None:  # pragma: no cover
