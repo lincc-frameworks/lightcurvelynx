@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
+from astropy import units as u
 from lightcurvelynx.astro_utils.sed import SED
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
+from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel, StaticSEDModel
 from lightcurvelynx.utils.extrapolate import LinearDecay
 from lightcurvelynx.utils.io_utils import write_numpy_data
@@ -57,8 +59,19 @@ def test_single_static_sed_from_numpy() -> None:
     with pytest.warns(UserWarning):
         # Warns for wavelengths outside the SED range.
         values2 = model.evaluate_spectra(times, sg_pbg, None)
-    expected_row = np.array([17.5, 20.0, 20.0, 17.5, 12.5, 0.0]) * sg_pbg.bin_widths[None, :]
-    expected_all = np.tile(expected_row, (5, 1))
+    row_fnu = np.array([17.5, 20.0, 20.0, 17.5, 12.5, 0.0])
+    row_flam = (
+        fnu_to_flam(
+            row_fnu,
+            sg_pbg.bin_centers[None, :],
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * sg_pbg.bin_widths[None, :]
+    )
+    expected_all = np.tile(row_flam, (5, 1))
+
     assert np.allclose(values2, expected_all)
 
 

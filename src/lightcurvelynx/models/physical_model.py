@@ -327,7 +327,7 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         return bandfluxes
 
     def evaluate_spectra(self, times, spectrograph, state, rng_info=None) -> np.ndarray:
-        """Get the band fluxes for a given Passband or PassbandGroup.
+        """Get the measured fluxes for each bin in a spectrograph in units of F_lambda (erg/s/cm²).
 
         Parameters
         ----------
@@ -344,9 +344,10 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         Returns
         -------
         fluxes : numpy.ndarray
-            A matrix of the band fluxes. If only one sample is provided in the GraphState,
-            then returns a length T x B array where B is the number of spectrograph bins.
-            Otherwise returns a size S x T x B array where S is the number of samples in the graph state.
+            A matrix of the measured fluxes in each spectrograph bin (erg/s/cm²). If only one sample is
+            provided in the GraphState, then returns a length T x B array where B is the number of
+            spectrograph bins. Otherwise returns a size S x T x B array where S is the number of samples
+            in the graph state.
         """
         # Check if we need to sample the graph.
         if state is None:
@@ -1220,25 +1221,23 @@ class BandfluxModel(BasePhysicalModel, ABC):
         return bandfluxes
 
     def evaluate_spectra(self, spectrograph, times, state, rng_info=None) -> np.ndarray:
-        """Get the band fluxes for a given Passband or PassbandGroup.
+        """Get the measured fluxes for each bin in a spectrograph in units of F_lambda (erg/s/cm²).
 
         Parameters
         ----------
-        spectrograph : Spectrograph
-            The information about the spectrograph to use.
         times : numpy.ndarray
             A length T array of observer frame timestamps in MJD.
+        spectrograph : Spectrograph
+            The information about the spectrograph to use.
         state : GraphState
             An object mapping graph parameters to their values.
         rng_info : numpy.random._generator.Generator, optional
             A given numpy random number generator to use for this computation. If not
             provided, the function uses the node's random number generator.
 
-        Returns
-        -------
-        fluxes : numpy.ndarray
-            A matrix of the band fluxes. If only one sample is provided in the GraphState,
-            then returns a length T x B array where B is the number of spectrograph bins.
-            Otherwise returns a size S x T x B array where S is the number of samples in the graph state.
+        Raises
+        ------
+        NotImplementedError
+            This model does not support evaluating spectra.
         """
         raise NotImplementedError("BandfluxModel does not support evaluate_spectra.")  # pragma: no cover

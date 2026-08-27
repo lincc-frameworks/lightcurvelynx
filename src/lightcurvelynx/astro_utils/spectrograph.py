@@ -3,6 +3,9 @@ and provides methods to compute fluxes for each bin.
 """
 
 import numpy as np
+from astropy import units as u
+
+from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 
 
 class Spectrograph:
@@ -138,6 +141,16 @@ class Spectrograph:
         # Save the other spectrograph properties if provided.
         self.instrument = instrument if instrument is not None else "Spectrograph"
 
+        # Precompute the conversion factor from Fnu in nJy to Flam in erg/s/cm^2/AA
+        # for each query wavelength.
+        self._flam_conversion = fnu_to_flam(
+            np.ones_like(self.query_waves),
+            self.query_waves,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+
     def __str__(self) -> str:
         """Return a string representation of the spectra filter."""
         return f"{self.instrument} (spectra) [{self.waves_min[0]}A - {self.waves_max[-1]}A]"
@@ -258,16 +271,17 @@ class Spectrograph:
         Parameters
         ----------
         flux_density_matrix : np.ndarray
-            A 1D, 2D or 3D array of flux densities in nJy. The last dimension contains the flux
-            density values at the wavelengths specified by self.query_waves for a single sample.
-            The other dimensions are used to represent multiple times (2D and 3D) and multiple
-            objects (3D).
+            A 1D, 2D or 3D array of flux densities in nJy (Fnu). The last dimension contains the
+            flux density values at the wavelengths specified by self.query_waves for a single
+            sample. The other dimensions are used to represent multiple times (2D and 3D) and
+            multiple objects (3D).
 
         Returns
         -------
         measured_flux : np.ndarray
-            An array with the same number of dimensions as flux_density_matrix, but with the last
-            dimension corresponding to bins in the spectrograph.
+            An array of measure fluxes in F_lambda (units of erg/s/cm²) for each spectrograph bin.
+            The array has the shape in the initial dimensions as `flux_density_matrix` and
+            the last dimension corresponds to the number of spectrograph bins.
         """
         # Check that we have a valid flux density matrix.
         if flux_density_matrix.size == 0:
@@ -289,6 +303,10 @@ class Spectrograph:
         # at once regardless of whether the input is 1D, 2D, or 3D.
         initial_dimensions = flux_density_matrix.shape[:-1]
         flux_density_flat = flux_density_matrix.reshape(-1, num_query_waves)
+
+        # Convert the flux density from F_nu in nJy to F_lambda in erg/s/cm^2/Å before
+        # integrating over each wavelength bin.
+        flux_density_flat *= self._flam_conversion[np.newaxis, :]
 
         # Convert the flux density at each query wavelength into a flux for each query bin.
         # We use rectangular interpolation, so the flux is just the flux density at the query
