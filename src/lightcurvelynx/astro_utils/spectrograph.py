@@ -166,9 +166,13 @@ class Spectrograph:
             return False
         if not np.allclose(self.waves_max, other.waves_max):
             return False
+        if self.bin_widths.shape != other.bin_widths.shape:  # pragma: no cover
+            return False
         if not np.allclose(self.bin_widths, other.bin_widths):  # pragma: no cover
             return False
         if self.instrument != other.instrument:  # pragma: no cover
+            return False
+        if self.query_waves.shape != other.query_waves.shape:  # pragma: no cover
             return False
         if not np.allclose(self.query_waves, other.query_waves):  # pragma: no cover
             return False
@@ -266,7 +270,8 @@ class Spectrograph:
         self,
         flux_density_matrix: np.ndarray,
     ) -> np.ndarray:
-        """Calculate the measured flux values for each bin in the spectrograph in fnu units.
+        """Calculate the bin-integrated flux for each bin in the spectrograph
+        (in F_lambda units of erg/s/cm²).
 
         Parameters
         ----------
