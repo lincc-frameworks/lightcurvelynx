@@ -25,6 +25,33 @@ def test_additive_multi_object_node() -> None:
     assert values.shape == (3, 2)
     assert np.allclose(values, [[10.0, 10.0], [25.0, 25.0], [10.0, 10.0]])
 
+    # We fail if we try to create a multi-object model with the wrong object type.
+    object3 = "A string?"
+    with pytest.raises(TypeError):
+        _ = AdditiveMultiObjectModel([object1, object2, object3])
+
+
+def test_additive_multi_object_node_weighted() -> None:
+    """Test that we can create and evaluate a AdditiveMultiObjectModel with weights."""
+    object1 = ConstantSEDModel(brightness=10.0, node_label="my_static_object")
+    object2 = StepModel(brightness=15.0, t0=1.0, t1=2.0, node_label="my_step_object")
+    model = AdditiveMultiObjectModel([object1, object2], weights=[0.4, 0.6], node_label="my_multi_object")
+
+    state = model.sample_parameters()
+    assert state["my_static_object"]["brightness"] == 10.0
+    assert state["my_step_object"]["brightness"] == 15.0
+
+    times = np.array([0.0, 1.5, 3.0])
+    wavelengths = np.array([1000.0, 2000.0])
+
+    values = model.evaluate_sed(times, wavelengths, state)
+    assert values.shape == (3, 2)
+    assert np.allclose(values, [[4.0, 4.0], [13.0, 13.0], [4.0, 4.0]])
+
+    # We fail if we try to create a model with the wrong number of weights.
+    with pytest.raises(ValueError):
+        _ = AdditiveMultiObjectModel([object1, object2], weights=[0.4])
+
 
 def test_additive_multi_object_node_passband() -> None:
     """Test that we can evaluate a AdditiveMultiObjectModel at the passband level."""
@@ -308,6 +335,40 @@ def test_random_multi_object_node() -> None:
     assert np.all((values == 10.0) | (values == 15.0))
     assert np.sum(values == 10.0) > 7000 * 5
     assert np.sum(values == 15.0) > 1000 * 5
+
+    # Test that we fail to create a RandomMultiObjectModel with mismatched weights.
+    with pytest.raises(ValueError):
+        _ = RandomMultiObjectModel([object1, object2], weights=[0.5])
+
+    # Test that we fail if there are duplicate object names.
+    object1b = ConstantSEDModel(brightness=15.0, node_label="object1")
+    with pytest.raises(ValueError):
+        _ = RandomMultiObjectModel([object1, object1b])
+
+
+def test_random_multi_object_node_set_names() -> None:
+    """Test that we can create and evaluate a RandomMultiObjectModel
+    with given object names (overriding the default node labels)."""
+    object1 = ConstantSEDModel(brightness=10.0, node_label="my_source_1")
+    object2 = ConstantSEDModel(brightness=15.0, node_label="my_source_2")
+    model = RandomMultiObjectModel(
+        [object1, object2],
+        weights=[0.8, 0.2],
+        object_names=["object1", "object2"],
+        node_label="my_multi_object",
+    )
+
+    # We should get approximately 80% of the samples from the first
+    # object and 20% from the second object.
+    state = model.sample_parameters(num_samples=10_000)
+    object = np.array(state["my_multi_object"]["selected_object"], dtype=str)
+    assert np.all((object == "object1") | (object == "object2"))
+    assert np.sum(object == "object1") > 7000
+    assert np.sum(object == "object2") > 1000
+
+    # Test that we fail if the name list length is mismatched.
+    with pytest.raises(ValueError):
+        _ = RandomMultiObjectModel([object1, object2], object_names=["object1"])
 
 
 def test_random_multi_object_node_bandflux() -> None:

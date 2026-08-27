@@ -60,7 +60,7 @@ class MultiObjectModel(SEDModel):
                 self._is_bandflux[idx] = True
                 self._any_bandflux = True
             elif not isinstance(object, BasePhysicalModel):
-                raise ValueError("All objects must be BasePhysicalModel objects.")
+                raise TypeError("All objects must be BasePhysicalModel objects.")
 
         self.objects = objects
         self.num_objects = len(objects)
@@ -418,6 +418,9 @@ class RandomMultiObjectModel(MultiObjectModel):
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
         a object at random. If None, all objects will be weighted equally.
+    object_names : list, optional
+        A list of names for the objects. If None, the names will be inferred
+        from the objects themselves.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
@@ -431,8 +434,14 @@ class RandomMultiObjectModel(MultiObjectModel):
     ):
         super().__init__(objects, **kwargs)
 
-        # Create a parameter to indicate which object was selected.
+        # Copy or derive the list of object names.
         object_names = object_names or [src.node_string for src in objects]
+        if len(object_names) != len(objects):
+            raise ValueError("The number of object names must match the number of objects.")
+        if np.unique(object_names).size != len(object_names):
+            raise ValueError("Object names must be unique.")
+
+        # Create a parameter to indicate which object was selected.
         self.object_map = {name: src for name, src in zip(object_names, objects, strict=False)}
         self._sampler_node = GivenValueSampler(object_names, weights=weights)
         self.add_parameter(
