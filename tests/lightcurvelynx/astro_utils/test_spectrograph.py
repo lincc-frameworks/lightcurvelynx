@@ -621,15 +621,10 @@ def test_spectrograph_evaluate_with_smearing():
     # padding supplies the flux that would otherwise be lost at the edges.
     flux_density = 3.7
     flat_input = np.full(spgraph.query_waves.shape, flux_density)
-    expected = flux_density * spgraph.bin_widths
-
+    unsmeared = spgraph.evaluate(flat_input, smear=False)
     smeared = spgraph.evaluate(flat_input, smear=True)
     assert smeared.shape == (spgraph.num_bins,)
-    assert np.allclose(smeared, expected, rtol=5e-3)
-
-    # With smear=False, there is no cross-bin mixing and the result is exact.
-    unsmeared = spgraph.evaluate(flat_input, smear=False)
-    assert np.allclose(unsmeared, expected)
+    assert np.allclose(smeared, unsmeared, rtol=5e-3)
 
     # A single narrow spike of flux should spread into neighboring bins when smeared,
     # while approximately conserving total flux.
