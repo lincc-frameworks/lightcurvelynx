@@ -229,15 +229,17 @@ class Spectrograph:
         return True
 
     def _compute_padded_bins(self):
-        """Compute the parameters for padded bins on either side of the main spectrograph bins. This allows 
+        """Compute the parameters for padded bins on either side of the main spectrograph bins. This allows
         for flux beyond the edges of the spectrograph to be possibily smeared into the main bins.
 
         Returns
         -------
         padded_bins_min : np.ndarray
-            the minimum wavelength of each padded bin in Angstroms.
+            the minimum wavelength of each bin, include the new padding bins, in Angstroms.
         padded_bins_max : np.ndarray
-            the maximum wavelength of each padded bin in Angstroms.
+            the maximum wavelength of each bin, include the new padding bins, in Angstroms.
+        padded_wavelength_resolution : np.ndarray
+            the wavelength resolution of each bin, include the new padding bins, in Angstroms.
         is_padding : np.ndarray
             a boolean array indicating which bins are padding (True) and which are in the
             original spectrograph.
@@ -263,11 +265,13 @@ class Spectrograph:
         padded_bins_min = np.concatenate((pad_blue_min, self.waves_min, pad_red_min))
         padded_bins_max = np.concatenate((pad_blue_max, self.waves_max, pad_red_max))
 
-        padded_wavelength_resolution = np.concatenate([ # TODO: needed?
-            np.full(num_pad_blue, sigma_blue),
-            self.wavelength_resolution,
-            np.full(num_pad_red, sigma_red)
-        ])
+        padded_wavelength_resolution = np.concatenate(
+            [
+                np.full(num_pad_blue, sigma_blue),
+                self.wavelength_resolution,
+                np.full(num_pad_red, sigma_red)
+            ]
+        )
 
         is_padding = np.concatenate(
             [
