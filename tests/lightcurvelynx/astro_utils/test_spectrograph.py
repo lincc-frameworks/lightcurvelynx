@@ -200,19 +200,6 @@ def test_create_spectrograph_from_bad_bins():
         _ = Spectrograph(waves_min_ooo, waves_max_ooo)
 
 
-def test_create_spectrograph_from_bad_bins():
-    """Test that we fail if the bins overlap or are not in increasing order."""
-    waves_min_overlap = np.array([3500.0, 4000.0, 5000.0, 7000.0, 7500.0])
-    waves_max_overlap = np.array([4000.0, 5000.0, 7100.0, 7500.0, 8000.0])
-    with pytest.raises(ValueError):
-        _ = Spectrograph(waves_min_overlap, waves_max_overlap)
-
-    waves_min_ooo = np.array([3500.0, 4000.0, 7000.0, 5000.0])
-    waves_max_ooo = np.array([4000.0, 5000.0, 7500.0, 6000.0])
-    with pytest.raises(ValueError):
-        _ = Spectrograph(waves_min_ooo, waves_max_ooo)
-
-
 def test_spectrograph_equals():
     """Test that we can compare two Spectrograph objects for equality."""
     spgraph1 = Spectrograph.from_regular_grid(wave_start=4000, wave_end=8000, bin_width=5.0)
