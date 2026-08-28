@@ -407,7 +407,6 @@ class Spectrograph:
     def evaluate(
         self,
         flux_density_matrix: np.ndarray,
-        smear: bool = True,
     ) -> np.ndarray:
         """Calculate the bin-integrated flux for each bin in the spectrograph
         (in F_lambda units of erg/s/cm²).
@@ -419,9 +418,6 @@ class Spectrograph:
             flux density values at the wavelengths specified by self.query_waves for a single
             sample. The other dimensions are used to represent multiple times (2D and 3D) and
             multiple objects (3D).
-        smear : bool, optional
-            Whether to smear the flux density values across the bins using the wavelength resolution. 
-            Default is True.
 
         Returns
         -------
@@ -480,7 +476,8 @@ class Spectrograph:
         # Add per-bin smearing. By computing a B x B
         # smearing matrix in the __init__ method and then apply it here. This will allow us to model
         # the effects of the spectrograph's point spread function on the measured fluxes.
-        if smear and self.smear_matrix is not None:
+        # smear_matrix will not be None if compute_smear was set to True in the __init__ method.
+        if self.smear_matrix is not None:
             spectro_bin_flux @= self.smear_matrix
 
         # get the flux in the spectrograph's native bins (not the padded bins)
