@@ -229,8 +229,8 @@ class Spectrograph:
         return True
 
     def _compute_padded_bins(self):
-        """Compute the parameters for padded bins for the spectrograph. This allows for flux beyond the edges
-        of the spectrograph to be possibily smeared into the spectrograph's bins.
+        """Compute the parameters for padded bins on either side of the main spectrograph bins. This allows 
+        for flux beyond the edges of the spectrograph to be possibily smeared into the main bins.
 
         Returns
         -------
@@ -239,12 +239,12 @@ class Spectrograph:
         padded_bins_max : np.ndarray
             the maximum wavelength of each padded bin in Angstroms.
         is_padding : np.ndarray
-            a boolean array indicating which bins are padding (True) and which are in the 
+            a boolean array indicating which bins are padding (True) and which are in the
             original spectrograph.
         """
 
         # determine the extended region
-            # snana expanded by 2.5 sigma of the edge bins
+        # snana expanded by 2.5 sigma of the edge bins
         sigma_blue = self.wavelength_resolution[0]
         width_blue = self.bin_widths[0]
         num_pad_blue = int(2.5 * sigma_blue / width_blue) + 1 if sigma_blue > 0 else 0
