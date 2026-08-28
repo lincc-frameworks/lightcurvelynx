@@ -97,6 +97,11 @@ class Spectrograph:
         self.waves_min = np.asarray(waves_min, dtype=float)
         self.waves_max = np.asarray(waves_max, dtype=float)
         self.num_bins = len(self.waves_min)
+        self.wavelength_resolution = (
+            np.asarray(wavelength_resolution, dtype=float)
+            if wavelength_resolution is not None
+            else np.zeros(self.num_bins, dtype=float)
+        )
 
         if self.num_bins <= 0:  # pragma: no cover
             raise ValueError("Spectrograph must have at least one bin.")
@@ -187,9 +192,10 @@ class Spectrograph:
         )
         # compute the smear matrix, if requested
         if compute_smear:
-            if self.wavelength_resolution is None:
+            # check on the argument wavelength_resolution because a default array is set for
+            # the wavelength_resolution attribute for the padded bin calculation
+            if wavelength_resolution is None:
                 raise ValueError("wavelength_resolution is required for smear computation.")
-            self.wavelength_resolution = np.asarray(wavelength_resolution, dtype=float)
             self.smear_matrix = self._compute_smear_matrix()
         else:
             self.smear_matrix = None
@@ -298,6 +304,9 @@ class Spectrograph:
             where smear_matrix[i, j] represents the fraction of flux from bin i that smears into j
         """
 
+        if np.any(np.abs(self.padded_max[:-1] - self.padded_min[1:]) > 1e-8):
+            raise ValueError("The spectrograph bins cannot have gaps when using smearing.")
+
         smear_matrix = np.zeros((self.num_padded_bins, self.num_padded_bins))
         for i in range(self.num_padded_bins):
             sigma = self.padded_resolution[i]
@@ -310,6 +319,7 @@ class Spectrograph:
             bin_center = (self.padded_min[i] + self.padded_max[i]) / 2
 
             # get smearing factor, if the bin is not padding
+            # padded bins can be sources but not receivers of flux
             for j in range(j_low, j_high + 1):
                 # skip if in the padded region
                 if self.is_padding[j]:
