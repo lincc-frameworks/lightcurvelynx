@@ -539,13 +539,19 @@ class SEDModel(BasePhysicalModel):
         # Stage 1: ----- Determine which wavelengths require extrapolation -----
         # Updates query_waves and creates before_wave_queries and after_wave_queries for extrapolation.
 
-        # We check if we can do extrapolation for before the first valid wavelength and, if so, modify
-        # the queries and set up the data we need.
+        # Check the minimum and maximum query wavelengths against the valid wavelength range.
         min_query_wave = np.min(wavelengths)
         min_valid_wave = self.minwave(graph_state=graph_state)
         if min_valid_wave is None:
             min_valid_wave = min_query_wave
 
+        max_query_wave = np.max(wavelengths)
+        max_valid_wave = self.maxwave(graph_state=graph_state)
+        if max_valid_wave is None:
+            max_valid_wave = max_query_wave
+
+        # We check if we can do extrapolation for before the first valid wavelength and, if so, modify
+        # the queries and set up the data we need.
         before_wave_queries = None
         if min_query_wave < min_valid_wave:
             if self._wave_extrap_before is None:
@@ -564,13 +570,15 @@ class SEDModel(BasePhysicalModel):
                     (min_valid_wave + 10.0 * np.arange(n_added_wave_before), query_waves[valid_mask])
                 )
 
+                # Check that our added points didn't go past the maximum valid wavelength.
+                if min_valid_wave + 10.0 * n_added_wave_before > max_valid_wave:
+                    raise ValueError(
+                        f"Cannot add {n_added_wave_before} wave extrapolation points at the start of the "
+                        f"wavelength range: [{min_valid_wave}, {max_valid_wave}]."
+                    )
+
         # We check if we can do extrapolation for after the last valid wavelength and, if so, modify
         # the queries and set up the data we need.
-        max_query_wave = np.max(wavelengths)
-        max_valid_wave = self.maxwave(graph_state=graph_state)
-        if max_valid_wave is None:
-            max_valid_wave = max_query_wave
-
         after_wave_queries = None
         if max_query_wave > max_valid_wave:
             if self._wave_extrap_after is None:
@@ -592,6 +600,13 @@ class SEDModel(BasePhysicalModel):
                     )
                 )
 
+                # Check that our added points didn't go past the minimum valid wavelength.
+                if max_valid_wave - 10.0 * n_added_wave_after < min_valid_wave:
+                    raise ValueError(
+                        f"Cannot add {n_added_wave_after} wave extrapolation points at the end of the "
+                        f"wavelength range: [{min_valid_wave}, {max_valid_wave}]."
+                    )
+
         # Check if the wavelengths are sorted and, if not, create sorting indices. We do this AFTER we
         # augment the query waves in case the new boundary points interleave with the original queries.
         if len(query_waves) > 1 and not np.all(query_waves[:-1] <= query_waves[1:]):
@@ -610,8 +625,7 @@ class SEDModel(BasePhysicalModel):
         if t0 is None:
             t0 = 0.0
 
-        # We check if we can do extrapolation for times before the valid time range and, if so, modify
-        # the queries and set up the data we need.
+        # Check the minimum and maximum query times against the valid time range.
         min_query_time = np.min(times)
         min_valid_phase = self.minphase(graph_state=graph_state)
         if min_valid_phase is None:
@@ -619,6 +633,15 @@ class SEDModel(BasePhysicalModel):
         else:
             min_valid_time = min_valid_phase + t0
 
+        max_query_time = np.max(times)
+        max_valid_phase = self.maxphase(graph_state=graph_state)
+        if max_valid_phase is None:
+            max_valid_time = max_query_time
+        else:
+            max_valid_time = max_valid_phase + t0
+
+        # We check if we can do extrapolation for times before the valid time range and, if so, modify
+        # the queries and set up the data we need.
         before_time_queries = None
         if min_query_time < min_valid_time:
             if self._time_extrap_before is None:
@@ -637,15 +660,15 @@ class SEDModel(BasePhysicalModel):
                     (min_valid_time + np.arange(n_added_time_before), query_times[valid_mask])
                 )
 
+                # Check that our added points didn't go past the maximum valid time.
+                if min_valid_time + n_added_time_before > max_valid_time:
+                    raise ValueError(
+                        f"Cannot add {n_added_time_before} time extrapolation points at the start of the "
+                        f"time range: [{min_valid_time}, {max_valid_time}]."
+                    )
+
         # We check if we can do extrapolation for times after the valid time range and, if so, modify
         # the queries and set up the data we need.
-        max_query_time = np.max(times)
-        max_valid_phase = self.maxphase(graph_state=graph_state)
-        if max_valid_phase is None:
-            max_valid_time = max_query_time
-        else:
-            max_valid_time = max_valid_phase + t0
-
         after_time_queries = None
         if max_query_time > max_valid_time:
             if self._time_extrap_after is None:
@@ -663,6 +686,13 @@ class SEDModel(BasePhysicalModel):
                 query_times = np.concatenate(
                     (query_times[valid_mask], max_valid_time - np.arange(n_added_time_after - 1, -1, -1))
                 )
+
+                # Check that our added points didn't go past the minimum valid time.
+                if max_valid_time - n_added_time_after < min_valid_time:
+                    raise ValueError(
+                        f"Cannot add {n_added_time_after} time extrapolation points at the end of the "
+                        f"time range: [{min_valid_time}, {max_valid_time}]."
+                    )
 
         # Check if the times are sorted and, if not, create sorting indices. We do this AFTER we
         # augment the query times in case the new boundary points interleave with the original queries.
@@ -1220,7 +1250,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
             )
         return bandfluxes
 
-    def evaluate_spectra(self, spectrograph, times, state, rng_info=None) -> np.ndarray:
+    def evaluate_spectra(self, times, spectrograph, state, rng_info=None):
         """Get the bin-integrated fluxes for each bin in a spectrograph in units of F_lambda (erg/s/cm²).
 
         Parameters
