@@ -543,12 +543,12 @@ class SEDModel(BasePhysicalModel):
         min_query_wave = np.min(wavelengths)
         min_valid_wave = self.minwave(graph_state=graph_state)
         if min_valid_wave is None:
-            min_valid_wave = min_query_wave
+            min_valid_wave = -np.inf
 
         max_query_wave = np.max(wavelengths)
         max_valid_wave = self.maxwave(graph_state=graph_state)
         if max_valid_wave is None:
-            max_valid_wave = max_query_wave
+            max_valid_wave = np.inf
 
         # We check if we can do extrapolation for before the first valid wavelength and, if so, modify
         # the queries and set up the data we need.
@@ -631,14 +631,14 @@ class SEDModel(BasePhysicalModel):
         min_query_time = np.min(times)
         min_valid_phase = self.minphase(graph_state=graph_state)
         if min_valid_phase is None:
-            min_valid_time = min_query_time
+            min_valid_time = -np.inf
         else:
             min_valid_time = min_valid_phase + t0
 
         max_query_time = np.max(times)
         max_valid_phase = self.maxphase(graph_state=graph_state)
         if max_valid_phase is None:
-            max_valid_time = max_query_time
+            max_valid_time = np.inf
         else:
             max_valid_time = max_valid_phase + t0
 
@@ -1098,14 +1098,14 @@ class BandfluxModel(BasePhysicalModel, ABC):
         min_query_time = np.min(times)
         min_valid_phase = self.minphase(filter=filter, graph_state=state)
         if min_valid_phase is None:
-            min_valid_time = min_query_time
+            min_valid_time = -np.inf
         else:
             min_valid_time = min_valid_phase + t0
 
         max_query_time = np.max(times)
         max_valid_phase = self.maxphase(filter=filter, graph_state=state)
         if max_valid_phase is None:
-            max_valid_time = max_query_time
+            max_valid_time = np.inf
         else:
             max_valid_time = max_valid_phase + t0
 
