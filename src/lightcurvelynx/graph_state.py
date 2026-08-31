@@ -76,9 +76,6 @@ class GraphState:
     def __len__(self):
         return self.num_parameters
 
-    def __next__(self):
-        return next(self._iterate())
-
     def __iter__(self):
         return self._iterate()
 
@@ -217,7 +214,7 @@ class GraphState:
             new_state.states[node_name] = {}
             for var_name, var_value in node_vars.items():
                 if self.num_samples == 1:
-                    new_state.states[node_name][var_name] = var_value
+                    new_state.states[node_name][var_name] = copy.deepcopy(var_value)
                 else:
                     new_state.states[node_name][var_name] = var_value.copy()
 
