@@ -408,6 +408,12 @@ def test_graph_state_copy():
     assert state2["a"]["v2"] == 20.0
     assert state2["b"]["v1"] == 3.0  # No effect since this variable is fixed.
 
+    # Mutable single-sample values must not be shared with the copy.
+    state.set("a", "metadata", {"flags": ["original"]})
+    state2 = state.copy()
+    state2["a"]["metadata"]["flags"].append("copied")
+    assert state["a"]["metadata"] == {"flags": ["original"]}
+
     # Test with arrays.
     state = GraphState(3, sample_offset=2)
     state.set("a", "v1", np.array([1.0, 2.0, 3.0]))
