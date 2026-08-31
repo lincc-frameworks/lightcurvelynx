@@ -277,8 +277,8 @@ def test_linear_linear_model_extrapolators_time_too_small() -> None:
     time range to add the needed extrapolation points.
     """
     wave_extrapolator = LinearDecay(decay_width=500.0)  # 500 angstroms to zero
-    time_extrapolator = LinearDecay(decay_width=100.0)  # 100 days to zero
-    model_wave = _LinearLinearTestModel(
+    time_extrapolator = LinearFit(nfit=2)  # Fit from 2 points
+    model_time = _LinearLinearTestModel(
         wave_extrapolation=wave_extrapolator,
         time_extrapolation=time_extrapolator,
         t0=0.0,
@@ -288,25 +288,25 @@ def test_linear_linear_model_extrapolators_time_too_small() -> None:
 
     # Trying to add points after min_phase for extrapolation before min_phase.
     with pytest.raises(ValueError):
-        _ = model_wave.evaluate_sed(np.array([-1.0, 0.0]), np.array([5000.0]))
+        _ = model_time.evaluate_sed(np.array([-1.0, 0.0]), np.array([5000.0]))
 
     # Trying to add points before max_phase for extrapolation after max_phase.
     with pytest.raises(ValueError):
-        _ = model_wave.evaluate_sed(np.array([0.0, 1.0]), np.array([5000.0]))
+        _ = model_time.evaluate_sed(np.array([0.0, 1.0]), np.array([5000.0]))
 
 
 def test_linear_linear_model_extrapolators_wave_too_small() -> None:
     """Test that we correctly fail when the model does not have a large enough
     wavelength range to add the needed extrapolation points.
     """
-    wave_extrapolator = LinearDecay(decay_width=500.0)  # 500 angstroms to zero
+    wave_extrapolator = LinearFit(nfit=2)  # Fit from 2 points
     time_extrapolator = LinearDecay(decay_width=100.0)  # 100 days to zero
     model_wave = _LinearLinearTestModel(
         wave_extrapolation=wave_extrapolator,
         time_extrapolation=time_extrapolator,
         t0=0.0,
         min_wave=5000.0,
-        max_wave=5005.0,  # Less then 10.0 A away
+        max_wave=5005.0,  # Less than 10.0 A away
     )
 
     # Trying to add points after min_wave for extrapolation before min_wave.
@@ -621,6 +621,27 @@ def test_linear_bandflux_model_ooo_time():
     values5 = model5.compute_bandflux_with_extrapolation(query_times, "r", state5)
     expected5 = np.array([80.0, 90.0, 75.0, 120.0, 127.5, 145.0, 132.5, 135.0])
     assert np.allclose(values5, expected5)
+
+
+def test_linear_bandflux_model_time_too_small() -> None:
+    """Test that we correctly fail when the model does not have a large enough
+    time range to add the needed extrapolation points.
+    """
+    model_time = _LinearBandfluxTestModel(
+        time_extrapolation=LinearFit(nfit=2),
+        t0=0.0,
+        min_phase=0.0,
+        max_phase=0.1,  # Less than a day away.
+    )
+    state = model_time.sample_parameters(num_samples=1)
+
+    # Trying to add points after min_phase for extrapolation before min_phase.
+    with pytest.raises(ValueError):
+        _ = model_time.compute_bandflux_with_extrapolation(np.array([-1.0, 0.0]), "r", state)
+
+    # Trying to add points before max_phase for extrapolation after max_phase.
+    with pytest.raises(ValueError):
+        _ = model_time.compute_bandflux_with_extrapolation(np.array([0.0, 1.0]), "r", state)
 
 
 def test_linear_fit_extrapolation():
