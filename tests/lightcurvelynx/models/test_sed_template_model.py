@@ -447,6 +447,68 @@ def test_create_multi_sed_template_model() -> None:
     assert np.allclose(sed_values[~chose_first, 0, 0], 22.5)
 
 
+def test_create_multi_sed_template_model_counds() -> None:
+    """Test that we can create a MultiSEDTemplateModel objects from templates
+    with different time and waavelenght bounds."""
+    data1 = np.array(
+        [
+            [0.0, 1000.0, 5.0],
+            [0.0, 2000.0, 15.0],
+            [1.0, 1000.0, 10.0],
+            [1.0, 2000.0, 20.0],
+            [2.0, 1000.0, 10.0],
+            [2.0, 2000.0, 20.0],
+        ]
+    )
+    lc1 = SEDTemplate(data1, interpolation_type="linear", periodic=False)
+
+    data2 = np.array(
+        [
+            [0.0, 3000.0, 20.0],
+            [0.0, 4000.0, 30.0],
+            [1.0, 3000.0, 25.0],
+            [1.0, 4000.0, 35.0],
+        ]
+    )
+    lc2 = SEDTemplate(data2, interpolation_type="linear", periodic=False)
+    model = MultiSEDTemplateModel([lc1, lc2], t0=0.0, node_label="model")
+    state = model.sample_parameters(num_samples=1)
+
+    # Overwrite the sampled template selection to test the bounds.
+    state["model"]["selected_template"] = 0
+    assert model.minphase(graph_state=state) == 0.0
+    assert model.maxphase(graph_state=state) == 2.0
+    assert model.minwave(graph_state=state) == 1000.0
+    assert model.maxwave(graph_state=state) == 2000.0
+
+    state["model"]["selected_template"] = 1
+    assert model.minphase(graph_state=state) == 0.0
+    assert model.maxphase(graph_state=state) == 1.0
+    assert model.minwave(graph_state=state) == 3000.0
+    assert model.maxwave(graph_state=state) == 4000.0
+
+    # We fail with no state.
+    with pytest.raises(ValueError):
+        _ = model.minphase()
+    with pytest.raises(ValueError):
+        _ = model.maxphase()
+    with pytest.raises(ValueError):
+        _ = model.minwave()
+    with pytest.raises(ValueError):
+        _ = model.maxwave()
+
+    # We fail when we have more than one sample.
+    states = model.sample_parameters(num_samples=10)
+    with pytest.raises(ValueError):
+        _ = model.minphase(graph_state=states)
+    with pytest.raises(ValueError):
+        _ = model.maxphase(graph_state=states)
+    with pytest.raises(ValueError):
+        _ = model.minwave(graph_state=states)
+    with pytest.raises(ValueError):
+        _ = model.maxwave(graph_state=states)
+
+
 def test_simsed_model_compute_sed(test_data_dir) -> None:
     """Test that we can load and compute SEDs from a SIMSEDModel."""
     model = SIMSEDModel.from_dir(test_data_dir / "fake_simsed", t0=0.0, distance=10.0, node_label="model")

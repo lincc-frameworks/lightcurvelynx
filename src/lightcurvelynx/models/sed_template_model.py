@@ -536,6 +536,92 @@ class MultiSEDTemplateModel(SEDModel):
         """Get the number of SED templates."""
         return len(self.templates)
 
+    def minwave(self, graph_state=None):
+        """Get the minimum wavelength of the model.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the minimum wavelength.
+
+        Returns
+        -------
+        minwave : float, list of float, or None
+            The minimum wavelength of the model (in angstroms) or None
+            if the model does not have a defined minimum wavelength.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
+        template_id = self.get_param(graph_state, "selected_template")
+        return self.templates[template_id].wavelengths[0]
+
+    def maxwave(self, graph_state=None):
+        """Get the maximum wavelength of the model.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the maximum wavelength.
+
+        Returns
+        -------
+        maxwave : float or None
+            The maximum wavelength of the model (in angstroms) or None
+            if the model does not have a defined maximum wavelength.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
+        template_id = self.get_param(graph_state, "selected_template")
+        return self.templates[template_id].wavelengths[-1]
+
+    def minphase(self, graph_state=None):
+        """Get the minimum phase of the model in days.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the minimum phase.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine time bounds.")
+        template_id = self.get_param(graph_state, "selected_template")
+        template = self.templates[template_id]
+        if template.is_periodic or template.baseline is not None:
+            return None
+        return template.times[0]
+
+    def maxphase(self, graph_state=None):
+        """Get the maximum phase of the model in days.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the maximum phase.
+
+        Returns
+        -------
+        maxphase : float or None
+            The maximum phase of the model (in days) or None
+            if the model does not have a defined maximum phase.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine time bounds.")
+        template_id = self.get_param(graph_state, "selected_template")
+        template = self.templates[template_id]
+        if template.is_periodic or template.baseline is not None:
+            return None
+        return template.times[-1]
+
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.
 

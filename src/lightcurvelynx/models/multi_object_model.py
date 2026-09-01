@@ -300,6 +300,50 @@ class AdditiveMultiObjectModel(MultiObjectModel):
         """
         return [object.maxwave(graph_state=graph_state) for object in self.objects]
 
+    def minphase(self, graph_state=None):
+        """Get the minimum phase of the model. For additive models, this is
+        a list of minimums for each object.
+
+        Note
+        ----
+        Phase extrapolation is handled by each object. So the actual phase's
+        can be evaluated outside the range of each object.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the minimum phase.
+
+        Returns
+        -------
+        minphase : list of float or None
+            The minimum phase of the each object (in days) or None
+        """
+        return [object.minphase(graph_state=graph_state) for object in self.objects]
+
+    def maxphase(self, graph_state=None):
+        """Get the maximum phase of the model. For additive models, this is
+        a list of maximums for each object.
+
+        Note
+        ----
+        Phase extrapolation is handled by each object. So the actual phase's
+        can be evaluated outside the range of each object.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the maximum phase.
+
+        Returns
+        -------
+        maxphase : list of float or None
+            The maximum phase of the each object (in days) or None
+        """
+        return [object.maxphase(graph_state=graph_state) for object in self.objects]
+
     def _evaluate_single(self, times, wavelengths, state, **kwargs):
         """Evaluate the model and apply the effects for a single, given graph state.
         This function applies redshift, computes the flux density for the object,
@@ -466,6 +510,8 @@ class RandomMultiObjectModel(MultiObjectModel):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
         name = self.get_param(graph_state, "selected_object")
         return self.object_map[name].minwave(graph_state=graph_state)
 
@@ -484,8 +530,50 @@ class RandomMultiObjectModel(MultiObjectModel):
             The maximum wavelength of the model (in angstroms) or None
             if the model does not have a defined maximum wavelength.
         """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
         name = self.get_param(graph_state, "selected_object")
         return self.object_map[name].maxwave(graph_state=graph_state)
+
+    def minphase(self, graph_state=None):
+        """Get the minimum supported phase of the model in days.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the minimum phase.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine time bounds.")
+        name = self.get_param(graph_state, "selected_object")
+        return self.object_map[name].minphase(graph_state=graph_state)
+
+    def maxphase(self, graph_state=None):
+        """Get the maximum supported phase of the model in days.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the maximum phase.
+
+        Returns
+        -------
+        maxphase : float or None
+            The maximum phase of the model (in days) or None
+            if the model does not have a defined maximum phase.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
+        name = self.get_param(graph_state, "selected_object")
+        return self.object_map[name].maxphase(graph_state=graph_state)
 
     def _evaluate_single(self, times, wavelengths, state, **kwargs):
         """Evaluate the model and apply the effects for a single, given graph state.
