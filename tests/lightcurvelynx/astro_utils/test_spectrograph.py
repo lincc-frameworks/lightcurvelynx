@@ -208,7 +208,9 @@ def test_spectrograph_equals():
     spgraph4 = Spectrograph.from_regular_grid(wave_start=3000, wave_end=8000, bin_width=5.0)
     spgraph5 = Spectrograph.from_regular_grid(wave_start=4000, wave_end=9000, bin_width=5.0)
     spgraph6 = Spectrograph.from_regular_grid(
-        wave_start=4000, wave_end=8000, bin_width=5.0,
+        wave_start=4000,
+        wave_end=8000,
+        bin_width=5.0,
         wavelength_resolution=np.full(spgraph1.num_bins, 10.0),
     )
 
@@ -459,9 +461,7 @@ def test_create_spectrograph_max_wave_step():
 
     # check padding introduced by wavelength_resolution.
     resolution = np.full(5, 30.0)
-    spgraph_padded = Spectrograph(
-        wave_min, wave_max, wavelength_resolution=resolution
-    )
+    spgraph_padded = Spectrograph(wave_min, wave_max, wavelength_resolution=resolution)
     assert spgraph_padded.num_padded_bins > spgraph_padded.num_bins
     assert len(spgraph_padded.query_waves) == spgraph_padded.num_padded_bins
     assert np.allclose(
@@ -550,6 +550,7 @@ def test_create_spectrograph_max_wave_step_aggregates_subbins():
     )
     assert np.allclose(result, expected)
 
+
 def test_create_spectrograph_with_wavelength_resolution():
     """Test that a Spectrograph with per-bin wavelength resolution pads its bins
     on both sides to support smearing, and that no resolution means no padding."""
@@ -593,7 +594,9 @@ def test_spectrograph_smear_matrix_values():
 
     # With zero resolution the smear matrix is the identity (no cross-bin mixing).
     zero_resolution = np.full(3, 0.0)
-    spgraph_no_res = Spectrograph(waves_min, waves_max, wavelength_resolution=zero_resolution, compute_smear=True)
+    spgraph_no_res = Spectrograph(
+        waves_min, waves_max, wavelength_resolution=zero_resolution, compute_smear=True
+    )
     assert np.allclose(spgraph_no_res.smear_matrix, np.eye(spgraph_no_res.num_bins))
 
 

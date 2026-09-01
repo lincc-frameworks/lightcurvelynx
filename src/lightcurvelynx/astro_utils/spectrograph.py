@@ -8,6 +8,7 @@ from astropy import units as u
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 import scipy
 
+
 def gaussian_integral(nsigma_low, nsigma_high):
     """
     Computes the integral of a Gaussian between two limits in units of sigma.
@@ -25,7 +26,10 @@ def gaussian_integral(nsigma_low, nsigma_high):
     integral : float
         The integral of the Gaussian between the limits.
     """
-    return 0.5 * (scipy.special.erf(nsigma_high / np.sqrt(2.0)) - scipy.special.erf(nsigma_low / np.sqrt(2.0)))
+    return 0.5 * (
+        scipy.special.erf(nsigma_high / np.sqrt(2.0)) - scipy.special.erf(nsigma_low / np.sqrt(2.0))
+    )
+
 
 class Spectrograph:
     """Models all of the bins of a spectrograph, producing bandfluxes for each
@@ -259,8 +263,7 @@ class Spectrograph:
         pad_blue_min = self.waves_min[0] - width_blue * np.arange(num_pad_blue, 0, -1)
         pad_blue_max = pad_blue_min + width_blue
 
-
-        red_edge_idx = -2 if self.num_bins >= 2 else -1 # snana takes the 2nd to last bin
+        red_edge_idx = -2 if self.num_bins >= 2 else -1  # snana takes the 2nd to last bin
         sigma_red = self.wavelength_resolution[red_edge_idx]
         width_red = self.bin_widths[red_edge_idx]
         num_pad_red = int(2.5 * sigma_red / width_red) + 1 if sigma_red > 0 else 0
@@ -272,11 +275,7 @@ class Spectrograph:
         padded_bins_max = np.concatenate((pad_blue_max, self.waves_max, pad_red_max))
 
         padded_wavelength_resolution = np.concatenate(
-            [
-                np.full(num_pad_blue, sigma_blue),
-                self.wavelength_resolution,
-                np.full(num_pad_red, sigma_red)
-            ]
+            [np.full(num_pad_blue, sigma_blue), self.wavelength_resolution, np.full(num_pad_red, sigma_red)]
         )
 
         is_padding = np.concatenate(
@@ -294,7 +293,7 @@ class Spectrograph:
         Parameters
         ----------
         n_sigma : int, optional
-            The number of standard deviations to consider for the Gaussian smearing. 
+            The number of standard deviations to consider for the Gaussian smearing.
             Default is 3.
 
         Returns
@@ -330,7 +329,7 @@ class Spectrograph:
                     lam_sig0 = (self.padded_min[j] - bin_center) / sigma
                     lam_sig1 = (self.padded_max[j] - bin_center) / sigma
                     smear_matrix[i, j] = gaussian_integral(lam_sig0, lam_sig1)
-                else: # sigma == 0, no smearing to outer bins
+                else:  # sigma == 0, no smearing to outer bins
                     smear_matrix[i, j] = 0.0 if i != j else 1.0
 
         return smear_matrix
