@@ -249,14 +249,17 @@ class ExtinctionEffect(EffectModel):
     ----------
     extinction_model : str
         The name of the extinction model to use.
-    ebv : parameter
+    ebv : parameter, optional
         The setter (function) for the extinction parameter E(B-V).
     r_v : float, optional
         The value for the extinction parameter R(V) if needed by the backend model.
-    frame : str
+    frame : str, optional
         The frame for extinction. 'rest' or 'observer'.
-    backend : str
+    backend : str, optional
         The backend extinction library to use. One of 'dust_extinction' or 'extinction'.
+    ebv_param_name : str, optional
+        The name of the ebv parameter. If the user wants to chain multiple extinction models,
+        each model will need a unique ebv parameter name. Default: "ebv"
     **kwargs : `dict`, optional
         Any additional keyword arguments.
     """
@@ -274,6 +277,7 @@ class ExtinctionEffect(EffectModel):
         frame=None,
         r_v=None,
         backend=None,
+        ebv_param_name="ebv",
         **kwargs,
     ):
         self.model_name = extinction_model
@@ -282,7 +286,8 @@ class ExtinctionEffect(EffectModel):
 
         # Set up the effect parameters (ebv).
         super().__init__(**kwargs)
-        self.add_effect_parameter("ebv", ebv)
+        self.ebv_param_name = ebv_param_name
+        self.add_effect_parameter(ebv_param_name, ebv)
 
         # Set the frame.
         if frame == "observer":
@@ -335,7 +340,7 @@ class ExtinctionEffect(EffectModel):
 
         self._extinction_wrapper = self._BACKEND_TO_WRAPPER[self.backend](self.model_name, r_v=self.r_v)
 
-    def apply(self, flux_density, times=None, wavelengths=None, ebv=None, **kwargs):
+    def apply(self, flux_density, times=None, wavelengths=None, **kwargs):
         """Apply the extinction effect to the flux density.
 
         Parameters
@@ -349,14 +354,18 @@ class ExtinctionEffect(EffectModel):
         ebv : float, optional
             The extinction parameter E(B-V). Raises an error if None is provided.
         **kwargs : `dict`, optional
-           Any additional keyword arguments, including any additional
-           parameters needed to apply the effect.
+           Any additional keyword arguments. This must include the ebv parameter,
+           which has the name listed in ebv_param_name.
 
         Returns
         -------
         flux_density : numpy.ndarray
             A length T x N matrix of flux densities after the effect is applied (in nJy).
         """
+        ebv = kwargs.pop(self.ebv_param_name, None)
+        if ebv is None:
+            raise ValueError(f"Invalid value for parameter {self.ebv_param_name} provided: {ebv}")
+
         return self._extinction_wrapper.apply(
             flux_density,
             times=times,

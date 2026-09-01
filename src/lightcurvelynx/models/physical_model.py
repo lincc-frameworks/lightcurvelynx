@@ -466,7 +466,8 @@ class SEDModel(BasePhysicalModel):
             Most users should NOT change this setting.
             Default: False
         """
-        # Add any effect parameters that are not already in the model.
+        # Add any effect parameters that are not already in the model. We can use None
+        # if the parameter already exists in the model.
         if not skip_params:
             for param_name, setter in effect.parameters.items():
                 if param_name not in self.setters:
@@ -476,6 +477,8 @@ class SEDModel(BasePhysicalModel):
                         description=f"Added parameter by effect {effect}",
                         allow_gradient=False,
                     )
+                elif setter is not None:
+                    raise ValueError(f"Tried to add duplicate parameter {param_name} to model.")
 
         # Add the effect to the appropriate list.
         if effect.rest_frame:
