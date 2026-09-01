@@ -402,6 +402,8 @@ class MultiSEDTemplateModel(SEDModel):
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
         a template at random. If None, all templates will be weighted equally.
+    seed : int, optional
+        The seed to use for random number generation.
     """
 
     def __init__(
@@ -409,6 +411,7 @@ class MultiSEDTemplateModel(SEDModel):
         templates,
         *,
         weights=None,
+        seed=None,
         **kwargs,
     ):
         # Validate the input templates.
@@ -420,7 +423,7 @@ class MultiSEDTemplateModel(SEDModel):
         super().__init__(**kwargs)
 
         all_inds = list(range(len(templates)))
-        self._sampler_node = GivenValueSampler(all_inds, weights=weights)
+        self._sampler_node = GivenValueSampler(all_inds, weights=weights, seed=seed)
         self.add_parameter(
             "selected_template",
             value=self._sampler_node,
