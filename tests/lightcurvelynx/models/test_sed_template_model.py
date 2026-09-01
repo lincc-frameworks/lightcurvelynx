@@ -325,9 +325,11 @@ def test_create_sed_template_model() -> None:
     # Evaluate the model at some times and wavelengths.
     eval_times = np.array([1.5, 2.5, 3.5])
     eval_waves = np.array([1000.0, 2000.0, 2500.0])
-
     state = model.sample_parameters(num_samples=1)
-    sed_values = model.evaluate_sed(eval_times, eval_waves, graph_state=state)
+
+    # We should get a warning, because the last point is outside the range of the data.
+    with pytest.warns(UserWarning):
+        sed_values = model.evaluate_sed(eval_times, eval_waves, graph_state=state)
     expected_values = np.array(
         [
             [12.5, 22.5, 13.75],
@@ -358,6 +360,19 @@ def test_create_sed_template_model() -> None:
         ]
     )
     assert np.allclose(sed_values2, expected_values2)
+
+    # Test that if we create a model with a baseline, the time bounds are None.
+    baseline = np.array([1.0, 2.0, 3.0])
+    model3 = SEDTemplateModel(
+        data,
+        sed_data_t0=0.0,
+        interpolation_type="linear",
+        periodic=False,
+        t0=0.0,
+        baseline=baseline,
+    )
+    assert model3.minphase() is None
+    assert model3.maxphase() is None
 
 
 def test_create_sed_template_model_from_template() -> None:

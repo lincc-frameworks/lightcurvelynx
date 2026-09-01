@@ -438,7 +438,7 @@ class SEDTemplateModel(SEDModel):
             The minimum phase of the model (in days) or None
             if the model does not have a defined minimum phase.
         """
-        if self.template.is_periodic:
+        if self.template.is_periodic or self.template.baseline is not None:
             return None
         return self.times[0]
 
@@ -456,7 +456,7 @@ class SEDTemplateModel(SEDModel):
             The maximum phase of the model (in days) or None
             if the model does not have a defined maximum phase.
         """
-        if self.template.is_periodic:
+        if self.template.is_periodic or self.template.baseline is not None:
             return None
         return self.times[-1]
 
