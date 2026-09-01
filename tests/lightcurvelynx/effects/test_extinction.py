@@ -97,7 +97,7 @@ def test_set_frame():
 
 def test_extinction_effect_chain():
     """Test that we can chain two ExtinctionEffects."""
-    pytest.importorskip("dust_extinction")
+    pytest.importorskip("extinction")
     model = ConstantSEDModel(brightness=1000.0, ra=15.0, dec=-10.0, node_label="test")
 
     dust_effect = ExtinctionEffect(
