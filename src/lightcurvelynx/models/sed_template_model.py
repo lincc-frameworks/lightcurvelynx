@@ -14,7 +14,7 @@ import astropy.units as u
 import numpy as np
 import yaml
 from citation_compass import cite_inline
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline, interp1d
 from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
@@ -36,6 +36,8 @@ class SEDTemplate:
         A length T array of the times for the SED relative to the reference epoch.
     interp : scipy.interpolate object
         The type of interpolation to use. One of 'linear' or 'spline'.
+    baseline_interp : scipy.interpolate object or None
+        The interpolation object for the baseline SED values, if provided. None if no baseline is used.
     period : float or None
         The period of this data, if it is periodic. Default is None.
 
@@ -75,6 +77,16 @@ class SEDTemplate:
             )
         self.phases, self.wavelengths, sed_values = SEDTemplate._three_column_to_matrix(grid_data)
 
+        # Check that the data is not empty and sorted.
+        if len(self.phases) == 0:
+            raise ValueError("Phases array is empty.")  # pragma: no cover
+        if len(self.wavelengths) == 0:
+            raise ValueError("Wavelengths array is empty.")  # pragma: no cover
+        if not np.all(np.diff(self.phases) >= 0):
+            raise ValueError("Phases must be sorted in ascending order.")  # pragma: no cover
+        if not np.all(np.diff(self.wavelengths) >= 0):
+            raise ValueError("Wavelengths must be sorted in ascending order.")  # pragma: no cover
+
         # Apply the sed_data_t0 offset to the phases to get the times.
         self.times = self.phases - sed_data_t0
 
@@ -103,6 +115,7 @@ class SEDTemplate:
             self.period = None
 
         # Set up the interpolation object for this SED.
+        self._interpolation_type = interpolation_type
         interp_degree = 3 if interpolation_type == "cubic" else 1
         self.interp = RectBivariateSpline(
             self.times,
@@ -111,6 +124,15 @@ class SEDTemplate:
             kx=interp_degree,
             ky=interp_degree,
         )
+
+        if self.baseline is not None:
+            self.baseline_interp = interp1d(
+                self.wavelengths,
+                self.baseline,
+                kind=self._interpolation_type,
+                bounds_error=False,
+                fill_value=0.0,
+            )
 
     @property
     def is_periodic(self):
@@ -195,14 +217,22 @@ class SEDTemplate:
         sed_values : np.ndarray
             A (T x W) matrix of SED values (in the given units) at the given times and wavelengths.
         """
+        sed_values = np.zeros((len(times), len(wavelengths)))
+
         if self.period is None:
-            sed_values = np.zeros((len(times), len(wavelengths)))
+            # Check which times and wavelengths are in range and only evaluate those.
+            time_in_range = (times >= self.times[0]) & (times <= self.times[-1])
+            wave_in_range = (wavelengths >= self.wavelengths[0]) & (wavelengths <= self.wavelengths[-1])
+            query_waves = wavelengths[wave_in_range]
 
-            in_range = (times >= self.times[0]) & (times <= self.times[-1])
-            sed_values[in_range, :] = self.interp(times[in_range], wavelengths, grid=True)
+            sed_values[np.ix_(time_in_range, wave_in_range)] = self.interp(
+                times[time_in_range], query_waves, grid=True
+            )
 
+            # Outside the time tange use the (wavelength-interpolated) baseline value.
             if self.baseline is not None:
-                sed_values[~in_range, :] = self.baseline[np.newaxis, :]
+                baseline_values = self.baseline_interp(query_waves)
+                sed_values[np.ix_(~time_in_range, wave_in_range)] = baseline_values
         else:
             # Create the modulo times for periodic evaluation and an inverse mapping to original order.
             times = np.mod(times, self.period)
@@ -210,8 +240,12 @@ class SEDTemplate:
             inv_idx = np.empty_like(argsort_idx)
             inv_idx[argsort_idx] = np.arange(len(times))
 
-            sed_values = self.interp(times[argsort_idx], wavelengths, grid=True)
-            sed_values = sed_values[inv_idx, :]
+            # Check which wavelengths are in range and only evaluate those.
+            wave_in_range = (wavelengths >= self.wavelengths[0]) & (wavelengths <= self.wavelengths[-1])
+            query_waves = wavelengths[wave_in_range]
+
+            partial_sed_values = self.interp(times[argsort_idx], query_waves, grid=True)
+            sed_values[np.ix_(np.arange(len(times)), wave_in_range)] = partial_sed_values[inv_idx, :]
         return sed_values
 
     @staticmethod
@@ -258,6 +292,8 @@ class SEDTemplateModel(SEDModel):
     is not periodic then the given values will be interpolated during the time range
     of the template. Values outside the time range (before and after) will be set to
     the baseline value for that wavelength (0.0 by default).
+
+    The values for all wavelengths outside the range of the data will be zero.
 
     Parameterized values include:
 
@@ -355,6 +391,74 @@ class SEDTemplateModel(SEDModel):
     def wavelengths(self):
         """The wavelengths of the template data (in Angstroms)."""
         return self.template.wavelengths
+
+    def minwave(self, **kwargs):
+        """Get the minimum supported wavelength of the model.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        minwave : float or None
+            The minimum wavelength of the model (in angstroms) or None
+            if the model does not have a defined minimum wavelength.
+        """
+        return self.wavelengths[0]
+
+    def maxwave(self, **kwargs):
+        """Get the maximum supported wavelength of the model.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        maximum : float or None
+            The maximum wavelength of the model (in angstroms) or None
+            if the model does not have a defined maximum wavelength.
+        """
+        return self.wavelengths[-1]
+
+    def minphase(self, **kwargs):
+        """Get the minimum supported phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        if self.template.is_periodic:
+            return None
+        return self.times[0]
+
+    def maxphase(self, **kwargs):
+        """Get the maximum supported phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        maximum : float or None
+            The maximum phase of the model (in days) or None
+            if the model does not have a defined maximum phase.
+        """
+        if self.template.is_periodic:
+            return None
+        return self.times[-1]
 
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.

@@ -39,7 +39,17 @@ def test_linear_sed_template_data() -> None:
     )
     assert np.allclose(sed_values, expected_values)
 
-    # We correct for sed_data_t0.
+    # Test that we correctly broadcast everything when we only have
+    # a single query time or wavelength.
+    sed_values = data_obj.evaluate_sed(np.array([1.5]), eval_waves)
+    expected_values = np.array([[12.5, 22.5]])
+    assert np.allclose(sed_values, expected_values)
+
+    sed_values = data_obj.evaluate_sed(eval_times, np.array([1000.0]))
+    expected_values = np.array([[0.0], [12.5], [17.5], [0.0]])
+    assert np.allclose(sed_values, expected_values)
+
+    # That that we correct for sed_data_t0.
     data_obj2 = SEDTemplate(
         data,
         interpolation_type="linear",
@@ -92,6 +102,69 @@ def test_linear_sed_template_data() -> None:
             periodic=False,
             baseline=np.array([1.0, 2.0, 3.0]),
         )
+
+
+def test_linear_sed_template_data_wavelength_bounds() -> None:
+    """Test that we can create a SEDTemplate object and handle queries with
+    wavelengths outside the range of the data. The flux for those wavelengths
+    should be zero.
+    """
+    data = np.array(
+        [
+            [1.0, 1000.0, 10.0],
+            [1.0, 2000.0, 20.0],
+            [2.0, 1000.0, 15.0],
+            [2.0, 2000.0, 25.0],
+            [3.0, 1000.0, 20.0],
+            [3.0, 2000.0, 30.0],
+        ]
+    )
+    baseline = np.array([1.0, 2.0])
+    data_obj = SEDTemplate(data, interpolation_type="linear", periodic=False, baseline=baseline)
+
+    eval_times = np.array([0.5, 1.5, 2.5, 3.5])
+    eval_waves = np.array([500.0, 1000.0, 1500.0, 2000.0, 2500.0])
+    sed_values = data_obj.evaluate_sed(eval_times, eval_waves)
+    expected_values = np.array(
+        [
+            [0.0, 1.0, 1.5, 2.0, 0.0],  # T before uses baseline.
+            [0.0, 12.5, 17.5, 22.5, 0.0],
+            [0.0, 17.5, 22.5, 27.5, 0.0],
+            [0.0, 1.0, 1.5, 2.0, 0.0],  # T after uses baseline.
+        ]
+    )
+    assert np.allclose(sed_values, expected_values)
+
+    # Check that we correctly handle the periodic case.
+    data2 = np.array(
+        [
+            [0.0, 1000.0, 10.0],
+            [0.0, 2000.0, 20.0],
+            [1.0, 1000.0, 15.0],
+            [1.0, 2000.0, 25.0],
+            [2.0, 1000.0, 20.0],
+            [2.0, 2000.0, 30.0],
+            [3.0, 1000.0, 10.0],
+            [3.0, 2000.0, 20.0],
+        ]
+    )
+    data_obj2 = SEDTemplate(data2, interpolation_type="linear", periodic=True)
+    eval_times = np.array([-0.5, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
+    sed_values2 = data_obj2.evaluate_sed(eval_times, eval_waves)
+    expected_values2 = np.array(
+        [
+            [0.0, 15.0, 20.0, 25.0, 0.0],  # -0.5 wraps to 2.5
+            [0.0, 10.0, 15.0, 20.0, 0.0],  # 0.0
+            [0.0, 12.5, 17.5, 22.5, 0.0],  # Halfway between 0.0 and 1.0
+            [0.0, 15.0, 20.0, 25.0, 0.0],  # 1.0
+            [0.0, 17.5, 22.5, 27.5, 0.0],  # Halfway between 1.0 and 2.0
+            [0.0, 20.0, 25.0, 30.0, 0.0],  # 2.0
+            [0.0, 15.0, 20.0, 25.0, 0.0],  # Halfway between 2.0 and 3.0
+            [0.0, 10.0, 15.0, 20.0, 0.0],  # 3.0
+            [0.0, 12.5, 17.5, 22.5, 0.0],  # 3.5 wraps to 0.5
+        ]
+    )
+    assert np.allclose(sed_values2, expected_values2)
 
 
 def test_linear_sed_template_unsorted_data() -> None:
@@ -244,6 +317,10 @@ def test_create_sed_template_model() -> None:
     model = SEDTemplateModel(data, sed_data_t0=0.0, interpolation_type="linear", periodic=False, t0=0.0)
     assert len(model.times) == 4
     assert len(model.wavelengths) == 3
+    assert model.minwave() == 1000.0
+    assert model.maxwave() == 3000.0
+    assert model.minphase() == 0.0
+    assert model.maxphase() == 3.0
 
     # Evaluate the model at some times and wavelengths.
     eval_times = np.array([1.5, 2.5, 3.5])
@@ -264,15 +341,20 @@ def test_create_sed_template_model() -> None:
     with pytest.raises(ValueError):
         _ = SEDTemplateModel(data, interpolation_type="linear", periodic=False, t0=0.0)
 
-    # Set a non-zero t0. An evaluation time of 2.0 now corresponds to phase 0.0 in the curve.
+    # Set a non-zero t0. An evaluation time of 2.0 now corresponds to phase 0.0 in the
+    # curve. We should get a warning, because the first and last points are outside the
+    # range of the data.
     model2 = SEDTemplateModel(data, sed_data_t0=0.0, interpolation_type="linear", periodic=False, t0=2.0)
     state2 = model2.sample_parameters(num_samples=1)
-    sed_values2 = model2.evaluate_sed(eval_times, eval_waves, graph_state=state2)
+    eval_times = np.array([1.5, 2.5, 3.5, 5.5])
+    with pytest.warns(UserWarning):
+        sed_values2 = model2.evaluate_sed(eval_times, eval_waves, graph_state=state2)
     expected_values2 = np.array(
         [
             [0.0, 0.0, 0.0],
             [7.5, 17.5, 11.25],
             [12.5, 22.5, 13.75],
+            [0.0, 0.0, 0.0],
         ]
     )
     assert np.allclose(sed_values2, expected_values2)
@@ -296,6 +378,10 @@ def test_create_sed_template_model_from_template() -> None:
     assert len(model.wavelengths) == 2
     assert model.template.is_periodic
     assert model.template.period == 2.0
+    assert model.minwave() == 1000.0
+    assert model.maxwave() == 2000.0
+    assert model.minphase() is None
+    assert model.maxphase() is None
 
 
 def test_sed_model_data_from_file(test_data_dir):
