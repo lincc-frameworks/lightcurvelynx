@@ -376,7 +376,13 @@ def test_create_multi_sed_template_model() -> None:
 
 def test_simsed_model_compute_sed(test_data_dir) -> None:
     """Test that we can load and compute SEDs from a SIMSEDModel."""
-    model = SIMSEDModel.from_dir(test_data_dir / "fake_simsed", t0=0.0, distance=10.0, node_label="model")
+    model = SIMSEDModel.from_dir(
+        test_data_dir / "fake_simsed",
+        t0=0.0,
+        distance=10.0,
+        seed=54321,
+        node_label="model",
+    )
     assert len(model) == 2
     assert model.flux_scale == 2.0
 
@@ -386,6 +392,17 @@ def test_simsed_model_compute_sed(test_data_dir) -> None:
     sed_values = model.evaluate_sed(times, wavelengths)
     assert sed_values.shape == (3, 2)
     assert np.all(sed_values > 0.0)
+
+    # If we use the same seed, we should get the same samples.
+    model2 = SIMSEDModel.from_dir(
+        test_data_dir / "fake_simsed",
+        t0=0.0,
+        distance=10.0,
+        seed=54321,
+        node_label="model",
+    )
+    sed_values2 = model2.evaluate_sed(times, wavelengths)
+    assert np.allclose(sed_values, sed_values2)
 
     # Confirm that we have noted the data in the citations registry.
     citations = find_in_citations("SIMSED Data")

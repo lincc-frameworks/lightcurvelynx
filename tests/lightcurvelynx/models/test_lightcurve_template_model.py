@@ -779,6 +779,7 @@ def test_create_multilightcurve_template_model() -> None:
         pb_group,
         weights=[0.25, 0.75],
         t0=0.0,
+        seed=101010,
         node_label="source",
     )
     assert len(model.lightcurves) == 2
@@ -835,6 +836,30 @@ def test_create_multilightcurve_template_model() -> None:
     single_state = model.sample_parameters(num_samples=1)
     assert model.minphase(filter="g", graph_state=single_state) is None
     assert model.maxphase(filter="g", graph_state=single_state) is None
+
+    # If we reuse the seed, we get the same templates.
+    model2 = MultiLightcurveTemplateModel(
+        [lc1_data, lc2_data],
+        pb_group,
+        weights=[0.25, 0.75],
+        t0=0.0,
+        seed=101010,
+        node_label="source",
+    )
+    graph_state2 = model2.sample_parameters(num_samples=1_000)
+    assert np.all(lc_used == graph_state2["source"]["selected_lightcurve"])
+
+    # If we use a different the seed, we get the different templates.
+    model3 = MultiLightcurveTemplateModel(
+        [lc1_data, lc2_data],
+        pb_group,
+        weights=[0.25, 0.75],
+        t0=0.0,
+        seed=101011,
+        node_label="source",
+    )
+    graph_state3 = model3.sample_parameters(num_samples=1_000)
+    assert not np.all(lc_used == graph_state3["source"]["selected_lightcurve"])
 
 
 def test_create_multilightcurve_template_model_indices() -> None:

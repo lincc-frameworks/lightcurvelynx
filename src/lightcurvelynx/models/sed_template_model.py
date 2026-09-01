@@ -476,11 +476,21 @@ class SIMSEDModel(MultiSEDTemplateModel):
         The data for the templates, such as the times and bandfluxes in each filter.
     flux_scale : float
         A scale factor to apply to all fluxes read from the SIMSED data files.
+
+    Attributes
+    ----------
+    templates : list of SEDTemplate
+        The data for the templates, such as the times and bandfluxes in each filter.
+    flux_scale : float, optional
+        A scale factor to apply to all fluxes read from the SIMSED data files.
+        Default: 1.0
+    seed : int, optional
+        The seed to use for random number generation.
     """
 
-    def __init__(self, templates, flux_scale=1.0, **kwargs):
+    def __init__(self, templates, *, flux_scale=1.0, seed=None, **kwargs):
         self.flux_scale = flux_scale
-        super().__init__(templates, **kwargs)
+        super().__init__(templates, seed=seed, **kwargs)
         if not self.has_valid_param("distance"):
             raise ValueError(
                 "SIMSEDModel requires a valid 'distance' parameter representing luminosity distance in pc. "
@@ -489,13 +499,15 @@ class SIMSEDModel(MultiSEDTemplateModel):
             )
 
     @classmethod
-    def from_dir(cls, simsed_dir, **kwargs):
+    def from_dir(cls, simsed_dir, *, seed=None, **kwargs):
         """Read SNANA-formatted data from a directory and create a SIMSEDModel.
 
         Parameters
         ----------
         simsed_dir : str or Path
             The directory containing the SIMSED-formatted data files.
+        seed : int, optional
+            The seed to use for random number generation.
         **kwargs : dict
             Additional keyword arguments to pass to the SIMSEDModel constructor.
 
@@ -526,7 +538,7 @@ class SIMSEDModel(MultiSEDTemplateModel):
             f"SIMSED data files from {simsed_dir}. Check the SED.INFO file for citation information.",
         )
 
-        return cls(templates, flux_scale=flux_scale, **kwargs)
+        return cls(templates, flux_scale=flux_scale, seed=seed, **kwargs)
 
     @staticmethod
     def _read_simsed_info_file(simsed_dir):
