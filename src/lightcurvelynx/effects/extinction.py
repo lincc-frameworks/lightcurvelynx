@@ -253,9 +253,9 @@ class ExtinctionEffect(EffectModel):
         The setter (function) for the extinction parameter E(B-V).
     r_v : float, optional
         The value for the extinction parameter R(V) if needed by the backend model.
-    frame : str, optional
+    frame : str
         The frame for extinction. 'rest' or 'observer'.
-    backend : str, optional
+    backend : str
         The backend extinction library to use. One of 'dust_extinction' or 'extinction'.
     ebv_param_name : str, optional
         The name of the ebv parameter. If the user wants to chain multiple extinction models,
@@ -340,7 +340,7 @@ class ExtinctionEffect(EffectModel):
 
         self._extinction_wrapper = self._BACKEND_TO_WRAPPER[self.backend](self.model_name, r_v=self.r_v)
 
-    def apply(self, flux_density, times=None, wavelengths=None, **kwargs):
+    def apply(self, flux_density, times=None, wavelengths=None, ebv=None, **kwargs):
         """Apply the extinction effect to the flux density.
 
         Parameters
@@ -352,17 +352,19 @@ class ExtinctionEffect(EffectModel):
         wavelengths : numpy.ndarray, optional
             A length N array of wavelengths (in angstroms).
         ebv : float, optional
-            The extinction parameter E(B-V). Raises an error if None is provided.
+            The extinction parameter E(B-V). This is not used if ebv_param_name
+            is set to something other than "ebv".
         **kwargs : `dict`, optional
-           Any additional keyword arguments. This must include the ebv parameter,
-           which has the name listed in ebv_param_name.
+           Any additional keyword arguments. If ebv_param_name is not "ebv" then,
+           this must include a value for parameter ebv_param_name.
 
         Returns
         -------
         flux_density : numpy.ndarray
             A length T x N matrix of flux densities after the effect is applied (in nJy).
         """
-        ebv = kwargs.pop(self.ebv_param_name, None)
+        if self.ebv_param_name != "ebv":
+            ebv = kwargs.pop(self.ebv_param_name, None)
         if ebv is None:
             raise ValueError(f"Invalid value for parameter {self.ebv_param_name} provided: {ebv}")
 

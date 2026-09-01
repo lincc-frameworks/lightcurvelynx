@@ -130,6 +130,9 @@ def test_extinction_effect_chain():
     assert state["test"]["ebv"] == pytest.approx(0.1)
     assert state["test"]["galaxy_ebv"] == pytest.approx(0.15)
 
+    # We can apply the extinction effect to a set of fluxes.
+    _ = model.evaluate_sed(np.array([1.0]), np.array([7000.0, 5200.0, 4800.0]), state)
+
 
 def test_pickle_extinction_models(subtests):
     """Test that we can pickle and unpickle extinction effects regardless of backend."""
