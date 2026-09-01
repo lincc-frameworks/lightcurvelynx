@@ -29,7 +29,7 @@ class NumpyRandomFunc(FunctionNode):
         returned value will be ``(num_samples, *size)``.
         Default: None (single values for each sample)
     seed : int, optional
-        The seed to use.
+        The seed to use for random number generation.
 
     Note
     ----

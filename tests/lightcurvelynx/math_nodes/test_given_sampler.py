@@ -341,6 +341,17 @@ def test_table_sampler_fail():
         _ = TableSampler({"a": [], "b": []})
 
 
+def test_table_sampler_warn():
+    """Test that we give a warning if seed is provided with in_order."""
+    raw_data_dict = {
+        "A": [1, 2, 3, 4, 5, 6, 7, 8],
+        "B": [1, 1, 1, 1, 1, 1, 1, 1],
+        "C": [3, 4, 5, 6, 7, 8, 9, 10],
+    }
+    with pytest.warns(UserWarning):
+        _ = TableSampler(raw_data_dict, in_order=True, seed=100, node_label="node")
+
+
 def test_table_sampler_offset():
     """Test that we can retrieve numbers from a TableSampler with an offset."""
     data = {
@@ -370,7 +381,7 @@ def test_table_sampler_randomized():
     }
 
     # Create the table sampler from the data.
-    table_node = TableSampler(raw_data_dict, node_label="node")
+    table_node = TableSampler(raw_data_dict, seed=3, node_label="node")
     state = table_node.sample_parameters(num_samples=2000)
 
     # Check that we can sample a single point.
@@ -402,3 +413,15 @@ def test_table_sampler_randomized():
 
     # We always sample consistent ROWS of a and b.
     assert np.all(b_vals - a_vals == 1)
+
+    # If we reuse the seed, we get the same samples.
+    table_node2 = TableSampler(raw_data_dict, seed=3, node_label="node")
+    state2 = table_node2.sample_parameters(num_samples=2000)
+    assert np.allclose(state["node"]["A"], state2["node"]["A"])
+    assert np.allclose(state["node"]["B"], state2["node"]["B"])
+
+    # If we use a different seed, we get different samples.
+    table_node3 = TableSampler(raw_data_dict, seed=4, node_label="node")
+    state3 = table_node3.sample_parameters(num_samples=2000)
+    assert not np.allclose(state["node"]["A"], state3["node"]["A"])
+    assert not np.allclose(state["node"]["B"], state3["node"]["B"])
