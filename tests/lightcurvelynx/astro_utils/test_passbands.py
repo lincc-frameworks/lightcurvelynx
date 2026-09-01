@@ -13,6 +13,7 @@ from astropy import units as u
 from astropy.table import Table
 from lightcurvelynx.astro_utils.passbands import Passband
 from lightcurvelynx.models.sed_template_model import SEDTemplateModel
+from lightcurvelynx.utils.extrapolate import ZeroPadding
 
 
 def create_lsst_passband(path, filter_name, **kwargs):
@@ -661,18 +662,25 @@ def test_passband_wrapped_from_physical_source(passbands_dir, tmp_path):
     # Set up physical model
     sed_values = np.array(
         [
-            [1.0, 10.0, 1.0],
-            [1.0, 20.0, 5.0],
-            [1.0, 30.0, 1.0],
-            [2.0, 10.0, 5.0],
-            [2.0, 20.0, 10.0],
-            [2.0, 30.0, 5.0],
-            [3.0, 10.0, 1.0],
-            [3.0, 20.0, 5.0],
-            [3.0, 30.0, 3.0],
+            [1.0, 1000.0, 1.0],
+            [1.0, 2000.0, 5.0],
+            [1.0, 3000.0, 1.0],
+            [2.0, 1000.0, 5.0],
+            [2.0, 2000.0, 10.0],
+            [2.0, 3000.0, 5.0],
+            [3.0, 1000.0, 1.0],
+            [3.0, 2000.0, 5.0],
+            [3.0, 3000.0, 3.0],
         ]
     )
-    model = SEDTemplateModel(sed_values, sed_data_t0=0.0, interpolation_type="linear", t0=0.0)
+    model = SEDTemplateModel(
+        sed_values,
+        sed_data_t0=0.0,
+        interpolation_type="linear",
+        t0=0.0,
+        time_extrapolation=ZeroPadding(),
+        wave_extrapolation=ZeroPadding(),
+    )
     state = model.sample_parameters()
 
     test_times = np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
