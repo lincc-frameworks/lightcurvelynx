@@ -447,14 +447,33 @@ def test_random_multi_object_node_min_max() -> None:
     states.set("test", "selected_object", "sed0")
     assert model.minwave(states) == 100.0
     assert model.maxwave(states) == 400.0
+    assert model.minphase(states) is None
+    assert model.maxphase(states) is None
 
     # Force the selected_object to be 1 for the test.
     states.set("test", "selected_object", "sed1")
     assert model.minwave(states) == 200.0
     assert model.maxwave(states) == 500.0
+    assert model.minphase(states) is None
+    assert model.maxphase(states) is None
 
     # We fail if we do not pass in the states.
     with pytest.raises(ValueError):
         _ = model.minwave()
     with pytest.raises(ValueError):
         _ = model.maxwave()
+    with pytest.raises(ValueError):
+        _ = model.minphase()
+    with pytest.raises(ValueError):
+        _ = model.maxphase()
+
+    # We fail if we pass states with more than one sample.
+    states2 = model.sample_parameters(num_samples=10)
+    with pytest.raises(ValueError):
+        _ = model.minwave(graph_state=states2)
+    with pytest.raises(ValueError):
+        _ = model.maxwave(graph_state=states2)
+    with pytest.raises(ValueError):
+        _ = model.minphase(graph_state=states2)
+    with pytest.raises(ValueError):
+        _ = model.maxphase(graph_state=states2)

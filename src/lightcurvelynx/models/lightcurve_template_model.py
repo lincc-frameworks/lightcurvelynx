@@ -946,7 +946,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             raise ValueError("Filter must be provided to compute minphase.")
         if graph_state is None:
             raise ValueError("Graph state must be provided to compute minphase.")
-        if graph_state.num_samples > 1:
+        if graph_state.num_samples != 1:
             raise ValueError("Graph state must have num_samples=1 to compute maxphase.")
 
         model_ind = self.get_param(graph_state, "selected_lightcurve")
@@ -979,7 +979,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             raise ValueError("Filter must be provided to compute maxphase.")
         if graph_state is None:
             raise ValueError("Graph state must be provided to compute maxphase.")
-        if graph_state.num_samples > 1:
+        if graph_state.num_samples != 1:
             raise ValueError("Graph state must have num_samples=1 to compute maxphase.")
 
         model_ind = self.get_param(graph_state, "selected_lightcurve")
