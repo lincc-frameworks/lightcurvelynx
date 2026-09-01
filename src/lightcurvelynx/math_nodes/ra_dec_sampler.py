@@ -103,11 +103,22 @@ class ObsTableRADECSampler(TableSampler):
         The deduplication threshold in degrees. If two rows have RA and dec values that
         are within this threshold, only one of them will be kept for sampling. Use 0.0 to
         keep all rows. Default: 0.0
+    seed : int, optional
+        The seed to use for random number generation.
     **kwargs : dict, optional
         Additional keyword arguments to pass to the parent class constructor.
     """
 
-    def __init__(self, data, *, extra_cols=None, radius=None, dedup_threshold=0.0, **kwargs):
+    def __init__(
+        self,
+        data,
+        *,
+        extra_cols=None,
+        radius=None,
+        dedup_threshold=0.0,
+        seed=None,
+        **kwargs,
+    ):
         if isinstance(data, ObsTable):
             if radius is None:
                 radius = data.radius
@@ -146,7 +157,12 @@ class ObsTableRADECSampler(TableSampler):
             )
             data_dict = data_dict.iloc[inds].reset_index(drop=True)
 
-        super().__init__(data_dict, in_order=False, **kwargs)
+        # Create a random number generator for the offsets. Use the first
+        # sample for the table.
+        self._rng = np.random.default_rng(seed)
+        table_seed = self._rng.integers(0, 2**32 - 1)
+
+        super().__init__(data_dict, in_order=False, seed=table_seed, **kwargs)
 
     @classmethod
     def from_hats(
@@ -156,6 +172,7 @@ class ObsTableRADECSampler(TableSampler):
         radius=None,
         extra_cols=None,
         dedup_threshold=0.0,
+        seed=None,
         **kwargs,
     ):
         """Create a ObsTableRADECSampler from the observations in a HATS Catalog.
@@ -180,6 +197,8 @@ class ObsTableRADECSampler(TableSampler):
             The deduplication threshold in degrees. If two rows have RA and dec values that
             are within this threshold, only one of them will be kept for sampling. Use 0.0 to
             keep all rows. Default: 0.0
+        seed : int, optional
+            The seed to use for random number generation.
         **kwargs : dict, optional
             Additional keyword arguments to pass to the constructor.
 
@@ -212,6 +231,7 @@ class ObsTableRADECSampler(TableSampler):
             extra_cols=extra_cols,
             radius=radius,
             dedup_threshold=dedup_threshold,
+            seed=seed,
             **kwargs,
         )
 
@@ -240,7 +260,9 @@ class ObsTableRADECSampler(TableSampler):
         results = super().compute(graph_state, rng_info=rng_info, **kwargs)
 
         if self.radius > 0.0:
-            rng = rng_info if rng_info is not None else np.random.default_rng()
+            # Use the given random number generator if there is one, otherwise fallback
+            # to the node's random number generator.
+            rng = rng_info if rng_info is not None else self._rng
             center = SkyCoord(ra=results[0], dec=results[1], unit="deg")
 
             # Add an offset from the center of the pointing defined by an offset angle (phi)
