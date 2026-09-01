@@ -488,7 +488,7 @@ class SIMSEDModel(MultiSEDTemplateModel):
         The seed to use for random number generation.
     """
 
-    def __init__(self, templates, *, flux_scale=1.0, seed=None, **kwargs):
+def __init__(self, templates, flux_scale=1.0, *, seed=None, **kwargs):
         self.flux_scale = flux_scale
         super().__init__(templates, seed=seed, **kwargs)
         if not self.has_valid_param("distance"):

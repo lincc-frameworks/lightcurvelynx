@@ -38,14 +38,14 @@ class StaticSEDModel(SEDModel):
         The seed to use for random number generation when selecting the template.
     """
 
-    def __init__(
-        self,
-        sed_values,
-        *,
-        weights=None,
-        seed=None,
-        **kwargs,
-    ):
+def __init__(
+    self,
+    sed_values,
+    weights=None,
+    *,
+    seed=None,
+    **kwargs,
+):
         # If only a single SED was passed, then put it in a list by itself.
         if isinstance(sed_values, SED):
             self.sed_values = [sed_values]
