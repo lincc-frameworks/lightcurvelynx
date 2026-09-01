@@ -485,7 +485,7 @@ class RandomMultiObjectModel(MultiObjectModel):
             if the model does not have a defined maximum phase.
         """
         if graph_state is None or graph_state.num_samples != 1:
-            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
+            raise ValueError("A 1 sample graph_state must be provided to determine time bounds.")
         name = self.get_param(graph_state, "selected_object")
         return self.object_map[name].maxphase(graph_state=graph_state)
 

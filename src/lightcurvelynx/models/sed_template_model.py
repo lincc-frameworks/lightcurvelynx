@@ -35,7 +35,7 @@ class SEDTemplate:
     times : np.ndarray
         A length T array of the times for the SED relative to the reference epoch.
     interp : scipy.interpolate object
-        The type of interpolation to use. One of 'linear' or 'spline'.
+        The type of interpolation to use. One of 'linear' or 'cubic'.
     baseline_interp : scipy.interpolate object or None
         The interpolation object for the baseline SED values, if provided. None if no baseline is used.
     period : float or None
@@ -229,7 +229,7 @@ class SEDTemplate:
                 times[time_in_range], query_waves, grid=True
             )
 
-            # Outside the time tange use the (wavelength-interpolated) baseline value.
+            # Outside the time range use the (wavelength-interpolated) baseline value.
             if self.baseline is not None:
                 baseline_values = self.baseline_interp(query_waves)
                 sed_values[np.ix_(~time_in_range, wave_in_range)] = baseline_values

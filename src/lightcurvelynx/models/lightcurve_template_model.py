@@ -947,7 +947,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         if graph_state is None:
             raise ValueError("Graph state must be provided to compute minphase.")
         if graph_state.num_samples != 1:
-            raise ValueError("Graph state must have num_samples=1 to compute maxphase.")
+            raise ValueError("Graph state must have num_samples=1 to compute minphase.")
 
         model_ind = self.get_param(graph_state, "selected_lightcurve")
         lc_model = self.lightcurves[model_ind]

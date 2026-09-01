@@ -49,7 +49,7 @@ def test_linear_sed_template_data() -> None:
     expected_values = np.array([[0.0], [12.5], [17.5], [0.0]])
     assert np.allclose(sed_values, expected_values)
 
-    # That that we correct for sed_data_t0.
+    # Note that we correct for sed_data_t0.
     data_obj2 = SEDTemplate(
         data,
         interpolation_type="linear",
@@ -447,9 +447,9 @@ def test_create_multi_sed_template_model() -> None:
     assert np.allclose(sed_values[~chose_first, 0, 0], 22.5)
 
 
-def test_create_multi_sed_template_model_counds() -> None:
-    """Test that we can create a MultiSEDTemplateModel objects from templates
-    with different time and waavelenght bounds."""
+def test_create_multi_sed_template_model_bounds() -> None:
+    """Test that we can create a MultiSEDTemplateModel object from templates
+    with different time and wavelength bounds."""
     data1 = np.array(
         [
             [0.0, 1000.0, 5.0],
