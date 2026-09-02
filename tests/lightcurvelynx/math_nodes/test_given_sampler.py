@@ -256,6 +256,39 @@ def test_given_value_sampler_weighted():
     assert len(results[results == 7]) > 500
 
 
+def test_given_value_sampler_weighted_seeded():
+    """Test that we can retrieve numbers from a GivenValueSampler
+    with a weighted distribution."""
+    # Same seed should produce the same results.
+    given_node1 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=123)
+    state1 = GraphState(num_samples=10_000)
+    results1 = given_node1.compute(state1)
+
+    given_node2 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=123)
+    state2 = GraphState(num_samples=10_000)
+    results2 = given_node2.compute(state2)
+    assert np.array_equal(results1, results2)
+
+    # Different seeds should produce different results.
+    given_node3 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=124)
+    state3 = GraphState(num_samples=10_000)
+    results3 = given_node3.compute(state3)
+    assert not np.array_equal(results1, results3)
+
+    # We can override the seed with a given random number generator. Different
+    # seeds do not matter if we provide the same random number generator to the compute() method.
+    rng1 = np.random.default_rng(seed=456)
+    given_node4 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=123)
+    state4 = GraphState(num_samples=10_000)
+    results4 = given_node4.compute(state4, rng_info=rng1)
+
+    rng2 = np.random.default_rng(seed=456)
+    given_node5 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=124)
+    state5 = GraphState(num_samples=10_000)
+    results5 = given_node5.compute(state5, rng_info=rng2)
+    assert np.allclose(results4, results5)
+
+
 @pytest.mark.parametrize("bad_weights", [[-0.1, 0.6, 0.5], [0.2, -0.2, 1.0]])
 def test_given_value_sampler_negative_weights_fail(bad_weights):
     """Test that negative weights are rejected."""

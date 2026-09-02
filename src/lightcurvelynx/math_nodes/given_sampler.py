@@ -23,6 +23,15 @@ class BinarySampler(NumpyRandomFunc):
     ----------
     probability : float
         The probability of returning True.
+
+    Parameters
+    ----------
+    probability : float
+        The probability of returning True.
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
     def __init__(self, probability, seed=None, **kwargs):
@@ -178,6 +187,18 @@ class GivenValueSampler(NumpyRandomFunc):
         The number of values that can be sampled.
     _weights : numpy.ndarray, optional
         The weights for each value, if provided. If None, all values are equally likely.
+
+    Parameters
+    ----------
+    values : int, list, or numpy.ndarray
+        The values to select from. If an integer is provided, it is treated as a range
+        from 0 to that value - 1.
+    weights : list or numpy.ndarray, optional
+        The weights for each value. If None, all values are equally likely.
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
     def __init__(self, values, weights=None, seed=None, **kwargs):

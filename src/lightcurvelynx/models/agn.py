@@ -101,8 +101,9 @@ class AGN(SEDModel):
         The label for the node in the model graph.
         Default: None
     seed : int, optional
-        The seed to use for the random number generator.
-        Default: None
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     **kwargs : dict
         Additional keyword arguments.
     """
