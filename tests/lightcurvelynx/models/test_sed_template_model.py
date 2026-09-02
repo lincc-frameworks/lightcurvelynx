@@ -432,7 +432,13 @@ def test_create_multi_sed_template_model() -> None:
         ]
     )
     lc2 = SEDTemplate(data2, interpolation_type="linear", periodic=False)
-    model = MultiSEDTemplateModel([lc1, lc2], weights=[0.25, 0.75], t0=0.0, node_label="model")
+    model = MultiSEDTemplateModel(
+        [lc1, lc2],
+        weights=[0.25, 0.75],
+        t0=0.0,
+        seed=12345,
+        node_label="model",
+    )
     assert len(model) == 2
 
     # Evaluate the model at some times and wavelengths.
@@ -445,6 +451,28 @@ def test_create_multi_sed_template_model() -> None:
     assert 0.15 < np.count_nonzero(chose_first) / 10000.0 < 0.35  # Check weights are roughly correct.
     assert np.allclose(sed_values[chose_first, 0, 0], 7.5)
     assert np.allclose(sed_values[~chose_first, 0, 0], 22.5)
+
+    # If we use the same seed, we get the same templates.
+    model2 = MultiSEDTemplateModel(
+        [lc1, lc2],
+        weights=[0.25, 0.75],
+        t0=0.0,
+        seed=12345,
+        node_label="model2",
+    )
+    state2 = model2.sample_parameters(num_samples=10_000)
+    assert np.all(state["model"]["selected_template"] == state2["model2"]["selected_template"])
+
+    # If we use a different seed, we select different templates.
+    model3 = MultiSEDTemplateModel(
+        [lc1, lc2],
+        weights=[0.25, 0.75],
+        t0=0.0,
+        seed=123456,
+        node_label="model3",
+    )
+    state3 = model3.sample_parameters(num_samples=10_000)
+    assert not np.all(state["model"]["selected_template"] == state3["model3"]["selected_template"])
 
 
 def test_create_multi_sed_template_model_bounds() -> None:
@@ -511,7 +539,13 @@ def test_create_multi_sed_template_model_bounds() -> None:
 
 def test_simsed_model_compute_sed(test_data_dir) -> None:
     """Test that we can load and compute SEDs from a SIMSEDModel."""
-    model = SIMSEDModel.from_dir(test_data_dir / "fake_simsed", t0=0.0, distance=10.0, node_label="model")
+    model = SIMSEDModel.from_dir(
+        test_data_dir / "fake_simsed",
+        t0=0.0,
+        distance=10.0,
+        seed=54321,
+        node_label="model",
+    )
     assert len(model) == 2
     assert model.flux_scale == 2.0
 
@@ -521,6 +555,17 @@ def test_simsed_model_compute_sed(test_data_dir) -> None:
     sed_values = model.evaluate_sed(times, wavelengths)
     assert sed_values.shape == (3, 2)
     assert np.all(sed_values > 0.0)
+
+    # If we use the same seed, we should get the same samples.
+    model2 = SIMSEDModel.from_dir(
+        test_data_dir / "fake_simsed",
+        t0=0.0,
+        distance=10.0,
+        seed=54321,
+        node_label="model",
+    )
+    sed_values2 = model2.evaluate_sed(times, wavelengths)
+    assert np.allclose(sed_values, sed_values2)
 
     # Confirm that we have noted the data in the citations registry.
     citations = find_in_citations("SIMSED Data")

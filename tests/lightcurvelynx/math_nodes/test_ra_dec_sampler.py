@@ -155,6 +155,43 @@ def test_obstable_ra_dec_sampler():
     assert sampler_node.radius == 1.0
 
 
+def test_obstable_ra_dec_sampler_seeded():
+    """Test that we can sample from a seed OpSim object."""
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp_nJy": np.ones(5),
+    }
+    ops_data = OpSim(values)
+
+    # Create the first two samplers. We use a none zero radius to test that
+    # we are using the same samples and offsets
+    sampler1 = ObsTableRADECSampler(ops_data, radius=0.1, seed=100, node_label="sampler1")
+    state1 = sampler1.sample_parameters(num_samples=5000)
+
+    sampler2 = ObsTableRADECSampler(ops_data, radius=0.1, seed=100, node_label="sampler2")
+    state2 = sampler2.sample_parameters(num_samples=5000)
+
+    assert np.allclose(
+        state1["sampler1"]["selected_table_index"],
+        state2["sampler2"]["selected_table_index"],
+    )
+    assert np.allclose(state1["sampler1"]["ra"], state2["sampler2"]["ra"])
+    assert np.allclose(state1["sampler1"]["dec"], state2["sampler2"]["dec"])
+
+    # We get different results with a different seed.
+    sampler3 = ObsTableRADECSampler(ops_data, radius=0.1, seed=101, node_label="sampler3")
+    state3 = sampler3.sample_parameters(num_samples=5000)
+
+    assert not np.allclose(
+        state1["sampler1"]["selected_table_index"],
+        state3["sampler3"]["selected_table_index"],
+    )
+    assert not np.allclose(state1["sampler1"]["ra"], state3["sampler3"]["ra"])
+    assert not np.allclose(state1["sampler1"]["dec"], state3["sampler3"]["dec"])
+
+
 def test_obstable_ra_dec_sampler_extra():
     """Test that we can sample from an ObsTable-like object with extra columns."""
     values = {

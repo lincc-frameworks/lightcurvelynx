@@ -307,6 +307,10 @@ class TableSampler(FunctionNode):
     in_order : bool
         Return the given data in order of the rows (True). If False, performs
         random sampling with replacement. Default: False
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
 
     Attributes
     ----------
@@ -321,7 +325,7 @@ class TableSampler(FunctionNode):
         The total number of items from which to draw the data.
     """
 
-    def __init__(self, data, in_order=False, **kwargs):
+    def __init__(self, data, in_order=False, seed=None, **kwargs):
         self.in_order = in_order
         self._last_start_index = -1
 
@@ -349,9 +353,11 @@ class TableSampler(FunctionNode):
         if not self.in_order:
             self.add_parameter(
                 "selected_table_index",
-                NumpyRandomFunc("integers", low=0, high=self._num_values),
+                NumpyRandomFunc("integers", low=0, high=self._num_values, seed=seed),
                 "The index of the selected row in the table.",
             )
+        elif seed is not None:
+            warnings.warn("Seed is unused when sampling table in order.")
 
     def __len__(self):
         """Return the number of items in the table."""
