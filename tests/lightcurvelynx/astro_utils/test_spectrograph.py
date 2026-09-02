@@ -601,7 +601,7 @@ def test_spectrograph_smear_matrix_values():
 
 
 def test_spectrograph_evaluate_with_smearing():
-    """Test that evaluate() smears flux across bins and that smear=False bypasses it."""
+    """Test that evaluate() smears flux across bins"""
     waves_min = np.arange(4000.0, 4400.0, 20.0)
     waves_max = np.arange(4020.0, 4420.0, 20.0)
     resolution = np.full(len(waves_min), 30.0)

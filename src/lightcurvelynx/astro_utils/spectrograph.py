@@ -15,7 +15,6 @@ def gaussian_integral(nsigma_low, nsigma_high):
 
     Parameters
     ----------
-
     nsigma_low : float
         The lower limit of the integral in units of sigma.
     nsigma_high : float
@@ -94,8 +93,9 @@ class Spectrograph:
             The multiplicative factor to apply to each bin's flux. If None, no additional scaling
             is applied.
             Default: None
-        wavelength_resolution : np.ndarray
+        wavelength_resolution : np.ndarray | float
             The Gaussian sigma wavelength resolution for each bin in Angstroms.
+            If float, the same value is applied to all bins. If None, no smearing is applied.
         compute_smear : bool, optional
             Flag to enable smearing of flux between bins based on the wavelength resolution.
             If true, fluxes from Spectrograph.evaluate() will be smeared.
@@ -105,11 +105,17 @@ class Spectrograph:
         self.waves_min = np.asarray(waves_min, dtype=float)
         self.waves_max = np.asarray(waves_max, dtype=float)
         self.num_bins = len(self.waves_min)
-        self.wavelength_resolution = (
-            np.asarray(wavelength_resolution, dtype=float)
-            if wavelength_resolution is not None
-            else np.zeros(self.num_bins, dtype=float)
-        )
+
+        if wavelength_resolution is None:
+            self.wavelength_resolution = np.zeros(self.num_bins, dtype=float)
+        elif np.isscalar(wavelength_resolution):
+            self.wavelength_resolution = np.full(self.num_bins, float(wavelength_resolution), dtype=float)
+        else:
+            self.wavelength_resolution = np.asarray(wavelength_resolution, dtype=float)
+        if len(self.wavelength_resolution) != self.num_bins:
+            raise ValueError(
+                "wavelength_resolution must have the same length as waves_min and waves_max."
+            )
 
         if self.num_bins <= 0:  # pragma: no cover
             raise ValueError("Spectrograph must have at least one bin.")
@@ -244,7 +250,7 @@ class Spectrograph:
 
     def _compute_padded_bins(self):
         """Compute the parameters for padded bins on either side of the main spectrograph bins. This allows
-        for flux beyond the edges of the spectrograph to be possibily smeared into the main bins.
+        for flux beyond the edges of the spectrograph to be possibly smeared into the main bins.
 
         Returns
         -------
@@ -261,6 +267,9 @@ class Spectrograph:
 
         # determine the extended region
         # snana expanded by 2.5 sigma of the edge bins
+        # note: if the wavelength resolution negative for a given side, then the num_pad_[side] is 0,
+        # the pad_[side]_min/max are empty, and no padding is added on that side.
+        # otherwise, at least 1 bin will be added on a given side
         sigma_blue = self.wavelength_resolution[0]
         width_blue = self.bin_widths[0]
         num_pad_blue = int(2.5 * sigma_blue / width_blue) + 1 if sigma_blue > 0 else 0
