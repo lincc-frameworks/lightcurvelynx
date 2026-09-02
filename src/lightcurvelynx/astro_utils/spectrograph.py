@@ -3,10 +3,10 @@ and provides methods to compute fluxes for each bin.
 """
 
 import numpy as np
+import scipy
 from astropy import units as u
 
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
-import scipy
 
 
 def gaussian_integral(nsigma_low, nsigma_high):
@@ -96,6 +96,10 @@ class Spectrograph:
             Default: None
         wavelength_resolution : np.ndarray
             The Gaussian sigma wavelength resolution for each bin in Angstroms.
+        compute_smear : bool, optional
+            Flag to enable smearing of flux between bins based on the wavelength resolution.
+            If true, fluxes from Spectrograph.evaluate() will be smeared.
+            Default: False
         """
         # Check that the input arrays are valid and convert them to numpy arrays.
         self.waves_min = np.asarray(waves_min, dtype=float)
