@@ -26,9 +26,19 @@ class UniformRADEC(NumpyRandomFunc):
     use_degrees : bool
         The default return unit. If True returns samples in degrees.
         Otherwise, if False, returns samples in radians.
+
+    Parameters
+    ----------
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
+    use_degrees : bool
+        The default return unit. If True returns samples in degrees.
+        Otherwise, if False, returns samples in radians.
     """
 
-    def __init__(self, outputs=None, seed=None, use_degrees=True, **kwargs):
+    def __init__(self, seed=None, use_degrees=True, **kwargs):
         self.use_degrees = use_degrees
 
         # Override key arguments. We create a uniform sampler function, but
@@ -293,7 +303,9 @@ class ObsTableUniformRADECSampler(NumpyRandomFunc):
     outputs : list of str, optional
         The list of output names. Default: ["ra", "dec"]
     seed : int, optional
-        The random seed to use for the internal random number generator. Default: None
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     max_iterations : int, optional
         The maximum number of iterations to perform. Default: 1000
     **kwargs : dict, optional
@@ -403,9 +415,22 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
         The list of healpix pixel IDs that cover the MOC at the given depth.
     depth : int
         The healpix depth to use as an approximation. Must be [2, 29].
+
+    Parameters
+    ----------
+    moc : mocpy.MOC
+        The MOC object to sample from.
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
+    depth : int
+        The healpix depth to use as an approximation. Must be [2, 29]. Default: 12
+    **kwargs : dict, optional
+        Additional keyword arguments to pass to the parent class constructor.
     """
 
-    def __init__(self, moc, *, outputs=None, seed=None, depth=12, **kwargs):
+    def __init__(self, moc, *, seed=None, depth=12, **kwargs):
         if depth < 2 or depth > 29:
             raise ValueError(f"Depth must be [2, 29]. Received {depth}")
         self.depth = depth
@@ -746,15 +771,19 @@ class CatalogRADECSampler(ObsTableRADECSampler):
         The deduplication threshold in degrees. If two rows have RA and dec values that
         are within this threshold, only one of them will be kept for sampling. Use 0.0 to
         keep all rows. Default: 0.0
+    seed : int, optional
+            The seed to set the node's default random number generator. If None, then a random seed is used.
+            This parameter is for testing and has no effect when a user-provided random number generator is
+            used during simulation. Default: None
     **kwargs : dict, optional
         Additional keyword arguments to pass to the parent class constructor.
     """
 
-    def __init__(self, data, *, dedup_threshold=0.0, **kwargs):
+    def __init__(self, data, *, dedup_threshold=0.0, seed=None, **kwargs):
         # Always default to a radius of 0.0.
         if "radius" not in kwargs or kwargs["radius"] is None:
             kwargs["radius"] = 0.0
-        super().__init__(data, dedup_threshold=dedup_threshold, **kwargs)
+        super().__init__(data, dedup_threshold=dedup_threshold, seed=seed, **kwargs)
 
 
 class MilkyWayCoordSampler(NumpyRandomFunc):
@@ -782,8 +811,10 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
         The Milky Way stellar density model to use for sampling.  If *None*
         a :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityJuric2008`
         instance with default parameters is created.  Default: None
-    seed : int or None, optional
-        Seed for the internal random number generator. Default: None
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     **kwargs : dict, optional
         Additional keyword arguments passed to the parent class.
 
