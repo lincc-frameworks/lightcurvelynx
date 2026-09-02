@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from astropy import units as u
-from lightcurvelynx.astro_utils.spectrograph import Spectrograph
+from lightcurvelynx.astro_utils.spectrograph import Spectrograph, gaussian_integral
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 
 
@@ -207,11 +207,18 @@ def test_spectrograph_equals():
     spgraph3 = Spectrograph.from_regular_grid(wave_start=4000, wave_end=8000, bin_width=10.0)
     spgraph4 = Spectrograph.from_regular_grid(wave_start=3000, wave_end=8000, bin_width=5.0)
     spgraph5 = Spectrograph.from_regular_grid(wave_start=4000, wave_end=9000, bin_width=5.0)
+    spgraph6 = Spectrograph.from_regular_grid(
+        wave_start=4000,
+        wave_end=8000,
+        bin_width=5.0,
+        wavelength_resolution=np.full(spgraph1.num_bins, 10.0),
+    )
 
     assert spgraph1 == spgraph2
     assert spgraph1 != spgraph3
     assert spgraph1 != spgraph4
     assert spgraph1 != spgraph5
+    assert spgraph1 != spgraph6
 
 
 def test_create_spectrograph_with_scale():
@@ -452,6 +459,17 @@ def test_create_spectrograph_max_wave_step():
     assert np.allclose(results3, expected3)
     assert results3.shape == (2, 2, spgraph.num_bins)
 
+    # check padding introduced by wavelength_resolution.
+    resolution = np.full(5, 30.0)
+    spgraph_padded = Spectrograph(wave_min, wave_max, wavelength_resolution=resolution)
+    assert spgraph_padded.num_padded_bins > spgraph_padded.num_bins
+    assert len(spgraph_padded.query_waves) == spgraph_padded.num_padded_bins
+    assert np.allclose(
+        spgraph_padded.query_waves, (spgraph_padded.padded_min + spgraph_padded.padded_max) / 2
+    )
+    result = spgraph_padded.evaluate(np.random.random(spgraph_padded.query_waves.shape))
+    assert result.shape == (spgraph_padded.num_bins,)
+
     # We fail to create a Spectrograph object with an invalid max_wave_step (<= 0.0).
     with pytest.raises(ValueError):
         _ = Spectrograph(wave_min, wave_max, max_wave_step=-50.0)
@@ -531,3 +549,79 @@ def test_create_spectrograph_max_wave_step_aggregates_subbins():
         ]
     )
     assert np.allclose(result, expected)
+
+
+def test_create_spectrograph_with_wavelength_resolution():
+    """Test that a Spectrograph with per-bin wavelength resolution pads its bins
+    on both sides to support smearing, and that no resolution means no padding."""
+    waves_min = np.array([4000.0, 4020.0, 4040.0])
+    waves_max = np.array([4020.0, 4040.0, 4060.0])
+    resolution = np.full(3, 10.0)
+    spgraph = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution)
+
+    assert spgraph.num_padded_bins > spgraph.num_bins
+    assert np.sum(spgraph.is_padding) == spgraph.num_padded_bins - spgraph.num_bins
+    assert len(spgraph.padded_min) == spgraph.num_padded_bins
+    assert len(spgraph.padded_max) == spgraph.num_padded_bins
+    assert np.allclose(spgraph.waves_min, waves_min)
+    assert np.allclose(spgraph.waves_max, waves_max)
+
+    # With no resolution given, there is no padding at all.
+    spgraph_no_res = Spectrograph(waves_min, waves_max)
+    assert spgraph_no_res.num_padded_bins == spgraph_no_res.num_bins
+    assert not np.any(spgraph_no_res.is_padding)
+
+
+def test_spectrograph_smear_matrix_values():
+    """Test that the smear matrix redistributes flux using the expected Gaussian
+    fractions for a simple, hand-computable case."""
+    waves_min = np.array([4000.0, 4020.0, 4040.0])
+    waves_max = np.array([4020.0, 4040.0, 4060.0])
+    resolution = np.full(3, 10.0)  # sigma = bin_width / 2
+    spgraph = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution, compute_smear=True)
+
+    # Index of the middle observed bin (center 4030) within the padded array.
+    middle = int(np.argmax(~spgraph.is_padding)) + 1
+
+    within_1_sigma = gaussian_integral(-1, 1)
+    between_1_and_3_sigma = gaussian_integral(1, 3)
+    assert spgraph.smear_matrix[middle, middle] == pytest.approx(within_1_sigma)
+    assert spgraph.smear_matrix[middle, middle - 1] == pytest.approx(between_1_and_3_sigma)
+    assert spgraph.smear_matrix[middle, middle + 1] == pytest.approx(between_1_and_3_sigma)
+
+    # Padding bins can never receive smeared flux.
+    assert np.all(spgraph.smear_matrix[:, spgraph.is_padding] == 0.0)
+
+    # With zero resolution the smear matrix is the identity (no cross-bin mixing).
+    zero_resolution = np.full(3, 0.0)
+    spgraph_no_res = Spectrograph(
+        waves_min, waves_max, wavelength_resolution=zero_resolution, compute_smear=True
+    )
+    assert np.allclose(spgraph_no_res.smear_matrix, np.eye(spgraph_no_res.num_bins))
+
+
+def test_spectrograph_evaluate_with_smearing():
+    """Test that evaluate() smears flux across bins"""
+    waves_min = np.arange(4000.0, 4400.0, 20.0)
+    waves_max = np.arange(4020.0, 4420.0, 20.0)
+    resolution = np.full(len(waves_min), 30.0)
+    spgraph = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution, compute_smear=True)
+    spgraph_unsmeared = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution)
+
+    # A flat flux density should stay (approximately) flat after smearing, since
+    # padding supplies the flux that would otherwise be lost at the edges.
+    flux_density = 3.7
+    flat_input = np.full(spgraph.query_waves.shape, flux_density)
+    unsmeared = spgraph_unsmeared.evaluate(flat_input)
+    smeared = spgraph.evaluate(flat_input)
+    assert smeared.shape == (spgraph.num_bins,)
+    assert np.allclose(smeared, unsmeared, rtol=5e-3)
+
+    # A single narrow spike of flux should spread into neighboring bins when smeared,
+    # while approximately conserving total flux.
+    spike_input = np.zeros_like(spgraph.query_waves)
+    spike_input[len(spike_input) // 2] = 100.0
+    spiked = spgraph.evaluate(spike_input)
+    not_spiked = spgraph_unsmeared.evaluate(spike_input)
+    assert np.sum(spiked > 0) > np.sum(not_spiked > 0)
+    assert np.sum(spiked) == pytest.approx(np.sum(not_spiked), rel=0.05)
