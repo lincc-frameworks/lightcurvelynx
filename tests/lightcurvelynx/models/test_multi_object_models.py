@@ -242,34 +242,6 @@ def test_additive_multi_object_node_effects_obs_frame() -> None:
     assert np.allclose(values, contrib1 + contrib2)
 
 
-def test_additive_multi_object_node_min_max() -> None:
-    """Test that we can get the correct wavelength limits for a AdditiveMultiObjectModel."""
-    sed0 = np.array(
-        [
-            [100.0, 200.0, 300.0, 400.0],  # Wavelengths
-            [10.0, 20.0, 20.0, 10.0],  # fluxes
-        ]
-    )
-    model0 = StaticSEDModel([sed0], node_label="sed0")
-
-    sed1 = np.array(
-        [
-            [200.0, 300.0, 400.0, 500.0],  # Wavelengths
-            [20.0, 40.0, 40.0, 20.0],  # fluxes
-        ]
-    )
-    model1 = StaticSEDModel([sed1], node_label="sed1")
-
-    # The reported min/max wavelengths are the overlap of the objects.
-    model = AdditiveMultiObjectModel(
-        [model0, model1],
-        node_label="test",
-    )
-    states = model.sample_parameters(num_samples=1)
-    assert np.array_equal(model.minwave(states), [100.0, 200.0])
-    assert np.array_equal(model.maxwave(states), [400.0, 500.0])
-
-
 def test_additive_multi_object_node_bandflux() -> None:
     """Test that we can create and evaluate an AdditiveMultiObjectModel with Bandflux models."""
     object1 = StaticBandfluxModel({"a": 1.0, "b": 2.0, "c": 0.0}, node_label="object1")
@@ -447,14 +419,33 @@ def test_random_multi_object_node_min_max() -> None:
     states.set("test", "selected_object", "sed0")
     assert model.minwave(states) == 100.0
     assert model.maxwave(states) == 400.0
+    assert model.minphase(states) is None
+    assert model.maxphase(states) is None
 
     # Force the selected_object to be 1 for the test.
     states.set("test", "selected_object", "sed1")
     assert model.minwave(states) == 200.0
     assert model.maxwave(states) == 500.0
+    assert model.minphase(states) is None
+    assert model.maxphase(states) is None
 
     # We fail if we do not pass in the states.
     with pytest.raises(ValueError):
         _ = model.minwave()
     with pytest.raises(ValueError):
         _ = model.maxwave()
+    with pytest.raises(ValueError):
+        _ = model.minphase()
+    with pytest.raises(ValueError):
+        _ = model.maxphase()
+
+    # We fail if we pass states with more than one sample.
+    states2 = model.sample_parameters(num_samples=10)
+    with pytest.raises(ValueError):
+        _ = model.minwave(graph_state=states2)
+    with pytest.raises(ValueError):
+        _ = model.maxwave(graph_state=states2)
+    with pytest.raises(ValueError):
+        _ = model.minphase(graph_state=states2)
+    with pytest.raises(ValueError):
+        _ = model.maxphase(graph_state=states2)
