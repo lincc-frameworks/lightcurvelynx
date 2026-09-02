@@ -403,7 +403,9 @@ class MultiSEDTemplateModel(SEDModel):
         A length N array indicating the relative weight from which to select
         a template at random. If None, all templates will be weighted equally.
     seed : int, optional
-        The seed to use for random number generation.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
     def __init__(
@@ -485,7 +487,9 @@ class SIMSEDModel(MultiSEDTemplateModel):
         A scale factor to apply to all fluxes read from the SIMSED data files.
         Default: 1.0
     seed : int, optional
-        The seed to use for random number generation.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
     def __init__(self, templates, flux_scale=1.0, *, seed=None, **kwargs):
@@ -507,7 +511,9 @@ class SIMSEDModel(MultiSEDTemplateModel):
         simsed_dir : str or Path
             The directory containing the SIMSED-formatted data files.
         seed : int, optional
-            The seed to use for random number generation.
+            The seed to set the node's default random number generator. If None, then a random seed is used.
+            This parameter is for testing and has no effect when a user-provided random number generator is
+            used during simulation. Default: None
         **kwargs : dict
             Additional keyword arguments to pass to the SIMSEDModel constructor.
 

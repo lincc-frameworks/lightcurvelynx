@@ -35,7 +35,9 @@ class StaticSEDModel(SEDModel):
         A length N array indicating the relative weight from which to select
         an SED at random. If None, all SEDs will be weighted equally.
     seed : int, optional
-        The seed to use for random number generation when selecting the template.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
     def __init__(

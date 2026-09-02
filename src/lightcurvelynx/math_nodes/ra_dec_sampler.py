@@ -104,7 +104,9 @@ class ObsTableRADECSampler(TableSampler):
         are within this threshold, only one of them will be kept for sampling. Use 0.0 to
         keep all rows. Default: 0.0
     seed : int, optional
-        The seed to use for random number generation.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     **kwargs : dict, optional
         Additional keyword arguments to pass to the parent class constructor.
     """
@@ -198,7 +200,9 @@ class ObsTableRADECSampler(TableSampler):
             are within this threshold, only one of them will be kept for sampling. Use 0.0 to
             keep all rows. Default: 0.0
         seed : int, optional
-            The seed to use for random number generation.
+            The seed to set the node's default random number generator. If None, then a random seed is used.
+            This parameter is for testing and has no effect when a user-provided random number generator is
+            used during simulation. Default: None
         **kwargs : dict, optional
             Additional keyword arguments to pass to the constructor.
 

@@ -806,7 +806,9 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         of sampling randomly.
         Default: None
     seed : int, optional
-        The seed to use for random number generation when selecting the template.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
     def __init__(
