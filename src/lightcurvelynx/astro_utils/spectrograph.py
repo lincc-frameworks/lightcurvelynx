@@ -113,9 +113,7 @@ class Spectrograph:
         else:
             self.wavelength_resolution = np.asarray(wavelength_resolution, dtype=float)
         if len(self.wavelength_resolution) != self.num_bins:
-            raise ValueError(
-                "wavelength_resolution must have the same length as waves_min and waves_max."
-            )
+            raise ValueError("wavelength_resolution must have the same length as waves_min and waves_max.")
 
         if self.num_bins <= 0:  # pragma: no cover
             raise ValueError("Spectrograph must have at least one bin.")
