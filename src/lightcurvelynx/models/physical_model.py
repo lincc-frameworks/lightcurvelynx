@@ -58,7 +58,9 @@ class BasePhysicalModel(ParameterizedNode, ABC):
     node_label : str, optional
         The label for the node in the model graph.
     seed : int, optional
-        The seed for a random number generator.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     **kwargs : dict, optional
         Any additional keyword arguments.
     """

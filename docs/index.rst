@@ -180,6 +180,7 @@ This project is supported by Schmidt Sciences.
    Custom Models and Effects <custom_models>
    Noise Models <noise_models>
    Results and Output <results_and_output>
+   Randomness <randomness>
    Notebooks <notebooks>
    API Reference <autoapi/index>
    Glossary <glossary>
