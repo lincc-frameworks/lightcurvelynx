@@ -433,7 +433,7 @@ class Spectrograph:
         flux_density_matrix: np.ndarray,
     ) -> np.ndarray:
         """Calculate the bin-integrated flux for each bin in the spectrograph
-        (in F_lambda units of erg/s/cm²).
+        (in units of erg/s/cm²).
 
         Parameters
         ----------
@@ -446,7 +446,7 @@ class Spectrograph:
         Returns
         -------
         measured_flux : np.ndarray
-            An array of measure fluxes in F_lambda (units of erg/s/cm²) for each spectrograph bin.
+            An array of measure fluxes in units of erg/s/cm² for each spectrograph bin.
             The array has the shape in the initial dimensions as `flux_density_matrix` and
             the last dimension corresponds to the number of spectrograph bins.
         """
