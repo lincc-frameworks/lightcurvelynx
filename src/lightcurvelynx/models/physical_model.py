@@ -329,7 +329,7 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         return bandfluxes
 
     def evaluate_spectra(self, times, spectrograph, state, rng_info=None) -> np.ndarray:
-        """Get the bin-integrated fluxes in a spectrograph in units of F_lambda (erg/s/cm²).
+        """Get the bin-integrated fluxes in a spectrograph in units of erg/s/cm².
 
         Parameters
         ----------
@@ -1277,7 +1277,7 @@ class BandfluxModel(BasePhysicalModel, ABC):
         return bandfluxes
 
     def evaluate_spectra(self, times, spectrograph, state, rng_info=None) -> np.ndarray:
-        """Get the bin-integrated fluxes for each bin in a spectrograph in units of F_lambda (erg/s/cm²).
+        """Get the bin-integrated fluxes for each bin in a spectrograph in units of erg/s/cm².
 
         Parameters
         ----------
