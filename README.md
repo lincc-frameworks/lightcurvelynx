@@ -44,7 +44,7 @@ conda install conda-forge::lightcurvelynx
 ```
 
 Since LightCurveLynx relies on a large number of existing packages, not all of the packages
-are installed in the default configuration. You can install most of the optional depenencies
+are installed in the default configuration. You can install most of the optional dependencies
 with the "dev" or "all" extras:
 
 ```

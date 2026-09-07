@@ -82,7 +82,7 @@ How Do I Use an External Simulation Package?
 LightCurveLynx is designed to be modular and extensible, allowing users to wrap external
 simulation packages for use within the LightCurveLynx framework. How you wrap the package will
 depend largely on the specifics of the package you are trying to wrap. We have provided
-a few demo notebooks to illustrate various approachs, including:
+a few demo notebooks to illustrate various approaches, including:
 
   * :doc:`Wrapping Bagle Models <notebooks/pre_executed/wrapping_bagle>`
   * :doc:`Wrapping Redback Models <notebooks/pre_executed/wrapping_redback>`
@@ -134,7 +134,7 @@ It is possible to change the values within the ``GraphState`` object before pass
 Can I Simulate Spectra?
 --------------------------------------------------------------------------------
 
-Yes with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph in units of erg/s/cm². This feature is currently in an early stage of development and does not yet add noise to the measurements. In addition, spectra simulation is **only** compaible with models that generate data on the spectral level (not bandflux-only models).  For more detail see :doc:`the spectrograph demo notebook <notebooks/spectrograph_demo>`.
+Yes with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph in units of erg/s/cm². This feature is currently in an early stage of development and does not yet add noise to the measurements. In addition, spectra simulation is **only** compatible with models that generate data on the spectral level (not bandflux-only models).  For more detail see :doc:`the spectrograph demo notebook <notebooks/spectrograph_demo>`.
 
 
 Can I Generate Points from a Catalog?
@@ -153,4 +153,4 @@ for a detailed description of how to sample (RA, dec) positions.
 Why does my light curve have multiple points at the same time?
 --------------------------------------------------------------------------------
 
-While this can legitimately happen if multiple surveys have the exact same MJD for an observations, this is more likely an artifact of per-CCD level information. If the survey data is provided at the CCD-level (such as with Rubin's DP1 CCD visit table) **and** no detector footprint is set, the code will estimate a circular footprint per-CCD. Points that lie near the edge of one CCD may also be picked up by another CCD. This can often be solved by setting the detector footprint for each CCD. See the :doc:`ccd-level obstable <notebooks/ccd_obstables>` for more information.
+While this can legitimately happen if multiple surveys have the exact same MJD for an observations, this is more likely an artifact of per-CCD level information. If the survey data is provided at the CCD-level (such as with Rubin's DP1 CCD visit table) **and** no detector footprint is set, the code will estimate a circular footprint per-CCD. Points that lie near the edge of one CCD may also be picked up by another CCD. This can often be solved by setting the detector footprint for each CCD. See the :doc:`ccd-level obstacle <notebooks/ccd_obstables>` for more information.

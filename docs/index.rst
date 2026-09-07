@@ -98,7 +98,7 @@ You can install LightCurveLynx from PyPI with pip or from conda-forge with conda
 Since LightCurveLynx relies on a large number of existing packages, not all of the packages
 are installed in the default configuration. For example the microlensing (`VBMicrolensing`),
 pzflow (`pzflow`), and sncosmo (`sncosmo`) packages are not included by default. You can
-install most of the optional depenencies with the "all" extra:
+install most of the optional dependencies with the "all" extra:
 
 .. tab-set::
    :sync-group: packagemanager
