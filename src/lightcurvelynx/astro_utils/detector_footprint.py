@@ -2,12 +2,24 @@
 astropy PixelRegion). This class provides methods for checking if points are within
 the footprint and for plotting the footprint."""
 
+import logging
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
-from regions import PixCoord, RectanglePixelRegion, RectangleSkyRegion, SkyRegion
+from citation_compass import cite_function
+from regions import (
+    CompoundPixelRegion,
+    PixCoord,
+    PolygonSkyRegion,
+    RectanglePixelRegion,
+    RectangleSkyRegion,
+    SkyRegion,
+)
 
 from lightcurvelynx.astro_utils.coordinate_utils import validate_ra_dec_degrees
 
@@ -367,9 +379,15 @@ class DetectorFootprint:
                 figure = plt.figure()
             ax = figure.add_axes([0, 0, 1, 1])
 
-        # Plot the bounds of the footprint.
-        artist = self.region.as_artist()
-        ax.add_artist(artist)
+        # Plot the bounds of the footprint. Compound regions can be nested, while
+        # regions only supports converting compounds with simple operands directly.
+        regions_to_plot = [self.region]
+        while regions_to_plot:
+            region = regions_to_plot.pop()
+            if isinstance(region, CompoundPixelRegion):
+                regions_to_plot.extend([region.region1, region.region2])
+            else:
+                ax.add_artist(region.as_artist())
 
         # Get the bounding box in pixel coordinates. Expand out to ensure the full
         # footprint is visible.
@@ -413,3 +431,76 @@ class DetectorFootprint:
         ax.set_xlim([xmin, xmax])
         ax.set_ylim([ymin, ymax])
         plt.show()
+
+    @classmethod
+    @cite_function
+    def from_sorcha_corners_file(
+        cls,
+        filename,
+        *,
+        unit="rad",
+        wcs=None,
+        pixel_scale=None,
+        center_pixels=(0.5, 0.5),
+    ):
+        """Load the detector footprint from a Sorcha-formatted corners file. This is a CSV file where each row
+        is a single CCD corner with columns: ccd_number, ra, dec.
+
+        References
+        ----------
+        Merritt et. al., 2025, https://arxiv.org/abs/2506.02804
+        Holman et. al., 2025, https://arxiv.org/abs/2506.02140
+
+        Parameters
+        ----------
+        filename : str or Path
+            Path to the Sorcha-formatted corners file.
+        unit : str or astropy.units.Unit
+            The unit of the RA and Dec values in the file. Default is "rad".
+        wcs : astropy.wcs.WCS or None
+            The WCS associated with the region, if any.
+        pixel_scale : float or None
+            The pixel scale in arcseconds/pixel, this is required if no WCS is provided.
+        center_pixels : tuple of float, optional
+            The pixel coordinates of the center of the detector. Default is (0.5, 0.5) for
+            the center of the (0, 0) pixel. This is only used if no WCS is provided and
+            a default WCS is created.
+
+        Returns
+        -------
+        cls
+            An instance of the detector footprint initialized from the corners file.
+        """
+        logger = logging.getLogger(__name__)
+
+        filename = Path(filename)
+        if not filename.exists():
+            raise FileNotFoundError(f"File not found: {filename}")
+        logger.debug(f"Loading Sorcha corners file: {filename}")
+
+        # Read in the data frame and extract the columns we need.
+        df = pd.read_csv(filename)
+        if len(df) == 0:
+            raise ValueError(f"No data found in file: {filename}")  # pragma: no cover
+        for colname in ["detector", "x", "y"]:
+            if colname not in df.columns:
+                raise ValueError(f"Missing required column: {colname}")  # pragma: no cover
+
+        # For each CCD, extract the 4 RA/Dec corners.
+        unioned_region = None
+        for ccd in np.unique(df["detector"]):
+            ccd_df = df[df["detector"] == ccd]
+            sky_vertices = SkyCoord(
+                ra=ccd_df["x"].to_numpy(),
+                dec=ccd_df["y"].to_numpy(),
+                unit=(unit, unit),
+            )
+            sky_region = PolygonSkyRegion(vertices=sky_vertices)
+
+            if unioned_region is None:
+                unioned_region = sky_region
+            else:
+                unioned_region = unioned_region.union(sky_region)
+        logger.debug(f"Loaded {len(np.unique(df['detector']))} CCDs")
+
+        return cls(region=unioned_region, wcs=wcs, pixel_scale=pixel_scale, center_pixels=center_pixels)

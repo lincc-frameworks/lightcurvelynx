@@ -8,6 +8,7 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from regions import CirclePixelRegion, CircleSkyRegion, PixCoord, RectanglePixelRegion
+from regions.core.compound import CompoundPixelRegion
 
 
 def test_rotate_to_center():
@@ -251,3 +252,15 @@ def test_detector_footprint_plot():
 
     # Test that we can plot the footprint.
     fp.plot(point_ra=[0.0], point_dec=[0.0], center_ra=0.0, center_dec=0.0)
+
+
+def test_detector_footprint_plot_nested_compound():
+    """Test that nested compound regions can be plotted."""
+    first = RectanglePixelRegion(center=PixCoord(x=-2.0, y=0.0), width=2.0, height=2.0)
+    second = RectanglePixelRegion(center=PixCoord(x=2.0, y=0.0), width=2.0, height=2.0)
+    third = RectanglePixelRegion(center=PixCoord(x=0.0, y=3.0), width=2.0, height=2.0)
+    compound_region = (first.union(second)).union(third)
+    assert isinstance(compound_region, CompoundPixelRegion)
+
+    fp = DetectorFootprint(compound_region, pixel_scale=36.0)
+    fp.plot()
