@@ -316,3 +316,48 @@ def test_detector_footprint_from_sorcha_corners(test_data_dir):
             0.0,
         )
     )
+
+
+def test_detector_footprint_from_preset_lsst_approx():
+    """Test that we can create a detector footprint from the 'lsst-approx' preset."""
+    footprint = DetectorFootprint.from_preset("lsst-approx")
+    assert footprint is not None
+    assert np.array_equal(
+        footprint.contains(
+            np.array([-1.5, -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5]),
+            np.array([1.5, 1.5, 1.5, 1.5, 0.0, 0.0, 0.0, 0.0, -1.5, -1.5, -1.5, -1.5]),
+            0.0,
+            0.0,
+        ),
+        np.array([False, True, True, False, True, True, True, True, False, True, True, False]),
+    )
+
+
+def test_detector_footprint_from_preset_lsst_ccd():
+    """Test that we can create a detector footprint from the 'lsst-ccd' preset."""
+    footprint = DetectorFootprint.from_preset("lsst-ccd")
+    assert footprint is not None
+    # Test a few points that should be inside the single CCD 0.222 x 0.222 deg.
+    assert np.all(
+        footprint.contains(
+            np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1]),
+            np.array([-0.1, 0.0, 0.1, -0.1, 0.0, 0.1, -0.1, 0.0, 0.1]),
+            0.0,
+            0.0,
+        )
+    )
+    # Test a few points that should be outside the single CCD.
+    assert not np.any(
+        footprint.contains(
+            np.array([-0.2, 0.2, 0.0, 0.0]),
+            np.array([0.0, 0.0, -0.2, 0.2]),
+            0.0,
+            0.0,
+        )
+    )
+
+
+def test_detector_footprint_from_preset_unknown():
+    """Test that we can raise and error if given an unknown survey name."""
+    with pytest.raises(ValueError):
+        DetectorFootprint.from_preset("unknown-survey")

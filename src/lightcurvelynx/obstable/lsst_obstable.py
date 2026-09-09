@@ -63,30 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 class LSSTObsTable(ObsTable):
-    """An ObsTable for observations from the Rubin Observatory data releases.
-
-    Parameters
-    ----------
-    table : dict or pandas.core.frame.DataFrame
-        The table with all the LSST survey information.
-    colmap : dict
-        A mapping of standard column names to a list of possible names in the input table.
-        Each value in the dictionary can be a string or a list of strings.
-        Defaults to the Rubin CCDVisit column names, stored in _default_colnames.
-    saturation_mags : dict, optional
-        A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
-        provided must match those in the table. If not provided, LSST-specific defaults will be
-        used.
-    **kwargs : dict
-        Additional keyword arguments to pass to the constructor. This includes overrides
-        for survey parameters such as:
-
-        - dark_current : The dark current for the camera in electrons per second per pixel.
-        - gain: The gain for the camera in electrons per ADU.
-        - pixel_scale: The pixel scale for the camera in arcseconds per pixel.
-        - radius: The angular radius of the observations (in degrees).
-        - read_noise: The readout noise for the camera in electrons per pixel.
-    """
+    """An ObsTable for observations from the Rubin Observatory data releases."""
 
     _required_names = ["ra", "dec", "time"]
 
@@ -178,7 +155,6 @@ class LSSTObsTable(ObsTable):
         "y": 13.9,
     }
 
-    # Class constants for the column names.
     def __init__(
         self,
         table,
@@ -186,6 +162,38 @@ class LSSTObsTable(ObsTable):
         saturation_mags=None,
         **kwargs,
     ):
+        """
+        Create an instance of the LSSTObsTable Table.
+
+        Parameters
+        ----------
+        table : dict or pandas.core.frame.DataFrame
+            The table with all the LSST survey information.
+        colmap : dict
+            A mapping of standard column names to a list of possible names in the input table.
+            Each value in the dictionary can be a string or a list of strings.
+            Defaults to the Rubin CCDVisit column names, stored in _default_colnames.
+        saturation_mags : dict, optional
+            A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
+            provided must match those in the table. If not provided, LSST-specific defaults will be
+            used.
+        detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion, or
+            DetectorFootprint, optional
+            The footprint object for the instrument's detector. If None, no footprint
+            filtering is done. LSST footprints can be generated using the `DetectorFootprint.from_preset
+            method with either "lsst" (for all 189 chips) or "lsst-approx" (for the approximate layout).
+            For per-CCD level information, users will want to use a CCD-specific footprint ("lsst-ccd").
+            Default is None.
+        **kwargs : dict
+            Additional keyword arguments to pass to the constructor. This includes overrides
+            for survey parameters such as:
+
+            - dark_current : The dark current for the camera in electrons per second per pixel.
+            - gain: The gain for the camera in electrons per ADU.
+            - pixel_scale: The pixel scale for the camera in arcseconds per pixel.
+            - radius: The angular radius of the observations (in degrees).
+            - read_noise: The readout noise for the camera in electrons per pixel.
+        """
         colmap = self._default_colnames if colmap is None else colmap
 
         # If saturation thresholds are not provided, then set to the
