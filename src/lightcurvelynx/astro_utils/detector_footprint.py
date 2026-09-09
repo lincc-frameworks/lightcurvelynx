@@ -21,7 +21,9 @@ from regions import (
     SkyRegion,
 )
 
+from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.astro_utils.coordinate_utils import validate_ra_dec_degrees
+from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
 
 class DetectorFootprint:
@@ -504,3 +506,34 @@ class DetectorFootprint:
         logger.debug(f"Loaded {len(np.unique(df['detector']))} CCDs")
 
         return cls(region=unioned_region, wcs=wcs, pixel_scale=pixel_scale, center_pixels=center_pixels)
+
+    @classmethod
+    def from_preset(cls, survey_name):
+        """
+        Create a detector footprint from a preset survey name.
+
+        Parameters
+        ----------
+        survey_name : str
+            The name of the survey for which to create the detector footprint.
+
+        Returns
+        -------
+        cls
+            An instance of the detector footprint for the specified survey.
+        """
+        survey_name = survey_name.lower()
+        if survey_name == "lsst" or survey_name == "rubin":
+            table_path = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "footprints" / "lsst_corners.csv"
+            print(table_path)
+            table_url = (
+                "https://raw.githubusercontent.com/dirac-institute/sorcha/main/"
+                "src/sorcha/modules/data/LSST_detector_corners_100123.csv"
+            )
+            success = download_data_file_if_needed(table_path, table_url)
+            if not success:  # pragma: no cover
+                raise RuntimeError(f"Failed to download LSST corners file from {table_url}.")
+
+            return cls.from_sorcha_corners_file(table_path, unit="rad", pixel_scale=0.2)
+        else:
+            raise ValueError(f"Unknown survey name: {survey_name}")  # pragma: no cover
