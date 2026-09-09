@@ -2,14 +2,28 @@
 astropy PixelRegion). This class provides methods for checking if points are within
 the footprint and for plotting the footprint."""
 
+import logging
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
-from regions import PixCoord, RectanglePixelRegion, RectangleSkyRegion, SkyRegion
+from citation_compass import cite_function
+from regions import (
+    CompoundPixelRegion,
+    PixCoord,
+    PolygonSkyRegion,
+    RectanglePixelRegion,
+    RectangleSkyRegion,
+    SkyRegion,
+)
 
+from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.astro_utils.coordinate_utils import validate_ra_dec_degrees
+from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
 
 class DetectorFootprint:
@@ -367,9 +381,15 @@ class DetectorFootprint:
                 figure = plt.figure()
             ax = figure.add_axes([0, 0, 1, 1])
 
-        # Plot the bounds of the footprint.
-        artist = self.region.as_artist()
-        ax.add_artist(artist)
+        # Plot the bounds of the footprint. Compound regions can be nested, while
+        # regions only supports converting compounds with simple operands directly.
+        regions_to_plot = [self.region]
+        while regions_to_plot:
+            region = regions_to_plot.pop()
+            if isinstance(region, CompoundPixelRegion):
+                regions_to_plot.extend([region.region1, region.region2])
+            else:
+                ax.add_artist(region.as_artist())
 
         # Get the bounding box in pixel coordinates. Expand out to ensure the full
         # footprint is visible.
@@ -413,3 +433,130 @@ class DetectorFootprint:
         ax.set_xlim([xmin, xmax])
         ax.set_ylim([ymin, ymax])
         plt.show()
+
+    @classmethod
+    @cite_function
+    def from_sorcha_corners_file(
+        cls,
+        filename,
+        *,
+        unit="rad",
+        wcs=None,
+        pixel_scale=None,
+        center_pixels=(0.5, 0.5),
+    ):
+        """Load the detector footprint from a Sorcha-formatted corners file. This is a CSV file where each row
+        is a single CCD corner with columns: detector, x, y.
+
+        References
+        ----------
+        Merritt et al., 2025, https://arxiv.org/abs/2506.02804
+        Holman et al., 2025, https://arxiv.org/abs/2506.02140
+
+        Parameters
+        ----------
+        filename : str or Path
+            Path to the Sorcha-formatted corners file.
+        unit : str or astropy.units.Unit
+            The unit of the RA and Dec values in the file. Default is "rad".
+        wcs : astropy.wcs.WCS or None
+            The WCS associated with the region, if any.
+        pixel_scale : float or None
+            The pixel scale in arcseconds/pixel, this is required if no WCS is provided.
+        center_pixels : tuple of float, optional
+            The pixel coordinates of the center of the detector. Default is (0.5, 0.5) for
+            the center of the (0, 0) pixel. This is only used if no WCS is provided and
+            a default WCS is created.
+
+        Returns
+        -------
+        cls
+            An instance of the detector footprint initialized from the corners file.
+        """
+        logger = logging.getLogger(__name__)
+
+        filename = Path(filename)
+        if not filename.exists():
+            raise FileNotFoundError(f"File not found: {filename}")
+        logger.debug(f"Loading Sorcha corners file: {filename}")
+
+        # Read in the data frame and extract the columns we need.
+        df = pd.read_csv(filename)
+        if len(df) == 0:
+            raise ValueError(f"No data found in file: {filename}")  # pragma: no cover
+        for colname in ["detector", "x", "y"]:
+            if colname not in df.columns:
+                raise ValueError(f"Missing required column: {colname}")  # pragma: no cover
+
+        # For each CCD, extract the 4 RA/Dec corners.
+        unioned_region = None
+        for ccd in np.unique(df["detector"]):
+            ccd_df = df[df["detector"] == ccd]
+            sky_vertices = SkyCoord(
+                ra=ccd_df["x"].to_numpy(),
+                dec=ccd_df["y"].to_numpy(),
+                unit=(unit, unit),
+            )
+            sky_region = PolygonSkyRegion(vertices=sky_vertices)
+
+            if unioned_region is None:
+                unioned_region = sky_region
+            else:
+                unioned_region = unioned_region.union(sky_region)
+        logger.debug(f"Loaded {len(np.unique(df['detector']))} CCDs")
+
+        return cls(region=unioned_region, wcs=wcs, pixel_scale=pixel_scale, center_pixels=center_pixels)
+
+    @classmethod
+    def from_preset(cls, preset_name):
+        """
+        Create a detector footprint from a preset survey name.
+
+        Supported presets are:
+        - "lsst": The LSST (Rubin Observatory) detector footprint (all 189 detectors)
+        - "lsst-approx": An approximate LSST detector footprint (much faster)
+        - "lsst-ccd": A single CCD of the LSST detector array.
+
+        Parameters
+        ----------
+        preset_name : str
+            The name of the preset for which to create the detector footprint.
+
+        Returns
+        -------
+        cls
+            An instance of the detector footprint for the specified survey.
+        """
+        preset_name = preset_name.lower()
+        if preset_name == "lsst":
+            table_path = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "footprints" / "lsst_corners.csv"
+            table_url = (
+                "https://raw.githubusercontent.com/dirac-institute/sorcha/main/"
+                "src/sorcha/modules/data/LSST_detector_corners_100123.csv"
+            )
+            success = download_data_file_if_needed(table_path, table_url)
+            if not success:  # pragma: no cover
+                raise RuntimeError(f"Failed to download LSST corners file from {table_url}.")
+
+            return cls.from_sorcha_corners_file(table_path, unit="rad", pixel_scale=0.2)
+        elif preset_name == "lsst-approx":
+            # Approximate the sensor footprint as a giant plus sign with no chip gaps.
+            center = SkyCoord(ra=0.0, dec=0.0, unit="deg", frame="icrs")
+            vert_region = RectangleSkyRegion(
+                center=center,
+                width=2.1 * u.deg,
+                height=3.5 * u.deg,
+                angle=0.0 * u.deg,
+            )
+            horiz_region = RectangleSkyRegion(
+                center=center,
+                width=3.5 * u.deg,
+                height=2.1 * u.deg,
+                angle=0.0 * u.deg,
+            )
+            return cls(region=vert_region | horiz_region, pixel_scale=0.2)
+        elif preset_name == "lsst-ccd":
+            # The sensor footprint is a single LSST CCD.
+            return cls.from_pixel_rect(4000, 4000, pixel_scale=0.2)
+        else:
+            raise ValueError(f"Unknown preset name: {preset_name}")
