@@ -505,7 +505,7 @@ def test_create_opsim_resample():
 def test_opsim_docstring():
     """Test if OpSim class has a docstring"""
     assert OpSim.__doc__ is not None
-    assert len(OpSim.__doc__) > 0
+    assert len(OpSim.__doc__) > 100
 
 
 def test_read_opsim_shorten(opsim_shorten):

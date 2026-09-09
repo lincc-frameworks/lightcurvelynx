@@ -446,12 +446,12 @@ class DetectorFootprint:
         center_pixels=(0.5, 0.5),
     ):
         """Load the detector footprint from a Sorcha-formatted corners file. This is a CSV file where each row
-        is a single CCD corner with columns: ccd_number, ra, dec.
+        is a single CCD corner with columns: detector, x, y.
 
         References
         ----------
-        Merritt et. al., 2025, https://arxiv.org/abs/2506.02804
-        Holman et. al., 2025, https://arxiv.org/abs/2506.02140
+        Merritt et al., 2025, https://arxiv.org/abs/2506.02804
+        Holman et al., 2025, https://arxiv.org/abs/2506.02140
 
         Parameters
         ----------
@@ -508,26 +508,27 @@ class DetectorFootprint:
         return cls(region=unioned_region, wcs=wcs, pixel_scale=pixel_scale, center_pixels=center_pixels)
 
     @classmethod
-    def from_preset(cls, survey_name):
+    def from_preset(cls, preset_name):
         """
         Create a detector footprint from a preset survey name.
 
-        Supported surveys are:
+        Supported presets are:
         - "lsst": The LSST (Rubin Observatory) detector footprint (all 189 detectors)
         - "lsst-approx": An approximate LSST detector footprint (much faster)
+        - "lsst-ccd": A single CCD of the LSST detector array.
 
         Parameters
         ----------
-        survey_name : str
-            The name of the survey for which to create the detector footprint.
+        preset_name : str
+            The name of the preset for which to create the detector footprint.
 
         Returns
         -------
         cls
             An instance of the detector footprint for the specified survey.
         """
-        survey_name = survey_name.lower()
-        if survey_name == "lsst":
+        preset_name = preset_name.lower()
+        if preset_name == "lsst":
             table_path = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "footprints" / "lsst_corners.csv"
             table_url = (
                 "https://raw.githubusercontent.com/dirac-institute/sorcha/main/"
@@ -538,7 +539,7 @@ class DetectorFootprint:
                 raise RuntimeError(f"Failed to download LSST corners file from {table_url}.")
 
             return cls.from_sorcha_corners_file(table_path, unit="rad", pixel_scale=0.2)
-        elif survey_name == "lsst-approx":
+        elif preset_name == "lsst-approx":
             # Approximate the sensor footprint as a giant plus sign with no chip gaps.
             center = SkyCoord(ra=0.0, dec=0.0, unit="deg", frame="icrs")
             vert_region = RectangleSkyRegion(
@@ -554,8 +555,8 @@ class DetectorFootprint:
                 angle=0.0 * u.deg,
             )
             return cls(region=vert_region | horiz_region, pixel_scale=0.2)
-        elif survey_name == "lsst-ccd":
+        elif preset_name == "lsst-ccd":
             # The sensor footprint is a single LSST CCD.
-            return DetectorFootprint.from_pixel_rect(4000, 4000, pixel_scale=0.2)
+            return cls.from_pixel_rect(4000, 4000, pixel_scale=0.2)
         else:
-            raise ValueError(f"Unknown survey name: {survey_name}")  # pragma: no cover
+            raise ValueError(f"Unknown preset name: {preset_name}")

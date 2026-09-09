@@ -7,8 +7,13 @@ import pytest
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
-from regions import CirclePixelRegion, CircleSkyRegion, PixCoord, RectanglePixelRegion
-from regions.core.compound import CompoundPixelRegion
+from regions import (
+    CirclePixelRegion,
+    CircleSkyRegion,
+    CompoundPixelRegion,
+    PixCoord,
+    RectanglePixelRegion,
+)
 
 
 def test_rotate_to_center():
@@ -358,6 +363,6 @@ def test_detector_footprint_from_preset_lsst_ccd():
 
 
 def test_detector_footprint_from_preset_unknown():
-    """Test that we can raise and error if given an unknown survey name."""
+    """Test that we can raise an error if given an unknown survey name."""
     with pytest.raises(ValueError):
         DetectorFootprint.from_preset("unknown-survey")

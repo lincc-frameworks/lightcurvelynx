@@ -72,7 +72,37 @@ Calculated with syseng_throughputs v1.9
 
 
 class OpSim(ObsTable):
-    """A wrapper class around the Rubin's simulated data Opsim."""
+    """A wrapper class around the Rubin's simulated data Opsim.
+
+    Parameters
+    ----------
+    table : dict or pandas.core.frame.DataFrame
+        The table with all the OpSim information.
+    colmap : dict
+        A mapping of standard column names to a list of possible names in the input table.
+        Each value in the dictionary can be a string or a list of strings.
+        Defaults to the Rubin column names (OpSim, DP1, etc.), stored in _default_colnames.
+    saturation_mags : dict, optional
+        A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
+        provided must match those in the table. If not provided, OpSim-specific defaults will be
+        used.
+    detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion, or
+        DetectorFootprint, optional
+        The footprint object for the instrument's detector. If None, no footprint
+        filtering is done. LSST footprints can be generated using the `DetectorFootprint.from_preset`
+        method with either "lsst" (for all 189 chips) or "lsst-approx" (for the approximate layout).
+        Default is None.
+    **kwargs : dict
+        Additional keyword arguments to pass to the constructor. This includes overrides
+        for survey parameters such as:
+
+        - dark_current : The dark current for the camera in electrons per second per pixel.
+        - ext_coeff: Mapping of filter names to extinction coefficients.
+        - pixel_scale: The pixel scale for the camera in arcseconds per pixel.
+        - radius: The angular radius of the observations (in degrees).
+        - read_noise: The readout noise for the camera in electrons per pixel.
+        - zp_per_sec: Mapping of filter names to zeropoints at zenith.
+    """
 
     _required_names = ["ra", "dec", "time"]
 
@@ -137,38 +167,6 @@ class OpSim(ObsTable):
         detector_footprint=None,
         **kwargs,
     ):
-        """
-        Create an instance of the OpSim Table.
-
-        Parameters
-        ----------
-        table : dict or pandas.core.frame.DataFrame
-            The table with all the OpSim information.
-        colmap : dict
-            A mapping of standard column names to a list of possible names in the input table.
-            Each value in the dictionary can be a string or a list of strings.
-            Defaults to the Rubin column names (OpSim, DP1, etc.), stored in _default_colnames.
-        saturation_mags : dict, optional
-            A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
-            provided must match those in the table. If not provided, OpSim-specific defaults will be
-            used.
-        detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion, or
-            DetectorFootprint, optional
-            The footprint object for the instrument's detector. If None, no footprint
-            filtering is done. LSST footprints can be generated using the `DetectorFootprint.from_preset
-            method with either "lsst" (for all 189 chips) or "lsst-approx" (for the approximate layout).
-            Default is None.
-        **kwargs : dict
-            Additional keyword arguments to pass to the constructor. This includes overrides
-            for survey parameters such as:
-
-            - dark_current : The dark current for the camera in electrons per second per pixel.
-            - ext_coeff: Mapping of filter names to extinction coefficients.
-            - pixel_scale: The pixel scale for the camera in arcseconds per pixel.
-            - radius: The angular radius of the observations (in degrees).
-            - read_noise: The readout noise for the camera in electrons per pixel.
-            - zp_per_sec: Mapping of filter names to zeropoints at zenith.
-        """
         colmap = self._default_colnames if colmap is None else colmap
 
         # If saturation thresholds are not provided, then set to the OpSim defaults.
