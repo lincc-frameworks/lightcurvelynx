@@ -12,9 +12,7 @@ Introduction
 
    LightCurveLynx simulation components
 
-The LightCurveLynx simulation function is designed to produce multiple samples from single population
-of objects and their observed light curves as determined by given survey information. The main
-step includes the following components:
+The LightCurveLynx simulation function is designed to produce multiple samples from a single population of objects and their observed light curves as determined by given survey information. The main steps include the following components:
 
 * A statistical simulation step where parameters (and hyperparameters) of the modeled phenomenon
   are drawn from one or more prior distributions.
@@ -50,12 +48,7 @@ When starting a new simulation there are a few key questions to ask (in this ord
 Defining a parameterized model 
 -------------------------------------------------------------------------------
 
-The core idea behind LightCurveLynx is that we want to generate light curves from parameterized models
-of astronomical objects/phenomena. Users do this by creating model objects that are subclasses of the 
-`BasePhysicalModel`` class. This object provides the recipe for computing the noise-free light curves
-given values for its parameters. By providing a distribution of parameter values into the model,
-users can simulate an entire population of these objects. For example, they could use the `SALT2JaxModel` 
-with parameterized values of `c`, `x0`, and `x1` to simulate a population of Type Ia supernovae.
+The core idea behind LightCurveLynx is that we want to generate light curves from parameterized models of astronomical objects/phenomena. Users do this by creating model objects that are subclasses of the ``BasePhysicalModel`` class. This object provides the recipe for computing the noise-free light curves given values for its parameters. By providing a distribution of parameter values into the model, users can simulate an entire population of these objects. For example, they could use the `SALT2JaxModel` with parameterized values of `c`, `x0`, and `x1` to simulate a population of Type Ia supernovae.
 
 .. code-block:: python
 
@@ -83,12 +76,7 @@ Finally users can create their own models. See the :doc:`custom models page <cus
 Parameterization
 -------------------------------------------------------------------------------
 
-Users set the model's parameters using the arguments of the model's constructor. Parameters can be set to be
-static (a constant) or computed from a given distribution or function (which itself can have parameters).
-This flexibility allows the model's parameters to be defined by a hierarchical model that can be visualized
-by a Directed Acyclic Graph (DAG). This means that the parameters to our physical model, such as a
-type Ia supernova, can themselves be sampled based on distributions of hyperparameters. For example, a
-simplified SNIa model with a host component can have the following DAG:
+Users set the model's parameters using the arguments of the model's constructor to link that parameter with a recipe for dynamically setting it. Parameters can be set to be static (a constant) or computed from a given distribution or function (which itself can have parameters). This flexibility allows the model's parameters to be defined by a hierarchical model that can be visualized by a Directed Acyclic Graph (DAG). This means that the parameters to our physical model, such as a type Ia supernova, can themselves be sampled based on distributions of hyperparameters. For example, a simplified SNIa model with a host component can have the following DAG:
 
 .. figure:: _static/dag-model.png
    :class: no-scaled-link
@@ -105,11 +93,7 @@ Each sample during simulation corresponds to a new simulated object -- all param
 and used to compute the flux density for that object. LightCurveLynx handles the sequential processing
 of the graph so that all parameters are consistently sampled for each object.
 
-At the heart of the sampling system is the concept of a ``ParameterizedNode`` which is a node that
-takes settable parameters and produces values for other parameters. Many objects in ``LightCurveLynx``
-are such nodes, including the `BasePhysicalModel``. While this framework provides a powerful and
-extensible system for generating the DAGs, most users will not need to know the details. Instead LightCurveLynx
-provides a large set of predefined nodes that perform common operations. A few examples include:
+At the heart of the sampling system is the concept of a ``ParameterizedNode`` which is a node that takes settable parameters and produces values for other parameters. Many objects in ``LightCurveLynx`` are such nodes, including the ``BasePhysicalModel``. While this framework provides a powerful and extensible system for generating the DAGs, most users will not need to know the details. Instead LightCurveLynx provides a large set of predefined nodes that perform common operations. A few examples include:
 
 * Sampling from a statistical distribution (e.g., ``NumpyRandomFunc`` and ``ScipyRandomDist``)
 * Sampling (RA, dec) from the footprint of a survey (e.g., ``ObsTableUniformRADECSampler`` and ``ApproximateMOCSampler``)
@@ -118,31 +102,24 @@ provides a large set of predefined nodes that perform common operations. A few e
 
 The directory ``/math_nodes`` contains many additional functions.
 
-All most users will need to know is that the arguments passed to a model's constructor can
-take values as:
+All that most users will need to know is that the arguments passed to a model's constructor can take values as:
 
 * constants
 * the output of a node that computes some value (e.g., ``NumpyRandomFunc``)
-* or the attribute of a another node.
+* or the attribute of another node.
 
 See the :doc:`Introduction notebook<notebooks/introduction>` and 
 :doc:`sampling notebook<notebooks/sampling>` for details on how to define the parameter DAG.
-The nodebook :doc:`sampling positions <notebooks/sampling_positions>` provides a deeper
+The notebook :doc:`sampling positions <notebooks/sampling_positions>` provides a deeper
 dive into nodes that sample positions from a survey footprint.
 
 
 Generating light curves
 -------------------------------------------------------------------------------
 
-Sample light curves for a population are generated with a multiple step process. First, the object's parameter
-DAG is sampled to get concrete values for each parameter in the model. This combination of parameters is called
-the graph state (and is stored in a ``GraphState`` object), because it represents the sampled state of the DAG.
+Sample light curves for a population are generated with a multiple step process. First, the object's parameter DAG is sampled to get concrete values for each parameter in the model. This process operates by dynamically generating a value for each model parameter using the recipe provided. The resulting combination of realized parameters is called the graph state (and is stored in a ``GraphState`` object), because it represents the sampled state of the DAG.
 
-Next, the ``ObsTable`` is used to determine at what times and in which bands the object will be evaluated.
-These times and wavelengths are based into the object's ``evaluate_sed()`` function (for spectral level models)
-or ``evaluate_bandfluxes()`` (for band flux level models) along with the graph state. These functions
-handle the mechanics of the simulation, such as applying redshifts to both the times and wavelengths and handling
-any requested extrapolations outside the model's valid time or wavelength range.
+Next, the ``ObsTable`` is used to determine at what times and in which bands the object will be evaluated. These times and wavelengths are passed into the object's ``evaluate_sed()`` function (for spectral level models) or ``evaluate_bandfluxes()`` (for band flux level models) along with the graph state. These functions handle the mechanics of the simulation, such as applying redshifts to both the times and wavelengths and handling any requested extrapolations outside the model's valid time or wavelength range.
 
 .. figure:: _static/compute_sed.png
    :class: no-scaled-link
@@ -156,7 +133,7 @@ Additional effects can be applied to the noise-free light curves to produce more
 The effects are applied in two batches. Rest frame effects are applied to the flux densities in the rest frame.
 The flux densities are then converted to the observer frame where the observer frame effects are applied.
 
-Finally, if the the raw flux densities are at the spectral level, they are integrated over the bandpasses to obtain the bandflux level
+Finally, if the raw flux densities are at the spectral level, they are integrated over the bandpasses to obtain the bandflux level
 values using the ``PassbandGroup``.
 
 
@@ -177,8 +154,8 @@ in each of the filters.
    An example of the evaluate_bandfluxes function
 
 In addition to being a convenient helper function for spectral models, generating the data at the band flux level allows
-certain models to skip spectral-level flux density generation. In particular a ``BandfluxModel`` is a subclass of the
-``PhysicalModel`` whose computation is only defined at the band flux level. An example of this are models of empirically
+certain models to skip spectral-level flux density generation. In particular, a ``BandfluxModel`` is a subclass of the
+``PhysicalModel`` whose computation is only defined at the band flux level. An example of this approach are models of empirically
 fit light curves, such as those from LCLIB. Since we do not have the underlying SEDs for these types of models,
 so we can only work with them at the band flux level. See the
 :doc:`lightcurve template model <notebooks/lightcurve_source_demo>` for an example of this type of model.
@@ -192,7 +169,7 @@ band fluxes directly will not account for all of these factors.
 Running a Full Simulation
 -------------------------------------------------------------------------------
 
-To run a full simulation, users call the ``simulate_lightcurves()`` function, which handles the parameter sampling, matching with ``ObsTable`` positions, the full density simulation (including effects), application of noise, etc. The function takes the model object to simulation, the number of samples to generate, and the survey information (``SurveyInfo``). It returns a nested pandas DataFrame as described in the  :doc:`Results and Output documentation page <results_and_output>`, which includes both the sampled parameters and the resulting light curves for each simulated object.
+To run a full simulation, users call the ``simulate_lightcurves()`` function, which handles the parameter sampling, matching with ``ObsTable`` positions, the full density simulation (including effects), application of noise, etc. The function takes the model object to simulate, the number of samples to generate, and the survey information (``SurveyInfo``). It returns a nested pandas DataFrame as described in the  :doc:`Results and Output documentation page <results_and_output>`, which includes both the sampled parameters and the resulting light curves for each simulated object.
 
 .. code-block:: python
 
