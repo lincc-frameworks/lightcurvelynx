@@ -291,6 +291,117 @@ def get_time_windows(t0, z, obs_time_window_offset, rest_time_window_offset):
     return start_times, end_times
 
 
+def simulate_single_bandflux_sample(
+    model,
+    survey_info,
+    state,
+    *,
+    indices=None,
+    rng_info=None,
+    apply_saturation=False,
+    obs_time_window_offset=None,
+    rest_time_window_offset=None,
+):
+    """Simulate a single sample (object) for a single bandflux survey. This function is
+    called by the core loop, but broken out so that it can be called from external
+    code as well.
+
+    Parameters
+    ----------
+    model : object
+        The lightcurve model to simulate.
+    survey_info : object
+        Information about the survey, including the observation table, passbands,
+        and noise model.
+    state : GraphState
+        Pre-sampled state of the model parameters.
+    indices : array-like, optional
+        Precomputed indices for the observations to use. If these are provided all spatial
+        matching is skipped and the passbands will be evaluated at these indices directly.
+        If not provided, the spatial matching and time filtering will be performed to determine
+        the relevant  observation indices.
+    rng_info : object, optional
+        Random number generator information.
+    apply_saturation : bool, default False
+        Whether to apply saturation thresholds.
+    obs_time_window_offset : tuple, optional
+        Observer-frame time window offset (before, after) in days. Ignored if indices are
+        passed since we do not do matching.
+    rest_time_window_offset : tuple, optional
+        Rest-frame time window offset (before, after) in days. Ignored if indices are
+        passed since we do not do matching.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the simulated bandfluxes and associated information. Keys include:
+        - "flux_perfect": The noise-free bandfluxes in nJy.
+        - "flux": The noisy bandfluxes in nJy.
+        - "fluxerr": The errors on the noisy bandfluxes.
+        - "is_saturated": Boolean array indicating which observations are saturated.
+    """
+    if state is None or state.num_samples != 1:
+        raise ValueError("The pre-sampled state must contain exactly one sample.")
+
+    # If we have not done the spatial matching, do that now.
+    if indices is None:
+        start_times, end_times = get_time_windows(
+            model.get_param(state, "t0"),
+            model.get_param(state, "redshift"),
+            obs_time_window_offset,
+            rest_time_window_offset,
+        )
+        indices = survey_info.obstable.range_search(
+            model.get_param(state, "ra"),
+            model.get_param(state, "dec"),
+            t_min=start_times,
+            t_max=end_times,
+        )
+
+    # Compute the bandfluxes for the lightcurves column.
+    obs_times = survey_info.obstable["time"].iloc[indices]
+    obs_filters = survey_info.obstable["filter"].iloc[indices]
+    bandfluxes_perfect = model.evaluate_bandfluxes(
+        survey_info.passbands,
+        obs_times,
+        obs_filters,
+        state,
+        rng_info=rng_info,
+    )
+
+    # Simulate bandflux noise.
+    noise_model = survey_info.noise_model
+    if noise_model is None:
+        bandfluxes = np.copy(bandfluxes_perfect)
+        bandfluxes_error = np.zeros_like(bandfluxes_perfect)
+    else:
+        bandfluxes, bandfluxes_error = noise_model.apply_noise(
+            bandfluxes_perfect,
+            obs_table=survey_info.obstable,
+            indices=indices,
+            rng=rng_info,
+        )
+
+    # Apply saturation thresholds from the ObsTable if they are requested.
+    if apply_saturation:
+        bandfluxes, bandfluxes_error, saturation_flags = survey_info.obstable.compute_saturation(
+            bandfluxes,
+            bandfluxes_error,
+            indices,
+        )
+    else:
+        saturation_flags = [False] * len(indices)
+
+    # Compile the results into a dictionary.
+    results = {
+        "flux_perfect": bandfluxes_perfect,
+        "flux": bandfluxes,
+        "fluxerr": bandfluxes_error,
+        "is_saturated": saturation_flags,
+    }
+    return results
+
+
 def _simulate_lightcurves_batch(simulation_info):
     """Generate a number of simulations of the given model and information
     from one or more surveys.
@@ -483,46 +594,27 @@ def _simulate_lightcurves_batch(simulation_info):
                 # Add the new entries to the spectra_index.
                 spectra_index.extend([idx] * nobs)
             else:
-                # This is a PassbandGroup integrator, so we compute the bandfluxes for the lightcurves column.
-                # Compute the bandfluxes and errors over just the given filters.
-                bandfluxes_perfect = model.evaluate_bandfluxes(
-                    passbands[survey_idx],
-                    obs_times,
-                    obs_filters,
-                    state,
+                # Compute the bandfluxes for this model and survey combination. Note that we
+                # do not need to pass information such as the time windows because we have
+                # already done those computations in a batch above.
+                results = simulate_single_bandflux_sample(
+                    model,
+                    simulation_info.survey_info[survey_idx],
+                    indices=obs_index,  # We have done spatial matching already.
+                    state=state,  # Single state
                     rng_info=rng,
+                    apply_saturation=simulation_info.apply_saturation,
                 )
-
-                # Simulate bandflux noise.
-                noise_model = simulation_info.survey_info[survey_idx].noise_model
-                if noise_model is None:
-                    bandfluxes = np.copy(bandfluxes_perfect)
-                    bandfluxes_error = np.zeros_like(bandfluxes_perfect)
-                else:
-                    bandfluxes, bandfluxes_error = noise_model.apply_noise(
-                        bandfluxes_perfect,
-                        obs_table=obstable[survey_idx],
-                        indices=obs_index,
-                        rng=rng,
-                    )
-
-                # Apply saturation thresholds from the ObsTable if they are requested.
-                if simulation_info.apply_saturation:
-                    bandfluxes, bandfluxes_error, saturation_flags = obstable[survey_idx].compute_saturation(
-                        bandfluxes, bandfluxes_error, obs_index
-                    )
-                else:
-                    saturation_flags = [False] * nobs
 
                 # Append the per-observation data to the nested dictionary, including
                 # any needed ObsTable columns. These are appended
                 object_nested_dict["mjd"].append(obs_times)
                 object_nested_dict["filter"].append(obs_filters)
-                object_nested_dict["flux_perfect"].append(bandfluxes_perfect)
-                object_nested_dict["flux"].append(bandfluxes)
-                object_nested_dict["fluxerr"].append(bandfluxes_error)
+                object_nested_dict["flux_perfect"].append(results["flux_perfect"])
+                object_nested_dict["flux"].append(results["flux"])
+                object_nested_dict["fluxerr"].append(results["fluxerr"])
                 object_nested_dict["survey_idx"].append([survey_idx] * nobs)
-                object_nested_dict["is_saturated"].append(saturation_flags)
+                object_nested_dict["is_saturated"].append(results["is_saturated"])
                 object_nested_dict["obs_idx"].append(obs_index)
                 for col in obstable_save_cols:
                     if len(obs_index) > 0:

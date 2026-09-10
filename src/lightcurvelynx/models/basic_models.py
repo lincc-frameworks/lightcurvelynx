@@ -70,6 +70,10 @@ class StepModel(ConstantSEDModel):
     * t0 - The time the step function starts, in MJD.
     * t1- The time the step function ends, in MJD.
 
+    Note
+    ----
+    This model is provided for testing.
+
     Parameters
     ----------
     brightness : float
@@ -129,6 +133,10 @@ class SinWaveModel(SEDModel):
     * ra - The object's right ascension in degrees. [from BasePhysicalModel]
     * redshift - The object's redshift. [from BasePhysicalModel]
     * t0 - The start of the sine wave's period. [from BasePhysicalModel]
+
+    Note
+    ----
+    This model is provided for testing.
 
     Parameters
     ----------
@@ -199,6 +207,10 @@ class LinearWavelengthModel(SEDModel):
     * ra - The object's right ascension in degrees. [from BasePhysicalModel]
     * redshift - The object's redshift. [from BasePhysicalModel]
     * t0 - No effect for static model. [from BasePhysicalModel]
+
+    Note
+    ----
+    This model is provided for testing.
 
     Attributes
     ----------
@@ -288,3 +300,63 @@ class LinearWavelengthModel(SEDModel):
         params = self.get_local_params(graph_state)
         single_wave = params["linear_base"] + params["linear_scale"] * wavelengths
         return np.tile(single_wave[np.newaxis, :], (len(times), 1))
+
+
+class LinearTimeModel(SEDModel):
+    """A model that emits flux as a linear function of time
+    (that is constant over wavelengths)::
+
+        f(t, w) = max(0.0, scale * t - t0) + base
+
+    Parameterized values include:
+
+    * linear_base - The base brightness in nJy.
+    * linear_scale - The slope of the linear function in nJy/day.
+    * dec - The object's declination in degrees. [from BasePhysicalModel]
+    * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
+    * redshift - The object's redshift. [from BasePhysicalModel]
+    * t0 - Time offset before the linear ramp begins. [from BasePhysicalModel]
+
+    Note
+    ----
+    This model is provided for testing.
+
+    Parameters
+    ----------
+    linear_base : parameter
+        The base brightness in nJy.
+    linear_scale : parameter
+        The slope of the linear function in nJy/day.
+    **kwargs : dict, optional
+        Any additional keyword arguments.
+    """
+
+    def __init__(self, linear_base, linear_scale, **kwargs):
+        super().__init__(**kwargs)
+        self.add_parameter("linear_base", linear_base, **kwargs)
+        self.add_parameter("linear_scale", linear_scale, **kwargs)
+
+    def compute_sed(self, times, wavelengths, graph_state, **kwargs):
+        """Draw effect-free observations for this object.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of rest frame timestamps.
+        wavelengths : numpy.ndarray, optional
+            A length N array of wavelengths (in angstroms).
+        graph_state : GraphState
+            An object mapping graph parameters to their values.
+        **kwargs : dict, optional
+            Any additional keyword arguments.
+
+        Returns
+        -------
+        flux_density : numpy.ndarray
+            A length T x N matrix of SED values (in nJy).
+        """
+        params = self.get_local_params(graph_state)
+        time_after_t0 = np.maximum(0.0, times - params["t0"])
+        single_wave = time_after_t0 * params["linear_scale"] + params["linear_base"]
+        return np.tile(single_wave[:, np.newaxis], (1, len(wavelengths)))

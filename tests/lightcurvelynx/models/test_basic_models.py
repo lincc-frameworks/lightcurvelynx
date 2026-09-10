@@ -8,6 +8,7 @@ from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.models.basic_models import (
     ConstantSEDModel,
+    LinearTimeModel,
     LinearWavelengthModel,
     SinWaveModel,
     StepModel,
@@ -296,3 +297,19 @@ def test_linear_wavelength_model_bounds() -> None:
     values3 = model3.evaluate_sed(times, wavelengths3, state3)
     expected3 = np.tile(np.array([0.0, 50.5, 101.0, 151.0, 201.0, 100.5, 0.0]), (len(times), 1))
     assert np.allclose(values3, expected3)
+
+
+def test_linear_time_model() -> None:
+    """Test that we can create and query a LinearTimeModel."""
+    model = LinearTimeModel(linear_base=3.0, linear_scale=0.1, t0=10.0)
+    state = model.sample_parameters()
+
+    times = np.arange(0.0, 50.0, 0.5)
+    wavelengths = np.array([500.0, 1000.0, 1500.0, 2000.0, 2500.0])
+    values = model.evaluate_sed(times, wavelengths, state)
+
+    # Check that we are getting a linear increase in flux after t0 and only
+    # the baseline before that.
+    expected_per_wave = np.maximum(0.0, 0.1 * (times - 10.0)) + 3.0
+    expected = np.tile(expected_per_wave[:, np.newaxis], (1, len(wavelengths)))
+    assert np.allclose(values, expected)
