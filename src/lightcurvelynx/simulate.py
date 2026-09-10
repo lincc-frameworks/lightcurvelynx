@@ -335,6 +335,8 @@ def simulate_single_bandflux_sample(
     -------
     dict
         A dictionary containing the simulated bandfluxes and associated information. Keys include:
+        - "mjd": The Modified Julian Dates of the observations.
+        - "filter": The filters corresponding to each observation.
         - "flux_perfect": The noise-free bandfluxes in nJy.
         - "flux": The noisy bandfluxes in nJy.
         - "fluxerr": The errors on the noisy bandfluxes.
@@ -359,8 +361,8 @@ def simulate_single_bandflux_sample(
         )
 
     # Compute the bandfluxes for the lightcurves column.
-    obs_times = survey_info.obstable["time"].iloc[indices]
-    obs_filters = survey_info.obstable["filter"].iloc[indices]
+    obs_times = survey_info.obstable["time"].to_numpy()[indices]
+    obs_filters = survey_info.obstable["filter"].to_numpy()[indices]
     bandfluxes_perfect = model.evaluate_bandfluxes(
         survey_info.passbands,
         obs_times,
@@ -394,6 +396,8 @@ def simulate_single_bandflux_sample(
 
     # Compile the results into a dictionary.
     results = {
+        "mjd": obs_times,
+        "filter": obs_filters,
         "flux_perfect": bandfluxes_perfect,
         "flux": bandfluxes,
         "fluxerr": bandfluxes_error,
@@ -521,9 +525,8 @@ def _simulate_lightcurves_batch(simulation_info):
         obstable[i].range_search(ra, dec, t_min=start_times, t_max=end_times) for i in range(num_surveys)
     ]
 
-    # Get all times and all filters as numpy arrays so we can do easy subsets.
-    all_times = [np.asarray(obstable[i]["time"].values, dtype=float) for i in range(num_surveys)]
-    all_filters = [np.asarray(obstable[i]["filter"].values, dtype=str) for i in range(num_surveys)]
+    # Get all times as a numpy array so we can do easy subsets.
+    all_times = [np.asarray(obstable[i]["time"].to_numpy(), dtype=float) for i in range(num_surveys)]
 
     # We loop over objects first, then surveys. This allows us to generate a single block
     # of data for the object over all surveys.
@@ -550,7 +553,6 @@ def _simulate_lightcurves_batch(simulation_info):
             if len(obs_index) == 0:
                 continue
             obs_times = all_times[survey_idx][obs_index]
-            obs_filters = all_filters[survey_idx][obs_index]
 
             # Check for duplicate observation times in the same survey.
             nobs = len(obs_times)
@@ -608,13 +610,13 @@ def _simulate_lightcurves_batch(simulation_info):
 
                 # Append the per-observation data to the nested dictionary, including
                 # any needed ObsTable columns. These are appended
-                object_nested_dict["mjd"].append(obs_times)
-                object_nested_dict["filter"].append(obs_filters)
+                object_nested_dict["mjd"].append(results["mjd"])
+                object_nested_dict["filter"].append(results["filter"])
                 object_nested_dict["flux_perfect"].append(results["flux_perfect"])
                 object_nested_dict["flux"].append(results["flux"])
                 object_nested_dict["fluxerr"].append(results["fluxerr"])
-                object_nested_dict["survey_idx"].append([survey_idx] * nobs)
                 object_nested_dict["is_saturated"].append(results["is_saturated"])
+                object_nested_dict["survey_idx"].append([survey_idx] * nobs)
                 object_nested_dict["obs_idx"].append(obs_index)
                 for col in obstable_save_cols:
                     if len(obs_index) > 0:
@@ -628,7 +630,7 @@ def _simulate_lightcurves_batch(simulation_info):
 
                 # Add the survey name from the integrator information if we chose to save it.
                 if simulation_info.save_full_filter_names:
-                    obs_filters = np.asarray(obs_filters)
+                    obs_filters = results["filter"]
                     full_filter_names = np.empty_like(obs_filters, dtype=object)
                     for filter_name in np.unique(obs_filters):
                         pb_obj = passbands[survey_idx][filter_name]

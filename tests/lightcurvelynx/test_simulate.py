@@ -406,6 +406,8 @@ def test_simulate_single_bandflux_sample_indices(test_data_dir):
     assert "flux" in results
     assert "fluxerr" in results
     assert "is_saturated" in results
+    assert "mjd" in results
+    assert "filter" in results
 
     # Do a second sample with the same state, but a different random number state.
     # The flux_perfect and noise should be the same, but the noisy flux should be different.
@@ -434,6 +436,7 @@ def test_simulate_single_bandflux_sample_indices(test_data_dir):
     )
     assert len(results4["flux_perfect"]) == 1
     assert np.allclose(results4["flux_perfect"], results["flux_perfect"][0])
+    assert np.allclose(results4["mjd"], first_time)
 
     # We fail if we have more than one sample.
     state_bad = source.sample_parameters(num_samples=2)
@@ -492,9 +495,11 @@ def test_simulate_single_bandflux_sample(test_data_dir):
     assert len(results2["flux"]) == 10
 
     # Check that we evaluated the model on the first 10 times regardless of spatial matching.
-    all_times = np.sort(opsim_db["time"].values)
+    all_times = opsim_db["time"].to_numpy()
     expected_flux = 3.0 + 0.1 * (all_times[:10] - t0)
     assert np.allclose(results2["flux_perfect"], expected_flux)
+    assert np.allclose(results2["mjd"], all_times[:10])
+    assert np.array_equal(results2["filter"], opsim_db["filter"].values[:10])
 
 
 def test_simulate_lightcurves(test_data_dir):
