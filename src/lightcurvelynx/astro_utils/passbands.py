@@ -413,10 +413,10 @@ class PassbandGroup:
         # The table contains effective area in m^2, but since we normalize the transmission tables,
         # we can just use this directly.
         table = pd.read_csv(table_path, comment="#", sep=r"[\s,]+", engine="python")
-        waves = table["Wave"].values * 10_000  # Convert microns to Angstroms
+        waves = table["Wave"].to_numpy() * 10_000  # Convert microns to Angstroms
 
         for filter_name in ["F062", "F087", "F106", "F129", "F146", "F158", "F184", "F213"]:
-            table_values = np.vstack([waves, table[filter_name].values.astype(float)]).T
+            table_values = np.vstack([waves, table[filter_name].to_numpy(dtype=float)]).T
             pb = Passband(table_values, "Roman", filter_name, **kwargs)
             passbands.append(pb)
         return passbands

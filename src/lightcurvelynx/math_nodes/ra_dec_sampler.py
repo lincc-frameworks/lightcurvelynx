@@ -163,8 +163,8 @@ class ObsTableRADECSampler(TableSampler):
         if dedup_threshold > 0.0:
             data_dict = pd.DataFrame(data_dict)
             _, _, inds = dedup_coords(
-                data_dict["ra"].values,
-                data_dict["dec"].values,
+                data_dict["ra"].to_numpy(),
+                data_dict["dec"].to_numpy(),
                 threshold=dedup_threshold,
             )
             data_dict = data_dict.iloc[inds].reset_index(drop=True)

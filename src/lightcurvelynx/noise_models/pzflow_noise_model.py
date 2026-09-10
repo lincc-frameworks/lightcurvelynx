@@ -309,7 +309,7 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
             rng = np.random.default_rng()
         pzflow_seed = rng.integers(0, 1e9)
         samples = self._flow.sample(nsamples=1, conditions=input_df, seed=pzflow_seed)
-        flux_err = np.clip(samples[self._output_column].values, a_min=0, a_max=None)
+        flux_err = np.clip(samples[self._output_column].to_numpy(), a_min=0, a_max=None)
 
         # If we have normalization data for the output column, denormalize the output.
         if self._normalizer_data.get(self._output_column) is not None:

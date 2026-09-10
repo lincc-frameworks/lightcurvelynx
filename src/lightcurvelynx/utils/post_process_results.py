@@ -307,12 +307,12 @@ def results_use_full_filter_names(results, passbands):
     # modifying the version in the table to include the full filter names.
     if "filter" not in results["lightcurve"].nest.columns:
         raise ValueError("lightcurve.filter must be present in the DataFrame.")  # pragma: no cover
-    filter_names = results["lightcurve.filter"].values.copy()
+    filter_names = results["lightcurve.filter"].to_numpy(copy=True)
 
     # If we have the survey_idx information, use that. Otherwise only one survey was provided
     # So we can mark all the entries as coming from survey zero.
     if "survey_idx" in results["lightcurve"].nest.columns:
-        survey_idx = results["lightcurve.survey_idx"].values
+        survey_idx = results["lightcurve.survey_idx"].to_numpy()
     else:
         survey_idx = np.zeros(len(filter_names), dtype=int)
 

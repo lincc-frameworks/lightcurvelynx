@@ -113,7 +113,7 @@ You can capture the state of the previous simulation from the "params" column in
 
 .. code-block:: python
 
-    previous_state = GraphState.from_list(results["params"].values)
+    previous_state = GraphState.from_list(results["params"].to_numpy())
 
 Then you pass this ``previous_state`` to the ``simulate_lightcurves()`` function to rerun the simulation with the same parameters:
 

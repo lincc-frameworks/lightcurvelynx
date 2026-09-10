@@ -113,7 +113,7 @@ class PZFlowNode(FunctionNode, CiteClass):
         # Parse out each output column in the flow samples as its own result vector.
         results = []
         for attr_name in self.flow.data_columns:
-            attr_values = samples[attr_name].values
+            attr_values = samples[attr_name].to_numpy()
             if graph_state.num_samples == 1:
                 results.append(attr_values[0])
             else:
