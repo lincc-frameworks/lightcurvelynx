@@ -236,7 +236,7 @@ You can capture the state of the previous simulation from the "params" column in
 
 .. code-block:: python
 
-    previous_state = GraphState.from_list(results["params"].values)
+    previous_state = GraphState.from_list(results["params"].to_numpy())
 
 You can see an example of this in the :doc:`multiple surveys demo notebook <notebooks/multiple_surveys>` or the :doc:`Resampling LCLIB notebook <notebooks/pre_executed/lclib_example>` where we rerun a simulation with the same parameters but different survey information.
 

@@ -313,9 +313,9 @@ def test_results_augment_lightcurves():
 
     # Check the SNR and detection markings.
     assert "snr" in results["lightcurve"].nest.columns
-    assert _allclose(results["lightcurve.snr"][0].values, [10.0, 12.0])
-    assert _allclose(results["lightcurve.snr"][1].values, [0.1, 0.01])
-    assert _allclose(results["lightcurve.snr"][2].values, [2.5, 6.0])
+    assert _allclose(results["lightcurve.snr"][0].to_numpy(), [10.0, 12.0])
+    assert _allclose(results["lightcurve.snr"][1].to_numpy(), [0.1, 0.01])
+    assert _allclose(results["lightcurve.snr"][2].to_numpy(), [2.5, 6.0])
 
     assert "detection" in results["lightcurve"].nest.columns
     assert results["lightcurve.detection"][0].tolist() == [True, True]
@@ -324,15 +324,15 @@ def test_results_augment_lightcurves():
 
     # Check the AB magnitudes and magnitude errors.
     assert "mag" in results["lightcurve"].nest.columns
-    assert _allclose(results["lightcurve.mag"][0].values, [flux2mag(10.0), flux2mag(12.0)])
-    assert _allclose(results["lightcurve.mag"][1].values, [flux2mag(0.1), flux2mag(0.2)])
-    assert _allclose(results["lightcurve.mag"][2].values, [flux2mag(5.0), flux2mag(6.0)])
+    assert _allclose(results["lightcurve.mag"][0].to_numpy(), [flux2mag(10.0), flux2mag(12.0)])
+    assert _allclose(results["lightcurve.mag"][1].to_numpy(), [flux2mag(0.1), flux2mag(0.2)])
+    assert _allclose(results["lightcurve.mag"][2].to_numpy(), [flux2mag(5.0), flux2mag(6.0)])
 
     assert "magerr" in results["lightcurve"].nest.columns
     for i in range(3):
         assert _allclose(
-            results["lightcurve.magerr"][i].values,
-            (2.5 / np.log(10)) * 1.0 / results["lightcurve.snr"][i].values,
+            results["lightcurve.magerr"][i].to_numpy(),
+            (2.5 / np.log(10)) * 1.0 / results["lightcurve.snr"][i].to_numpy(),
         )
 
     # Without providing a t0, we do not compute relative time.
@@ -347,9 +347,9 @@ def test_results_augment_lightcurves():
     results["t0"] = np.array([59000, 59001, 59002])
     results_augment_lightcurves(results, min_snr=5)
     assert "time_rel" in results["lightcurve"].nest.columns
-    assert _allclose(results["lightcurve.time_rel"][0].values, [0, 1])
-    assert _allclose(results["lightcurve.time_rel"][1].values, [1, 2])
-    assert _allclose(results["lightcurve.time_rel"][2].values, [2, 3])
+    assert _allclose(results["lightcurve.time_rel"][0].to_numpy(), [0, 1])
+    assert _allclose(results["lightcurve.time_rel"][1].to_numpy(), [1, 2])
+    assert _allclose(results["lightcurve.time_rel"][2].to_numpy(), [2, 3])
 
     # Test that we can still write out a file.
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -389,9 +389,9 @@ def test_results_augment_lightcurves_invalid():
 
     # Check the SNR and detection markings.
     assert "snr" in results["lightcurve"].nest.columns
-    assert _allclose(results["lightcurve.snr"][0].values, [10.0, 12.0])
-    assert _allclose(results["lightcurve.snr"][1].values, [0.1, None])
-    assert _allclose(results["lightcurve.snr"][2].values, [2.5, None])
+    assert _allclose(results["lightcurve.snr"][0].to_numpy(), [10.0, 12.0])
+    assert _allclose(results["lightcurve.snr"][1].to_numpy(), [0.1, None])
+    assert _allclose(results["lightcurve.snr"][2].to_numpy(), [2.5, None])
 
     assert "detection" in results["lightcurve"].nest.columns
     assert results["lightcurve.detection"][0].tolist() == [True, True]
@@ -470,18 +470,20 @@ def test_results_augment_lightcurves_single():
     assert "mag" in results.columns
     assert "magerr" in results.columns
     assert "time_rel" not in results.columns
-    assert _allclose(results["snr"].values, [10.0, 12.0, 0.1, 0.01, 2.5, 6.0, None])
-    assert np.array_equal(results["detection"].values, [True, True, False, False, False, True, False])
+    assert _allclose(results["snr"].to_numpy(), [10.0, 12.0, 0.1, 0.01, 2.5, 6.0, None])
+    assert np.array_equal(results["detection"].to_numpy(), [True, True, False, False, False, True, False])
     assert _allclose(
-        results["mag"].values,
+        results["mag"].to_numpy(),
         [flux2mag(10.0), flux2mag(12.0), flux2mag(0.1), flux2mag(0.2), flux2mag(5.0), flux2mag(6.0), None],
     )
-    assert _allclose(results["magerr"].values[:6], (2.5 / np.log(10)) * (1.0 / results["snr"].values[:6]))
+    assert _allclose(
+        results["magerr"].to_numpy()[:6], (2.5 / np.log(10)) * (1.0 / results["snr"].to_numpy()[:6])
+    )
 
     # Try with a t0.
     augment_single_lightcurve(results, min_snr=5, t0=59000)
     assert "time_rel" in results.columns
-    assert _allclose(results["time_rel"].values, [0, 1, 2, 3, 4, 5, 6])
+    assert _allclose(results["time_rel"].to_numpy(), [0, 1, 2, 3, 4, 5, 6])
 
     # We fail if the lightcurve doesn't have flux or fluxerr columns.
     results_invalid = results.drop(columns=["flux", "fluxerr"])

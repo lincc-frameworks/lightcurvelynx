@@ -386,8 +386,8 @@ def test_simulate_lightcurves(test_data_dir):
     source = ConstantSEDModel(
         brightness=GivenValueList(given_brightness),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].values[0:5]),
-        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
         redshift=0.0,
         node_label="source",
     )
@@ -404,11 +404,11 @@ def test_simulate_lightcurves(test_data_dir):
     assert "lightcurve" in results
     assert "spectra" not in results
 
-    assert np.all(results["nobs"].values >= 1)
-    assert np.allclose(results["ra"].values, opsim_db["ra"].values[0:5])
-    assert np.allclose(results["dec"].values, opsim_db["dec"].values[0:5])
-    assert np.allclose(results["z"].values, 0.0)
-    assert np.allclose(results["t0"].values, 0.0)
+    assert np.all(results["nobs"].to_numpy() >= 1)
+    assert np.allclose(results["ra"].to_numpy(), opsim_db["ra"].to_numpy()[0:5])
+    assert np.allclose(results["dec"].to_numpy(), opsim_db["dec"].to_numpy()[0:5])
+    assert np.allclose(results["z"].to_numpy(), 0.0)
+    assert np.allclose(results["t0"].to_numpy(), 0.0)
 
     for idx in range(5):
         num_obs = results["nobs"][idx]
@@ -449,16 +449,16 @@ def test_simulate_lightcurves(test_data_dir):
 
     # Check that we saved and can reassemble the GraphStates
     assert "params" in results
-    state = GraphState.from_list(results["params"].values)
+    state = GraphState.from_list(results["params"].to_numpy())
     assert state.num_samples == 5
-    assert np.allclose(state["source.ra"], opsim_db["ra"].values[0:5])
-    assert np.allclose(state["source.dec"], opsim_db["dec"].values[0:5])
+    assert np.allclose(state["source.ra"], opsim_db["ra"].to_numpy()[0:5])
+    assert np.allclose(state["source.dec"], opsim_db["dec"].to_numpy()[0:5])
 
     # Check that we can extract a single GraphState from the results.
     single_state = GraphState.from_dict(results["params"][2])
     assert single_state.num_samples == 1
-    assert single_state["source.ra"] == opsim_db["ra"].values[2]
-    assert single_state["source.dec"] == opsim_db["dec"].values[2]
+    assert single_state["source.ra"] == opsim_db["ra"].to_numpy()[2]
+    assert single_state["source.dec"] == opsim_db["dec"].to_numpy()[2]
 
     # Check that we fail if we try to save a parameter column that doesn't exist.
     # And that the error gives the existing options.
@@ -504,8 +504,8 @@ def test_replay_simulate_lightcurves(test_data_dir):
     source = ConstantSEDModel(
         brightness=GivenValueList(given_brightness),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].values[0:5]),
-        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
         redshift=0.0,
         node_label="source",
     )
@@ -518,7 +518,7 @@ def test_replay_simulate_lightcurves(test_data_dir):
     )
 
     # Test that we can replay the simulation using the saved GraphState.
-    state = GraphState.from_list(results["params"].values)
+    state = GraphState.from_list(results["params"].to_numpy())
     replay_results = simulate_lightcurves(
         source,
         5,
@@ -526,19 +526,19 @@ def test_replay_simulate_lightcurves(test_data_dir):
         progress_bar=False,  # Disable progress bar for testing
         graph_state=state,
     )
-    assert np.allclose(replay_results["ra"].values, results["ra"].values)
-    assert np.allclose(replay_results["dec"].values, results["dec"].values)
-    assert np.allclose(replay_results["z"].values, results["z"].values)
-    assert np.allclose(replay_results["t0"].values, results["t0"].values)
+    assert np.allclose(replay_results["ra"].to_numpy(), results["ra"].to_numpy())
+    assert np.allclose(replay_results["dec"].to_numpy(), results["dec"].to_numpy())
+    assert np.allclose(replay_results["z"].to_numpy(), results["z"].to_numpy())
+    assert np.allclose(replay_results["t0"].to_numpy(), results["t0"].to_numpy())
     assert np.allclose(
-        replay_results["lightcurve.flux_perfect"].values,
-        results["lightcurve.flux_perfect"].values,
+        replay_results["lightcurve.flux_perfect"].to_numpy(),
+        results["lightcurve.flux_perfect"].to_numpy(),
     )
 
     # The noise realization will be different.
     assert not np.allclose(
-        replay_results["lightcurve.flux"].values,
-        results["lightcurve.flux"].values,
+        replay_results["lightcurve.flux"].to_numpy(),
+        results["lightcurve.flux"].to_numpy(),
     )
 
 
@@ -582,8 +582,8 @@ def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatc
             [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
         ),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].values[0:10]),
-        dec=GivenValueList(opsim_db["dec"].values[0:10]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10]),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10]),
         redshift=0.0,
         node_label="source",
     )
@@ -602,8 +602,8 @@ def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatc
             [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
         ),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].values[0:10]),
-        dec=GivenValueList(opsim_db["dec"].values[0:10]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10]),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10]),
         redshift=0.0,
         node_label="source",
     )
@@ -638,8 +638,8 @@ def test_simulate_lightcurves_to_file(test_data_dir):
     source = ConstantSEDModel(
         brightness=GivenValueList(given_brightness),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].values[0:5]),
-        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
         redshift=0.0,
         node_label="source",
     )
@@ -664,8 +664,8 @@ def test_simulate_lightcurves_to_file(test_data_dir):
         results_df = read_parquet(file_path)
         assert len(results_df) == 5
         assert np.all(results_df["nobs"].to_numpy() >= 1)
-        assert np.allclose(results_df["ra"].to_numpy(), opsim_db["ra"].values[0:5])
-        assert np.allclose(results_df["dec"].to_numpy(), opsim_db["dec"].values[0:5])
+        assert np.allclose(results_df["ra"].to_numpy(), opsim_db["ra"].to_numpy()[0:5])
+        assert np.allclose(results_df["dec"].to_numpy(), opsim_db["dec"].to_numpy()[0:5])
         assert np.allclose(results_df["z"].to_numpy(), 0.0)
         assert np.allclose(results_df["t0"].to_numpy(), 0.0)
 
@@ -690,8 +690,8 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
         amplitude=NumpyRandomFunc("uniform", low=100.0, high=200.0),
         frequency=NumpyRandomFunc("uniform", low=0.5, high=2.0),
         t0=0.0,
-        ra=GivenValueSampler(opsim_db["ra"].values[0:5]),
-        dec=GivenValueSampler(opsim_db["dec"].values[0:5]),
+        ra=GivenValueSampler(opsim_db["ra"].to_numpy()[0:5]),
+        dec=GivenValueSampler(opsim_db["dec"].to_numpy()[0:5]),
         redshift=NumpyRandomFunc("uniform", low=0.01, high=0.1),
         node_label="source",
     )
@@ -720,8 +720,8 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
 
     # Check the main columns are the same. We don't check RA, because all 5
     # options for RA are 0.0. So they are always the same.
-    assert np.allclose(results1["dec"].values, results2["dec"].values)
-    assert np.allclose(results1["z"].values, results2["z"].values)
+    assert np.allclose(results1["dec"].to_numpy(), results2["dec"].to_numpy())
+    assert np.allclose(results1["z"].to_numpy(), results2["z"].to_numpy())
 
     # Check that the light curve columns are equal.
     for idx in range(num_samples):
@@ -746,8 +746,8 @@ def test_simulate_lightcurves_reproduce(test_data_dir):
 
     # We don't check RA, because all 5 options for RA are 0.0.
     # So they are always the same.
-    assert not np.allclose(results1["dec"].values, results3["dec"].values)
-    assert not np.allclose(results1["z"].values, results3["z"].values)
+    assert not np.allclose(results1["dec"].to_numpy(), results3["dec"].to_numpy())
+    assert not np.allclose(results1["z"].to_numpy(), results3["z"].to_numpy())
 
 
 def test_simulate_bandfluxes(test_data_dir):
@@ -845,8 +845,8 @@ def test_simulate_parallel_threads(test_data_dir):
 
     # Create a constant SED model with known brightnesses and RA, dec
     # values that match the opsim.
-    ra0 = opsim_db["ra"].values[0]
-    dec0 = opsim_db["dec"].values[0]
+    ra0 = opsim_db["ra"].to_numpy()[0]
+    dec0 = opsim_db["dec"].to_numpy()[0]
     source = ConstantSEDModel(
         brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
         t0=0.0,
@@ -871,11 +871,11 @@ def test_simulate_parallel_threads(test_data_dir):
             progress_bar=False,  # Disable progress bar for testing
         )
     assert len(results) == 100
-    assert np.all(results["nobs"].values >= 1)
-    assert np.all(results["ra"].values >= ra0 - 0.5)
-    assert np.all(results["ra"].values <= ra0 + 0.5)
-    assert np.all(results["dec"].values >= dec0 - 0.5)
-    assert np.all(results["dec"].values <= dec0 + 0.5)
+    assert np.all(results["nobs"].to_numpy() >= 1)
+    assert np.all(results["ra"].to_numpy() >= ra0 - 0.5)
+    assert np.all(results["ra"].to_numpy() <= ra0 + 0.5)
+    assert np.all(results["dec"].to_numpy() >= dec0 - 0.5)
+    assert np.all(results["dec"].to_numpy() <= dec0 + 0.5)
 
     for idx in range(100):
         num_obs = results["nobs"][idx]
@@ -891,7 +891,7 @@ def test_simulate_parallel_threads(test_data_dir):
             assert full_name == f"LSST_{filter_name}"
 
     # Extract the graph state, rerun and check that we get the same pre-noise results.
-    state = GraphState.from_list(results["params"].values)
+    state = GraphState.from_list(results["params"].to_numpy())
     with ThreadPoolExecutor(max_workers=2) as executor:
         results2 = simulate_lightcurves(
             source,
@@ -905,16 +905,16 @@ def test_simulate_parallel_threads(test_data_dir):
             progress_bar=False,  # Disable progress bar for testing
             graph_state=state,
         )
-    assert np.allclose(results["ra"].values, results2["ra"].values)
-    assert np.allclose(results["dec"].values, results2["dec"].values)
+    assert np.allclose(results["ra"].to_numpy(), results2["ra"].to_numpy())
+    assert np.allclose(results["dec"].to_numpy(), results2["dec"].to_numpy())
     assert np.allclose(
-        results["lightcurve.flux_perfect"].values,
-        results2["lightcurve.flux_perfect"].values,
+        results["lightcurve.flux_perfect"].to_numpy(),
+        results2["lightcurve.flux_perfect"].to_numpy(),
     )
     # Different noise realizations
     assert not np.allclose(
-        results["lightcurve.flux"].values,
-        results2["lightcurve.flux"].values,
+        results["lightcurve.flux"].to_numpy(),
+        results2["lightcurve.flux"].to_numpy(),
     )
 
 
@@ -931,8 +931,8 @@ def test_simulate_parallel_processes(test_data_dir):
     )
     survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
-    ra0 = opsim_db["ra"].values[0]
-    dec0 = opsim_db["dec"].values[0]
+    ra0 = opsim_db["ra"].to_numpy()[0]
+    dec0 = opsim_db["dec"].to_numpy()[0]
     num_samples = 5_000
     table_data = {
         "t0": np.arange(num_samples, dtype=float),
@@ -964,22 +964,22 @@ def test_simulate_parallel_processes(test_data_dir):
             progress_bar=False,  # Disable progress bar for testing
         )
     assert len(results) == 500
-    assert np.all(results["nobs"].values >= 1)
-    assert np.all(results["ra"].values >= ra0 - 0.5)
-    assert np.all(results["ra"].values <= ra0 + 0.5)
-    assert np.all(results["dec"].values >= dec0 - 0.5)
-    assert np.all(results["dec"].values <= dec0 + 0.5)
+    assert np.all(results["nobs"].to_numpy() >= 1)
+    assert np.all(results["ra"].to_numpy() >= ra0 - 0.5)
+    assert np.all(results["ra"].to_numpy() <= ra0 + 0.5)
+    assert np.all(results["dec"].to_numpy() >= dec0 - 0.5)
+    assert np.all(results["dec"].to_numpy() <= dec0 + 0.5)
 
     # Make sure that we get different parameter values across the processes.
-    assert np.unique(results["ra"].values).size > 475
-    assert np.unique(results["dec"].values).size > 475
-    assert np.unique(results["source_brightness"].values).size > 475
+    assert np.unique(results["ra"].to_numpy()).size > 475
+    assert np.unique(results["dec"].to_numpy()).size > 475
+    assert np.unique(results["source_brightness"].to_numpy()).size > 475
 
     # Check that we did not duplicate any t0 values even though they came
     # from a TableSampler. We should get each value [0, 499] exactly once.
-    assert np.unique(results["t0"].values).size == 500
-    assert np.all(results["t0"].values >= 0)
-    assert np.all(results["t0"].values < 500)
+    assert np.unique(results["t0"].to_numpy()).size == 500
+    assert np.all(results["t0"].to_numpy() >= 0)
+    assert np.all(results["t0"].to_numpy() < 500)
 
     # We can use the default (ProcessPoolExecutor) by giving a number of jobs.
     results2 = simulate_lightcurves(
@@ -1042,8 +1042,8 @@ def test_simulate_single_lightcurve(test_data_dir):
     source = ConstantSEDModel(
         brightness=GivenValueList(given_brightness),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].values[0:5]),
-        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
         redshift=0.0,
         node_label="source",
     )
@@ -1060,10 +1060,10 @@ def test_simulate_single_lightcurve(test_data_dir):
 
     # Check that we saved and can reassemble the GraphStates
     assert "params" in results
-    state = GraphState.from_list(results["params"].values)
+    state = GraphState.from_list(results["params"].to_numpy())
     assert state.num_samples == 1
-    assert state["source.ra"] == opsim_db["ra"].values[0]
-    assert state["source.dec"] == opsim_db["dec"].values[0]
+    assert state["source.ra"] == opsim_db["ra"].to_numpy()[0]
+    assert state["source.dec"] == opsim_db["dec"].to_numpy()[0]
 
 
 def test_simulate_with_time_window(test_data_dir):
@@ -1142,8 +1142,8 @@ def test_simulate_with_time_window(test_data_dir):
     # Second sample (t0=15.0, z=1.5) =>
     # (15.0 - 5.0 * (1.0 + 1.5), 15 + 5.0 * (1.0 + 1.5)) = (2.5, 27.5)
     # We only sample evens because of the RA/Dec match.
-    assert np.array_equal(results2["lightcurve"][0]["mjd"].values, np.arange(8.0, 33.0, 2.0))
-    assert np.array_equal(results2["lightcurve"][1]["mjd"].values, np.arange(4.0, 28.0, 2.0))
+    assert np.array_equal(results2["lightcurve"][0]["mjd"].to_numpy(), np.arange(8.0, 33.0, 2.0))
+    assert np.array_equal(results2["lightcurve"][1]["mjd"].to_numpy(), np.arange(4.0, 28.0, 2.0))
 
     # Everything still works if t0 is a float.
     results3 = simulate_lightcurves(
@@ -1669,8 +1669,8 @@ def test_simulate_with_default_saturation_mags_values(test_data_dir):
     source = ConstantSEDModel(
         brightness=(2.0e12),  # Sufficiently bright to ensure saturation
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].values[0:5]),
-        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
         redshift=0.0,
         node_label="source",
     )
@@ -1820,8 +1820,8 @@ def test_simulate_expanded_state(test_data_dir):
         brightness=GivenValueList(given_brightness),
         repeats=GivenValueList(given_repeats),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].values[0:5]),
-        dec=GivenValueList(opsim_db["dec"].values[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
         redshift=0.0,
         node_label="source",
     )
@@ -1834,26 +1834,26 @@ def test_simulate_expanded_state(test_data_dir):
         progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results) == 8
-    assert np.all(results["nobs"].values >= 1)
-    assert np.allclose(results["z"].values, 0.0)
-    assert np.allclose(results["t0"].values, 0.0)
+    assert np.all(results["nobs"].to_numpy() >= 1)
+    assert np.allclose(results["z"].to_numpy(), 0.0)
+    assert np.allclose(results["t0"].to_numpy(), 0.0)
 
     # Check that we correctly repeated values.
-    assert np.allclose(results["ra"].values[0], opsim_db["ra"].values[0])
-    assert np.allclose(results["ra"].values[1:3], opsim_db["ra"].values[1])
-    assert np.allclose(results["ra"].values[3], opsim_db["ra"].values[2])
-    assert np.allclose(results["ra"].values[4:7], opsim_db["ra"].values[3])
-    assert np.allclose(results["ra"].values[7], opsim_db["ra"].values[4])
-    assert np.allclose(results["dec"].values[0], opsim_db["dec"].values[0])
-    assert np.allclose(results["dec"].values[1:3], opsim_db["dec"].values[1])
-    assert np.allclose(results["dec"].values[3], opsim_db["dec"].values[2])
-    assert np.allclose(results["dec"].values[4:7], opsim_db["dec"].values[3])
-    assert np.allclose(results["dec"].values[7], opsim_db["dec"].values[4])
-    assert np.allclose(results["source_brightness"].values[0], given_brightness[0])
-    assert np.allclose(results["source_brightness"].values[1:3], given_brightness[1])
-    assert np.allclose(results["source_brightness"].values[3], given_brightness[2])
-    assert np.allclose(results["source_brightness"].values[4:7], given_brightness[3])
-    assert np.allclose(results["source_brightness"].values[7], given_brightness[4])
+    assert np.allclose(results["ra"].to_numpy()[0], opsim_db["ra"].to_numpy()[0])
+    assert np.allclose(results["ra"].to_numpy()[1:3], opsim_db["ra"].to_numpy()[1])
+    assert np.allclose(results["ra"].to_numpy()[3], opsim_db["ra"].to_numpy()[2])
+    assert np.allclose(results["ra"].to_numpy()[4:7], opsim_db["ra"].to_numpy()[3])
+    assert np.allclose(results["ra"].to_numpy()[7], opsim_db["ra"].to_numpy()[4])
+    assert np.allclose(results["dec"].to_numpy()[0], opsim_db["dec"].to_numpy()[0])
+    assert np.allclose(results["dec"].to_numpy()[1:3], opsim_db["dec"].to_numpy()[1])
+    assert np.allclose(results["dec"].to_numpy()[3], opsim_db["dec"].to_numpy()[2])
+    assert np.allclose(results["dec"].to_numpy()[4:7], opsim_db["dec"].to_numpy()[3])
+    assert np.allclose(results["dec"].to_numpy()[7], opsim_db["dec"].to_numpy()[4])
+    assert np.allclose(results["source_brightness"].to_numpy()[0], given_brightness[0])
+    assert np.allclose(results["source_brightness"].to_numpy()[1:3], given_brightness[1])
+    assert np.allclose(results["source_brightness"].to_numpy()[3], given_brightness[2])
+    assert np.allclose(results["source_brightness"].to_numpy()[4:7], given_brightness[3])
+    assert np.allclose(results["source_brightness"].to_numpy()[7], given_brightness[4])
 
 
 def test_simulate_save_nested_with_parameter_arrays():
