@@ -392,7 +392,7 @@ def simulate_single_bandflux_sample(
             indices,
         )
     else:
-        saturation_flags = [False] * len(indices)
+        saturation_flags = np.zeros_like(bandfluxes_perfect, dtype=bool)
 
     # Compile the results into a dictionary.
     results = {

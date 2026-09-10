@@ -306,7 +306,7 @@ class LinearTimeModel(SEDModel):
     """A model that emits flux as a linear function of time
     (that is constant over wavelengths)::
 
-        f(t, w) = max(0.0, scale * t - t0) + base
+        f(t, w) = max(0.0, scale * (t - t0)) + base
 
     Parameterized values include:
 
