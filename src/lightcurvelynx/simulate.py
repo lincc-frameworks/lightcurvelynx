@@ -291,20 +291,18 @@ def get_time_windows(t0, z, obs_time_window_offset, rest_time_window_offset):
     return start_times, end_times
 
 
-def simulate_single_bandflux_sample(
+def evaluate_single_bandflux_given_indices(
     model,
     survey_info,
     state,
+    indices,
     *,
-    indices=None,
     rng_info=None,
     apply_saturation=False,
-    obs_time_window_offset=None,
-    rest_time_window_offset=None,
 ):
-    """Simulate a single sample (object) for a single bandflux survey. This function is
-    called by the core loop, but broken out so that it can be called from external
-    code as well.
+    """Simulate a single sample (object) for given indices in the ObsTable. This is
+    used both in the core loop and also in cases where the spatial matching has
+    been done externally.
 
     Parameters
     ----------
@@ -314,22 +312,13 @@ def simulate_single_bandflux_sample(
         Information about the survey, including the observation table, passbands,
         and noise model.
     state : GraphState
-        Pre-sampled state of the model parameters.
-    indices : array-like, optional
-        Precomputed indices for the observations to use. If these are provided all spatial
-        matching is skipped and the passbands will be evaluated at these indices directly.
-        If not provided, the spatial matching and time filtering will be performed to determine
-        the relevant  observation indices.
+        Pre-sampled state of the model parameters. Must contain a single sample.
+    indices : array-like
+        Precomputed indices for the observations to use from the given observation table.
     rng_info : object, optional
         Random number generator information.
     apply_saturation : bool, default False
         Whether to apply saturation thresholds.
-    obs_time_window_offset : tuple, optional
-        Observer-frame time window offset (before, after) in days. Ignored if indices are
-        passed since we do not do matching.
-    rest_time_window_offset : tuple, optional
-        Rest-frame time window offset (before, after) in days. Ignored if indices are
-        passed since we do not do matching.
 
     Returns
     -------
@@ -344,21 +333,8 @@ def simulate_single_bandflux_sample(
     """
     if state is None or state.num_samples != 1:
         raise ValueError("The pre-sampled state must contain exactly one sample.")
-
-    # If we have not done the spatial matching, do that now.
-    if indices is None:
-        start_times, end_times = get_time_windows(
-            model.get_param(state, "t0"),
-            model.get_param(state, "redshift"),
-            obs_time_window_offset,
-            rest_time_window_offset,
-        )
-        indices = survey_info.obstable.range_search(
-            model.get_param(state, "ra"),
-            model.get_param(state, "dec"),
-            t_min=start_times,
-            t_max=end_times,
-        )
+    if indices is None or len(indices) == 0:
+        raise ValueError("No observation indices provided.")
 
     # Compute the bandfluxes for the lightcurves column.
     obs_times = survey_info.obstable["time"].to_numpy()[indices]
@@ -596,14 +572,13 @@ def _simulate_lightcurves_batch(simulation_info):
                 # Add the new entries to the spectra_index.
                 spectra_index.extend([idx] * nobs)
             else:
-                # Compute the bandfluxes for this model and survey combination. Note that we
-                # do not need to pass information such as the time windows because we have
-                # already done those computations in a batch above.
-                results = simulate_single_bandflux_sample(
+                # Compute the bandfluxes for the indices in the ObsTable where
+                # the object was observed.
+                results = evaluate_single_bandflux_given_indices(
                     model,
                     simulation_info.survey_info[survey_idx],
-                    indices=obs_index,  # We have done spatial matching already.
-                    state=state,  # Single state
+                    state,
+                    obs_index,
                     rng_info=rng,
                     apply_saturation=simulation_info.apply_saturation,
                 )

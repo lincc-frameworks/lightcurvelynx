@@ -38,9 +38,9 @@ from lightcurvelynx.simulate import (
     SimulationInfo,
     compute_noise_free_lightcurves,
     compute_single_noise_free_lightcurve,
+    evaluate_single_bandflux_given_indices,
     get_time_windows,
     simulate_lightcurves,
-    simulate_single_bandflux_sample,
 )
 from lightcurvelynx.survey_info import SurveyInfo
 from nested_pandas import NestedFrame, read_parquet
@@ -371,80 +371,7 @@ def test_simulation_info_graph_state():
         )
 
 
-def test_simulate_single_bandflux_sample_indices(test_data_dir):
-    """Test that we can simulate a single model sample with given indices."""
-    # Load the OpSim data.
-    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
-
-    # Load the passband data for the griz filters only.
-    passband_group = PassbandGroup.from_preset(
-        preset="LSST",
-        table_dir=test_data_dir / "passbands",
-        filters=["g", "r", "i", "z"],
-    )
-
-    # Use the default noise model.
-    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
-
-    # Create a constant SED model with known brightnesses and RA, dec
-    # values that match the opsim.
-    given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
-    source = ConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
-        t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].values[0:5]),
-        dec=GivenValueList(opsim_db["dec"].values[0:5]),
-        redshift=0.0,
-        node_label="source",
-    )
-
-    # Do a single sample.
-    rng = np.random.default_rng(12345)
-    state = source.sample_parameters(num_samples=1)
-    results = simulate_single_bandflux_sample(source, survey_info, state, rng_info=rng)
-    assert len(results["flux_perfect"]) > 1
-    assert "flux" in results
-    assert "fluxerr" in results
-    assert "is_saturated" in results
-    assert "mjd" in results
-    assert "filter" in results
-
-    # Do a second sample with the same state, but a different random number state.
-    # The flux_perfect and noise should be the same, but the noisy flux should be different.
-    rng2 = np.random.default_rng(67890)
-    results2 = simulate_single_bandflux_sample(source, survey_info, state, rng_info=rng2)
-    assert np.allclose(results["flux_perfect"], results2["flux_perfect"])
-    assert np.allclose(results["fluxerr"], results2["fluxerr"])
-    assert not np.allclose(results["flux"], results2["flux"])
-
-    # But we can get the same everything if we use the same random number generator.
-    rng3 = np.random.default_rng(12345)
-    results3 = simulate_single_bandflux_sample(source, survey_info, state, rng_info=rng3)
-    assert np.allclose(results["flux_perfect"], results3["flux_perfect"])
-    assert np.allclose(results["fluxerr"], results3["fluxerr"])
-    assert np.allclose(results["flux"], results3["flux"])
-
-    # We can limit the time window to just the first observation.
-    first_time = np.min(opsim_db["time"].values)
-    rng4 = np.random.default_rng(12345)
-    results4 = simulate_single_bandflux_sample(
-        source,
-        survey_info,
-        state,
-        rng_info=rng4,
-        obs_time_window_offset=(first_time - 0.01, first_time + 0.01),
-    )
-    assert len(results4["flux_perfect"]) == 1
-    assert np.allclose(results4["flux_perfect"], results["flux_perfect"][0])
-    assert np.allclose(results4["mjd"], first_time)
-
-    # We fail if we have more than one sample.
-    state_bad = source.sample_parameters(num_samples=2)
-    with pytest.raises(ValueError):
-        _ = simulate_single_bandflux_sample(source, survey_info, state_bad)
-
-
-def test_simulate_single_bandflux_sample(test_data_dir):
+def test_evaluate_single_bandflux_given_indices(test_data_dir):
     """Test that we can simulate a single model sample."""
     # Load the OpSim data.
     opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
@@ -478,28 +405,40 @@ def test_simulate_single_bandflux_sample(test_data_dir):
         redshift=0.0,
         node_label="source",
     )
+    state = source.sample_parameters(num_samples=1)
+    inds = np.arange(10)
 
-    # Do a single sample without indices. Only the first observation should spatially match.
-    rng1 = np.random.default_rng(12345)
-    state1 = source.sample_parameters(num_samples=1, rng_info=rng1)
-    results1 = simulate_single_bandflux_sample(source, survey_info, state1, rng_info=rng1)
-    assert len(results1["flux"]) != 10
-
-    # Do a sample with the first 10 indices.
-    rng2 = np.random.default_rng(12345)
-    state2 = source.sample_parameters(num_samples=1, rng_info=rng2)
-    assert state1 == state2
-    results2 = simulate_single_bandflux_sample(
-        source, survey_info, state2, rng_info=rng2, indices=np.arange(10)
-    )
-    assert len(results2["flux"]) == 10
+    # Do a single sample with given indices.
+    rng = np.random.default_rng(12345)
+    results = evaluate_single_bandflux_given_indices(source, survey_info, state, inds, rng_info=rng)
+    assert len(results["mjd"]) == 10
+    assert len(results["filter"]) == 10
+    assert len(results["flux_perfect"]) == 10
+    assert len(results["fluxerr"]) == 10
+    assert len(results["flux"]) == 10
+    assert len(results["is_saturated"]) == 10
 
     # Check that we evaluated the model on the first 10 times regardless of spatial matching.
     all_times = opsim_db["time"].to_numpy()
     expected_flux = 3.0 + 0.1 * (all_times[:10] - t0)
-    assert np.allclose(results2["flux_perfect"], expected_flux)
-    assert np.allclose(results2["mjd"], all_times[:10])
-    assert np.array_equal(results2["filter"], opsim_db["filter"].values[:10])
+    assert np.allclose(results["flux_perfect"], expected_flux)
+    assert np.allclose(results["mjd"], all_times[:10])
+    assert np.array_equal(results["filter"], opsim_db["filter"].values[:10])
+    assert not np.any(results["is_saturated"])
+
+    # If we use the same state and random number generator, we get the same result.
+    rng2 = np.random.default_rng(12345)
+    results2 = evaluate_single_bandflux_given_indices(source, survey_info, state, inds, rng_info=rng2)
+    assert np.allclose(results["flux_perfect"], results2["flux_perfect"])
+    assert np.allclose(results["fluxerr"], results2["fluxerr"])
+    assert np.allclose(results["flux"], results2["flux"])
+
+    # If we use a different random number generator, we get the same perfect flux_perfect
+    # (because we are using the same state) but different flux.
+    rng3 = np.random.default_rng(67890)
+    results3 = evaluate_single_bandflux_given_indices(source, survey_info, state, inds, rng_info=rng3)
+    assert np.allclose(results["flux_perfect"], results3["flux_perfect"])
+    assert not np.allclose(results["flux"], results3["flux"])
 
 
 def test_simulate_lightcurves(test_data_dir):
