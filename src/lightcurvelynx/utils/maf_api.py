@@ -38,7 +38,6 @@ class MAFQueryTable(OpSim):
 
         # Call the constructor.
         super().__init__(table, **kwargs)
-        self._all_inds = np.arange(len(self))
 
     def _build_spatial_data(self):
         # The MAFQueryTable does not do spatial filtering.
@@ -65,13 +64,15 @@ class MAFQueryTable(OpSim):
             Depending on the input, this is either an array of indices for a single query
             point or a list of arrays (of indices) for an array of query points.
         """
+        all_inds = np.arange(len(self))
+
         is_scalar = np.isscalar(query_ra) and np.isscalar(query_dec)
         query_ra, query_dec = validate_ra_dec_degrees(query_ra, query_dec)
 
         if is_scalar:
-            return self._all_inds
+            return all_inds
         else:
-            return [self._all_inds] * len(query_ra)
+            return [all_inds] * len(query_ra)
 
 
 def execute_maf_query(
