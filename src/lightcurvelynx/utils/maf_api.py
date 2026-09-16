@@ -103,9 +103,9 @@ def execute_maf_query(
     noise_model : NoiseModel, optional
         A computation class for calculating the noise from characteristics of the survey.
         If not provided, defaults to a PoissonFluxNoiseModel. Default: None
-    rng_info : dict, optional
-        Information about the random number generator to use for sampling.
-         Default: None
+    rng_info : numpy.random._generator.Generator, optional
+        The random number generator to use for parameter sampling and noise.
+        Default: None
 
     Returns
     -------
@@ -114,7 +114,7 @@ def execute_maf_query(
     params : dict
         The parameters of the model used for this simulation.
     """
-    # We use the global cached versions of these bassbands and noise model.
+    # We use the global cached versions of these passbands and noise model.
     global _CACHED_MAF_QUERY_PASSBANDS, _CACHED_MAF_NOISE_MODEL
 
     # If the model has not been sampled, do that first.
@@ -128,7 +128,7 @@ def execute_maf_query(
             _CACHED_MAF_NOISE_MODEL = PoissonFluxNoiseModel()
         noise_model = _CACHED_MAF_NOISE_MODEL
 
-    # If the passbands are not not explicitly given, use the (cached) default.
+    # If the passbands are not explicitly given, use the (cached) default.
     if passbands is None:
         if _CACHED_MAF_QUERY_PASSBANDS is None:
             _CACHED_MAF_QUERY_PASSBANDS = PassbandGroup.from_preset("LSST")
