@@ -821,8 +821,8 @@ class ObsTable:
 
         Returns
         -------
-        inds : list[int] or list[numpy.ndarray]
-            Depending on the input, this is either a list of indices for a single query point
+        inds : numpy.ndarray or list[numpy.ndarray]
+            Depending on the input, this is either an array of indices for a single query point
             or a list of arrays (of indices) for an array of query points.
         """
         if query_ra is None or query_dec is None:
