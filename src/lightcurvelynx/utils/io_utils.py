@@ -5,6 +5,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import astropy.units as u
 import numpy as np
 import pandas as pd
 from astropy.table import Table
@@ -455,6 +456,9 @@ def read_snana_spectrograph_data(input_file):
         SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
         SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
 
+    This combined file can be created using SNANA's util/make_spectrograph_table.py script
+    in the repository https://github.com/RickKessler/SNANA/.
+
     Parameters
     ----------
     input_file : str or Path
@@ -468,13 +472,13 @@ def read_snana_spectrograph_data(input_file):
         magref: np.array
             An array of reference magnitudes.
         texpose : np.array
-            An array of exposure times.
+            An array of exposure times (in seconds).
         wave_min : np.array
-            An array of minimum wavelengths for each spectrograph bin.
+            An array of minimum wavelengths for each spectrograph bin (in Angstroms).
         wave_max : np.array
-            An array of maximum wavelengths for each spectrograph bin.
+            An array of maximum wavelengths for each spectrograph bin (in Angstroms).
         wave_sigma : np.array
-            An array of wavelength sigmas for each spectrograph bin.
+            An array of wavelength sigmas for each spectrograph bin (in Angstroms).
         snr : np.array
             A W x M x T matrix of signal-to-noise ratios, where W is the number of
             spectrograph bins, M is the number of reference magnitudes, and T is
@@ -544,6 +548,161 @@ def read_snana_spectrograph_data(input_file):
     # Delete the (unneeded) string versions of the magref and texpose lists.
     del data_dict["magref_list"]
     del data_dict["texpose_list"]
+
+    return data_dict
+
+
+def read_etc_spectrograph_data(config_file):
+    """Read ETC spectrograph files. The configuration file contains basic information
+    and then a list of additional input files containing the actual spectrograph data.
+
+    The configuration file is an ASCII file with at least the following lines:
+        INSTRUMENT: instrument name
+        WAVE_R: resolving power (wave/FWHM_wave),
+        WAVE_UNIT: the units of the wavelength values (e.g. A or nm)
+        WAVE_BIN_SIZE: the width of the wavelength bins in A.
+        SEDFLUX_TABLES:
+            ...
+
+    Parameters
+    ----------
+    config_file : str or Path
+        The path to the ETC spectrograph configuration file.
+
+    Returns
+    -------
+    A dictionary with all of the relevant data from the file, including:
+        instrument : str or None
+            The instrument name.
+        magref: np.array
+            An array of reference magnitudes.
+        texpose : np.array
+            An array of exposure times.
+        wave_min : np.array
+            An array of minimum wavelengths for each spectrograph bin.
+        wave_max : np.array
+            An array of maximum wavelengths for each spectrograph bin.
+        wave_sigma : np.array
+            An array of wavelength sigmas for each spectrograph bin.
+        snr : np.array
+            A W x M x T matrix of signal-to-noise ratios, where W is the number of
+            spectrograph bins, M is the number of reference magnitudes, and T is
+            the number of exposure times.
+    Other meta data from the file may also be included.
+    """
+    config_file = Path(config_file)
+    logging.debug(f"Loading ETC spectrograph configuration from {config_file}")
+    if not config_file.is_file():
+        raise FileNotFoundError(f"File {config_file} not found.")
+
+    data_dict = {}
+    magref_set = set()
+    texpose_set = set()
+    spec_table_file_dict = {}
+    all_waves = None
+    snr = None
+
+    with open(config_file, "r") as f:
+        meta_done = False
+        for line in f:
+            # Remove the comments from the end of the lines and then skip empty lines.
+            if "#" in line:
+                line = line.split("#")[0]
+            line = line.strip()
+            if not line:
+                continue
+
+            # We process the meta data lines first and put them all in the data dictionary,
+            # and then the SEDFLUX_TABLES lines when we hit that tag.
+            if line.startswith("SEDFLUX_TABLES:"):
+                meta_done = True
+                continue
+
+            if not meta_done and ":" in line:
+                # Process the metadata key value pairs.
+                tokens = line.split(":", 1)
+                if len(tokens) < 2:
+                    continue  # pragma: no cover
+                meta_key = tokens[0].strip().lower()
+                meta_value = tokens[1].strip()
+                data_dict[meta_key] = meta_value
+            else:
+                # Process the magref, texpose -> spec table file lines.
+                tokens = line.split()
+                if len(tokens) < 4:
+                    raise ValueError(f"Invalid line (expected at least 4 tokens): {line}")  # pragma: no cover
+
+                magref = int(tokens[1])
+                texpose = int(tokens[2])
+                magref_set.add(magref)
+                texpose_set.add(texpose)
+                spec_table_file_dict[(magref, texpose)] = tokens[3]
+
+    # Check that we have the meta data information that we need.
+    if "wave_unit" not in data_dict:
+        raise ValueError("Missing wave_unit in metadata.")
+    wave_unit = u.Unit(data_dict["wave_unit"])
+
+    if "wave_bin_size" not in data_dict:
+        raise ValueError("Missing wave_bin_size in metadata.")
+    wave_bin_size = float(data_dict["wave_bin_size"])  # Always Angstroms
+
+    if "wave_r" not in data_dict:
+        raise ValueError("Missing wave_r in metadata.")
+    wave_r = float(data_dict["wave_r"])  # Resolving power
+
+    # Get the set of all unique magnitudes and exposure times.
+    magref_arr = np.asarray(sorted(magref_set))
+    texpose_arr = np.asarray(sorted(texpose_set))
+
+    # Iterate over all of the magref and texpose combinations to initialize arrays.
+    for magref_idx, magref in enumerate(magref_arr):
+        for texpose_idx, texpose in enumerate(texpose_arr):
+            if (magref, texpose) not in spec_table_file_dict:
+                raise ValueError(f"Missing spec table file for magref={magref}, texpose={texpose}")
+            spec_table_file = spec_table_file_dict.get((magref, texpose))
+
+            file_data = pd.read_csv(spec_table_file, sep=r"\s+")
+            if set(file_data.columns) != {"wave", "flux", "sigma"}:
+                raise ValueError(
+                    f"Unexpected columns in spec table file {spec_table_file}."
+                    f"Expected 'wave', 'flux', 'sigma'. Found {file_data.columns}"
+                )
+
+            # Extract the wavelengths in Angstroms. If this is the first file we are opening,
+            # we will initialize the all_waves array and the SNR matrix.
+            waves_vals = file_data["wave"].to_numpy(dtype=float)
+            if not np.all(np.isfinite(waves_vals)):
+                raise ValueError(f"Invalid wave values in spec table file {spec_table_file}.")
+            waves_vals *= wave_unit.to(u.AA)
+
+            if all_waves is None:
+                all_waves = waves_vals
+                snr = np.zeros((len(all_waves), len(magref_arr), len(texpose_arr)))
+            if not np.allclose(all_waves, waves_vals):
+                raise ValueError(f"Inconsistent wave values in spec table file {spec_table_file}.")
+
+            # Compute and save the SNR.
+            flux_data = file_data["flux"].to_numpy(dtype=float)
+            if not np.all(np.isfinite(flux_data)):
+                raise ValueError(f"Invalid flux values in spec table file {spec_table_file}.")
+
+            flux_err_data = file_data["sigma"].to_numpy(dtype=float)
+            if not np.all(np.isfinite(flux_err_data) & (flux_err_data > 0.0)):
+                raise ValueError(f"Invalid flux error values in spec table file {spec_table_file}.")
+
+            snr[:, magref_idx, texpose_idx] = flux_data / flux_err_data
+
+    # Convert lists to numpy arrays and store them with the metadata.
+    data_dict["magref"] = magref_arr
+    data_dict["texpose"] = texpose_arr
+    data_dict["snr"] = snr  # Shape: W x M x T
+
+    # Fill in the rest of the wave data. These computations are based on:
+    # SNANA's util/make_spectrograph_table.py file.
+    data_dict["waves_min"] = all_waves
+    data_dict["waves_max"] = all_waves + wave_bin_size
+    data_dict["waves_sigma"] = (all_waves / wave_r) / 2.235  # sigma
 
     return data_dict
 
