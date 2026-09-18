@@ -456,8 +456,16 @@ def read_snana_spectrograph_data(input_file):
         SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
         SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
 
-    This combined file can be created using SNANA's util/make_spectrograph_table.py script
-    in the repository https://github.com/RickKessler/SNANA/.
+    where each "SPECBIN" line defines data for a single spectrograph bin:
+
+    * minL: The minimum wavelength for the spectrograph bin (in Angstroms).
+    * maxL: The maximum wavelength for the spectrograph bin (in Angstroms).
+    * sigL: The wavelength sigma for the spectrograph bin (in Angstroms).
+    * SNR1(t_i), SNR2(t_i), ...: The signal-to-noise ratios for each reference magnitude
+      at exposure time t_i.
+
+    This combined file can be created from individual spectrograph ETC files using SNANA's
+    util/make_spectrograph_table.py script in the repository https://github.com/RickKessler/SNANA/.
 
     Parameters
     ----------
