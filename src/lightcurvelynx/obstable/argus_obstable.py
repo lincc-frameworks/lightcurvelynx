@@ -280,8 +280,8 @@ class ArgusHealpixObsTable(ObsTable):
 
         Returns
         -------
-        inds : list[int] or list[numpy.ndarray]
-            Depending on the input, this is either a list of indices for a single query point
+        inds : numpy.ndarray or list[numpy.ndarray]
+            Depending on the input, this is either an array of indices for a single query point
             or a list of arrays (of indices) for an array of query points.
         """
         # If the query RA and Dec are scalars, convert them to 1D arrays for consistent processing.
