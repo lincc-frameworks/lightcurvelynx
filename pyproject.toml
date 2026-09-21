@@ -51,6 +51,8 @@ dev = [
     "jax",
     "lsdb>=0.10.2",
     "modeldag",
+    # "mosfit>=2.1",  # Enable once MOSFiT 2.1 (the first release providing
+    #                # `mosfit.lynx`) is on PyPI. See models/mosfit_models.py.
     "networkx",  # Used for graph visualization
     "pre-commit", # Used to run checks before finalizing a git commit
     "pytest",
@@ -69,6 +71,8 @@ all = [
     "extinction>=0.4.7",  # Needed by sncosmo
     "jax",
     "lsdb>=0.10.2",  # Used to read and write LSDB catalogs
+    # "mosfit>=2.1",  # Enable once MOSFiT 2.1 (the first release providing
+    #                # `mosfit.lynx`) is on PyPI. See models/mosfit_models.py.
     "networkx",  # Used for graph visualization
     "pzflow>=4.0",
     "synphot",  # used for SED modeling tests
