@@ -5,6 +5,7 @@ from importlib.util import find_spec
 
 import numpy as np
 import pytest
+
 from lightcurvelynx.models.pylima_models import PyLIMAWrapperModel
 
 if find_spec("pyLIMA") is None:
@@ -84,3 +85,51 @@ def test_pylima_fail_create():
             blend_flux_parameter="fblend",
             node_label="source",
         )
+
+
+def test_pylima_blends():
+    """Test that we can create PyLIMA models with different blend parameters."""
+    from lightcurvelynx.astro_utils.mag_flux import mag2flux
+
+    source_mags = {
+        "g": 22.0 + np.random.normal(scale=0.3),
+        "r": 21.5 + np.random.normal(scale=0.3),
+        "i": 21.2 + np.random.normal(scale=0.3),
+    }
+    # No i in blend mags. It gets defaulted to very faint.
+    blend_mags = {
+        "g": 24.5,
+        "r": 24.0,
+    }
+    pylima_params = {
+        "u0": 0.01,
+        "tE": 25.0,
+    }
+
+    for blend_flux_parameter in ["ftotal", "gblend", "fblend"]:
+        model = PyLIMAWrapperModel(
+            "PSPL",
+            source_mags=source_mags,
+            blend_mags=blend_mags,
+            ra=1.0,
+            dec=-20.0,
+            t0=64350.0,
+            pylima_params=pylima_params,
+            blend_flux_parameter=blend_flux_parameter,
+            node_label="source",
+        )
+
+        state = model.sample_parameters()
+        for band in source_mags:
+            source_flux = mag2flux(source_mags[band])
+            blend_flux = mag2flux(blend_mags[band]) if band in blend_mags else 0.0
+            assert isinstance(state["source"][f"fsource_{band}"], float)
+            assert isinstance(state["source"][f"{blend_flux_parameter}_{band}"], float)
+            if blend_flux_parameter == "fblend":
+                model_blend_flux = blend_flux
+            elif blend_flux_parameter == "ftotal":
+                model_blend_flux = source_flux + blend_flux
+            elif blend_flux_parameter == "gblend":
+                model_blend_flux = blend_flux / source_flux
+            received_blend_flux = state["source"][f"{blend_flux_parameter}_{band}"]
+            assert pytest.approx(np.abs(received_blend_flux - model_blend_flux), 0.66) == 0.0
