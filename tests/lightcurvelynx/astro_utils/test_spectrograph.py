@@ -200,6 +200,17 @@ def test_create_spectrograph_from_bad_bins():
         _ = Spectrograph(waves_min_ooo, waves_max_ooo)
 
 
+def test_spectrograph_from_snana_file(test_data_dir):
+    """Test creating a Spectrograph object from a SNANA file."""
+    spec_file = test_data_dir / "fake_snana_spectrograph.dat"
+    spgraph = Spectrograph.from_snana_file(str(spec_file))
+    assert spgraph.instrument == "FAKE_SPECTRO"
+    assert spgraph.num_bins == 8
+    assert np.allclose(spgraph.waves_min, [4000.0, 4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 5500.0, 7000.0])
+    assert np.allclose(spgraph.waves_max, [4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 5200.0, 6000.0, 7100.0])
+    assert np.allclose(spgraph.wavelength_resolution, [0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38])
+
+
 def test_spectrograph_equals():
     """Test that we can compare two Spectrograph objects for equality."""
     spgraph1 = Spectrograph.from_regular_grid(wave_start=4000, wave_end=8000, bin_width=5.0)
