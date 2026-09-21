@@ -10,6 +10,7 @@ from citation_compass import CiteClass
 
 from lightcurvelynx.astro_utils.mag_flux import Mag2FluxNode
 from lightcurvelynx.consts import MJD_TO_JD_OFFSET
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.models.physical_model import BandfluxModel
 from lightcurvelynx.utils.io_utils import SquashOutput
 
@@ -71,8 +72,9 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         The pyLIMA parallax model type: 'None', 'Annual', 'Terrestrial', or 'Full'.
         The times for the parallax are automatically set during the evaluation.
     blend_flux_parameter : str, optional
-        The pyLIMA blend flux parameter type. Currently only 'fblend' is supported.
-        See also https://github.com/lincc-frameworks/lightcurvelynx/issues/691
+        The pyLIMA blend flux parameter type. If 'ftotal', 'fblend', or 'gblend'
+        is selected, blend_mags will be calculated to match appropriate value.
+        If 'noblend' is selected, blend_mags will be ignored.
     time_frame_offset : float, optional
         PyLIMA models use JD for time while users may specify any time system. This offset
         is added to the input times to convert them to JD. By default, this is set to
@@ -106,7 +108,7 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         blend_mags=None,
         pylima_params=None,
         parallax_model="None",
-        blend_flux_parameter="fblend",
+        blend_flux_parameter="ftotal",
         time_frame_offset=MJD_TO_JD_OFFSET,
         observer_location="Earth",
         **kwargs,
@@ -119,11 +121,10 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         # Save the pyLIMA parameters and add the corresponding model parameters.
         self.parallax_model = parallax_model
         self.blend_flux_parameter = blend_flux_parameter
-        if blend_flux_parameter != "fblend":
+        if blend_flux_parameter not in ["fblend", "ftotal", "gblend", "noblend"]:
             raise ValueError(
                 f"Invalid blend_flux_parameter '{blend_flux_parameter}'. "
-                f"Currently only 'fblend' is supported. See: "
-                "https://github.com/lincc-frameworks/lightcurvelynx/issues/691"
+                f"Currently pyLIMa supports only 'fblend', 'ftotal', 'gblend' or 'noblend'"
             )
 
         # Add each source flux as a parameter by converting the input magnitudes.
@@ -137,10 +138,28 @@ class PyLIMAWrapperModel(BandfluxModel, CiteClass):
         # Do the same for the (optional) blending magnitudes.
         if blend_mags is None:
             blend_mags = {}
-        for filter_name in self.filters:
-            param_name = f"{blend_flux_parameter}_{filter_name}"
-            param_val = Mag2FluxNode(blend_mags[filter_name]) if filter_name in blend_mags else 0.0
-            self.add_parameter(param_name, param_val)
+        if blend_flux_parameter != "noblend":
+            for filter_name in self.filters:
+                param_name = f"{blend_flux_parameter}_{filter_name}"
+                blend_flux = Mag2FluxNode(blend_mags[filter_name]) if filter_name in blend_mags else 0.0
+                if blend_flux_parameter in ["ftotal", "gblend"]:
+                    if source_mags[filter_name] is None:
+                        ValueError(
+                            f"Source magnitude was not provided for {filter_name}."
+                            f"{blend_flux_parameter} cannot be calculated."
+                        )
+                    source_flux = Mag2FluxNode(source_mags[filter_name])
+                    if blend_flux_parameter == "ftotal":
+                        param_val = BasicMathNode(
+                            "source_flux + blend_flux", source_flux=source_flux, blend_flux=blend_flux
+                        )
+                    elif blend_flux_parameter == "gblend":
+                        param_val = BasicMathNode(
+                            "blend_flux / source_flux", source_flux=source_flux, blend_flux=blend_flux
+                        )
+                else:
+                    param_val = blend_flux
+                self.add_parameter(param_name, param_val)
 
         # Add any of the pyLIMA parameters from the pylima_params dictionary.
         if pylima_params is not None:
