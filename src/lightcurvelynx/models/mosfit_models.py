@@ -42,7 +42,9 @@ class MOSFiTWrapperModel(SEDModel, CiteClass):
     * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
 
     Additional parameterized values are used for the specific MOSFiT model, such as
-    ``mejecta``, ``pspin`` and ``bfield`` for ``"slsn"``.
+    ``mejecta``, ``vejecta`` and ``Pspin`` for ``"slsn"``. The names are MOSFiT's own and
+    are case sensitive; an unrecognized name raises an error listing the model's free
+    parameters.
 
     Unlike ``RedbackWrapperModel``, the redshift is *not* applied by the wrapped package.
     MOSFiT returns a rest frame SED at 10 pc, so LightCurveLynx applies both the redshift
@@ -86,8 +88,10 @@ class MOSFiTWrapperModel(SEDModel, CiteClass):
         The extrapolation method to use for times outside the phase grid.
         If nothing is provided, then the code adds zero padding.
     source : object, optional
-        An already-constructed ``mosfit.lynx.LynxSource`` (or any object providing the
-        same ``compute_sed(parameters=...)`` interface) to use instead of building one.
+        An already-constructed ``mosfit.lynx.LynxSource`` (or any object providing a
+        ``compute_sed(times=..., wavelengths=..., parameters=...)`` interface) to use
+        instead of building one. The source must honor the requested phase and wavelength
+        grids and return an array with shape ``(len(phases), len(wavelengths))``.
         Mostly useful for testing and for sharing a single expensive MOSFiT model
         between several LightCurveLynx nodes.
     **kwargs : dict, optional
@@ -293,8 +297,19 @@ class MOSFiTWrapperModel(SEDModel, CiteClass):
         if self._cached_params is not None and cache_key == self._cached_params:
             return self._cached_interpolator
 
+        # Ask for the grids explicitly rather than relying on the ones the source was
+        # built with, so that the requested grids and the shape check below are always
+        # about the same thing. LynxSource rebuilds itself if it is handed a grid it was
+        # not set up on, which also makes an externally supplied `source` safe to use.
         try:
-            grid_sed = np.asarray(self.source.compute_sed(parameters=fn_args), dtype=float)
+            grid_sed = np.asarray(
+                self.source.compute_sed(
+                    times=self.phases,
+                    wavelengths=self.wavelengths,
+                    parameters=fn_args,
+                ),
+                dtype=float,
+            )
         except Exception as err:
             raise RuntimeError(
                 f"Error evaluating the MOSFiT model '{self.model_name}'. This is often due to a "

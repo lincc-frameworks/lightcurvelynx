@@ -14,7 +14,9 @@ class _ToyLynxSource:
     """A toy stand-in for mosfit.lynx.LynxSource with a light curve we control.
 
     The SED peaks at a phase of 20 days and falls off as 1 / wavelength, so tests can
-    check the phase alignment and the wavelength dependence separately.
+    check the phase alignment and the wavelength dependence separately. Like LynxSource,
+    it honors the grids it is handed rather than the ones it was built with, and it
+    records them so tests can check what the wrapper asked for.
 
     Attributes
     ----------
@@ -22,6 +24,10 @@ class _ToyLynxSource:
         The phase grid the source was built on (in days since explosion).
     wavelengths : numpy.ndarray
         The rest frame wavelength grid the source was built on (in angstroms).
+    last_times : numpy.ndarray or None
+        The phase grid of the most recent compute_sed() call.
+    last_wavelengths : numpy.ndarray or None
+        The wavelength grid of the most recent compute_sed() call.
     call_count : int
         The number of times compute_sed() has been called, used to check caching.
     """
@@ -29,25 +35,32 @@ class _ToyLynxSource:
     def __init__(self, phases=TEST_PHASES, wavelengths=TEST_WAVES):
         self.phases = np.asarray(phases, dtype=float)
         self.wavelengths = np.asarray(wavelengths, dtype=float)
+        self.last_times = None
+        self.last_wavelengths = None
         self.call_count = 0
 
-    def compute_sed(self, parameters=None, **kwargs):
+    def compute_sed(self, times=None, wavelengths=None, parameters=None, **kwargs):
         """Return a toy rest frame SED in nJy at 10 pc."""
         self.call_count += 1
+        phases = self.phases if times is None else np.asarray(times, dtype=float)
+        waves = self.wavelengths if wavelengths is None else np.asarray(wavelengths, dtype=float)
+        self.last_times = phases
+        self.last_wavelengths = waves
+
         parameters = parameters or {}
         if "bad_param" in parameters:
             raise ValueError("Not a free parameter of this model.")
 
         height = float(parameters.get("height", 1.0))
         width = float(parameters.get("width", 10.0))
-        lightcurve = height * np.exp(-((self.phases - 20.0) ** 2) / width**2)
-        return lightcurve[:, np.newaxis] * (1000.0 / self.wavelengths[np.newaxis, :])
+        lightcurve = height * np.exp(-((phases - 20.0) ** 2) / width**2)
+        return lightcurve[:, np.newaxis] * (1000.0 / waves[np.newaxis, :])
 
 
 class _BadShapeLynxSource(_ToyLynxSource):
     """A toy source that returns an SED on the wrong grid."""
 
-    def compute_sed(self, parameters=None, **kwargs):
+    def compute_sed(self, times=None, wavelengths=None, parameters=None, **kwargs):
         """Return an SED with a shape the wrapper did not ask for."""
         return np.ones((len(self.phases) + 1, len(self.wavelengths)))
 
@@ -102,6 +115,26 @@ def test_mosfit_wrapper_toy() -> None:
     grid_sed = _ToyLynxSource().compute_sed(parameters={"height": 1000.0, "width": 10.0})
     peak_index = np.searchsorted(TEST_PHASES, 20.0)
     assert np.allclose(fluxes[1, :], grid_sed[peak_index, :])
+
+
+def test_mosfit_wrapper_requests_its_own_grid() -> None:
+    """Test that the wrapper evaluates the source on the grid it was configured with.
+
+    The wrapper interpolates from its own grid onto the queried points, so it must ask
+    the source for that grid rather than for the times and wavelengths being queried.
+    """
+    t0 = 64350.0
+    source = _ToyLynxSource(phases=np.linspace(0.0, 50.0, 11), wavelengths=np.linspace(2000.0, 8000.0, 5))
+    model = _make_model(source=source, t0=t0)
+
+    # The queried points deliberately match neither each other nor the source's own grid.
+    times = np.array([5.0, 25.0]) + t0
+    waves = np.array([3000.0, 6000.0, 9000.0])
+    fluxes = model.evaluate_sed(times, waves, graph_state=model.sample_parameters())
+
+    assert np.array_equal(source.last_times, TEST_PHASES)
+    assert np.array_equal(source.last_wavelengths, TEST_WAVES)
+    assert fluxes.shape == (len(times), len(waves))
 
 
 def test_mosfit_wrapper_bounds() -> None:
