@@ -90,8 +90,10 @@ def _get_roman_char(force_download=False):
             raise ValueError(f"Unable to access table {name} from URL {info[1]}")
 
         # Load the table using astropy and convert it to Pandas.
-        loaded_table = Table.read(_psf_url, format="csv", **(info[2])).to_pandas()
-        tables_dict[name] = loaded_table
+        read_params = {"format": "csv", "comment": "#"}
+        read_params.update(info[2])
+        loaded_table = Table.read(info[0], **read_params)
+        tables_dict[name] = loaded_table.to_pandas()
 
     return tables_dict
 
