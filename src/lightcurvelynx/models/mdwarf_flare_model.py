@@ -1,28 +1,29 @@
 """Models to simulate M-Dwarf Flares."""
 
 import numpy as np
-
-from lightcurvelynx.astro_utils.black_body import black_body_luminosity_density_per_solid
-from lightcurvelynx.models.physical_model import SEDModel
-from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from astropy import units as u  #angstroms, nanojanskies for flux density
+from astropy.modeling.models import BlackBody
+from astroquery.svo_fps import SvoFps
+from citation_compass import cite_function
 from scipy import special
 from scipy.stats import binned_statistic
-from astropy.modeling.models import BlackBody 
-from astropy import units as u #angstroms, nanojanskies for flux density
-from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
-from astroquery.svo_fps import SvoFps
-from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayCoordSampler
-from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
+
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
-from citation_compass import cite_function
-
-
+from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
+from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayCoordSampler
+from lightcurvelynx.models.physical_model import SEDModel
 
 
 class MDwarfFlareModel(SEDModel):
-    """An M-Dwarf Flare Model. The spectrum is modeled as a modified black body, where the flare is ~twice (or balmer_jump_ratio) as intense below the balmer jump.
+    """An M-Dwarf Flare Model. The spectrum is modeled as a modified black body, 
+    where the flare is ~twice (or balmer_jump_ratio) as intense below the balmer jump.
 
-    The time evolution of the M-Dwarf is modeled as in Mendoza et al. (2022), with free parameters for amplitude and full width half max of the flare. The SED and time evolution are treated as independent, with the normalized amplitude of the flare from the Mendoza model multiplied by the flare's contribution to the SED (and added to the star's constant contribution). 
+    The time evolution of the M-Dwarf is modeled as in Mendoza et al. (2022), 
+    with free parameters for amplitude and full width half max of the flare. 
+    The SED and time evolution are treated as independent, with the normalized amplitude 
+    of the flare from the Mendoza model multiplied by the flare's contribution to the SED 
+    (and added to the star's constant contribution). 
 
     Parameterized values include:
 
@@ -73,8 +74,8 @@ class MDwarfFlareModel(SEDModel):
                 "pzflow package is not installed by default. You can install it with "
                 "`pip install pzflow` or `conda install conda-forge::pzflow`."
                 ) from err
-            flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / flare_flow.pzflow.pkl)
-            node = PZFlowNode(flow) 
+            flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / 'flare_flow.pzflow.pkl')
+            node = PZFlowNode(flow)
             #the node has them in log space
             star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff)
             star_radius = BasicMathNode("10 ** log_radius", log_radius=node.logRadius)
@@ -84,14 +85,14 @@ class MDwarfFlareModel(SEDModel):
 
         if flare_temp is None:
             flare_temp = 9000 #default, Kelvin
-            
+
         if balmer_jump_ratio is None:
             balmer_jump_ratio = 2 #default
-            
+
         self.add_parameter(
             "star_temp", value=star_temp, description="The temperature of the star in Kelvins."
         )
-        
+
         self.add_parameter(
             "star_radius", value=star_radius, description="The radius of the star in cm."
         )
@@ -116,7 +117,7 @@ class MDwarfFlareModel(SEDModel):
             description="The temperature of the cold part of the flare in Kelvins."
         )
         if not self.has_valid_param("distance"):
-            sampler = MilkyWayCoordSampler(node_label="mw") 
+            sampler = MilkyWayCoordSampler(node_label="mw")
             self.set_parameter("distance", value=sampler.distance_pc)
             if self.has_valid_param("ra") or self.has_valid_param("dec"):
                 print("Overwriting RA and Dec to match our distance distribution - to avoid this, input all three values")
@@ -124,13 +125,14 @@ class MDwarfFlareModel(SEDModel):
             self.set_parameter("dec", value=sampler.dec)
 
 
-            
-        
-    
+
+
+
     @cite_function #does this go before the function like this?
     def _flare_eqn(self, time, tpeak, flare_fwhm, flare_amplitude):
-        '''
-        The equation that defines the shape for the Continuous Flare Model. taken from Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
+        """
+        The equation that defines the shape for the Continuous Flare Model. 
+        taken from Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
 
         Parameters
         ----------
@@ -156,27 +158,36 @@ class MDwarfFlareModel(SEDModel):
         -----------
         Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
     
-        '''
+        """
         #Values were fit & calculated using MCMC 256 walkers and 30000 steps
 
-        A,B,C,D1,D2,f1 = [0.9687734504375167,-0.251299705922117,0.22675974948468916,
-                          0.15551880775110513,1.2150539528490194,0.12695865022878844]
+        A,B,C,D1,D2,f1 = [0.9687734504375167,-0.251299705922117,
+                          0.22675974948468916,
+                          0.15551880775110513,
+                          1.2150539528490194,
+                          0.12695865022878844]
 
         # We include the corresponding errors for each parameter from the MCMC analysis
 
-        A_err,B_err,C_err,D1_err,D2_err,f1_err = [0.007941622683556804,0.0004073709715788909,0.0006863488251125649,
-                                                  0.0013498012884345656,0.00453458098656645,0.001053149344530907 ]
+        A_err,B_err,C_err,D1_err,D2_err,f1_err = [0.007941622683556804,
+                                                  0.0004073709715788909,
+                                                  0.0006863488251125649,
+                                                  0.0013498012884345656,
+                                                  0.00453458098656645,
+                                                  0.001053149344530907 ]
 
         f2 = 1-f1
 
         eqn = ((1 / 2) * np.sqrt(np.pi) * A * C * f1 * np.exp(-D1 * time + ((B / C) + (D1 * C / 2)) ** 2)
-                            * special.erfc(((B - time) / C) + (C * D1 / 2))) + ((1 / 2) * np.sqrt(np.pi) * A * C * f2
-                            * np.exp(-D2 * time + ((B / C) + (D2 * C / 2)) ** 2) * special.erfc(((B - time) / C) + (C * D2 / 2)))
+                            * special.erfc(((B - time) / C) + (C * D1 / 2))) + ((1 / 2) 
+                            * np.sqrt(np.pi) * A * C * f2
+                            * np.exp(-D2 * time + ((B / C) + (D2 * C / 2)) ** 2) 
+                            * special.erfc(((B - time) / C) + (C * D2 / 2)))
         return eqn * flare_amplitude
 
     @cite_function
     def _flare_model(self, time, tpeak, flare_fwhm, flare_amplitude, upsample=False, uptime=10):
-        '''
+        """
         Taken directly from Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
         assumes kepler bandpass
         
@@ -202,7 +213,8 @@ class MDwarfFlareModel(SEDModel):
             The Full Width at Half Maximum, timescale of the flare (days)
     
         flare_amplitude : float
-            The amplitude of the flare relative to the star (almost - must normalize in a later step in order for it to be perfect)
+            The amplitude of the flare relative to the star 
+            (almost - must normalize in a later step in order for it to be perfect)
     
     
         Returns
@@ -210,26 +222,27 @@ class MDwarfFlareModel(SEDModel):
         flare : 1-d numpy.ndarray
             The flux of the flare model evaluated at each time
     
-            A continuous flare template whose shape is defined by the convolution of a Gaussian and double exponential
+            A continuous flare template whose shape is defined by 
+            the convolution of a Gaussian and double exponential
             and can be parameterized by three parameters: center time (tpeak), FWHM, and ampitude
-        '''
-    
+        """
+
         t_new = (time-tpeak)/flare_fwhm
-    
+
         if upsample:
             dt = np.nanmedian(np.diff(np.abs(t_new)))
             timeup = np.linspace(min(t_new) - dt, max(t_new) + dt, t_new.size * uptime)
-    
-            flareup = flare_eqn(timeup,tpeak,flare_fwhm,ampl)
-    
+
+            flareup = _flare_eqn(timeup, tpeak, flare_fwhm, flare_amplitude)
+
             # and now downsample back to the original time...
-    
+
             downbins = np.concatenate((t_new - dt / 2.,[max(t_new) + dt / 2.]))
             flare,_,_ = binned_statistic(timeup, flareup, statistic='mean',bins=np.sort(downbins))
         else:
-    
+
             flare = self._flare_eqn(t_new,tpeak,flare_fwhm,flare_amplitude)
-    
+
         return flare
 
     def _norm_flare_shape(self, time, tpeak, flare_fwhm, **kwargs):
@@ -264,7 +277,7 @@ class MDwarfFlareModel(SEDModel):
         peak = self._flare_model(np.array([tpeak]), tpeak, flare_fwhm, flare_amplitude=1.0, **kwargs)[0]
         return self._flare_model(time, tpeak, flare_fwhm, flare_amplitude=1.0, **kwargs) / peak
 
-    
+
     def _build_spectrum_bb_with_balmer(self, wavelengths, temp_low=9000,  balmer_jump_ratio=2):
         '''
         Makes a spectrum for the flare temperature: 
@@ -275,7 +288,7 @@ class MDwarfFlareModel(SEDModel):
 
         Parameters
         ----------
-        Wavelengths : np.ndarray 
+        wavelengths : np.ndarray 
             Wavelength values in angstroms
             
         temp_low : float or int
@@ -298,14 +311,14 @@ class MDwarfFlareModel(SEDModel):
         if not isinstance(temp_low, u.Quantity):
             temp_low = temp_low * u.K
         bb_low = BlackBody(temperature=temp_low)
-    
+
         intensity = bb_low(wavelengths)
         balmer_jump = 3645 * u.AA #angstroms
-        
-        
+
+
         intensity[wavelengths < balmer_jump] *= balmer_jump_ratio
-        return intensity 
-        
+        return intensity
+
     def _tess_passband(self, wavelengths):
         """
         Interpolate TESS T(lambda) onto arbitrary wavelengths. 0 outside range.
@@ -359,7 +372,7 @@ class MDwarfFlareModel(SEDModel):
         shape = [1] * spectrum.ndim
         shape[axis] = -1
         w = w.reshape(shape)
-        return np.trapezoid(spectrum.value / wl, wl, axis=axis) 
+        return np.trapezoid(spectrum.value / wl, wl, axis=axis)
 
     def _quiescent_flux_no_distance(self, temp_star, wavelengths):
         """
@@ -378,16 +391,20 @@ class MDwarfFlareModel(SEDModel):
         if not isinstance(temp_star, u.Quantity):
             temp_star = temp_star * u.K
         bb = BlackBody(temperature=temp_star)
-        I_lam = bb(wavelengths) 
-        return  I_lam 
-    
-    def compute_sed(self, times, wavelengths, graph_state): #try model.sample_parameters to generate single graph state
+        I_lam = bb(wavelengths)
+        return  I_lam
+
+    def compute_sed(self, times, wavelengths, graph_state): 
+        #try model.sample_parameters to generate single graph state
         """Draw effect-free observer frame flux densities.
 
-        Reconstructs the flare's spectral flux F(lambda, t) from TESS-fit light-curve parameters, using the Tovar Mendoza (2022) time-domain shape and a blackbody+balmer jump spectral shape.
+        Reconstructs the flare's spectral flux F(lambda, t) 
+        from TESS-fit light-curve parameters, 
+        using the Tovar Mendoza (2022) time-domain shape 
+        and a blackbody+balmer jump spectral shape.
 
-    equation : pi R_star**2 [(int of I_star P_tess dlambda/lambda) / (int of I_flare P_tess dlambda/lambda)]
-    * lcmodel of t * I_flare
+        equation : pi R_star**2 [(int of I_star P_tess dlam/lam) / (int of I_flare P_tess dlam/lam)]
+        * lcmodel of t * I_flare
 
 
         Parameters
@@ -408,29 +425,31 @@ class MDwarfFlareModel(SEDModel):
         num_times = len(times)
         num_waves = len(wavelengths)
         wavelengths = wavelengths * u.AA #angstroms
-        
+
         flux_density = np.zeros((num_times, num_waves))
 
-        constants = np.pi  * params["star_radius"]**2 * u.sr * (u.cm**2) 
+        constants = np.pi  * params["star_radius"]**2 * u.sr * (u.cm**2)
         #adding units for radius
 
         print('constants units', constants.unit)
-        norm_shape = self._norm_flare_shape(times, params["t0"], params["flare_fwhm"]) #if we want to upsample it we can add that here
+        norm_shape = self._norm_flare_shape(times, params["t0"], params["flare_fwhm"]) 
+        #if we want to upsample it we can add that here
         I_flare = self._build_spectrum_bb_with_balmer(wavelengths, temp_low=params["flare_temp"])
         print(I_flare.unit)
         integral_flare = self._tess_band_integrate(I_flare, wavelengths)
-        I_star = self._quiescent_flux_no_distance(params["star_temp"], wavelengths) 
+        I_star = self._quiescent_flux_no_distance(params["star_temp"], wavelengths)
         integral_star = self._tess_band_integrate(I_star, wavelengths)
-        flux_flare_no_distance = constants* (integral_star / integral_flare) * norm_shape[None, :] * I_flare[:, None]
+        flux_flare_no_distance = constants * (integral_star / integral_flare) \
+            * norm_shape[None, :] * I_flare[:, None]
         print('flux flare no distance', flux_flare_no_distance.unit)
-        q_no_distance = self._quiescent_flux_no_distance(params["star_temp"], wavelengths)* constants   
+        q_no_distance = self._quiescent_flux_no_distance(params["star_temp"], wavelengths)* constants
 
         total_no_distance = q_no_distance[:, None] + flux_flare_no_distance  # erg/s/AA, no D yet
         print(total_no_distance.unit)
-        distance = params["distance"] * u.parsec 
+        distance = params["distance"] * u.parsec
         total_flux_at_earth = total_no_distance / ((distance.to(u.cm))**2)
         print(total_flux_at_earth.unit)
         print(distance.unit)
         print(((distance.to(u.cm))**2).unit)
-        flux_density = (total_flux_at_earth).to(u.nJy, equivalencies=u.spectral_density(wavelengths[:,None])) 
+        flux_density = (total_flux_at_earth).to(u.nJy, equivalencies=u.spectral_density(wavelengths[:,None]))
         return flux_density
