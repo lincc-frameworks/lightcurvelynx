@@ -104,9 +104,6 @@ class MOSFiTWrapperModel(SEDModel, CiteClass):
     call to ``compute_sed`` and then reused. Because MOSFiT would rebuild that model for
     every new grid, this wrapper never re-grids: it evaluates on ``phases`` and
     ``wavelengths`` and linearly interpolates the result, returning zero outside them.
-
-    Building the model also copies MOSFiT's ``modules`` directory into the current working
-    directory, which is how MOSFiT lets users override its bandpasses and modules.
     """
 
     # Keyword arguments that are forwarded to LynxSource rather than to the superclass.

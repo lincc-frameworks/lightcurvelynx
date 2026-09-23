@@ -293,8 +293,7 @@ def test_mosfit_wrapper_real_source(tmp_path, monkeypatch) -> None:
         reason="Requires MOSFiT >= 2.1, the first release providing the mosfit.lynx module.",
     )
 
-    # MOSFiT copies its `modules` directory into the working directory when a model is
-    # built, so run from a temporary directory to keep the repository clean.
+    # Run from an empty directory so we can check that MOSFiT leaves it untouched.
     monkeypatch.chdir(tmp_path)
 
     t0 = 64350.0
@@ -317,6 +316,7 @@ def test_mosfit_wrapper_real_source(tmp_path, monkeypatch) -> None:
     assert np.all(np.isfinite(fluxes))
     assert np.all(fluxes >= 0.0)
     assert np.any(fluxes > 0.0)
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_mosfit_wrapper_applies_redshift() -> None:
