@@ -44,12 +44,12 @@ _thermal_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-tech
 _zodiacal_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/refs/heads/main/roman_technical_information/data/WideFieldInstrument/Imaging/ZodiacalLight/zodiacal_light.ecsv"
 
 # A mapping of the table name (string) to a tuple of data containing: the expected file location,
-# the fallback URL, and any extra keyword params to use when loading.
+# the fallback URL, and any extra keyword params (or overrides) to use when loading.
 _ROMAN_BASE_DIR = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "roman_data"
 _roman_files_and_urls = {
     "psf_table": (_ROMAN_BASE_DIR / "SummaryPSFstats_center.ecsv", _psf_url, {}),
-    "zp_table": (_ROMAN_BASE_DIR / "Roman_zeropoints.ecsv", _zp_url, {}),
-    "thermal_table": (_ROMAN_BASE_DIR / "internal_thermal_backgrounds.ecsv", _thermal_url, {"delimiter"}),
+    "zp_table": (_ROMAN_BASE_DIR / "Roman_zeropoints.ecsv", _zp_url, {"delimiter": " "}),
+    "thermal_table": (_ROMAN_BASE_DIR / "internal_thermal_backgrounds.ecsv", _thermal_url, {}),
     "zodiacal_min_table": (_ROMAN_BASE_DIR / "zodiacal_light.ecsv", _zodiacal_url, {}),
 }
 
@@ -91,7 +91,8 @@ def _get_roman_char(force_download=False):
 
         # Load the table using astropy and convert it to Pandas.
         read_params = {"format": "csv", "comment": "#"}
-        read_params.update(info[2])
+        if len(info[2]) > 0:
+            read_params.update(info[2])
         loaded_table = Table.read(info[0], **read_params)
         tables_dict[name] = loaded_table.to_pandas()
 
