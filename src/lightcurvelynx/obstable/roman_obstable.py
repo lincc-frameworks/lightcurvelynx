@@ -62,7 +62,8 @@ hltds_pass_map = {
 
 
 def _get_roman_char(force_download=False):
-    """Create a dictionary of table names to Pandas DataFrames with the loaded information.
+    """
+    Create a dictionary of table names to Pandas DataFrames with the loaded information.
 
     Parameters
     ----------
