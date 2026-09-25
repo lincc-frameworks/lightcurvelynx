@@ -9,7 +9,6 @@ from scipy.interpolate import interp1d
 
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
-from lightcurvelynx.noise_models.spectrograph_noise_models import SpectrographNoiseModel
 from lightcurvelynx.obstable.spectrograph_table import SpectrographObsTable
 from lightcurvelynx.utils.io_utils import read_snana_spectrograph_data
 
@@ -223,7 +222,7 @@ class SNANANoiseModel(SpectrographNoiseModel):
         """
         data = read_snana_spectrograph_data(snana_file)
         
-        spectrograph = Spectrograph(
+        spectrograph = Spectrograph( # merge main in and use the helper function from PR #974
             waves_min=data["waves_min"],
             waves_max=data["waves_max"],
             wavelength_resolution=data["waves_sigma"],
