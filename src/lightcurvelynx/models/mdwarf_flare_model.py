@@ -82,11 +82,15 @@ class MDwarfFlareModel(SEDModel):
                     "pzflow package is not installed by default. You can install it with "
                     "`pip install pzflow` or `conda install conda-forge::pzflow`."
                 ) from err
-            flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / "flare_flow.pzflow.pkl")
-            node = PZFlowNode(flow)
+                #TURN THIS BACK WHEN I HAVE A PATH SOLUTION
+            # flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / "flare_flow.pzflow.pkl")
+            flow = Flow(file="/Users/wickcedar/lightcurvelynx/data/model_files/flare_flow.pzflow.pkl")
+            node = PZFlowNode(flow, label='tess_pzflow')
             # the node has them in log space
-            star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff)
-            star_radius = BasicMathNode("10 ** log_radius", log_radius=node.logRadius)
+            star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff, label='mathnode')
+            #converting from solar radii to cm
+            star_radius = BasicMathNode("10 ** log_radius * 6.96e10", log_radius=node.logRadius)
+            
             flare_fwhm = BasicMathNode("10 ** log_fwhm", log_fwhm=node.logFWHM)
             flare_amplitude = BasicMathNode("10 ** log_amp", log_amp=node.logAmp)
 
@@ -105,7 +109,7 @@ class MDwarfFlareModel(SEDModel):
             self.add_parameter(
                 "flare_fwhm",
                 value=flare_fwhm,
-                description="The FWHM of the flare in days I think",
+                description="The FWHM of the flare in days",
             ),
         )
         self.add_parameter(
@@ -242,7 +246,7 @@ class MDwarfFlareModel(SEDModel):
             (almost - must normalize in a later step in order for it to be perfect)
         
         upsample: Bool
-            whether to upsample
+            whether to upsample (we should not need to use this for lightcurvelynx)
 
         uptime: float or int
             how much to upsample by
@@ -258,6 +262,8 @@ class MDwarfFlareModel(SEDModel):
         """
 
         t_new = (time - tpeak) / flare_fwhm
+        #clipping so we don't have errors with the function
+        t_new = np.maximum(t_new, -200) 
 
         if upsample:
             dt = np.nanmedian(np.diff(np.abs(t_new)))
@@ -363,7 +369,11 @@ class MDwarfFlareModel(SEDModel):
             The tess transmission at the wavelengths given in wavelengths
 
         """
-        # check if there is an inbuilt way to do this
+        # check if there is an inbuilt way to do this function
+        
+        if not isinstance(wavelengths, u.Quantity):
+            wavelengths = wavelengths * u.AA
+        
         _filt = SvoFps.get_transmission_data("TESS/TESS.Red")
         tess_wave = np.asarray(_filt["Wavelength"]) * u.AA  # SVO gives this in Angstrom
         tess_trans = np.asarray(_filt["Transmission"])  # dimensionless, 0-1
@@ -394,13 +404,15 @@ class MDwarfFlareModel(SEDModel):
         Quantity
             The spectrum with the wavelength axis integrated out
         """
+        if not isinstance(wavelengths, u.Quantity):
+            wavelengths = wavelengths * u.AA
         T_lambda = self._tess_passband(wavelengths)
         wl = wavelengths.to(u.AA).value
         w = T_lambda * wl
         shape = [1] * spectrum.ndim
         shape[axis] = -1
         w = w.reshape(shape)
-        return np.trapezoid(spectrum.value / wl, wl, axis=axis)
+        return np.trapezoid(spectrum.value  * w / wl, wl, axis=axis)
 
     def _quiescent_flux_no_distance(self, temp_star, wavelengths):
         """
@@ -460,26 +472,30 @@ class MDwarfFlareModel(SEDModel):
         constants = np.pi * params["star_radius"] ** 2 * u.sr * (u.cm**2)
         # adding units for radius
 
-        print("constants units", constants.unit)
-        norm_shape = self._norm_flare_shape(times, params["t0"], params["flare_fwhm"])
+        # print("constants units", constants.unit)
+        norm_shape = self._norm_flare_shape(times, params["t0"], params["flare_fwhm"]) * params["flare_amplitude"]
+        # print(params["flare_amplitude"])
         # if we want to upsample it we can add that here
         I_flare = self._build_spectrum_bb_with_balmer(wavelengths, temp_low=params["flare_temp"])
-        print(I_flare.unit)
+        # print(I_flare.unit)
         integral_flare = self._tess_band_integrate(I_flare, wavelengths)
         I_star = self._quiescent_flux_no_distance(params["star_temp"], wavelengths)
         integral_star = self._tess_band_integrate(I_star, wavelengths)
         flux_flare_no_distance = (
             constants * (integral_star / integral_flare) * norm_shape[None, :] * I_flare[:, None]
         )
-        print("flux flare no distance", flux_flare_no_distance.unit)
+        # print("flux flare no distance", flux_flare_no_distance.unit)
         q_no_distance = self._quiescent_flux_no_distance(params["star_temp"], wavelengths) * constants
 
         total_no_distance = q_no_distance[:, None] + flux_flare_no_distance  # erg/s/AA, no D yet
-        print(total_no_distance.unit)
-        distance = params["distance"] * u.parsec
+        # print(total_no_distance.unit)
+        distance = params["distance"]
+        if not isinstance(distance, u.Quantity):
+            distance = distance * u.parsec
+         
         total_flux_at_earth = total_no_distance / ((distance.to(u.cm)) ** 2)
-        print(total_flux_at_earth.unit)
-        print(distance.unit)
-        print(((distance.to(u.cm)) ** 2).unit)
+        # print(total_flux_at_earth.unit)
+        # print(distance.unit)
+        # print(((distance.to(u.cm)) ** 2).unit)
         flux_density = (total_flux_at_earth).to(u.nJy, equivalencies=u.spectral_density(wavelengths[:, None]))
         return flux_density
