@@ -82,15 +82,15 @@ class MDwarfFlareModel(SEDModel):
                     "pzflow package is not installed by default. You can install it with "
                     "`pip install pzflow` or `conda install conda-forge::pzflow`."
                 ) from err
-                #TURN THIS BACK WHEN I HAVE A PATH SOLUTION
+                # TURN THIS BACK WHEN I HAVE A PATH SOLUTION
             # flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / "flare_flow.pzflow.pkl")
             flow = Flow(file="/Users/wickcedar/lightcurvelynx/data/model_files/flare_flow.pzflow.pkl")
-            node = PZFlowNode(flow, label='tess_pzflow')
+            node = PZFlowNode(flow, label="tess_pzflow")
             # the node has them in log space
-            star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff, label='mathnode')
-            #converting from solar radii to cm
+            star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff, label="mathnode")
+            # converting from solar radii to cm
             star_radius = BasicMathNode("10 ** log_radius * 6.96e10", log_radius=node.logRadius)
-            
+
             flare_fwhm = BasicMathNode("10 ** log_fwhm", log_fwhm=node.logFWHM)
             flare_amplitude = BasicMathNode("10 ** log_amp", log_amp=node.logAmp)
 
@@ -244,13 +244,13 @@ class MDwarfFlareModel(SEDModel):
         flare_amplitude : float
             The amplitude of the flare relative to the star
             (almost - must normalize in a later step in order for it to be perfect)
-        
+
         upsample: Bool
             whether to upsample (we should not need to use this for lightcurvelynx)
 
         uptime: float or int
             how much to upsample by
-            
+
         Returns
         -------
         flare : 1-d numpy.ndarray
@@ -262,8 +262,8 @@ class MDwarfFlareModel(SEDModel):
         """
 
         t_new = (time - tpeak) / flare_fwhm
-        #clipping so we don't have errors with the function
-        t_new = np.maximum(t_new, -200) 
+        # clipping so we don't have errors with the function
+        t_new = np.maximum(t_new, -200)
 
         if upsample:
             dt = np.nanmedian(np.diff(np.abs(t_new)))
@@ -370,10 +370,10 @@ class MDwarfFlareModel(SEDModel):
 
         """
         # check if there is an inbuilt way to do this function
-        
+
         if not isinstance(wavelengths, u.Quantity):
             wavelengths = wavelengths * u.AA
-        
+
         _filt = SvoFps.get_transmission_data("TESS/TESS.Red")
         tess_wave = np.asarray(_filt["Wavelength"]) * u.AA  # SVO gives this in Angstrom
         tess_trans = np.asarray(_filt["Transmission"])  # dimensionless, 0-1
@@ -412,7 +412,7 @@ class MDwarfFlareModel(SEDModel):
         shape = [1] * spectrum.ndim
         shape[axis] = -1
         w = w.reshape(shape)
-        return np.trapezoid(spectrum.value  * w / wl, wl, axis=axis)
+        return np.trapezoid(spectrum.value * w / wl, wl, axis=axis)
 
     def _quiescent_flux_no_distance(self, temp_star, wavelengths):
         """
@@ -430,7 +430,7 @@ class MDwarfFlareModel(SEDModel):
         it is now in terms of frequency and not wavelength
         """
         if not isinstance(wavelengths, u.Quantity):
-            wavelengths = wavelengths * u.AA #otherwise it assumes frequency
+            wavelengths = wavelengths * u.AA  # otherwise it assumes frequency
         if not isinstance(temp_star, u.Quantity):
             temp_star = temp_star * u.K
         bb = BlackBody(temperature=temp_star)
@@ -475,7 +475,9 @@ class MDwarfFlareModel(SEDModel):
         # adding units for radius
 
         # print("constants units", constants.unit)
-        norm_shape = self._norm_flare_shape(times, params["t0"], params["flare_fwhm"]) * params["flare_amplitude"]
+        norm_shape = (
+            self._norm_flare_shape(times, params["t0"], params["flare_fwhm"]) * params["flare_amplitude"]
+        )
         # print(params["flare_amplitude"])
         # if we want to upsample it we can add that here
         I_flare = self._build_spectrum_bb_with_balmer(wavelengths, temp_low=params["flare_temp"])
@@ -494,7 +496,7 @@ class MDwarfFlareModel(SEDModel):
         distance = params["distance"]
         if not isinstance(distance, u.Quantity):
             distance = distance * u.parsec
-         
+
         total_flux_at_earth = total_no_distance / ((distance.to(u.cm)) ** 2)
         # print(total_flux_at_earth.unit)
         # print(distance.unit)
