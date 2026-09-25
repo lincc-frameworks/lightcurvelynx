@@ -4,7 +4,16 @@ basis.  They may use information from the Spectrograph object and/or ObsTable.
 
 from abc import ABC, abstractmethod
 
+from astropy import units as u
 import numpy as np
+from scipy.interpolate import interp1d
+
+from lightcurvelynx.astro_utils.mag_flux import flux2mag
+from lightcurvelynx.astro_utils.spectrograph import Spectrograph
+from lightcurvelynx.obstable.spectrograph_table import SpectrographObsTable
+from lightcurvelynx.utils.io_utils import read_snana_spectrograph_data
+
+from lightcurvelynx_main.src.lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
 
 
 class SpectrographNoiseModel(ABC):
@@ -194,3 +203,143 @@ class ConstantSpectrographNoiseModel(SpectrographNoiseModel):
             The standard deviation of the flux measurement error (in nJy)
         """
         return np.full_like(measurements, self.noise_level, dtype=float)
+
+class SNANANoiseModel(SpectrographNoiseModel):
+    """A noise model that implements an SNANA-like Poisson noise from SNANA spectrograph files.
+
+    Attributes
+    ----------
+    spectrograph : Spectrograph
+        The spectrograph object containing the instrument parameters.
+    """
+
+    _required_values = ["exptime"]
+
+    def __init__(self, snana_file):
+        """Create an SNANANoiseModel from an SNANA spectrograph file. It creates it's own spectrograph 
+        object from the file.
+
+        Parameters
+        ----------
+        snana_file : str
+            The path to the SNANA spectrograph file.
+        """
+        data = read_snana_spectrograph_data(snana_file)
+        
+        spectrograph = Spectrograph.from_snana_file(snana_file, compute_smear=True)
+        self.spectrograph_true = Spectrograph.from_snana_file(snana_file, compute_smear=False)
+        super().__init__(spectrograph=spectrograph)
+
+        self.magref = data["magref"]  # (2,)
+        self.texpose_grid = data["texpose"]  # (T,)
+        self.zp_grid, self.sqsigsky_grid = self._solve(self.magref, data["snr"])  # each (W, T)
+
+        # interpolate the zero point and sky noise grids for arbitrary exposure times
+        self._zp_interp = interp1d(
+                    np.log10(self.texpose_grid),
+                    self.zp_grid,
+                    axis=1,
+                    bounds_error=False,
+                    fill_value=(self.zp_grid[:, 0], self.zp_grid[:, -1]),
+        )
+        self._sqsigsky_interp = interp1d(
+            self.texpose_grid,
+            self.sqsigsky_grid,
+            axis=1,
+            bounds_error=False,
+            fill_value=(self.sqsigsky_grid[:, 0], self.sqsigsky_grid[:, -1]),
+        )
+
+    def _solve(self, magref, snr):
+        """Solve for the per-bin, per-texpose ZP and SQSIGSKY grid.
+
+        Direct port of `solve_spectrograph` (`sntools_spectrograph.c:647-782`),
+        vectorized over (bin, texpose) instead of SNANA's explicit `l`/`t`
+        loops.
+
+        Parameters
+        ----------
+        magref : np.ndarray
+            The two reference magnitudes, shape (2,).
+        snr : np.ndarray
+            SNR at each bin, each magref, each texpose grid point,
+            shape (W, 2, T).
+
+        Returns
+        -------
+        zp : np.ndarray
+            Shape (W, T).
+        sqsigsky : np.ndarray
+            Shape (W, T).
+        """
+        magref = np.asarray(magref, dtype=float)
+        snr = np.asarray(snr, dtype=float)
+        if np.any(snr <= 0):
+            raise ValueError("All SNR values must be positive to solve for ZP/SQSIGSKY.")
+
+        # following sntools_spectrograph
+        powmag = 10.0 ** (-0.4 * magref)
+        top = powmag[0] - powmag[1]
+        bot = (powmag[0] / snr[:, 0]) ** 2 - (powmag[1] / snr[:, 1]) ** 2
+        if top <= 0 or np.any(bot <= 0):
+            raise ValueError(
+                "Cannot solve for ZP. Check the spectrograph file."
+            )
+        zp = 2.5 * np.log10(top / bot)
+
+        flux = 10.0 ** (-0.4 * (magref[:, None, None] - zp))  # (2, W, T)
+        sqsigsky = (flux[0] / snr[:, 0]) ** 2 - flux[0]  # (W, T)
+        if not (np.all(np.isfinite(zp)) and np.all(np.isfinite(sqsigsky))):
+            raise ValueError("Solved ZP or SQSIGSKY is not finite. Check the spectrograph file.")
+
+        # SNANA sanity check
+        check = flux / np.sqrt(sqsigsky + flux)  # (2, W, T)
+        if not np.allclose(snr.transpose(1, 0, 2), check, rtol=1e-3):
+            raise ValueError("Solved ZP/SQSIGSKY cannot reproduce the input SNR values.")
+
+        return zp, sqsigsky
+
+    def compute_flux_error(self, measurements, *, sed, obs_table, indices=None, **kwargs):
+        """Compute the flux error for the smeared measurements.
+
+        Parameters
+        ----------
+        measurements : array_like of float
+            The smeared flux, shape (T_obs, W) --
+            `spectrograph(compute_smear=True).evaluate(seds)`.
+        sed : array_like of float
+            The SED used to generate the measurements, shape (T_obs, len(query_waves))
+        obs_table : ObsTable
+            Must have an `exptime` column (`_required_values`).
+        indices : array_like of int, optional
+            Indices of the observations in the ObsTable to which noise should be applied.
+            If provided, the length of `indices` must match the number of rows in `measurements`.
+        **kwargs
+            Ignored -- absorbs `rng` and anything else `apply_noise`
+            forwards.
+
+        Returns
+        -------
+        flux_err : np.ndarray
+            Shape (T_obs, W), same units as `measurements` (erg/s/cm^2).
+        """
+        measurements = np.asarray(measurements, dtype=float)
+
+        true_flux = self.spectrograph_true.evaluate(sed)
+        exptime = np.asarray(obs_table.get_value_per_row("exptime", indices=indices), dtype=float)
+
+        # get interpolated ZP and SQSIGSKY for the given exposure times.
+        zp_obs = self._zp_interp(np.log10(exptime)).T  # note ZP interpolated on log10(Texpose)
+        sqsigsky_obs = self._sqsigsky_interp(exptime).T  # I ne(T_obs, W)
+
+        # get spectrograph snr
+        flam = true_flux / self.spectrograph.bin_widths
+        fnu = flam_to_fnu(flam, self.spectrograph.bin_centers, wave_unit=u.AA,
+                        flam_unit=u.erg / u.s / u.cm**2 / u.AA, fnu_unit=u.nJy)
+        genmag = flux2mag(np.where(fnu > 0, fnu, np.nan)) # (T_obs, W)
+        flux_pe = 10.0 ** (-0.4 * (genmag - zp_obs))  # per electron, sntools_spectrograph.c:1566-1567
+        fluxerr = np.sqrt(sqsigsky_obs + flux_pe)
+        snr_true = flux_pe / fluxerr
+
+        invalid = ~(snr_true > 1e-18) # catches on nans?
+        return np.where(invalid, 0.0, measurements / np.where(invalid, 1.0, snr_true))

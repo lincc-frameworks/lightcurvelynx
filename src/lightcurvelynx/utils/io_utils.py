@@ -531,6 +531,8 @@ def read_snana_spectrograph_data(input_file):
 
                 line = line.split(":", 1)[1].strip()
                 cols = line.split()
+                if numM != 2:
+                    raise ValueError(f"Expected 2 reference magnitudes but found {numM}.")
                 if len(cols) != 3 + numT * numM:  # pragma: no cover
                     raise ValueError(f"Invalid SPECBIN line (expected {3 + numT * numM} columns): {line}")
 
