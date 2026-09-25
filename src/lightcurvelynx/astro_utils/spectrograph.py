@@ -30,6 +30,7 @@ def gaussian_integral(nsigma_low, nsigma_high):
         scipy.special.erf(nsigma_high / np.sqrt(2.0)) - scipy.special.erf(nsigma_low / np.sqrt(2.0))
     )
 
+
 class Spectrograph:
     """Models all of the bins of a spectrograph, producing bandfluxes for each
     bin in the spectra. This class operates similarly to a PassbandGroup, but
