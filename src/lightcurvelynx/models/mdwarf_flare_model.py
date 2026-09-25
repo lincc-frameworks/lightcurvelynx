@@ -429,6 +429,8 @@ class MDwarfFlareModel(SEDModel):
         Quantity, shape (n_wave,), units erg/(Hz s sr cm^2)
         it is now in terms of frequency and not wavelength
         """
+        if not isinstance(wavelengths, u.Quantity):
+            wavelengths = wavelengths * u.AA #otherwise it assumes frequency
         if not isinstance(temp_star, u.Quantity):
             temp_star = temp_star * u.K
         bb = BlackBody(temperature=temp_star)

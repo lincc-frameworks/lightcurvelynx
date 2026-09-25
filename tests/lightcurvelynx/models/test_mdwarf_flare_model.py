@@ -34,16 +34,17 @@ def test_mdwarf_flare_model_with_assigned_inputs():
     flare_amplitude=.03
     t0=10
     
-    model = MDwarfFlareModel(star_temp=star_temp,                                star_radius=star_radius,                                  flare_fwhm=flare_fwhm, flare_amplitude=flare_amplitude, t0=t0, distance=100*u.parsec)
+    model = mdwarf_flare_model.MDwarfFlareModel(star_temp=star_temp,                                star_radius=star_radius,                                  flare_fwhm=flare_fwhm, flare_amplitude=flare_amplitude, t0=t0, distance=100*u.parsec)
     
-    assert np.isclose(model._quiescent_flux_no_distance(9000, wavelengths)[0].value,2.488e-26)
-    
-    assert np.isclose(model._build_spectrum_bb_with_balmer(wavelengths, .09*u.R_sun.to(u.cm) )[0].value,3842.055)
+    # print(model._quiescent_flux_no_distance(star_temp, wavelengths)[0].value)
+    assert np.isclose(model._quiescent_flux_no_distance(star_temp, wavelengths)[0].value,9.133526742251799e-08)
+    # print(model._build_spectrum_bb_with_balmer(wavelengths, 9000*u.K)[0])
+    assert np.isclose(model._build_spectrum_bb_with_balmer(wavelengths, 9000*u.K)[0].value,0.00014342158215047032)
 
-    I_lam_star= model._quiescent_flux_no_distance(9000*u.K, 
+    I_lam_star= model._quiescent_flux_no_distance(star_temp, 
                                                wavelengths)
-    
-    assert np.isclose(model._tess_band_integrate(I_lam_star, wavelengths* u.AA), 7.009374891810094e-22)
+    # print(model._tess_band_integrate(I_lam_star, wavelengths* u.AA))
+    assert np.isclose(model._tess_band_integrate(I_lam_star, wavelengths* u.AA), 0.032670867030168554)
     
     I_lam_flare = model._build_spectrum_bb_with_balmer(wavelengths, temp_low=9000) 
     
@@ -83,7 +84,7 @@ def test_mdwarf_flare_model_with_assigned_inputs():
 def test_mdwarf_flare_model_parameter_sampling():
     """Test the sampling from parameter distributions for MDwarfFlareModel objects."""
     
-    model = MDwarfFlareModel(t0=10)
+    model = mdwarf_flare_model.MDwarfFlareModel(t0=10)
     state = model.sample_parameters(num_samples=1)
     assert state["mw"]['distance_pc']>0
     assert 0 <= state["mw"]['ra'] 
@@ -98,4 +99,5 @@ def test_mdwarf_flare_model_parameter_sampling():
     #flare_fwhm
     assert state["BasicMathNode:eval_5"]['function_node_result']>0
     assert state["BasicMathNode:eval_6"]['function_node_result']>0
+    
     
