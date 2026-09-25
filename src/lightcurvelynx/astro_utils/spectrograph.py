@@ -454,7 +454,6 @@ class Spectrograph:
     def evaluate(
         self,
         flux_density_matrix: np.ndarray,
-        smear: bool = True,
     ) -> np.ndarray:
         """Calculate the bin-integrated flux for each bin in the spectrograph
         (in units of erg/s/cm²).

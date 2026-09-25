@@ -213,6 +213,8 @@ class SNANANoiseModel(SpectrographNoiseModel):
         The spectrograph object containing the instrument parameters.
     """
 
+    _required_values = ["exptime"]
+
     def __init__(self, snana_file):
         """Create an SNANANoiseModel from an SNANA spectrograph file. It creates it's own spectrograph 
         object from the file.
@@ -221,12 +223,11 @@ class SNANANoiseModel(SpectrographNoiseModel):
         ----------
         snana_file : str
             The path to the SNANA spectrograph file.
-        instrument : str, optional
-            The name of the instrument corresponding to the SNANA file.
         """
         data = read_snana_spectrograph_data(snana_file)
         
         spectrograph = Spectrograph.from_snana_file(snana_file, compute_smear=True)
+        self.spectrograph_true = Spectrograph.from_snana_file(snana_file, compute_smear=False)
         super().__init__(spectrograph=spectrograph)
 
         self.magref = data["magref"]  # (2,)
@@ -298,7 +299,7 @@ class SNANANoiseModel(SpectrographNoiseModel):
 
         return zp, sqsigsky
 
-    def compute_flux_error(self, measurements, *, true_flux, obs_table, **kwargs):
+    def compute_flux_error(self, measurements, *, sed, obs_table, indices=None, **kwargs):
         """Compute the flux error for the smeared measurements.
 
         Parameters
@@ -306,12 +307,13 @@ class SNANANoiseModel(SpectrographNoiseModel):
         measurements : array_like of float
             The smeared flux, shape (T_obs, W) --
             `spectrograph(compute_smear=True).evaluate(seds)`.
-        true_flux : array_like of float
-            The un-smeared flux, shape (T_obs, W) --
-            `spectrograph(compute_smear=False).evaluate(seds)`.
-            SNANA's SNR_TRUE is driven by the true flux but applied to the smeared ones.
+        sed : array_like of float
+            The SED used to generate the measurements, shape (T_obs, len(query_waves))
         obs_table : ObsTable
             Must have an `exptime` column (`_required_values`).
+        indices : array_like of int, optional
+            Indices of the observations in the ObsTable to which noise should be applied.
+            If provided, the length of `indices` must match the number of rows in `measurements`.
         **kwargs
             Ignored -- absorbs `rng` and anything else `apply_noise`
             forwards.
@@ -322,8 +324,9 @@ class SNANANoiseModel(SpectrographNoiseModel):
             Shape (T_obs, W), same units as `measurements` (erg/s/cm^2).
         """
         measurements = np.asarray(measurements, dtype=float)
-        true_flux = np.asarray(true_flux, dtype=float)
-        exptime = np.asarray(obs_table.get_value_per_row("exptime"), dtype=float)
+
+        true_flux = self.spectrograph_true.evaluate(sed)
+        exptime = np.asarray(obs_table.get_value_per_row("exptime", indices=indices), dtype=float)
 
         # get interpolated ZP and SQSIGSKY for the given exposure times.
         zp_obs = self._zp_interp(np.log10(exptime)).T  # note ZP interpolated on log10(Texpose)
