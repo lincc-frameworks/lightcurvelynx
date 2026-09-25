@@ -40,7 +40,7 @@ def eddington_ratio_dist_fun(edd_ratio, galaxy_type="Blue", rng=None, num_sample
     result : float or np.array
         The Eddington ratio distribution.
     """
-    if rng is None:
+    if rng is None:  # pragma: no cover
         rng = np.random.default_rng()
 
     if galaxy_type.lower() == "red":

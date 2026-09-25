@@ -86,3 +86,8 @@ def test_create_from_passbands():
         flux_density = np.array([sed])
         bandflux = passband_group.fluxes_to_bandflux(flux_density, filter_name)
         assert np.isclose(bandflux, 1.0)
+
+    # We can create a SEDBasisModel from a single Passband using from_box_approximation.
+    single_sed_basis = SEDBasisModel.from_box_approximation(a_band)
+    assert np.allclose(single_sed_basis.wavelengths, a_band.waves)
+    assert single_sed_basis.filters == ["u"]

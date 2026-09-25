@@ -455,6 +455,17 @@ def read_snana_spectrograph_data(input_file):
         SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
         SPECBIN: <minL> <maxL>  <sigL> SNR1(t_1) SNR2(t_1) . . SNR1(t_n) SNR2(t_n)
 
+    where each "SPECBIN" line defines data for a single spectrograph bin:
+
+    * minL: The minimum wavelength for the spectrograph bin (in Angstroms).
+    * maxL: The maximum wavelength for the spectrograph bin (in Angstroms).
+    * sigL: The wavelength sigma for the spectrograph bin (in Angstroms).
+    * SNR1(t_i), SNR2(t_i), ...: The signal-to-noise ratios for each reference magnitude
+      at exposure time t_i.
+
+    This combined file can be created from individual spectrograph ETC files using SNANA's
+    util/make_spectrograph_table.py script in the repository https://github.com/RickKessler/SNANA/.
+
     Parameters
     ----------
     input_file : str or Path
@@ -468,13 +479,13 @@ def read_snana_spectrograph_data(input_file):
         magref: np.array
             An array of reference magnitudes.
         texpose : np.array
-            An array of exposure times.
+            An array of exposure times (in seconds).
         wave_min : np.array
-            An array of minimum wavelengths for each spectrograph bin.
+            An array of minimum wavelengths for each spectrograph bin (in Angstroms).
         wave_max : np.array
-            An array of maximum wavelengths for each spectrograph bin.
+            An array of maximum wavelengths for each spectrograph bin (in Angstroms).
         wave_sigma : np.array
-            An array of wavelength sigmas for each spectrograph bin.
+            An array of wavelength sigmas for each spectrograph bin (in Angstroms).
         snr : np.array
             A W x M x T matrix of signal-to-noise ratios, where W is the number of
             spectrograph bins, M is the number of reference magnitudes, and T is

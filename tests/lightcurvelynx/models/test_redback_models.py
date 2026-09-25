@@ -1,5 +1,7 @@
 """Test the RedbackWrapperModel."""
 
+from dataclasses import dataclass
+
 import numpy as np
 import pytest
 from citation_compass import find_in_citations
@@ -227,6 +229,45 @@ def test_redback_models_bounded_toy() -> None:
     assert np.all(safe_fluxes[0:2, :] == 0.0)  # out of bounds on the left
     assert np.all(safe_fluxes[2:4, :] > 0.0)  # in bounds
     assert np.all(safe_fluxes[4, :] == 0.0)  # out of bounds on the right
+
+
+@dataclass(frozen=True)
+class _ToyModelMetadata:
+    max_time_days: float | None = None
+
+
+def test_redback_models_phase_from_metadata() -> None:
+    """Test that we can derive the phase bounds from the metadata."""
+    t0 = 64350.0
+    parameters = {
+        "height": 1000.0,
+        "width": 10.0,
+    }
+
+    # Create the model.
+    model = RedbackWrapperModel(
+        _toy_redback_model_with_bounds,
+        parameters=parameters,  # Set ALL the redback model parameters
+        t0=t0,
+        phase_bounds=None,
+        wave_bounds=(10.0, 10000.0),
+        node_label="source",
+        model_metadata=_ToyModelMetadata(max_time_days=10.0),
+    )
+
+    # Check that we extracted the phase bounds from the metadata.
+    assert model.minphase() == pytest.approx(0.001)
+    assert model.maxphase() == pytest.approx(10.0)
+
+    # We can evaluate the model.
+    state = model.sample_parameters()
+    times = np.array([-10.0, -5.0, 0.5, 10.0, 15.0]) + t0
+    waves_ang = np.array([1000.0, 2000.0])
+    fluxes = model.evaluate_sed(times, waves_ang, graph_state=state)
+    assert fluxes.shape == (5, 2)
+    assert np.all(fluxes[0:2, :] == 0.0)  # out of bounds on the left
+    assert np.all(fluxes[2:4, :] > 0.0)  # in bounds
+    assert np.all(fluxes[4, :] == 0.0)  # out of bounds on the right
 
 
 def test_redback_models_chained_toy() -> None:

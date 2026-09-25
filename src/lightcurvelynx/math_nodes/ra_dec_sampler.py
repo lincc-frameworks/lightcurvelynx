@@ -26,9 +26,19 @@ class UniformRADEC(NumpyRandomFunc):
     use_degrees : bool
         The default return unit. If True returns samples in degrees.
         Otherwise, if False, returns samples in radians.
+
+    Parameters
+    ----------
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
+    use_degrees : bool
+        The default return unit. If True returns samples in degrees.
+        Otherwise, if False, returns samples in radians.
     """
 
-    def __init__(self, outputs=None, seed=None, use_degrees=True, **kwargs):
+    def __init__(self, seed=None, use_degrees=True, **kwargs):
         self.use_degrees = use_degrees
 
         # Override key arguments. We create a uniform sampler function, but
@@ -103,11 +113,24 @@ class ObsTableRADECSampler(TableSampler):
         The deduplication threshold in degrees. If two rows have RA and dec values that
         are within this threshold, only one of them will be kept for sampling. Use 0.0 to
         keep all rows. Default: 0.0
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     **kwargs : dict, optional
         Additional keyword arguments to pass to the parent class constructor.
     """
 
-    def __init__(self, data, *, extra_cols=None, radius=None, dedup_threshold=0.0, **kwargs):
+    def __init__(
+        self,
+        data,
+        *,
+        extra_cols=None,
+        radius=None,
+        dedup_threshold=0.0,
+        seed=None,
+        **kwargs,
+    ):
         if isinstance(data, ObsTable):
             if radius is None:
                 radius = data.radius
@@ -140,13 +163,18 @@ class ObsTableRADECSampler(TableSampler):
         if dedup_threshold > 0.0:
             data_dict = pd.DataFrame(data_dict)
             _, _, inds = dedup_coords(
-                data_dict["ra"].values,
-                data_dict["dec"].values,
+                data_dict["ra"].to_numpy(),
+                data_dict["dec"].to_numpy(),
                 threshold=dedup_threshold,
             )
             data_dict = data_dict.iloc[inds].reset_index(drop=True)
 
-        super().__init__(data_dict, in_order=False, **kwargs)
+        # Create a random number generator for the offsets. Use the first
+        # sample for the table.
+        self._rng = np.random.default_rng(seed)
+        table_seed = self._rng.integers(0, 2**32 - 1)
+
+        super().__init__(data_dict, in_order=False, seed=table_seed, **kwargs)
 
     @classmethod
     def from_hats(
@@ -156,6 +184,7 @@ class ObsTableRADECSampler(TableSampler):
         radius=None,
         extra_cols=None,
         dedup_threshold=0.0,
+        seed=None,
         **kwargs,
     ):
         """Create a ObsTableRADECSampler from the observations in a HATS Catalog.
@@ -180,6 +209,10 @@ class ObsTableRADECSampler(TableSampler):
             The deduplication threshold in degrees. If two rows have RA and dec values that
             are within this threshold, only one of them will be kept for sampling. Use 0.0 to
             keep all rows. Default: 0.0
+        seed : int, optional
+            The seed to set the node's default random number generator. If None, then a random seed is used.
+            This parameter is for testing and has no effect when a user-provided random number generator is
+            used during simulation. Default: None
         **kwargs : dict, optional
             Additional keyword arguments to pass to the constructor.
 
@@ -212,6 +245,7 @@ class ObsTableRADECSampler(TableSampler):
             extra_cols=extra_cols,
             radius=radius,
             dedup_threshold=dedup_threshold,
+            seed=seed,
             **kwargs,
         )
 
@@ -240,7 +274,9 @@ class ObsTableRADECSampler(TableSampler):
         results = super().compute(graph_state, rng_info=rng_info, **kwargs)
 
         if self.radius > 0.0:
-            rng = rng_info if rng_info is not None else np.random.default_rng()
+            # Use the given random number generator if there is one, otherwise fallback
+            # to the node's random number generator.
+            rng = rng_info if rng_info is not None else self._rng
             center = SkyCoord(ra=results[0], dec=results[1], unit="deg")
 
             # Add an offset from the center of the pointing defined by an offset angle (phi)
@@ -293,7 +329,9 @@ class ObsTableUniformRADECSampler(NumpyRandomFunc):
     outputs : list of str, optional
         The list of output names. Default: ["ra", "dec"]
     seed : int, optional
-        The random seed to use for the internal random number generator. Default: None
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     max_iterations : int, optional
         The maximum number of iterations to perform. Default: 1000
     **kwargs : dict, optional
@@ -403,9 +441,22 @@ class ApproximateMOCSampler(NumpyRandomFunc, CiteClass):
         The list of healpix pixel IDs that cover the MOC at the given depth.
     depth : int
         The healpix depth to use as an approximation. Must be [2, 29].
+
+    Parameters
+    ----------
+    moc : mocpy.MOC
+        The MOC object to sample from.
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
+    depth : int
+        The healpix depth to use as an approximation. Must be [2, 29]. Default: 12
+    **kwargs : dict, optional
+        Additional keyword arguments to pass to the parent class constructor.
     """
 
-    def __init__(self, moc, *, outputs=None, seed=None, depth=12, **kwargs):
+    def __init__(self, moc, *, seed=None, depth=12, **kwargs):
         if depth < 2 or depth > 29:
             raise ValueError(f"Depth must be [2, 29]. Received {depth}")
         self.depth = depth
@@ -746,15 +797,19 @@ class CatalogRADECSampler(ObsTableRADECSampler):
         The deduplication threshold in degrees. If two rows have RA and dec values that
         are within this threshold, only one of them will be kept for sampling. Use 0.0 to
         keep all rows. Default: 0.0
+    seed : int, optional
+            The seed to set the node's default random number generator. If None, then a random seed is used.
+            This parameter is for testing and has no effect when a user-provided random number generator is
+            used during simulation. Default: None
     **kwargs : dict, optional
         Additional keyword arguments to pass to the parent class constructor.
     """
 
-    def __init__(self, data, *, dedup_threshold=0.0, **kwargs):
+    def __init__(self, data, *, dedup_threshold=0.0, seed=None, **kwargs):
         # Always default to a radius of 0.0.
         if "radius" not in kwargs or kwargs["radius"] is None:
             kwargs["radius"] = 0.0
-        super().__init__(data, dedup_threshold=dedup_threshold, **kwargs)
+        super().__init__(data, dedup_threshold=dedup_threshold, seed=seed, **kwargs)
 
 
 class MilkyWayCoordSampler(NumpyRandomFunc):
@@ -782,8 +837,10 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
         The Milky Way stellar density model to use for sampling.  If *None*
         a :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityJuric2008`
         instance with default parameters is created.  Default: None
-    seed : int or None, optional
-        Seed for the internal random number generator. Default: None
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     **kwargs : dict, optional
         Additional keyword arguments passed to the parent class.
 

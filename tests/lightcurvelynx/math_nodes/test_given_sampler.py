@@ -256,6 +256,39 @@ def test_given_value_sampler_weighted():
     assert len(results[results == 7]) > 500
 
 
+def test_given_value_sampler_weighted_seeded():
+    """Test that we can retrieve numbers from a GivenValueSampler
+    with a weighted distribution."""
+    # Same seed should produce the same results.
+    given_node1 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=123)
+    state1 = GraphState(num_samples=10_000)
+    results1 = given_node1.compute(state1)
+
+    given_node2 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=123)
+    state2 = GraphState(num_samples=10_000)
+    results2 = given_node2.compute(state2)
+    assert np.array_equal(results1, results2)
+
+    # Different seeds should produce different results.
+    given_node3 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=124)
+    state3 = GraphState(num_samples=10_000)
+    results3 = given_node3.compute(state3)
+    assert not np.array_equal(results1, results3)
+
+    # We can override the seed with a given random number generator. Different
+    # seeds do not matter if we provide the same random number generator to the compute() method.
+    rng1 = np.random.default_rng(seed=456)
+    given_node4 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=123)
+    state4 = GraphState(num_samples=10_000)
+    results4 = given_node4.compute(state4, rng_info=rng1)
+
+    rng2 = np.random.default_rng(seed=456)
+    given_node5 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=124)
+    state5 = GraphState(num_samples=10_000)
+    results5 = given_node5.compute(state5, rng_info=rng2)
+    assert np.allclose(results4, results5)
+
+
 @pytest.mark.parametrize("bad_weights", [[-0.1, 0.6, 0.5], [0.2, -0.2, 1.0]])
 def test_given_value_sampler_negative_weights_fail(bad_weights):
     """Test that negative weights are rejected."""
@@ -341,6 +374,17 @@ def test_table_sampler_fail():
         _ = TableSampler({"a": [], "b": []})
 
 
+def test_table_sampler_warn():
+    """Test that we give a warning if seed is provided with in_order."""
+    raw_data_dict = {
+        "A": [1, 2, 3, 4, 5, 6, 7, 8],
+        "B": [1, 1, 1, 1, 1, 1, 1, 1],
+        "C": [3, 4, 5, 6, 7, 8, 9, 10],
+    }
+    with pytest.warns(UserWarning):
+        _ = TableSampler(raw_data_dict, in_order=True, seed=100, node_label="node")
+
+
 def test_table_sampler_offset():
     """Test that we can retrieve numbers from a TableSampler with an offset."""
     data = {
@@ -370,7 +414,7 @@ def test_table_sampler_randomized():
     }
 
     # Create the table sampler from the data.
-    table_node = TableSampler(raw_data_dict, node_label="node")
+    table_node = TableSampler(raw_data_dict, seed=3, node_label="node")
     state = table_node.sample_parameters(num_samples=2000)
 
     # Check that we can sample a single point.
@@ -402,3 +446,15 @@ def test_table_sampler_randomized():
 
     # We always sample consistent ROWS of a and b.
     assert np.all(b_vals - a_vals == 1)
+
+    # If we reuse the seed, we get the same samples.
+    table_node2 = TableSampler(raw_data_dict, seed=3, node_label="node")
+    state2 = table_node2.sample_parameters(num_samples=2000)
+    assert np.allclose(state["node"]["A"], state2["node"]["A"])
+    assert np.allclose(state["node"]["B"], state2["node"]["B"])
+
+    # If we use a different seed, we get different samples.
+    table_node3 = TableSampler(raw_data_dict, seed=4, node_label="node")
+    state3 = table_node3.sample_parameters(num_samples=2000)
+    assert not np.allclose(state["node"]["A"], state3["node"]["A"])
+    assert not np.allclose(state["node"]["B"], state3["node"]["B"])

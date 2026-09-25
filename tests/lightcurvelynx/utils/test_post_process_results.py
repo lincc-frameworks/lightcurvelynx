@@ -313,9 +313,9 @@ def test_results_augment_lightcurves():
 
     # Check the SNR and detection markings.
     assert "snr" in results["lightcurve"].nest.columns
-    assert _allclose(results["lightcurve.snr"][0].values, [10.0, 12.0])
-    assert _allclose(results["lightcurve.snr"][1].values, [0.1, 0.01])
-    assert _allclose(results["lightcurve.snr"][2].values, [2.5, 6.0])
+    assert _allclose(results["lightcurve.snr"][0].to_numpy(), [10.0, 12.0])
+    assert _allclose(results["lightcurve.snr"][1].to_numpy(), [0.1, 0.01])
+    assert _allclose(results["lightcurve.snr"][2].to_numpy(), [2.5, 6.0])
 
     assert "detection" in results["lightcurve"].nest.columns
     assert results["lightcurve.detection"][0].tolist() == [True, True]
@@ -324,15 +324,15 @@ def test_results_augment_lightcurves():
 
     # Check the AB magnitudes and magnitude errors.
     assert "mag" in results["lightcurve"].nest.columns
-    assert _allclose(results["lightcurve.mag"][0].values, [flux2mag(10.0), flux2mag(12.0)])
-    assert _allclose(results["lightcurve.mag"][1].values, [flux2mag(0.1), flux2mag(0.2)])
-    assert _allclose(results["lightcurve.mag"][2].values, [flux2mag(5.0), flux2mag(6.0)])
+    assert _allclose(results["lightcurve.mag"][0].to_numpy(), [flux2mag(10.0), flux2mag(12.0)])
+    assert _allclose(results["lightcurve.mag"][1].to_numpy(), [flux2mag(0.1), flux2mag(0.2)])
+    assert _allclose(results["lightcurve.mag"][2].to_numpy(), [flux2mag(5.0), flux2mag(6.0)])
 
     assert "magerr" in results["lightcurve"].nest.columns
     for i in range(3):
         assert _allclose(
-            results["lightcurve.magerr"][i].values,
-            (2.5 / np.log(10)) * 1.0 / results["lightcurve.snr"][i].values,
+            results["lightcurve.magerr"][i].to_numpy(),
+            (2.5 / np.log(10)) * 1.0 / results["lightcurve.snr"][i].to_numpy(),
         )
 
     # Without providing a t0, we do not compute relative time.
@@ -347,9 +347,9 @@ def test_results_augment_lightcurves():
     results["t0"] = np.array([59000, 59001, 59002])
     results_augment_lightcurves(results, min_snr=5)
     assert "time_rel" in results["lightcurve"].nest.columns
-    assert _allclose(results["lightcurve.time_rel"][0].values, [0, 1])
-    assert _allclose(results["lightcurve.time_rel"][1].values, [1, 2])
-    assert _allclose(results["lightcurve.time_rel"][2].values, [2, 3])
+    assert _allclose(results["lightcurve.time_rel"][0].to_numpy(), [0, 1])
+    assert _allclose(results["lightcurve.time_rel"][1].to_numpy(), [1, 2])
+    assert _allclose(results["lightcurve.time_rel"][2].to_numpy(), [2, 3])
 
     # Test that we can still write out a file.
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -389,9 +389,9 @@ def test_results_augment_lightcurves_invalid():
 
     # Check the SNR and detection markings.
     assert "snr" in results["lightcurve"].nest.columns
-    assert _allclose(results["lightcurve.snr"][0].values, [10.0, 12.0])
-    assert _allclose(results["lightcurve.snr"][1].values, [0.1, None])
-    assert _allclose(results["lightcurve.snr"][2].values, [2.5, None])
+    assert _allclose(results["lightcurve.snr"][0].to_numpy(), [10.0, 12.0])
+    assert _allclose(results["lightcurve.snr"][1].to_numpy(), [0.1, None])
+    assert _allclose(results["lightcurve.snr"][2].to_numpy(), [2.5, None])
 
     assert "detection" in results["lightcurve"].nest.columns
     assert results["lightcurve.detection"][0].tolist() == [True, True]
@@ -470,18 +470,25 @@ def test_results_augment_lightcurves_single():
     assert "mag" in results.columns
     assert "magerr" in results.columns
     assert "time_rel" not in results.columns
-    assert _allclose(results["snr"].values, [10.0, 12.0, 0.1, 0.01, 2.5, 6.0, None])
-    assert np.array_equal(results["detection"].values, [True, True, False, False, False, True, False])
+    assert _allclose(results["snr"].to_numpy(), [10.0, 12.0, 0.1, 0.01, 2.5, 6.0, None])
+    assert np.array_equal(results["detection"].to_numpy(), [True, True, False, False, False, True, False])
     assert _allclose(
-        results["mag"].values,
+        results["mag"].to_numpy(),
         [flux2mag(10.0), flux2mag(12.0), flux2mag(0.1), flux2mag(0.2), flux2mag(5.0), flux2mag(6.0), None],
     )
-    assert _allclose(results["magerr"].values[:6], (2.5 / np.log(10)) * (1.0 / results["snr"].values[:6]))
+    assert _allclose(
+        results["magerr"].to_numpy()[:6], (2.5 / np.log(10)) * (1.0 / results["snr"].to_numpy()[:6])
+    )
 
     # Try with a t0.
     augment_single_lightcurve(results, min_snr=5, t0=59000)
     assert "time_rel" in results.columns
-    assert _allclose(results["time_rel"].values, [0, 1, 2, 3, 4, 5, 6])
+    assert _allclose(results["time_rel"].to_numpy(), [0, 1, 2, 3, 4, 5, 6])
+
+    # We fail if the lightcurve doesn't have flux or fluxerr columns.
+    results_invalid = results.drop(columns=["flux", "fluxerr"])
+    with pytest.raises(ValueError):
+        augment_single_lightcurve(results_invalid, min_snr=5)
 
 
 def test_results_augment_lightcurves_single_empty():
@@ -603,3 +610,48 @@ def test_results_use_full_filter_names():
 
         results.to_parquet(filename)
         assert filename.exists()
+
+
+def test_results_use_full_filter_names_no_survey():
+    """Test the results_use_full_filter_names function when there is no lightcurve.survey_idx."""
+    # Create a NestedFrame with some empty lightcurves.
+    source_data = {
+        "object_id": [0, 1],
+        "ra": [10.0, 20.0],
+        "dec": [-10.0, -20.0],
+        "nobs": [3, 0],
+        "z": [0.1, 0.2],
+    }
+    results = NestedFrame(data=source_data, index=[0, 1])
+
+    # Create the nested DataFrame for the lightcurves without a survey_idx.
+    nested_data = {
+        "mjd": [59000, 59001, 59002, 59003, 59004, 59005],
+        "flux": [10.0, 12.0, 0.1, 0.2, 5.0, 6.0],
+        "fluxerr": [1.0, 1.0, 1.0, 20.0, 2.0, 1.0],
+        "filter": ["g", "r", "g", "g", "r", "r"],
+    }
+    nested_frame = pd.DataFrame(data=nested_data, index=[0, 0, 1, 1, 1, 1])
+    results = results.join_nested(nested_frame, "lightcurve")
+    assert len(results) == 2
+    assert np.array_equal(results["lightcurve.filter"][0].tolist(), ["g", "r"])
+    assert np.array_equal(results["lightcurve.filter"][1].tolist(), ["g", "g", "r", "r"])
+
+    # Create the passband groups for the test.
+    table_vals = np.array([[4000, 0.5], [5000, 0.75], [6000, 0.5]])
+    passbands1 = PassbandGroup([Passband(table_vals, "survey1", "r"), Passband(table_vals, "survey1", "g")])
+    passbands2 = PassbandGroup([Passband(table_vals, "survey2", "r"), Passband(table_vals, "survey2", "g")])
+
+    # Transform to full filter names. All lightcurves should default to the first survey (survey1)
+    # since there is no survey_idx.
+    res2 = results_use_full_filter_names(results, [passbands1, passbands2])
+    assert res2 is results
+    assert len(results) == 2
+    assert np.array_equal(
+        results["lightcurve.filter"][0].tolist(),
+        ["survey1_g", "survey1_r"],
+    )
+    assert np.array_equal(
+        results["lightcurve.filter"][1].tolist(),
+        ["survey1_g", "survey1_g", "survey1_r", "survey1_r"],
+    )

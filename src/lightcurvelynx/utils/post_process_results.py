@@ -103,11 +103,15 @@ def results_append_obstable_data(results, column_name, obstables):
         The DataFrame with the new parameter column added.
     """
     if isinstance(obstables, ObsTable):
-        obstables = [obstables]
+        obstables = [obstables]  # pragma: no cover
 
     obs_idx = results["lightcurve.obs_idx"]
     survey_idx = results["lightcurve.survey_idx"]
     unique_survey_idx = np.unique(survey_idx)
+    if np.max(unique_survey_idx) > len(obstables) - 1 or np.min(unique_survey_idx) < 0:
+        raise ValueError(
+            f"Survey indices {unique_survey_idx} out of range for the {len(obstables)} provided ObsTables."
+        )  # pragma: no cover
 
     new_col = np.full(len(obs_idx), np.nan)
     for s_idx in unique_survey_idx:
@@ -273,7 +277,7 @@ def results_augment_lightcurves(results, *, min_snr=0.0):
         # Get the index for the t0 entry for each lightcurve MJD and use that
         # to subtract out the reference t0.
         t0 = np.asanyarray(results["t0"])
-        t0_idx = np.array(results["lightcurve"]["mjd"].index)
+        t0_idx = np.asarray(results["lightcurve"]["mjd"].index)
         results["lightcurve.time_rel"] = results["lightcurve.mjd"] - t0[t0_idx]
 
     return results
@@ -299,17 +303,21 @@ def results_use_full_filter_names(results, passbands):
     if not isinstance(results, NestedFrame) or "lightcurve" not in results.columns:
         raise ValueError("results must be a NestedFrame with a 'lightcurve' column.")
 
+    # Create a copy of the original lightcurve.filter column because we will be
+    # modifying the version in the table to include the full filter names.
     if "filter" not in results["lightcurve"].nest.columns:
-        raise ValueError("lightcurve.flux and lightcurve.fluxerr must be present in the DataFrame.")
+        raise ValueError("lightcurve.filter must be present in the DataFrame.")  # pragma: no cover
+    filter_names = results["lightcurve.filter"].to_numpy(copy=True)
 
+    # If we have the survey_idx information, use that. Otherwise only one survey was provided
+    # So we can mark all the entries as coming from survey zero.
     if "survey_idx" in results["lightcurve"].nest.columns:
-        survey_idx = results["lightcurve.survey_idx"].values
+        survey_idx = results["lightcurve.survey_idx"].to_numpy()
     else:
-        survey_idx = np.zeros(len(results), dtype=int)
+        survey_idx = np.zeros(len(filter_names), dtype=int)
 
     # Go through every pair of survey index and filter name and replace
     # the filter name with the full name from the passband group.
-    filter_names = results["lightcurve.filter"].values.copy()
     for s_idx in np.unique(survey_idx):
         for fil in np.unique(filter_names[survey_idx == s_idx]):
             mask = (survey_idx == s_idx) & (filter_names == fil)

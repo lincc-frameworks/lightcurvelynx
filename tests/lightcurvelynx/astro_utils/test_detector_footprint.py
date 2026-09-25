@@ -7,7 +7,13 @@ import pytest
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
-from regions import CirclePixelRegion, CircleSkyRegion, PixCoord, RectanglePixelRegion
+from regions import (
+    CirclePixelRegion,
+    CircleSkyRegion,
+    CompoundPixelRegion,
+    PixCoord,
+    RectanglePixelRegion,
+)
 
 
 def test_rotate_to_center():
@@ -251,3 +257,112 @@ def test_detector_footprint_plot():
 
     # Test that we can plot the footprint.
     fp.plot(point_ra=[0.0], point_dec=[0.0], center_ra=0.0, center_dec=0.0)
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")  # Ignore plotting warning
+def test_detector_footprint_plot_nested_compound():
+    """Test that nested compound regions can be plotted."""
+    first = RectanglePixelRegion(center=PixCoord(x=-2.0, y=0.0), width=2.0, height=2.0)
+    second = RectanglePixelRegion(center=PixCoord(x=2.0, y=0.0), width=2.0, height=2.0)
+    third = RectanglePixelRegion(center=PixCoord(x=0.0, y=3.0), width=2.0, height=2.0)
+    compound_region = (first.union(second)).union(third)
+    assert isinstance(compound_region, CompoundPixelRegion)
+
+    fp = DetectorFootprint(compound_region, pixel_scale=36.0)
+    fp.plot()
+
+
+def test_detector_footprint_from_sorcha_corners(test_data_dir):
+    """Test that we can load a detector footprint from a Sorcha corners file."""
+    filename = test_data_dir / "test_corners.csv"
+    footprint = DetectorFootprint.from_sorcha_corners_file(filename, pixel_scale=0.2)
+    assert footprint is not None
+
+    # The test file is a 3 x 1 array of detectors along the ra dimension.
+    # Each detector is a square of ~800 arcseconds by ~800 arcseconds.
+    # We test it centered on (0.0, 0.0) for ease of computations.
+
+    # 1) Test a bunch of points that should all be inside.
+    assert np.all(
+        footprint.contains(
+            np.array([0.0, 0.333, -0.333, 0.01, 0.300, 0.1, -0.1, 0.2, -0.2]),
+            np.array([0.0, 0.01, -0.01, 0.01, 0.01, 0.0, 0.01, -0.01, 0.01]),
+            0.0,
+            0.0,
+        )
+    )
+
+    # 2) Test the row above (all out).
+    assert not np.any(
+        footprint.contains(
+            np.array([0.0, 0.333, -0.333, 0.01, 0.300]),
+            np.array([0.333, 0.330, 0.330, 0.329, 0.333]),
+            0.0,
+            0.0,
+        )
+    )
+
+    # 3) Test the row below (all out).
+    assert not np.any(
+        footprint.contains(
+            np.array([0.0, 0.333, -0.333, 0.01, 0.300]),
+            np.array([-0.333, -0.330, -0.330, -0.329, -0.333]),
+            0.0,
+            0.0,
+        )
+    )
+
+    # Test outside the RA bounds (all out).
+    assert not np.any(
+        footprint.contains(
+            np.array([1.0, 1.01, 0.99, 1.01, 1.01]),
+            np.array([0.0, 0.01, -0.01, 0.01, 0.01]),
+            0.0,
+            0.0,
+        )
+    )
+
+
+def test_detector_footprint_from_preset_lsst_approx():
+    """Test that we can create a detector footprint from the 'lsst-approx' preset."""
+    footprint = DetectorFootprint.from_preset("lsst-approx")
+    assert footprint is not None
+    assert np.array_equal(
+        footprint.contains(
+            np.array([-1.5, -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5]),
+            np.array([1.5, 1.5, 1.5, 1.5, 0.0, 0.0, 0.0, 0.0, -1.5, -1.5, -1.5, -1.5]),
+            0.0,
+            0.0,
+        ),
+        np.array([False, True, True, False, True, True, True, True, False, True, True, False]),
+    )
+
+
+def test_detector_footprint_from_preset_lsst_ccd():
+    """Test that we can create a detector footprint from the 'lsst-ccd' preset."""
+    footprint = DetectorFootprint.from_preset("lsst-ccd")
+    assert footprint is not None
+    # Test a few points that should be inside the single CCD 0.222 x 0.222 deg.
+    assert np.all(
+        footprint.contains(
+            np.array([-0.1, -0.1, -0.1, 0.0, 0.0, 0.0, 0.1, 0.1, 0.1]),
+            np.array([-0.1, 0.0, 0.1, -0.1, 0.0, 0.1, -0.1, 0.0, 0.1]),
+            0.0,
+            0.0,
+        )
+    )
+    # Test a few points that should be outside the single CCD.
+    assert not np.any(
+        footprint.contains(
+            np.array([-0.2, 0.2, 0.0, 0.0]),
+            np.array([0.0, 0.0, -0.2, 0.2]),
+            0.0,
+            0.0,
+        )
+    )
+
+
+def test_detector_footprint_from_preset_unknown():
+    """Test that we can raise an error if given an unknown survey name."""
+    with pytest.raises(ValueError):
+        DetectorFootprint.from_preset("unknown-survey")

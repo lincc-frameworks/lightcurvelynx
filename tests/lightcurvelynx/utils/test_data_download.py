@@ -69,3 +69,20 @@ def test_download_data_file_if_needed(tmp_path, capsys):
         # With silent=False, we should see print statements from the download process.
         captured = capsys.readouterr()
         assert "Downloading data file from" in captured.out
+
+
+def test_download_data_file_if_needed_fail(tmp_path, caplog):
+    """Test the functionality of downloading a data file using pooch."""
+    data_url = "mock"
+
+    def mock_urlretrieve_fail(url, known_hash, fname, path):
+        full_name = path / fname
+        return full_name
+
+    with patch("pooch.retrieve", side_effect=mock_urlretrieve_fail):
+        # If we fail to download a file we should get a logged error and
+        # the function should return False.
+        data_path_1 = tmp_path / "test_data.dat"
+        result = download_data_file_if_needed(data_path_1, data_url, force_download=False)
+        assert result is False
+        assert "Data file not downloaded" in caplog.text

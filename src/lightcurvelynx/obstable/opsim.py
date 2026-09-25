@@ -86,6 +86,12 @@ class OpSim(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, OpSim-specific defaults will be
         used.
+    detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion, or
+        DetectorFootprint, optional
+        The footprint object for the instrument's detector. If None, no footprint
+        filtering is done. LSST footprints can be generated using the `DetectorFootprint.from_preset`
+        method with either "lsst" (for all 189 chips) or "lsst-approx" (for the approximate layout).
+        Default is None.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -153,12 +159,12 @@ class OpSim(ObsTable):
         "z_20": "z",
     }
 
-    # Class constants for the column names.
     def __init__(
         self,
         table,
         colmap=None,
         saturation_mags=None,
+        detector_footprint=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -171,6 +177,7 @@ class OpSim(ObsTable):
             table,
             colmap=colmap,
             saturation_mags=saturation_mags,
+            detector_footprint=detector_footprint,
             **kwargs,
         )
 

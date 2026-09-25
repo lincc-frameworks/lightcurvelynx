@@ -211,7 +211,7 @@ def test_read_snana_spectrograph_data(test_data_dir):
     assert np.allclose(data["texpose"], [120.0, 3600.0, 7200.0])
     assert data["other_meta"] == "hello"
     assert np.allclose(data["waves_min"], [4000.0, 4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 5500.0, 7000.0])
-    assert np.allclose(data["waves_max"], [4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 4200.0, 6000.0, 7100.0])
+    assert np.allclose(data["waves_max"], [4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 5200.0, 6000.0, 7100.0])
     assert np.allclose(data["waves_sigma"], [0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38])
 
     assert data["snr"].shape == (8, 2, 3)  # W x M x T

@@ -287,6 +287,41 @@ def test_create_lightcurve_band_data_from_lclib_table_periodic() -> None:
         )
 
 
+def test_create_lightcurve_band_data_validation_errors() -> None:
+    """Test validation errors for invalid LightcurveBandData inputs."""
+    with pytest.raises(TypeError):
+        LightcurveBandData(object(), lc_data_t0=0.0)
+
+    with pytest.raises(ValueError):
+        LightcurveBandData(np.array([[0.0, 1.0], [1.0, 2.0]]), lc_data_t0=0.0)
+
+    bad_lightcurves = {
+        "u": np.array([[0.0, 1.0], [2.0, 3.0]]),
+        "g": np.array([[3.0, 4.0], [2.0, 5.0]]),
+    }
+    with pytest.raises(ValueError):
+        LightcurveBandData(bad_lightcurves, lc_data_t0=0.0, periodic=True)
+
+    lc_data = LightcurveBandData(_create_toy_lightcurves(), lc_data_t0=0.0)
+    with pytest.raises(ValueError):
+        lc_data.evaluate_bandfluxes(np.array([0.0, 1.0]), "missing")
+
+
+def test_create_lightcurve_band_data_from_lclib_table_invalid_inputs() -> None:
+    """Test error handling for invalid or incomplete LCLIB table inputs."""
+    with pytest.raises(ValueError):
+        LightcurveBandData.from_lclib_table(Table({"u": [1.0, 2.0]}))
+
+    table = Table({"time": [0.0, 1.0], "u": [1.0, 2.0], "g": [2.0, 3.0]})
+    table.meta["RECUR_CLASS"] = "BAD-CLASS"
+    with pytest.raises(ValueError):
+        LightcurveBandData.from_lclib_table(table)
+
+    empty_table = Table({"time": [0.0]})
+    with pytest.raises(ValueError):
+        LightcurveBandData.from_lclib_table(empty_table, filters=["missing"])
+
+
 def test_create_lightcurve_template_model() -> None:
     """Test that we can create a simple LightcurveTemplateModel object."""
     pb_group = _create_toy_passbands()
@@ -744,6 +779,7 @@ def test_create_multilightcurve_template_model() -> None:
         pb_group,
         weights=[0.25, 0.75],
         t0=0.0,
+        seed=101010,
         node_label="source",
     )
     assert len(model.lightcurves) == 2
@@ -800,6 +836,30 @@ def test_create_multilightcurve_template_model() -> None:
     single_state = model.sample_parameters(num_samples=1)
     assert model.minphase(filter="g", graph_state=single_state) is None
     assert model.maxphase(filter="g", graph_state=single_state) is None
+
+    # If we reuse the seed, we get the same templates.
+    model2 = MultiLightcurveTemplateModel(
+        [lc1_data, lc2_data],
+        pb_group,
+        weights=[0.25, 0.75],
+        t0=0.0,
+        seed=101010,
+        node_label="source",
+    )
+    graph_state2 = model2.sample_parameters(num_samples=1_000)
+    assert np.all(lc_used == graph_state2["source"]["selected_lightcurve"])
+
+    # If we use a different the seed, we get the different templates.
+    model3 = MultiLightcurveTemplateModel(
+        [lc1_data, lc2_data],
+        pb_group,
+        weights=[0.25, 0.75],
+        t0=0.0,
+        seed=101011,
+        node_label="source",
+    )
+    graph_state3 = model3.sample_parameters(num_samples=1_000)
+    assert not np.all(lc_used == graph_state3["source"]["selected_lightcurve"])
 
 
 def test_create_multilightcurve_template_model_indices() -> None:

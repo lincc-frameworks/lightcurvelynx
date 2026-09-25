@@ -68,7 +68,9 @@ class NumericalInversePolynomialFunc(FunctionNode):
         A tuple of (min, max) values to use as bounds for the sampling. If
         not provided, scipy will try to infer the domain.
     seed : int, optional
-        The seed to use.
+            The seed to set the node's default random number generator. If None, then a random seed is used.
+            This parameter is for testing and has no effect when a user-provided random number generator is
+            used during simulation. Default: None
     """
 
     def __init__(self, dist=None, *, domain=None, seed=None, **kwargs):

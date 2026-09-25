@@ -57,7 +57,9 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         the model for after the last valid time. If None is provided the model will not try to
         extrapolate, but rather call compute_sed() for all times.
     seed : int, optional
-        The seed for a random number generator.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     **kwargs : dict, optional
         Any additional keyword arguments.
     """

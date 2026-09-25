@@ -29,7 +29,9 @@ class NumpyRandomFunc(FunctionNode):
         returned value will be ``(num_samples, *size)``.
         Default: None (single values for each sample)
     seed : int, optional
-        The seed to use.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
 
     Note
     ----
@@ -181,7 +183,9 @@ class NumpyMultivariateNormalFunc(FunctionNode):
     cov : array-like
         A D x D array with the covariance matrix of the distribution for each sample.
     seed : int, optional
-        The seed to use.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
 
     Examples
     --------

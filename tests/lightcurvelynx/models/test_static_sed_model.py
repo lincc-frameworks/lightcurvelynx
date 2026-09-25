@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
+from astropy import units as u
 from lightcurvelynx.astro_utils.sed import SED
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
+from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel, StaticSEDModel
 from lightcurvelynx.utils.extrapolate import LinearDecay
 from lightcurvelynx.utils.io_utils import write_numpy_data
@@ -57,8 +59,19 @@ def test_single_static_sed_from_numpy() -> None:
     with pytest.warns(UserWarning):
         # Warns for wavelengths outside the SED range.
         values2 = model.evaluate_spectra(times, sg_pbg, None)
-    expected_row = np.array([17.5, 20.0, 20.0, 17.5, 12.5, 0.0]) * sg_pbg.bin_widths[None, :]
-    expected_all = np.tile(expected_row, (5, 1))
+    row_fnu = np.array([17.5, 20.0, 20.0, 17.5, 12.5, 0.0])
+    row_flam = (
+        fnu_to_flam(
+            row_fnu,
+            sg_pbg.bin_centers[None, :],
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * sg_pbg.bin_widths[None, :]
+    )
+    expected_all = np.tile(row_flam, (5, 1))
+
     assert np.allclose(values2, expected_all)
 
 
@@ -150,7 +163,7 @@ def test_multiple_static_seds() -> None:
         wavelengths=np.array([100.0, 200.0, 300.0, 400.0]),
         fluxes=np.array([20.0, 40.0, 40.0, 20.0]),
     )
-    model = StaticSEDModel([sed0, sed1], weights=[0.25, 0.75], node_label="test")
+    model = StaticSEDModel([sed0, sed1], weights=[0.25, 0.75], seed=42, node_label="test")
     assert len(model) == 2
 
     # Check that all of the indices are 0 or 1 and the split is approximately 25/75
@@ -186,6 +199,11 @@ def test_multiple_static_seds() -> None:
         assert isinstance(sed, SED)
         count += 1
     assert count == 2
+
+    # If we reuse the same seed, we should get the same results.
+    model2 = StaticSEDModel([sed0, sed1], weights=[0.25, 0.75], seed=42, node_label="test")
+    params2 = model2.sample_parameters(num_samples=10_000)
+    assert np.all(params["test"]["selected_idx"] == params2["test"]["selected_idx"])
 
 
 def test_multiple_static_seds_min_max():

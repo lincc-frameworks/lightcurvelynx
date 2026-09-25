@@ -6,6 +6,40 @@ from mocpy import MOC
 from scipy.spatial import KDTree
 
 
+def validate_ra_dec_degrees(ra, dec):
+    """Validate RA/Dec inputs in degrees and return arrays with matching shape.
+
+    Parameters
+    ----------
+    ra: float or numpy.ndarray
+        Right ascension in degrees.
+    dec: float or numpy.ndarray
+        Declination in degrees.
+
+    Returns
+    -------
+    ra: numpy.ndarray
+        Validated right ascension array in degrees.
+    dec: numpy.ndarray
+        Validated declination array in degrees.
+    """
+    if ra is None or dec is None:
+        raise ValueError("RA and Dec must not be None.")
+
+    ra = np.atleast_1d(ra).astype(float) % 360.0
+    dec = np.atleast_1d(dec).astype(float)
+    if np.any(dec < -90.0) or np.any(dec > 90.0):
+        raise ValueError("Declination values must be in the range [-90, 90] degrees.")
+    if not np.all(np.isfinite(ra)) or not np.all(np.isfinite(dec)):
+        raise ValueError("RA and Dec cannot contain NaN or infinite values.")
+
+    # Check that the shapes of RA and Dec match.
+    if ra.shape != dec.shape:
+        raise ValueError("RA and Dec arrays must have the same shape.")
+
+    return ra, dec
+
+
 def ra_dec_to_cartesian(ra, dec):
     """
     Batch convert right ascension and declination to Cartesian coordinates.
@@ -31,11 +65,7 @@ def ra_dec_to_cartesian(ra, dec):
         Z coordinate.
     """
     # Check the bounds of the inputs and handle wrapping in RA.
-    ra = np.asarray(ra) % 360.0
-    dec = np.asarray(dec)
-    if np.any(dec < -90.0) or np.any(dec > 90.0):
-        raise ValueError("Declination values must be in the range [-90, 90] degrees.")
-
+    ra, dec = validate_ra_dec_degrees(ra, dec)
     ra_rad = np.radians(ra)
     dec_rad = np.radians(dec)
 
@@ -68,10 +98,7 @@ def dedup_coords(ra, dec, threshold=1e-5):
     unique_indices: numpy.ndarray
         Indices of the unique coordinates in the original arrays.
     """
-    ra = np.asarray(ra)
-    dec = np.asarray(dec)
-    if np.size(ra) != np.size(dec):
-        raise ValueError("RA and Dec arrays must have the same length.")
+    ra, dec = validate_ra_dec_degrees(ra, dec)
 
     # Create a KD-tree for efficient nearest neighbor search.
     x, y, z = ra_dec_to_cartesian(ra, dec)
@@ -88,7 +115,7 @@ def dedup_coords(ra, dec, threshold=1e-5):
     for idx, matches in enumerate(close_points):
         if len(matches) == 1 or idx == np.min(matches):
             unique_indices.append(idx)
-    unique_indices = np.array(unique_indices)
+    unique_indices = np.asarray(unique_indices)
 
     unique_ra = ra[unique_indices]
     unique_dec = dec[unique_indices]
@@ -114,8 +141,7 @@ def build_moc_from_coords(ra, dec, depth=8):
     moc: MOC
         MOC object representing the sky coverage of the input coordinates.
     """
-    if len(ra) != len(dec):
-        raise ValueError("RA and Dec arrays must have the same length.")
+    ra, dec = validate_ra_dec_degrees(ra, dec)
     coords = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs")
     hpix = skycoord_to_healpix(coords, depth)
     unique_hpix = np.unique(hpix)

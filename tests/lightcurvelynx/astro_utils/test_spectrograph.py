@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
+from astropy import units as u
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph, gaussian_integral
+from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 
 
 def test_create_spectrograph_from_regular_grid():
@@ -20,23 +22,83 @@ def test_create_spectrograph_from_regular_grid():
 
     assert str(spgraph) == "Spectrograph (spectra) [3000.0A - 11000.0A]"
 
+    # One dimensional fluxes to spec_fluxes
+    values_1d = np.random.random(len(spgraph))
+    spec_fluxes_1d = spgraph.evaluate(values_1d)
+    expected_density_per_bin_1d = fnu_to_flam(
+        values_1d,
+        spgraph.bin_centers,
+        wave_unit=u.AA,
+        flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+        fnu_unit=u.nJy,
+    )
+    expected_flux_1d = expected_density_per_bin_1d * spgraph.bin_widths
+    assert spec_fluxes_1d.shape == (len(spgraph),)
+    assert np.allclose(spec_fluxes_1d, expected_flux_1d)
+
     # Two dimensional fluxes to spec_fluxes
     values = np.random.random((10, len(spgraph)))
     spec_fluxes = spgraph.evaluate(values)
-    expected = values * spgraph.bin_widths[np.newaxis, :]
-    assert np.allclose(spec_fluxes, expected)
+    expected_density_per_bin = fnu_to_flam(
+        values,
+        spgraph.bin_centers,
+        wave_unit=u.AA,
+        flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+        fnu_unit=u.nJy,
+    )
+    expected_flux = expected_density_per_bin * spgraph.bin_widths[np.newaxis, :]
+    assert spec_fluxes.shape == (10, len(spgraph))
+    assert np.allclose(spec_fluxes, expected_flux)
 
     # Three dimensional fluxes to spec_fluxes
     values_3d = np.random.random((4, 10, len(spgraph)))
     spec_fluxes_3d = spgraph.evaluate(values_3d)
-    expected_3d = values_3d * spgraph.bin_widths[np.newaxis, np.newaxis, :]
-    assert np.allclose(spec_fluxes_3d, expected_3d)
+    expected_density_per_bin_3d = fnu_to_flam(
+        values_3d,
+        spgraph.bin_centers,
+        wave_unit=u.AA,
+        flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+        fnu_unit=u.nJy,
+    )
+    expected_flux_3d = expected_density_per_bin_3d * spgraph.bin_widths[np.newaxis, np.newaxis, :]
+    assert spec_fluxes_3d.shape == (4, 10, len(spgraph))
+    assert np.allclose(spec_fluxes_3d, expected_flux_3d)
+
+    # We fail evaluation with incorrect input shape, empty arrays, or mismatched dimensions
+    with pytest.raises(ValueError):
+        spgraph.evaluate(np.random.random((10, len(spgraph) + 1)))
+    with pytest.raises(ValueError):
+        spgraph.evaluate(np.random.random((4, 10, len(spgraph) + 1)))
+    with pytest.raises(ValueError):
+        spgraph.evaluate(np.random.random((0, len(spgraph))))
+    with pytest.raises(ValueError):
+        spgraph.evaluate(np.random.random((4, 0, len(spgraph))))
 
     # Test that we fail to create a Spectrograph object with invalid parameters.
     with pytest.raises(ValueError):
         _ = Spectrograph.from_regular_grid(wave_start=5000, wave_end=4000, bin_width=5.0)
     with pytest.raises(ValueError):
         _ = Spectrograph.from_regular_grid(wave_start=4000, wave_end=5000, bin_width=-5.0)
+
+
+def test_spectrograph_evaluate_converts_njy_to_flam():
+    """Test that nJy flux densities are converted to F_lambda before integrating."""
+    spgraph = Spectrograph.from_regular_grid(wave_start=4000.0, wave_end=5000.0, bin_width=200.0)
+    values = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float)
+
+    expected = (
+        fnu_to_flam(
+            values,
+            spgraph.query_waves,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * spgraph._query_widths
+    )
+    results = spgraph.evaluate(values)
+
+    assert np.allclose(results, expected)
 
 
 def test_create_spectrograph_from_irregular_grid():
@@ -53,18 +115,52 @@ def test_create_spectrograph_from_irregular_grid():
     assert l_val == 3500.0
     assert h_val == 8500.0
     assert np.allclose(spgraph.bin_widths, [500.0, 1000.0, 2000.0, 500.0, 500.0, 500.0])
-
     assert str(spgraph) == "custom_spectrograph (spectra) [3500.0A - 8500.0A]"
+
+    # One dimensional fluxes to spec_fluxes
+    values_1d = np.random.random(len(spgraph))
+    spec_fluxes_1d = spgraph.evaluate(values_1d)
+    expected_1d = (
+        fnu_to_flam(
+            values_1d,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * spgraph.bin_widths
+    )
+    assert spec_fluxes_1d.shape == (len(spgraph),)
+    assert np.allclose(spec_fluxes_1d, expected_1d)
+
     # Two dimensional fluxes to spec_fluxes
     values = np.random.random((10, len(spgraph)))
     spec_fluxes = spgraph.evaluate(values)
-    expected = values * spgraph.bin_widths[np.newaxis, :]
+    expected = (
+        fnu_to_flam(
+            values,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * spgraph.bin_widths[np.newaxis, :]
+    )
     assert np.allclose(spec_fluxes, expected)
 
     # Three dimensional fluxes to spec_fluxes
     values_3d = np.random.random((4, 10, len(spgraph)))
     spec_fluxes_3d = spgraph.evaluate(values_3d)
-    expected_3d = values_3d * spgraph.bin_widths[np.newaxis, np.newaxis, :]
+    expected_3d = (
+        fnu_to_flam(
+            values_3d,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * spgraph.bin_widths[np.newaxis, np.newaxis, :]
+    )
     assert np.allclose(spec_fluxes_3d, expected_3d)
 
     # We fail a query if the flux density matrix is empty.
@@ -82,6 +178,13 @@ def test_create_spectrograph_from_irregular_grid():
     with pytest.raises(ValueError):
         # waves_max is not greater than waves_min
         _ = Spectrograph([1000.0, 2000.0, 3000.0], [2000.0, 1500.0, 4000.0])
+    with pytest.raises(ValueError):
+        # A non-positive max_wave_step.
+        _ = Spectrograph(
+            [1000.0, 2000.0, 3000.0],
+            [2000.0, 3000.0, 4000.0],
+            max_wave_step=0.0,
+        )
 
 
 def test_create_spectrograph_from_bad_bins():
@@ -97,6 +200,17 @@ def test_create_spectrograph_from_bad_bins():
         _ = Spectrograph(waves_min_ooo, waves_max_ooo)
 
 
+def test_spectrograph_from_snana_file(test_data_dir):
+    """Test creating a Spectrograph object from a SNANA file."""
+    spec_file = test_data_dir / "fake_snana_spectrograph.dat"
+    spgraph = Spectrograph.from_snana_file(str(spec_file))
+    assert spgraph.instrument == "FAKE_SPECTRO"
+    assert spgraph.num_bins == 8
+    assert np.allclose(spgraph.waves_min, [4000.0, 4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 5500.0, 7000.0])
+    assert np.allclose(spgraph.waves_max, [4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 5200.0, 6000.0, 7100.0])
+    assert np.allclose(spgraph.wavelength_resolution, [0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38])
+
+
 def test_spectrograph_equals():
     """Test that we can compare two Spectrograph objects for equality."""
     spgraph1 = Spectrograph.from_regular_grid(wave_start=4000, wave_end=8000, bin_width=5.0)
@@ -105,7 +219,9 @@ def test_spectrograph_equals():
     spgraph4 = Spectrograph.from_regular_grid(wave_start=3000, wave_end=8000, bin_width=5.0)
     spgraph5 = Spectrograph.from_regular_grid(wave_start=4000, wave_end=9000, bin_width=5.0)
     spgraph6 = Spectrograph.from_regular_grid(
-        wave_start=4000, wave_end=8000, bin_width=5.0,
+        wave_start=4000,
+        wave_end=8000,
+        bin_width=5.0,
         wavelength_resolution=np.full(spgraph1.num_bins, 10.0),
     )
 
@@ -125,7 +241,17 @@ def test_create_spectrograph_with_scale():
 
     # One dimensional fluxes to spec_fluxes
     measurement = np.array([50.0, 40.0, 20.0, 20.0, 10.0])
-    expected = np.array([25.0, 40.0, 20.0, 20.0, 8.0]) * spgraph.bin_widths
+    expected_fnu = np.array([25.0, 40.0, 20.0, 20.0, 8.0])
+    expected = (
+        fnu_to_flam(
+            expected_fnu,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * spgraph.bin_widths
+    )
     results = spgraph.evaluate(measurement)
     assert np.allclose(results, expected)
 
@@ -136,12 +262,19 @@ def test_create_spectrograph_with_scale():
             [5.0, 15.0, 25.0, 35.0, 45.0],
         ]
     )
+    expected_fnu = np.array(
+        [
+            [5.0, 20.0, 30.0, 40.0, 40.0],
+            [2.5, 15.0, 25.0, 35.0, 36.0],
+        ]
+    )
     expected = (
-        np.array(
-            [
-                [5.0, 20.0, 30.0, 40.0, 40.0],
-                [2.5, 15.0, 25.0, 35.0, 36.0],
-            ]
+        fnu_to_flam(
+            expected_fnu,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
         )
         * spgraph.bin_widths[np.newaxis, :]
     )
@@ -161,18 +294,25 @@ def test_create_spectrograph_with_scale():
             ],
         ]
     )
-    expected = (
-        np.array(
+    expected_fnu = np.array(
+        [
             [
-                [
-                    [5.0, 20.0, 30.0, 40.0, 40.0],
-                    [2.5, 15.0, 25.0, 35.0, 36.0],
-                ],
-                [
-                    [4.0, 18.0, 28.0, 38.0, 38.4],
-                    [2.0, 14.0, 24.0, 34.0, 35.2],
-                ],
-            ]
+                [5.0, 20.0, 30.0, 40.0, 40.0],
+                [2.5, 15.0, 25.0, 35.0, 36.0],
+            ],
+            [
+                [4.0, 18.0, 28.0, 38.0, 38.4],
+                [2.0, 14.0, 24.0, 34.0, 35.2],
+            ],
+        ]
+    )
+    expected = (
+        fnu_to_flam(
+            expected_fnu,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
         )
         * spgraph.bin_widths[np.newaxis, np.newaxis, :]
     )
@@ -209,12 +349,19 @@ def test_create_spectrograph_with_float_scale():
             [5.0, 15.0, 25.0, 35.0, 45.0],
         ]
     )
+    expected_fnu = np.array(
+        [
+            [5.0, 10.0, 15.0, 20.0, 25.0],
+            [2.5, 7.5, 12.5, 17.5, 22.5],
+        ]
+    )
     expected = (
-        np.array(
-            [
-                [5.0, 10.0, 15.0, 20.0, 25.0],
-                [2.5, 7.5, 12.5, 17.5, 22.5],
-            ]
+        fnu_to_flam(
+            expected_fnu,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
         )
         * spgraph.bin_widths[np.newaxis, :]
     )
@@ -253,7 +400,17 @@ def test_create_spectrograph_max_wave_step():
 
     # Test one dimensional fluxes to spec_fluxes
     measurement1 = np.array([0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0])
-    expected1 = np.array([5.0, 20.0, 30.0, 45.0, 75.0]) * spgraph.bin_widths
+    expected1_fnu = np.array([5.0, 20.0, 30.0, 45.0, 75.0])
+    expected1 = (
+        fnu_to_flam(
+            expected1_fnu,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
+        )
+        * spgraph.bin_widths
+    )
     results1 = spgraph.evaluate(measurement1)
     assert np.allclose(results1, expected1)
     assert results1.shape == (spgraph.num_bins,)
@@ -265,12 +422,19 @@ def test_create_spectrograph_max_wave_step():
             [5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0, 95.0],
         ]
     )  # Number query waves by num times
+    expected2_fnu = np.array(
+        [
+            [5.0, 20.0, 30.0, 45.0, 75.0],
+            [10.0, 25.0, 35.0, 50.0, 80.0],
+        ]
+    )
     expected2 = (
-        np.array(
-            [
-                [5.0, 20.0, 30.0, 45.0, 75.0],
-                [10.0, 25.0, 35.0, 50.0, 80.0],
-            ]
+        fnu_to_flam(
+            expected2_fnu,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
         )
         * spgraph.bin_widths[np.newaxis, :]
     )
@@ -280,18 +444,25 @@ def test_create_spectrograph_max_wave_step():
 
     # Test three dimensional fluxes to bandfluxes
     measurement3 = np.array([measurement2, measurement2 + 2.0])
-    expected3 = (
-        np.array(
+    expected3_fnu = np.array(
+        [
             [
-                [
-                    [5.0, 20.0, 30.0, 45.0, 75.0],
-                    [10.0, 25.0, 35.0, 50.0, 80.0],
-                ],
-                [
-                    [7.0, 22.0, 32.0, 47.0, 77.0],
-                    [12.0, 27.0, 37.0, 52.0, 82.0],
-                ],
-            ]
+                [5.0, 20.0, 30.0, 45.0, 75.0],
+                [10.0, 25.0, 35.0, 50.0, 80.0],
+            ],
+            [
+                [7.0, 22.0, 32.0, 47.0, 77.0],
+                [12.0, 27.0, 37.0, 52.0, 82.0],
+            ],
+        ]
+    )
+    expected3 = (
+        fnu_to_flam(
+            expected3_fnu,
+            spgraph.bin_centers,
+            wave_unit=u.AA,
+            flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+            fnu_unit=u.nJy,
         )
         * spgraph.bin_widths[np.newaxis, np.newaxis, :]
     )
@@ -299,18 +470,15 @@ def test_create_spectrograph_max_wave_step():
     assert np.allclose(results3, expected3)
     assert results3.shape == (2, 2, spgraph.num_bins)
 
-    # oversample_factor=1 takes the "one point per bin" fast path directly, and must
-    # account for any padding introduced by wavelength_resolution.
+    # check padding introduced by wavelength_resolution.
     resolution = np.full(5, 30.0)
-    spgraph_padded = Spectrograph(
-        wave_min, wave_max, oversample_factor=1, wavelength_resolution=resolution
-    )
+    spgraph_padded = Spectrograph(wave_min, wave_max, wavelength_resolution=resolution)
     assert spgraph_padded.num_padded_bins > spgraph_padded.num_bins
     assert len(spgraph_padded.query_waves) == spgraph_padded.num_padded_bins
     assert np.allclose(
         spgraph_padded.query_waves, (spgraph_padded.padded_min + spgraph_padded.padded_max) / 2
     )
-    result = spgraph_padded.evaluate(np.random.random(spgraph_padded.query_waves.shape), smear=True)
+    result = spgraph_padded.evaluate(np.random.random(spgraph_padded.query_waves.shape))
     assert result.shape == (spgraph_padded.num_bins,)
 
     # We fail to create a Spectrograph object with an invalid max_wave_step (<= 0.0).
@@ -332,6 +500,66 @@ def test_create_spectrograph_unneeded_max_wave_step():
 
     # The query waves should still be the bin midpoints.
     assert np.allclose(spgraph.query_waves, (wave_min + wave_max) / 2)
+
+
+def test_create_spectrograph_max_wave_step_aggregates_subbins():
+    """Test that split bins are correctly aggregated back into original spectrograph bins."""
+    wave_min = np.array([3500.0, 3600.0, 3650.0, 3700.0, 3800.0])
+    wave_max = np.array([3600.0, 3650.0, 3700.0, 3800.0, 4000.0])
+    spgraph = Spectrograph(wave_min, wave_max, max_wave_step=50.0)
+
+    # Each bin is split into multiple sub-bins; we make the per-sample fluxes
+    # distinct so the aggregation is easy to validate.
+    values = np.array([0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0])
+    result = spgraph.evaluate(values)
+
+    # Expectation: each original spectrograph bin gets the sum of the converted
+    # sub-bin contributions within it.
+    expected = np.array(
+        [
+            fnu_to_flam(
+                5.0,
+                spgraph.bin_centers[0],
+                wave_unit=u.AA,
+                flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+                fnu_unit=u.nJy,
+            )
+            * spgraph.bin_widths[0],
+            fnu_to_flam(
+                20.0,
+                spgraph.bin_centers[1],
+                wave_unit=u.AA,
+                flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+                fnu_unit=u.nJy,
+            )
+            * spgraph.bin_widths[1],
+            fnu_to_flam(
+                30.0,
+                spgraph.bin_centers[2],
+                wave_unit=u.AA,
+                flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+                fnu_unit=u.nJy,
+            )
+            * spgraph.bin_widths[2],
+            fnu_to_flam(
+                45.0,
+                spgraph.bin_centers[3],
+                wave_unit=u.AA,
+                flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+                fnu_unit=u.nJy,
+            )
+            * spgraph.bin_widths[3],
+            fnu_to_flam(
+                75.0,
+                spgraph.bin_centers[4],
+                wave_unit=u.AA,
+                flam_unit=u.erg / u.s / u.cm**2 / u.AA,
+                fnu_unit=u.nJy,
+            )
+            * spgraph.bin_widths[4],
+        ]
+    )
+    assert np.allclose(result, expected)
 
 
 def test_create_spectrograph_with_wavelength_resolution():
@@ -361,7 +589,7 @@ def test_spectrograph_smear_matrix_values():
     waves_min = np.array([4000.0, 4020.0, 4040.0])
     waves_max = np.array([4020.0, 4040.0, 4060.0])
     resolution = np.full(3, 10.0)  # sigma = bin_width / 2
-    spgraph = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution)
+    spgraph = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution, compute_smear=True)
 
     # Index of the middle observed bin (center 4030) within the padded array.
     middle = int(np.argmax(~spgraph.is_padding)) + 1
@@ -376,36 +604,35 @@ def test_spectrograph_smear_matrix_values():
     assert np.all(spgraph.smear_matrix[:, spgraph.is_padding] == 0.0)
 
     # With zero resolution the smear matrix is the identity (no cross-bin mixing).
-    spgraph_no_res = Spectrograph(waves_min, waves_max)
+    zero_resolution = np.full(3, 0.0)
+    spgraph_no_res = Spectrograph(
+        waves_min, waves_max, wavelength_resolution=zero_resolution, compute_smear=True
+    )
     assert np.allclose(spgraph_no_res.smear_matrix, np.eye(spgraph_no_res.num_bins))
 
 
 def test_spectrograph_evaluate_with_smearing():
-    """Test that evaluate() smears flux across bins and that smear=False bypasses it."""
+    """Test that evaluate() smears flux across bins"""
     waves_min = np.arange(4000.0, 4400.0, 20.0)
     waves_max = np.arange(4020.0, 4420.0, 20.0)
     resolution = np.full(len(waves_min), 30.0)
-    spgraph = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution)
+    spgraph = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution, compute_smear=True)
+    spgraph_unsmeared = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution)
 
     # A flat flux density should stay (approximately) flat after smearing, since
     # padding supplies the flux that would otherwise be lost at the edges.
     flux_density = 3.7
     flat_input = np.full(spgraph.query_waves.shape, flux_density)
-    expected = flux_density * spgraph.bin_widths
-
-    smeared = spgraph.evaluate(flat_input, smear=True)
+    unsmeared = spgraph_unsmeared.evaluate(flat_input)
+    smeared = spgraph.evaluate(flat_input)
     assert smeared.shape == (spgraph.num_bins,)
-    assert np.allclose(smeared, expected, rtol=5e-3)
-
-    # With smear=False, there is no cross-bin mixing and the result is exact.
-    unsmeared = spgraph.evaluate(flat_input, smear=False)
-    assert np.allclose(unsmeared, expected)
+    assert np.allclose(smeared, unsmeared, rtol=5e-3)
 
     # A single narrow spike of flux should spread into neighboring bins when smeared,
     # while approximately conserving total flux.
     spike_input = np.zeros_like(spgraph.query_waves)
     spike_input[len(spike_input) // 2] = 100.0
-    spiked = spgraph.evaluate(spike_input, smear=True)
-    not_spiked = spgraph.evaluate(spike_input, smear=False)
+    spiked = spgraph.evaluate(spike_input)
+    not_spiked = spgraph_unsmeared.evaluate(spike_input)
     assert np.sum(spiked > 0) > np.sum(not_spiked > 0)
     assert np.sum(spiked) == pytest.approx(np.sum(not_spiked), rel=0.05)

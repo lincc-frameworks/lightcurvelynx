@@ -52,6 +52,26 @@ def test_numpy_random_uniform():
         NumpyRandomFunc("uniform", size=())
 
 
+def test_numpy_random_uniform_seed_override():
+    """Test that we can generate numbers from a uniform distribution where we
+    override the given seed with a given random number generator."""
+    np_node1 = NumpyRandomFunc("uniform", seed=100)
+    used_rng1 = np.random.default_rng(100)
+    values1 = np.array([np_node1.generate(rng_info=used_rng1) for _ in range(10_000)])
+
+    # Different seed, but overridden by given random number generator.
+    np_node2 = NumpyRandomFunc("uniform", seed=101)
+    used_rng2 = np.random.default_rng(100)
+    values2 = np.array([np_node2.generate(rng_info=used_rng2) for _ in range(10_000)])
+    assert np.allclose(values1, values2)
+
+    # Same seed, but overridden by different random number generator.
+    np_node3 = NumpyRandomFunc("uniform", seed=100)
+    used_rng3 = np.random.default_rng(101)
+    values3 = np.array([np_node3.generate(rng_info=used_rng3) for _ in range(10_000)])
+    assert not np.allclose(values1, values3)
+
+
 def test_numpy_random_uniform_multi_samples():
     """Test that we can generate many numbers at once from a uniform distribution."""
     np_node = NumpyRandomFunc("uniform", seed=100)

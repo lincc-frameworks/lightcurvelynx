@@ -13,6 +13,7 @@ from astropy import units as u
 from astropy.table import Table
 from lightcurvelynx.astro_utils.passbands import Passband
 from lightcurvelynx.models.sed_template_model import SEDTemplateModel
+from lightcurvelynx.utils.extrapolate import ZeroPadding
 
 
 def create_lsst_passband(path, filter_name, **kwargs):
@@ -54,6 +55,18 @@ def test_trim_transmission_by_quantile():
     assert trimmed_table.shape == (82, 2)
     assert np.allclose(trimmed_table[:, 0], waves[8:90])
     assert np.allclose(trimmed_table[:, 1], values[8:90])
+
+    # NaN value should raise a ValueError.
+    with pytest.raises(ValueError):
+        Passband.trim_transmission_by_quantile(np.array([[1000, np.nan], [1005, 0.6]]), 0.1)
+
+    # Negative transmission value should raise a ValueError.
+    with pytest.raises(ValueError):
+        Passband.trim_transmission_by_quantile(np.array([[1000, -0.5], [1005, 0.6]]), 0.1)
+
+    # A transmission curve with zero total area should raise a ValueError.
+    with pytest.raises(ValueError):
+        Passband.trim_transmission_by_quantile(np.array([[1000, 0.0], [1005, 0.0]]), 0.1)
 
 
 def test_normalize_transmission():
@@ -214,6 +227,11 @@ def test_passband_load_transmission_table(passbands_dir, tmp_path):
         a_band.transmission_table,
         np.array([[1000, 0.4], [1005, 0.6], [1010, 0.7]]),
     )
+
+    # Test that we raise an error if the transmission table does not exist.
+    test_pb_file_name = Path(tmp_path) / "non_existent.dat"
+    with pytest.raises(FileNotFoundError):
+        a_band.load_transmission_table(test_pb_file_name)
 
     # Test that we raise an error if the transmission table is blank
     transmission_table = ""
@@ -644,18 +662,25 @@ def test_passband_wrapped_from_physical_source(passbands_dir, tmp_path):
     # Set up physical model
     sed_values = np.array(
         [
-            [1.0, 10.0, 1.0],
-            [1.0, 20.0, 5.0],
-            [1.0, 30.0, 1.0],
-            [2.0, 10.0, 5.0],
-            [2.0, 20.0, 10.0],
-            [2.0, 30.0, 5.0],
-            [3.0, 10.0, 1.0],
-            [3.0, 20.0, 5.0],
-            [3.0, 30.0, 3.0],
+            [1.0, 1000.0, 1.0],
+            [1.0, 2000.0, 5.0],
+            [1.0, 3000.0, 1.0],
+            [2.0, 1000.0, 5.0],
+            [2.0, 2000.0, 10.0],
+            [2.0, 3000.0, 5.0],
+            [3.0, 1000.0, 1.0],
+            [3.0, 2000.0, 5.0],
+            [3.0, 3000.0, 3.0],
         ]
     )
-    model = SEDTemplateModel(sed_values, sed_data_t0=0.0, interpolation_type="linear", t0=0.0)
+    model = SEDTemplateModel(
+        sed_values,
+        sed_data_t0=0.0,
+        interpolation_type="linear",
+        t0=0.0,
+        time_extrapolation=ZeroPadding(),
+        wave_extrapolation=ZeroPadding(),
+    )
     state = model.sample_parameters()
 
     test_times = np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5])

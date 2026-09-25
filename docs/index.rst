@@ -8,7 +8,7 @@ Realistic light curve simulations are essential to many time-domain problems.
 Simulations are needed to evaluate observing strategy, characterize biases, 
 and test pipelines. LightCurveLynx aims to provide a flexible, scalable, and user-friendly time-domain simulation software with realistic effects and survey strategies.
 
-For an introduction to the package see our recent [LINCC Frameworks Tech Talk on YouTube](https://www.youtube.com/watch?reload=9&v=H0HqXD2iS94).
+For an introduction to the package see our recent `LINCC Frameworks Tech Talk on YouTube <https://www.youtube.com/watch?reload=9&v=H0HqXD2iS94>`_.
 
 .. figure:: _static/lightcurvelynx-intro.png
    :class: no-scaled-link
@@ -42,6 +42,7 @@ many excellent existing modeling packages. Wrappers are provided for popular pac
 
 * `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`_ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
 * `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/Bayesian>`).
+* `MOSFiT <https://github.com/guillochon/MOSFiT>`_ - A package of semi-analytic models for a wide range of transients, including superluminous supernovae, kilonovae and tidal disruption events.
 * `PyLIMA <https://github.com/ebachelet/pyLIMA>`_ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
 * `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
 * `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`_ - A package for simulating supernovae.
@@ -180,6 +181,7 @@ This project is supported by Schmidt Sciences.
    Custom Models and Effects <custom_models>
    Noise Models <noise_models>
    Results and Output <results_and_output>
+   Randomness <randomness>
    Notebooks <notebooks>
    API Reference <autoapi/index>
    Glossary <glossary>

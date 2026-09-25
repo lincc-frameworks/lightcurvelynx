@@ -66,7 +66,7 @@ Users can rebuild the original ``GraphState`` object from the parameters using t
 
 .. code-block:: python
 
-    state = GraphState.from_list(results["params"].values)
+    state = GraphState.from_list(results["params"].to_numpy())
 
 Users can also extract a dictionary of parameters for a specific row (``index``) using:
 

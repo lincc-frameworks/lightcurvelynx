@@ -60,7 +60,7 @@ class MultiObjectModel(SEDModel):
                 self._is_bandflux[idx] = True
                 self._any_bandflux = True
             elif not isinstance(object, BasePhysicalModel):
-                raise ValueError("All objects must be BasePhysicalModel objects.")
+                raise TypeError("All objects must be BasePhysicalModel objects.")
 
         self.objects = objects
         self.num_objects = len(objects)
@@ -217,8 +217,10 @@ class AdditiveMultiObjectModel(MultiObjectModel):
 
     Note
     ----
-    Each model may have its own sampled (RA, dec) position, which are not
+    * Each model may have its own sampled (RA, dec) position, which are not
     required to align.
+    * Bounds checking and extrapolation is performed on each submodel independently, allowing
+    them to have different wavelength ranges.
 
     Attributes
     ----------
@@ -255,50 +257,6 @@ class AdditiveMultiObjectModel(MultiObjectModel):
             raise ValueError("Length of weights must match length of objects.")
         else:
             self.weights = weights
-
-    def minwave(self, graph_state=None):
-        """Get the minimum wavelength of the model. For additive models, this is
-        a list of minimums for each object.
-
-        Note
-        ----
-        Wavelength extrapolation is handled by each object. So the actual wavelength's
-        can be evaluated outside the range of each object.
-
-        Parameters
-        ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the minimum wavelength.
-
-        Returns
-        -------
-        minwave : list of float or None
-            The minimum wavelength of the each object (in angstroms) or None
-        """
-        return [object.minwave(graph_state=graph_state) for object in self.objects]
-
-    def maxwave(self, graph_state=None):
-        """Get the maximum wavelength of the model. For additive models, this is
-        a list of maximums for each object.
-
-        Note
-        ----
-        Wavelength extrapolation is handled by each object. So the actual wavelength's
-        can be evaluated outside the range of each object.
-
-        Parameters
-        ----------
-        graph_state : GraphState, optional
-            An object mapping graph parameters to their values. If provided,
-            the function will use the graph state to compute the maximum wavelength.
-
-        Returns
-        -------
-        maxwave : list of float or None
-            The maximum wavelength of the each object (in angstroms) or None
-        """
-        return [object.maxwave(graph_state=graph_state) for object in self.objects]
 
     def _evaluate_single(self, times, wavelengths, state, **kwargs):
         """Evaluate the model and apply the effects for a single, given graph state.
@@ -418,6 +376,9 @@ class RandomMultiObjectModel(MultiObjectModel):
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
         a object at random. If None, all objects will be weighted equally.
+    object_names : list, optional
+        A list of names for the objects. If None, the names will be inferred
+        from the objects themselves.
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
@@ -431,8 +392,14 @@ class RandomMultiObjectModel(MultiObjectModel):
     ):
         super().__init__(objects, **kwargs)
 
-        # Create a parameter to indicate which object was selected.
+        # Copy or derive the list of object names.
         object_names = object_names or [src.node_string for src in objects]
+        if len(object_names) != len(objects):
+            raise ValueError("The number of object names must match the number of objects.")
+        if np.unique(object_names).size != len(object_names):
+            raise ValueError("Object names must be unique.")
+
+        # Create a parameter to indicate which object was selected.
         self.object_map = {name: src for name, src in zip(object_names, objects, strict=False)}
         self._sampler_node = GivenValueSampler(object_names, weights=weights)
         self.add_parameter(
@@ -457,6 +424,8 @@ class RandomMultiObjectModel(MultiObjectModel):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
         name = self.get_param(graph_state, "selected_object")
         return self.object_map[name].minwave(graph_state=graph_state)
 
@@ -475,8 +444,50 @@ class RandomMultiObjectModel(MultiObjectModel):
             The maximum wavelength of the model (in angstroms) or None
             if the model does not have a defined maximum wavelength.
         """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
         name = self.get_param(graph_state, "selected_object")
         return self.object_map[name].maxwave(graph_state=graph_state)
+
+    def minphase(self, graph_state=None):
+        """Get the minimum supported phase of the model in days.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the minimum phase.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine time bounds.")
+        name = self.get_param(graph_state, "selected_object")
+        return self.object_map[name].minphase(graph_state=graph_state)
+
+    def maxphase(self, graph_state=None):
+        """Get the maximum supported phase of the model in days.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the maximum phase.
+
+        Returns
+        -------
+        maxphase : float or None
+            The maximum phase of the model (in days) or None
+            if the model does not have a defined maximum phase.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine time bounds.")
+        name = self.get_param(graph_state, "selected_object")
+        return self.object_map[name].maxphase(graph_state=graph_state)
 
     def _evaluate_single(self, times, wavelengths, state, **kwargs):
         """Evaluate the model and apply the effects for a single, given graph state.

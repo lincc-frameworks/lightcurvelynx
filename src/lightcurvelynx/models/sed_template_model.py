@@ -14,7 +14,7 @@ import astropy.units as u
 import numpy as np
 import yaml
 from citation_compass import cite_inline
-from scipy.interpolate import RectBivariateSpline
+from scipy.interpolate import RectBivariateSpline, interp1d
 from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
@@ -35,7 +35,9 @@ class SEDTemplate:
     times : np.ndarray
         A length T array of the times for the SED relative to the reference epoch.
     interp : scipy.interpolate object
-        The type of interpolation to use. One of 'linear' or 'spline'.
+        The type of interpolation to use. One of 'linear' or 'cubic'.
+    baseline_interp : scipy.interpolate object or None
+        The interpolation object for the baseline SED values, if provided. None if no baseline is used.
     period : float or None
         The period of this data, if it is periodic. Default is None.
 
@@ -75,6 +77,16 @@ class SEDTemplate:
             )
         self.phases, self.wavelengths, sed_values = SEDTemplate._three_column_to_matrix(grid_data)
 
+        # Check that the data is not empty and sorted.
+        if len(self.phases) == 0:
+            raise ValueError("Phases array is empty.")  # pragma: no cover
+        if len(self.wavelengths) == 0:
+            raise ValueError("Wavelengths array is empty.")  # pragma: no cover
+        if not np.all(np.diff(self.phases) >= 0):
+            raise ValueError("Phases must be sorted in ascending order.")  # pragma: no cover
+        if not np.all(np.diff(self.wavelengths) >= 0):
+            raise ValueError("Wavelengths must be sorted in ascending order.")  # pragma: no cover
+
         # Apply the sed_data_t0 offset to the phases to get the times.
         self.times = self.phases - sed_data_t0
 
@@ -103,6 +115,7 @@ class SEDTemplate:
             self.period = None
 
         # Set up the interpolation object for this SED.
+        self._interpolation_type = interpolation_type
         interp_degree = 3 if interpolation_type == "cubic" else 1
         self.interp = RectBivariateSpline(
             self.times,
@@ -111,6 +124,15 @@ class SEDTemplate:
             kx=interp_degree,
             ky=interp_degree,
         )
+
+        if self.baseline is not None:
+            self.baseline_interp = interp1d(
+                self.wavelengths,
+                self.baseline,
+                kind=self._interpolation_type,
+                bounds_error=False,
+                fill_value=0.0,
+            )
 
     @property
     def is_periodic(self):
@@ -195,14 +217,22 @@ class SEDTemplate:
         sed_values : np.ndarray
             A (T x W) matrix of SED values (in the given units) at the given times and wavelengths.
         """
+        sed_values = np.zeros((len(times), len(wavelengths)))
+
         if self.period is None:
-            sed_values = np.zeros((len(times), len(wavelengths)))
+            # Check which times and wavelengths are in range and only evaluate those.
+            time_in_range = (times >= self.times[0]) & (times <= self.times[-1])
+            wave_in_range = (wavelengths >= self.wavelengths[0]) & (wavelengths <= self.wavelengths[-1])
+            query_waves = wavelengths[wave_in_range]
 
-            in_range = (times >= self.times[0]) & (times <= self.times[-1])
-            sed_values[in_range, :] = self.interp(times[in_range], wavelengths, grid=True)
+            sed_values[np.ix_(time_in_range, wave_in_range)] = self.interp(
+                times[time_in_range], query_waves, grid=True
+            )
 
+            # Outside the time range use the (wavelength-interpolated) baseline value.
             if self.baseline is not None:
-                sed_values[~in_range, :] = self.baseline[np.newaxis, :]
+                baseline_values = self.baseline_interp(query_waves)
+                sed_values[np.ix_(~time_in_range, wave_in_range)] = baseline_values
         else:
             # Create the modulo times for periodic evaluation and an inverse mapping to original order.
             times = np.mod(times, self.period)
@@ -210,8 +240,12 @@ class SEDTemplate:
             inv_idx = np.empty_like(argsort_idx)
             inv_idx[argsort_idx] = np.arange(len(times))
 
-            sed_values = self.interp(times[argsort_idx], wavelengths, grid=True)
-            sed_values = sed_values[inv_idx, :]
+            # Check which wavelengths are in range and only evaluate those.
+            wave_in_range = (wavelengths >= self.wavelengths[0]) & (wavelengths <= self.wavelengths[-1])
+            query_waves = wavelengths[wave_in_range]
+
+            partial_sed_values = self.interp(times[argsort_idx], query_waves, grid=True)
+            sed_values[np.ix_(np.arange(len(times)), wave_in_range)] = partial_sed_values[inv_idx, :]
         return sed_values
 
     @staticmethod
@@ -258,6 +292,8 @@ class SEDTemplateModel(SEDModel):
     is not periodic then the given values will be interpolated during the time range
     of the template. Values outside the time range (before and after) will be set to
     the baseline value for that wavelength (0.0 by default).
+
+    The values for all wavelengths outside the range of the data will be zero.
 
     Parameterized values include:
 
@@ -356,6 +392,74 @@ class SEDTemplateModel(SEDModel):
         """The wavelengths of the template data (in Angstroms)."""
         return self.template.wavelengths
 
+    def minwave(self, **kwargs):
+        """Get the minimum supported wavelength of the model.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        minwave : float or None
+            The minimum wavelength of the model (in angstroms) or None
+            if the model does not have a defined minimum wavelength.
+        """
+        return self.wavelengths[0]
+
+    def maxwave(self, **kwargs):
+        """Get the maximum supported wavelength of the model.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        maximum : float or None
+            The maximum wavelength of the model (in angstroms) or None
+            if the model does not have a defined maximum wavelength.
+        """
+        return self.wavelengths[-1]
+
+    def minphase(self, **kwargs):
+        """Get the minimum supported phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        if self.template.is_periodic or self.template.baseline is not None:
+            return None
+        return self.times[0]
+
+    def maxphase(self, **kwargs):
+        """Get the maximum supported phase of the model in days.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional keyword arguments, not used in this method.
+
+        Returns
+        -------
+        maximum : float or None
+            The maximum phase of the model (in days) or None
+            if the model does not have a defined maximum phase.
+        """
+        if self.template.is_periodic or self.template.baseline is not None:
+            return None
+        return self.times[-1]
+
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.
 
@@ -402,6 +506,10 @@ class MultiSEDTemplateModel(SEDModel):
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
         a template at random. If None, all templates will be weighted equally.
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
     def __init__(
@@ -409,6 +517,7 @@ class MultiSEDTemplateModel(SEDModel):
         templates,
         *,
         weights=None,
+        seed=None,
         **kwargs,
     ):
         # Validate the input templates.
@@ -420,7 +529,7 @@ class MultiSEDTemplateModel(SEDModel):
         super().__init__(**kwargs)
 
         all_inds = list(range(len(templates)))
-        self._sampler_node = GivenValueSampler(all_inds, weights=weights)
+        self._sampler_node = GivenValueSampler(all_inds, weights=weights, seed=seed)
         self.add_parameter(
             "selected_template",
             value=self._sampler_node,
@@ -431,6 +540,92 @@ class MultiSEDTemplateModel(SEDModel):
     def __len__(self):
         """Get the number of SED templates."""
         return len(self.templates)
+
+    def minwave(self, graph_state=None):
+        """Get the minimum wavelength of the model.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the minimum wavelength.
+
+        Returns
+        -------
+        minwave : float, list of float, or None
+            The minimum wavelength of the model (in angstroms) or None
+            if the model does not have a defined minimum wavelength.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
+        template_id = self.get_param(graph_state, "selected_template")
+        return self.templates[template_id].wavelengths[0]
+
+    def maxwave(self, graph_state=None):
+        """Get the maximum wavelength of the model.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the maximum wavelength.
+
+        Returns
+        -------
+        maxwave : float or None
+            The maximum wavelength of the model (in angstroms) or None
+            if the model does not have a defined maximum wavelength.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine wavelength bounds.")
+        template_id = self.get_param(graph_state, "selected_template")
+        return self.templates[template_id].wavelengths[-1]
+
+    def minphase(self, graph_state=None):
+        """Get the minimum phase of the model in days.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the minimum phase.
+
+        Returns
+        -------
+        minphase : float or None
+            The minimum phase of the model (in days) or None
+            if the model does not have a defined minimum phase.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine time bounds.")
+        template_id = self.get_param(graph_state, "selected_template")
+        template = self.templates[template_id]
+        if template.is_periodic or template.baseline is not None:
+            return None
+        return template.times[0]
+
+    def maxphase(self, graph_state=None):
+        """Get the maximum phase of the model in days.
+
+        Parameters
+        ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values. If provided,
+            the function will use the graph state to compute the maximum phase.
+
+        Returns
+        -------
+        maxphase : float or None
+            The maximum phase of the model (in days) or None
+            if the model does not have a defined maximum phase.
+        """
+        if graph_state is None or graph_state.num_samples != 1:
+            raise ValueError("A 1 sample graph_state must be provided to determine time bounds.")
+        template_id = self.get_param(graph_state, "selected_template")
+        template = self.templates[template_id]
+        if template.is_periodic or template.baseline is not None:
+            return None
+        return template.times[-1]
 
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.
@@ -473,11 +668,23 @@ class SIMSEDModel(MultiSEDTemplateModel):
         The data for the templates, such as the times and bandfluxes in each filter.
     flux_scale : float
         A scale factor to apply to all fluxes read from the SIMSED data files.
+
+    Parameters
+    ----------
+    templates : list of SEDTemplate
+        The data for the templates, such as the times and bandfluxes in each filter.
+    flux_scale : float, optional
+        A scale factor to apply to all fluxes read from the SIMSED data files.
+        Default: 1.0
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
-    def __init__(self, templates, flux_scale=1.0, **kwargs):
+    def __init__(self, templates, flux_scale=1.0, *, seed=None, **kwargs):
         self.flux_scale = flux_scale
-        super().__init__(templates, **kwargs)
+        super().__init__(templates, seed=seed, **kwargs)
         if not self.has_valid_param("distance"):
             raise ValueError(
                 "SIMSEDModel requires a valid 'distance' parameter representing luminosity distance in pc. "
@@ -486,13 +693,17 @@ class SIMSEDModel(MultiSEDTemplateModel):
             )
 
     @classmethod
-    def from_dir(cls, simsed_dir, **kwargs):
+    def from_dir(cls, simsed_dir, *, seed=None, **kwargs):
         """Read SNANA-formatted data from a directory and create a SIMSEDModel.
 
         Parameters
         ----------
         simsed_dir : str or Path
             The directory containing the SIMSED-formatted data files.
+        seed : int, optional
+            The seed to set the node's default random number generator. If None, then a random seed is used.
+            This parameter is for testing and has no effect when a user-provided random number generator is
+            used during simulation. Default: None
         **kwargs : dict
             Additional keyword arguments to pass to the SIMSEDModel constructor.
 
@@ -523,7 +734,7 @@ class SIMSEDModel(MultiSEDTemplateModel):
             f"SIMSED data files from {simsed_dir}. Check the SED.INFO file for citation information.",
         )
 
-        return cls(templates, flux_scale=flux_scale, **kwargs)
+        return cls(templates, flux_scale=flux_scale, seed=seed, **kwargs)
 
     @staticmethod
     def _read_simsed_info_file(simsed_dir):

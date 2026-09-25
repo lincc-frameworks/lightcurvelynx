@@ -76,9 +76,6 @@ class GraphState:
     def __len__(self):
         return self.num_parameters
 
-    def __next__(self):
-        return next(self._iterate())
-
     def __iter__(self):
         return self._iterate()
 
@@ -217,7 +214,7 @@ class GraphState:
             new_state.states[node_name] = {}
             for var_name, var_value in node_vars.items():
                 if self.num_samples == 1:
-                    new_state.states[node_name][var_name] = var_value
+                    new_state.states[node_name][var_name] = copy.deepcopy(var_value)
                 else:
                     new_state.states[node_name][var_name] = var_value.copy()
 
@@ -496,7 +493,7 @@ class GraphState:
                 f"variable={var_name}: {self.num_samples} vs {len(value)}."
             )
         elif force_copy:
-            self.states[node_name][var_name] = np.array(value.copy())
+            self.states[node_name][var_name] = np.array(value, copy=True)
         else:
             self.states[node_name][var_name] = np.asarray(value)
 
@@ -643,7 +640,7 @@ class GraphState:
         GraphState
             The sliced GraphState.
         """
-        if self.num_samples <= 0:
+        if self.num_samples <= 0:  # pragma: no cover
             raise ValueError("Cannot sample an empty GraphState")
         if start < 0 or stop > self.num_samples or start >= stop:
             raise ValueError(f"Invalid slice [{start}:{stop}] in GraphState with {self.num_samples} entries.")
@@ -689,6 +686,9 @@ class GraphState:
         if isinstance(params, str):
             params = [params]
 
+        if len(params) == 0:
+            raise ValueError("No parameters specified for extraction.")
+
         # Go through all the parameters. If a parameters full name is provided,
         # look it up now and save the result. Otherwise put it into a list to check
         # for in each node.
@@ -704,7 +704,7 @@ class GraphState:
             else:
                 single_params.add(current)
 
-        if len(single_params) == 0:
+        if len(single_params) == 0:  # pragma: no cover
             # Nothing else to do.
             return results
 

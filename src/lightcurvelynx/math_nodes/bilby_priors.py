@@ -18,7 +18,9 @@ class BilbyPriorNode(FunctionNode, CiteClass):
     prior : dict or bilby.prior.PriorDict
         A dictionary mapping the names of the parameters to their prior distributions.
     seed : int, optional
-        The seed to use.
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
 
     Note
     ----

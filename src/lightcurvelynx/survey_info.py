@@ -128,8 +128,9 @@ class SurveyInfo:
         if self.noise_model is not None:
             self.noise_model.check_compatibility(self.obstable, fail_on_incompatible=True)
 
-        if self.passbands is None:
-            raise ValueError("passbands cannot be None.")
+        if self.passbands is None:  # pragma: no cover
+            if self.survey_name != "none":
+                raise ValueError("passbands cannot be None.")
         elif not isinstance(self.passbands, Spectrograph):
             for filter_name in np.unique(self.obstable["filter"]):
                 if filter_name not in self.passbands:

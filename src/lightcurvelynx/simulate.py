@@ -411,8 +411,8 @@ def _simulate_lightcurves_batch(simulation_info):
     ]
 
     # Get all times and all filters as numpy arrays so we can do easy subsets.
-    all_times = [np.asarray(obstable[i]["time"].values, dtype=float) for i in range(num_surveys)]
-    all_filters = [np.asarray(obstable[i]["filter"].values, dtype=str) for i in range(num_surveys)]
+    all_times = [obstable[i]["time"].to_numpy(dtype=float) for i in range(num_surveys)]
+    all_filters = [obstable[i]["filter"].to_numpy(dtype=str) for i in range(num_surveys)]
 
     # We loop over objects first, then surveys. This allows us to generate a single block
     # of data for the object over all surveys.

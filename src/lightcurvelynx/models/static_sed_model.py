@@ -34,12 +34,18 @@ class StaticSEDModel(SEDModel):
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
         an SED at random. If None, all SEDs will be weighted equally.
+    seed : int, optional
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
     def __init__(
         self,
         sed_values,
         weights=None,
+        *,
+        seed=None,
         **kwargs,
     ):
         # If only a single SED was passed, then put it in a list by itself.
@@ -66,7 +72,7 @@ class StaticSEDModel(SEDModel):
 
         # Create a parameter that indicates which SED was sampled in each simulation.
         all_inds = list(range(len(self.sed_values)))
-        self._sampler_node = GivenValueSampler(all_inds, weights=weights)
+        self._sampler_node = GivenValueSampler(all_inds, weights=weights, seed=seed)
         self.add_parameter(
             "selected_idx",
             value=self._sampler_node,

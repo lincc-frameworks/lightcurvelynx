@@ -22,9 +22,9 @@ class RandomChoiceNode(FunctionNode):
         are equally likely.
         Default: None
     seed : int, optional
-        The seed for the random number generator. If not provided, the node will
-        use a random seed.
-        Default: None
+        The seed to set the node's default random number generator. If None, then a random seed is used.
+        This parameter is for testing and has no effect when a user-provided random number generator is
+        used during simulation. Default: None
     """
 
     def __init__(self, values, *, weights=None, seed=None, **kwargs):

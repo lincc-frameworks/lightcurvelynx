@@ -322,20 +322,21 @@ class RomanObsTable(ObsTable):
         for f in np.unique(self.apt_table.BANDPASS):
             if f == "PRISM" or f == "GRISM":
                 continue
-            zp_abmag = self.zp_table.loc[self.zp_table.element == f, "ABMag"].values[0]
+            zp_abmag = self.zp_table.loc[self.zp_table.element == f, "ABMag"].to_numpy()[0]
             self.apt_table.loc[f == self.apt_table.BANDPASS, "zp_abmag"] = zp_abmag
-            n_eff_pix = self.psf_table.loc[self.psf_table["Filter"] == f, "N_Eff_Pix"].values[0]
+            n_eff_pix = self.psf_table.loc[self.psf_table["Filter"] == f, "N_Eff_Pix"].to_numpy()[0]
             self.apt_table.loc[f == self.apt_table.BANDPASS, "N_Eff_Pix"] = n_eff_pix
-            sigma_zodi_min = self.zodiacal_table.loc[self.zodiacal_table["filter"] == f, "rate"].values[0]
+            sigma_zodi_min = self.zodiacal_table.loc[self.zodiacal_table["filter"] == f, "rate"].to_numpy()[0]
             self.apt_table.loc[f == self.apt_table.BANDPASS, "zodi_countrate_min"] = sigma_zodi_min
-            sigma_thermal = self.thermal_table.loc[self.thermal_table["filter"] == f, "rate"].values[0]
+            sigma_thermal = self.thermal_table.loc[self.thermal_table["filter"] == f, "rate"].to_numpy()[0]
             self.apt_table.loc[f == self.apt_table.BANDPASS, "thermal_countrate"] = sigma_thermal
 
         ## We don't need to map exposure time since new APT files includes exposure time column.
         ## Keeping these for now for the record.
         # self.apt_table["exptime"] = 0.0
         # for mat_number in np.unique(self.apt_table.MA_TABLE_NUMBER):
-        #     exptime = self.ma_table.loc[self.ma_table["MATableNumber"] == mat_number, "Exptime"].values[0]
+        #     exptime = self.ma_table.loc[self.ma_table["MATableNumber"] == mat_number,
+        #     "Exptime"].to_numpy()[0]
         #     self.apt_table.loc[mat_number == self.apt_table.MA_TABLE_NUMBER, "exptime"] = exptime
 
         # map survey name for HLTDS

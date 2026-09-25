@@ -10,6 +10,7 @@ from astropy import units as u
 from astropy.table import Table
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.models.sed_template_model import SEDTemplateModel
+from lightcurvelynx.utils.extrapolate import ZeroPadding
 
 
 def create_lsst_passband_group(passbands_dir, delta_wave=5.0, trim_quantile=None):
@@ -62,7 +63,7 @@ def create_toy_passband_group(path, delta_wave=5.0, trim_quantile=None):
     return PassbandGroup(passbands)
 
 
-def test_passband_group_access(tmp_path):
+def test_passband_group_access():
     """Test that we can create a passband group and access the individual passbands."""
     table_vals = np.array([[100, 0.5], [200, 0.75], [300, 0.25]])
     pb_list = [
@@ -117,7 +118,7 @@ def test_passband_group_access(tmp_path):
     assert np.array_equal(pb_group.mask_by_filter(filters), expected)
 
 
-def test_passband_group_create(tmp_path):
+def test_passband_group_create():
     """Test that we can create passband groups with different inputs."""
     table_vals = np.array([[100, 0.5], [200, 0.75], [300, 0.25]])
     pb1 = Passband(table_vals, "survey1", "a", trim_quantile=None)
@@ -134,8 +135,12 @@ def test_passband_group_create(tmp_path):
     with pytest.raises(ValueError):
         _ = PassbandGroup(given_passbands=[])
 
+    # We throw and error if we get invalid input.
+    with pytest.raises(TypeError):
+        _ = PassbandGroup(given_passbands=[123])  # Invalid type
 
-def test_passband_group_process_transmission_tables(tmp_path):
+
+def test_passband_group_process_transmission_tables():
     """Test that we can create reprocess the passbands in a group."""
     table_vals = np.array([[100, 0.5], [200, 0.75], [300, 0.25]])
     pb1 = Passband(table_vals, "survey1", "a", delta_wave=5.0, trim_quantile=None)
@@ -598,6 +603,10 @@ def test_passband_group_fluxes_to_bandfluxes(passbands_dir):
         bandflux = lsst_passband_group.fluxes_to_bandflux(flux, band_name)
         np.testing.assert_allclose(bandflux, bandfluxes[band_name])
 
+    # Test that we fail with a non-2D flux matrix.
+    with pytest.raises(ValueError):
+        _ = lsst_passband_group.fluxes_to_bandfluxes(np.array([1, 2, 3]))
+
     # Test that we fail with a bad flux matrix (not enough wavelengths).
     with pytest.raises(ValueError):
         _ = lsst_passband_group.fluxes_to_bandfluxes(np.array([[1, 2], [3, 4]]))
@@ -612,21 +621,28 @@ def test_passband_group_wrapped_from_physical_source(passbands_dir, tmp_path):
     # Set up physical model
     sed_values = np.array(
         [
-            [1.0, 10.0, 1.0],
-            [1.0, 20.0, 5.0],
-            [1.0, 30.0, 1.0],
-            [2.0, 10.0, 5.0],
-            [2.0, 20.0, 10.0],
-            [2.0, 30.0, 5.0],
-            [3.0, 10.0, 1.0],
-            [3.0, 20.0, 5.0],
-            [3.0, 30.0, 3.0],
+            [1.0, 1000.0, 1.0],
+            [1.0, 2000.0, 5.0],
+            [1.0, 3000.0, 1.0],
+            [2.0, 1000.0, 5.0],
+            [2.0, 2000.0, 10.0],
+            [2.0, 3000.0, 5.0],
+            [3.0, 1000.0, 1.0],
+            [3.0, 2000.0, 5.0],
+            [3.0, 3000.0, 3.0],
         ]
     )
-    model = SEDTemplateModel(sed_values, sed_data_t0=0.0, t0=0.0, interpolation_type="linear")
+    model = SEDTemplateModel(
+        sed_values,
+        sed_data_t0=0.0,
+        t0=0.0,
+        interpolation_type="linear",
+        time_extrapolation=ZeroPadding(),
+        wave_extrapolation=ZeroPadding(),
+    )
     state = model.sample_parameters()
 
-    test_times = np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5])
+    test_times = np.array([1.0, 1.5, 2.0, 2.5, 3.0])
 
     # Test wrapper with a PassbandGroup as input (see Passband tests for single-band tests)
     # Using LSST passband group:
