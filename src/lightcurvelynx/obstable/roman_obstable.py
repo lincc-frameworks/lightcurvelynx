@@ -3,11 +3,12 @@ import pandas as pd
 from astropy.table import Table
 from citation_compass import cite_function
 
-from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
+from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR, _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
 from lightcurvelynx.obstable.obs_table import ObsTable
+from lightcurvelynx.utils.data_download import download_data_file_if_needed
 
 ROMAN_PIXEL_SCALE = 0.11
 """The pixel scale for Roman in arcseconds per pixel.
@@ -37,11 +38,21 @@ https://roman.gsfc.nasa.gov/science/WFI_technical.html
 - For observation into the galactic bulge, the Zodi intensity is typically 2.5-7x the minimum.
 """
 
-
 _psf_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/refs/heads/main/roman_technical_information/data/WideFieldInstrument/Imaging/PointSpreadFunctions/SummaryPSFstats_center.ecsv"
 _zp_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/refs/heads/main/roman_technical_information/data/WideFieldInstrument/Imaging/ZeroPoints/Roman_zeropoints_20240301.ecsv"
 _thermal_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/refs/heads/main/roman_technical_information/data/WideFieldInstrument/Imaging/Backgrounds/internal_thermal_backgrounds.ecsv"
 _zodiacal_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/refs/heads/main/roman_technical_information/data/WideFieldInstrument/Imaging/ZodiacalLight/zodiacal_light.ecsv"
+
+# A mapping of the table name (string) to a tuple of data containing: the expected file location,
+# the fallback URL, and any extra keyword params (or overrides) to use when loading.
+_ROMAN_BASE_DIR = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "roman_data"
+_roman_files_and_urls = {
+    "psf_table": (_ROMAN_BASE_DIR / "SummaryPSFstats_center.ecsv", _psf_url, {}),
+    "zp_table": (_ROMAN_BASE_DIR / "Roman_zeropoints.ecsv", _zp_url, {"delimiter": " "}),
+    "thermal_table": (_ROMAN_BASE_DIR / "internal_thermal_backgrounds.ecsv", _thermal_url, {}),
+    "zodiacal_min_table": (_ROMAN_BASE_DIR / "zodiacal_light.ecsv", _zodiacal_url, {}),
+}
+
 
 hltds_pass_map = {
     "PC": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
@@ -50,18 +61,42 @@ hltds_pass_map = {
 }
 
 
-def _get_roman_char():
-    psf_table = Table.read(_psf_url, format="csv", comment="#").to_pandas()
-    zp_table = Table.read(_zp_url, format="csv", comment="#", delimiter=" ").to_pandas()
-    thermal_table = Table.read(_thermal_url, format="csv", comment="#").to_pandas()
-    zodiacal_table = Table.read(_zodiacal_url, format="csv", comment="#").to_pandas()
+def _get_roman_char(force_download=False):
+    """
+    Create a dictionary of table names to Pandas DataFrames with the loaded information.
 
-    return {
-        "psf_table": psf_table,
-        "zp_table": zp_table,
-        "thermal_table": thermal_table,
-        "zodiacal_min_table": zodiacal_table,
-    }
+    Parameters
+    ----------
+    force_download : bool
+        Force LightCurveLynx to redownload (and thus refresh) the data. Otherwise it uses
+        a cached version.
+        Default: False
+
+    Returns
+    -------
+    tables_dict : dict
+        A dictionary mapping each table name (string) to a Pandas DataFrame.
+    """
+    tables_dict = {}
+    for name, info in _roman_files_and_urls.items():
+        # Download the table to our data cache directory if it is not already there.
+        success = download_data_file_if_needed(
+            info[0],
+            info[1],
+            force_download=force_download,
+            silent=True,
+        )
+        if not success:
+            raise ValueError(f"Unable to access table {name} from URL {info[1]}")
+
+        # Load the table using astropy and convert it to Pandas.
+        read_params = {"format": "csv", "comment": "#"}
+        if len(info[2]) > 0:
+            read_params.update(info[2])
+        loaded_table = Table.read(info[0], **read_params)
+        tables_dict[name] = loaded_table.to_pandas()
+
+    return tables_dict
 
 
 def _get_ma_table(ma_table_path=None):
@@ -153,6 +188,10 @@ class RomanObsTable(ObsTable):
     saturation_mags : dict, optional
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, saturation effects will not be applied.
+    force_download : bool, optional
+        Force the code to redownload all the data files. If False, it will try to use the cached
+        version (if they exist).
+        Default: False
     **kwargs : dict
         Additional keyword arguments to pass to the ObsTable constructor. This includes overrides
         for survey parameters such as:
@@ -207,13 +246,14 @@ class RomanObsTable(ObsTable):
         colmap=None,
         ma_table_path=None,
         saturation_mags=None,
+        force_download=False,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
 
         self.apt_table = table
         self.ma_table = _get_ma_table(ma_table_path)
-        roman_char = _get_roman_char()
+        roman_char = _get_roman_char(force_download=force_download)
         self.zp_table = roman_char["zp_table"]
         self.psf_table = roman_char["psf_table"]
         self.thermal_table = roman_char["thermal_table"]
