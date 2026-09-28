@@ -11,7 +11,6 @@ more accurately simulate aspects such as the impact of redshift on rest frame ef
 
 import warnings
 from abc import ABC
-from os import urandom
 
 import numpy as np
 
@@ -57,10 +56,6 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         the redshift and the cosmology.
     node_label : str, optional
         The label for the node in the model graph.
-    seed : int, optional
-        The seed to set the node's default random number generator. If None, then a random seed is used.
-        This parameter is for testing and has no effect when a user-provided random number generator is
-        used during simulation. Default: None
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
@@ -74,7 +69,6 @@ class BasePhysicalModel(ParameterizedNode, ABC):
         t0=None,
         distance=None,
         node_label=None,
-        seed=None,
         **kwargs,
     ):
         super().__init__(node_label=node_label, **kwargs)
@@ -111,12 +105,6 @@ class BasePhysicalModel(ParameterizedNode, ABC):
             self.add_parameter(
                 "distance", None, description="The object's luminosity distance (in pc)", allow_gradient=False
             )
-
-        # Get a default random number generator for this object, using the
-        # given seed if one is provided.
-        if seed is None:
-            seed = int.from_bytes(urandom(4), "big")
-        self._rng = np.random.default_rng(seed=seed)
 
     def minwave(self, **kwargs):
         """Get the minimum supported wavelength of the model.
