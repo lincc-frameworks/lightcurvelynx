@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 import numpy as np
 import pandas as pd
 from astropy.table import Table
@@ -43,14 +45,15 @@ _zp_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical
 _thermal_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/refs/heads/main/roman_technical_information/data/WideFieldInstrument/Imaging/Backgrounds/internal_thermal_backgrounds.ecsv"
 _zodiacal_url = "https://raw.githubusercontent.com/RomanSpaceTelescope/roman-technical-information/refs/heads/main/roman_technical_information/data/WideFieldInstrument/Imaging/ZodiacalLight/zodiacal_light.ecsv"
 
-# A mapping of the table name (string) to a tuple of data containing: the expected file location,
-# the fallback URL, and any extra keyword params (or overrides) to use when loading.
+# A mapping of the table name (string) to a tuple of data containing: the URL and
+# any extra keyword params (or overrides) to use when loading. The file name is created
+# automatically from the URL information.
 _ROMAN_BASE_DIR = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "roman_data"
 _roman_files_and_urls = {
-    "psf_table": (_ROMAN_BASE_DIR / "SummaryPSFstats_center.ecsv", _psf_url, {}),
-    "zp_table": (_ROMAN_BASE_DIR / "Roman_zeropoints.ecsv", _zp_url, {"delimiter": " "}),
-    "thermal_table": (_ROMAN_BASE_DIR / "internal_thermal_backgrounds.ecsv", _thermal_url, {}),
-    "zodiacal_min_table": (_ROMAN_BASE_DIR / "zodiacal_light.ecsv", _zodiacal_url, {}),
+    "psf_table": (_psf_url, {}),
+    "zp_table": (_zp_url, {"delimiter": " "}),
+    "thermal_table": (_thermal_url, {}),
+    "zodiacal_min_table": (_zodiacal_url, {}),
 }
 
 
@@ -80,20 +83,22 @@ def _get_roman_char(force_download=False):
     tables_dict = {}
     for name, info in _roman_files_and_urls.items():
         # Download the table to our data cache directory if it is not already there.
+        url_str = info[0]
+        filename = _ROMAN_BASE_DIR / urlparse(url_str).path.split("/")[-1]
         success = download_data_file_if_needed(
-            info[0],
-            info[1],
+            filename,
+            url_str,
             force_download=force_download,
             silent=True,
         )
         if not success:
-            raise ValueError(f"Unable to access table {name} from URL {info[1]}")
+            raise ValueError(f"Unable to access table {name} from URL {url_str}")
 
         # Load the table using astropy and convert it to Pandas.
         read_params = {"format": "csv", "comment": "#"}
-        if len(info[2]) > 0:
-            read_params.update(info[2])
-        loaded_table = Table.read(info[0], **read_params)
+        if len(info[1]) > 0:
+            read_params.update(info[1])
+        loaded_table = Table.read(filename, **read_params)
         tables_dict[name] = loaded_table.to_pandas()
 
     return tables_dict
