@@ -469,6 +469,7 @@ def _simulate_lightcurves_batch(simulation_info):
                         obs_table=obstable[survey_idx],
                         indices=obs_index,
                         rng=rng,
+                        sed=sed
                     )
 
                 # We append each spectral as a separate entry in the spectra nested dictionary.
