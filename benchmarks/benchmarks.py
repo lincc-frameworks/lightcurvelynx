@@ -9,15 +9,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from astropy import units as u
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.astro_utils.snia_utils import DistModFromRedshift, HostmassX1Func, X0FromDistMod
-from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.effects.white_noise import WhiteNoise
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.ra_dec_sampler import ApproximateMOCSampler
-from lightcurvelynx.models.basic_models import ConstantSEDModel, LinearWavelengthModel, StepModel
+from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.lightcurve_template_model import LightcurveTemplateModel
 from lightcurvelynx.models.multi_object_model import AdditiveMultiObjectModel
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
@@ -94,9 +92,6 @@ class TimeSuite:
             redshift=self.redshift,
         )
 
-        # A simple LinearWavelengthModel that we can use in tests.
-        self.linear_source = LinearWavelengthModel(linear_base=1.0, linear_scale=0.1)
-
         # Create samples that we can use in tests.
         self.times = np.arange(-20.0, 50.0, 0.5)
         self.wavelengths = self.passbands.waves
@@ -130,13 +125,10 @@ class TimeSuite:
         """Time the application of white noise to a sample."""
         _ = self.white_noise.apply(self.fluxes, white_noise_sigma=0.1)
 
-    def time_make_x1_from_hostmass(self):
-        """Time the creation of the X1 function."""
-        _ = HostmassX1Func(self.hostmass)
-
-    def time_sample_x1_from_hostmass(self):
-        """Time the computation of the X1 function."""
-        _ = self.x1_func.sample_parameters()
+    def time_make_and_sample_x1_from_hostmass(self):
+        """Time the creation and computation of the X1 function."""
+        x1_func = HostmassX1Func(self.hostmass)
+        _ = x1_func.sample_parameters()
 
     def time_sample_x0_from_distmod(self):
         """Time the computation of the X0 function."""
@@ -149,14 +141,6 @@ class TimeSuite:
         times = np.arange(0.0, 10.0, 0.05)
         wavelengths = np.arange(1000.0, 2000.0, 5.0)
         _ = model.evaluate_sed(times, wavelengths, state)
-
-    def time_make_simple_linear_wavelength_model(self):
-        """Time creating a simple LinearWavelengthModel."""
-        _ = LinearWavelengthModel(linear_base=1.0, linear_scale=0.1)
-
-    def time_evaluate_simple_linear_wavelength_model(self):
-        """Time evaluating a simple LinearWavelengthModel."""
-        _ = self.linear_source.evaluate_sed(self.times, self.wavelengths)
 
     def time_make_evaluate_constant_sed_model(self):
         """Time creating and querying a constant SEC model model."""
@@ -219,16 +203,6 @@ class TimeSuite:
             self.times,
             self.filters,
             self.graph_state,
-        )
-
-    def time_fnu_to_flam(self):
-        """Time the fnu_to_flam function."""
-        _ = fnu_to_flam(
-            self.fluxes,
-            self.wavelengths,
-            wave_unit=u.AA,
-            flam_unit=u.erg / u.second / u.cm**2 / u.AA,
-            fnu_unit=u.nJy,
         )
 
     def time_lightcurve_source(self):
