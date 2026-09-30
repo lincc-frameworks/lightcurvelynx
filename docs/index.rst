@@ -187,5 +187,6 @@ This project is supported by Schmidt Sciences.
    Glossary <glossary>
    Contribution Guide <contributing>
    Citations <citations>
+   Topic Index <topic_index>
    Frequently Asked Questions <faq>
    Getting Help <getting_help>

@@ -1,6 +1,8 @@
 Notebooks
 ========================================================================================
 
+This page provides a list of notebooks by category. For a mapping of specific topics to their corresponding notebooks and documentation pages, please refer to <topic_index>.
+
 Getting Started
 -----------------------------------------------------------------------------------------
 
