@@ -84,7 +84,7 @@ How Do I Use an External Simulation Package?
 LightCurveLynx is designed to be modular and extensible, allowing users to wrap external
 simulation packages for use within the LightCurveLynx framework. How you wrap the package will
 depend largely on the specifics of the package you are trying to wrap. We have provided
-a few demo notebooks to illustrate various approaches, including:
+a few demo notebooks on how to do this:
 
   * :doc:`Wrapping BAGLE Models <notebooks/pre_executed/wrapping_bagle>`
   * :doc:`Wrapping Redback Models <notebooks/pre_executed/wrapping_redback>`
@@ -136,19 +136,15 @@ It is possible to change the values within the ``GraphState`` object before pass
 Can I Simulate Spectra?
 --------------------------------------------------------------------------------
 
-Yes, with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph, in units of erg/s/cm². This feature is currently in an early stage of development and does not yet simulate noise in the measurements. In addition, spectra simulation is **only** compatible with models that generate data at the spectral level, not bandflux-only models. For more details, see :doc:`the spectrograph demo notebook <notebooks/spectrograph_demo>`.
+Yes, with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph, in units of erg/s/cm². This feature is currently in an early stage of development and can only simulate simple noise in the measurements. In addition, spectra simulation can **only** be applied to spectra-level models. It will not work on bandflux-only models. For more details, see :doc:`the spectrograph demo notebook <notebooks/spectrograph_demo>`.
 
 
 Can I Generate Points from a Catalog?
 --------------------------------------------------------------------------------
 
-Yes. LightCurveLynx allows you to generate light curves for objects in a catalog containing
-positions using the ``CatalogRADECSampler`` object. This sampler takes a table
-with at least ``ra`` and ``dec`` columns. The ``from_hats()`` helper function
-loads catalogs directly from the `HATS format <https://www.ivoa.net/documents/Notes/HATS/>`_.
+Yes. LightCurveLynx allows you to generate light curves for objects in a catalog containing positions using the ``CatalogRADECSampler`` object. This sampler takes a table with at least ``ra`` and ``dec`` columns. The ``from_hats()`` helper function loads catalogs directly from the `HATS format <https://www.ivoa.net/documents/Notes/HATS/>`_.
 
-See the :doc:`sampling positions demo notebook <notebooks/sampling_positions>`
-for a detailed description of how to sample (RA, dec) positions.
+See the :doc:`sampling positions demo notebook <notebooks/sampling_positions>` for a detailed description of how to sample (RA, dec) positions.
 
 
 Why does my light curve have multiple points at the same time?
