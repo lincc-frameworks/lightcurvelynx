@@ -53,10 +53,7 @@ LightCurveLynx also allows users to load and sample pre-generated light curves, 
 ``LCLIB`` (:doc:`example <notebooks/pre_executed/lclib_example>`) and
 ``SIMSED`` (:doc:`example <notebooks/pre_executed/snana_example>`) formats used by SNANA.
 
-For an overview of the package, we recommend starting with the notebooks in the "Getting Started"
-section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary <glossary>` provides definitions of
-key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*,
-*BandfluxModel*, and *SEDModel*.
+For an overview of the package, we recommend starting with the notebooks in the "Getting Started" section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary and index <glossary>` provides definitions of key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*, *BandfluxModel*, and *SEDModel*. It also provides links to relevant documentation throughout the package.
 
 The `full source code <https://github.com/lincc-frameworks/lightcurvelynx>`_ is available on GitHub.
 
@@ -184,9 +181,8 @@ This project is supported by Schmidt Sciences.
    Randomness <randomness>
    Notebooks <notebooks>
    API Reference <autoapi/index>
-   Glossary <glossary>
+   Glossary and Index <glossary>
    Contribution Guide <contributing>
    Citations <citations>
-   Topic Index <topic_index>
    Frequently Asked Questions <faq>
    Getting Help <getting_help>
