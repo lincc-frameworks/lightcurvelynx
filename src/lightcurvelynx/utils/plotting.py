@@ -54,7 +54,7 @@ def plot_lightcurves(
         A length T matrix of filter names. If not provided all points are
         treated as coming from the same filter. None by default.
     underlying_model: dict or None, optional
-        A dictionary mapping filter names to the noise free light curves for this model.
+        A dictionary mapping filter names to the noise-free light curves for this model.
         If provided, these curves will be plotted as lines behind the data points.
         None by default.
     ax : matplotlib.pyplot.Axes or None, optional

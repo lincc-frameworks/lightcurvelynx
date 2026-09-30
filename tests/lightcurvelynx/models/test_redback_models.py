@@ -40,11 +40,11 @@ class _ToySNModel:
 
     def minphase(self):
         """Get the minimum phase of the model."""
-        return None  # The model does not know its own phase bounds (like redback kilanova).
+        return None  # The model does not know its own phase bounds (like redback kilonova).
 
     def maxphase(self):
         """Get the maximum phase of the model."""
-        return None  # The model does not know its own phase bounds (like redback kilanova).
+        return None  # The model does not know its own phase bounds (like redback kilonova).
 
     def get_flux_density(self, times, wavelengths):
         """A toy flux function that depends on time and wave.
@@ -365,7 +365,7 @@ def test_redback_model_extrapolation() -> None:
 
 
 @pytest.mark.filterwarnings("ignore")
-def test_redback_kilanova_model_bounds() -> None:
+def test_redback_kilonova_model_bounds() -> None:
     """Test that we can create a RedbackWrapperModel from a function
     that has bounds, and that the wrapper model correctly infers the bounds."""
     redback = pytest.importorskip("redback")

@@ -37,7 +37,7 @@ Getting Started with a New Simulation
 
 When starting a new simulation there are a few key questions to ask (in this order):
 
-1. What do you want to simulate (supernova, kilanova, AGN, etc.)? The answer to this question determines the class you use to create the model object. For example, if you want to simulate a kilanova using the ``redback`` package, you would start by creating ``RedbackWrapperModel`` object.
+1. What do you want to simulate (supernova, kilonova, AGN, etc.)? The answer to this question determines the class you use to create the model object. For example, if you want to simulate a kilonova using the ``redback`` package, you would start by creating ``RedbackWrapperModel`` object.
 
 2. What parameters does your model have? And how do you want to set them? The answers to these questions determine how you set the parameters of the model object. All parameters within a model are set using arguments in the object’s constructors.
 
