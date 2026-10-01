@@ -13,19 +13,19 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **BasePhysicalModel**: ``BasePhysicalModel`` is a superclass for all nodes that represent physical phenomena that produce flux. ``BasePhysicalModel`` itself is a subclass of ``ParameterizedNode``. See also :doc:`Introduction Notebook <notebooks/introduction>` and :doc:`Adding New Models Notebook <notebooks/adding_models>`.
 
-**BasicMathNode** - A parameterized node that performs basic mathematical operations on its input parameters. See also :doc:`Sampling Parameters Notebook <notebooks/sampling>`.
+**BasicMathNode** - A parameterized node, which represents a simple mathematical transformation of model parameters. See also :doc:`Sampling Parameters Notebook <notebooks/sampling>`.
 
-**BinarySampler** - A parameterized node that samples binary outcomes (e.g., true/false or 0/1) based on input probabilities. See also :doc:`Advanced Sampling Notebook <notebooks/advanced_sampling>`.
+**BinarySampler** - A parameterized node that represents Bernoulli distribution, e.g., true/false or 0/1, based on input probability. See also :doc:`Advanced Sampling Notebook <notebooks/advanced_sampling>`.
 
-**CCD-Level Observation Tables** - Observation tables that contain viewing information at the CCD level. See also :doc:`CCD-Level Observation Tables Notebook <notebooks/ccd_obstables>`.
+**CCD-Level Observation Tables** - Observation tables that contain viewing information at the individual detector level. See also :doc:`CCD-Level Observation Tables Notebook <notebooks/ccd_obstables>`.
 
-**CatalogRADECSampler** - A node that samples (RA, Dec) positions from a catalog. See also :doc:`Sampling Positions Notebook <notebooks/sampling_positions>`.
+**CatalogRADECSampler** - A node that samples positions (RA, Dec) from a table. See also :doc:`Sampling Positions Notebook <notebooks/sampling_positions>`.
 
 **Dependency Graph (Parameters)** - A graph that represents the dependencies between parameters in the simulation. See also :doc:`Debugging Notebook <notebooks/debugging>`.
 
-**DetectorFootprint** - An object that represents the footprint of a detector on the sky. See also :doc:`DetectorFootprint Notebook <notebooks/detector_footprint>` and :doc:`CCD-Level Observation Tables Notebook <notebooks/ccd_obstables>`.
+**DetectorFootprint** - An object that represents the detector's field of view. See also :doc:`DetectorFootprint Notebook <notebooks/detector_footprint>` and :doc:`CCD-Level Observation Tables Notebook <notebooks/ccd_obstables>`.
 
-**Dustmaps** - A map that provides information about the distribution of dust in the Milky Way for extinction corrections. See also :doc:`Dustmaps Notebook <notebooks/adding_effects>`.
+**Dustmap** - A map that provides information about the distribution of dust in the Milky Way for extinction corrections. See also :doc:`Dustmaps Notebook <notebooks/adding_effects>`.
 
 **EffectModel**: An ``EffectModel`` applies some transformation to the flux density of an object. Example effects include extinction due to dust or white noise. See also :doc:`Introduction Notebook <notebooks/introduction>`, :doc:`Effects Notebook <notebooks/adding_effects>`, :doc:`Custom Models and Effects <custom_models>`, and :doc:`Time Varying Effects Notebook <notebooks/time_varying_effects>`.
 
@@ -33,7 +33,7 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **Filter**: A filter corresponds to the physical filter used on a telescope to limit the wavelengths of light that hit the detector. Filters are represented by ``Passband`` objects, and sets of filters are represented by ``PassbandGroup`` objects. See also :doc:`Passband Demo Notebook <notebooks/passband-demo>`.
 
-**Function Nodes** - The parameterized nodes that compute functions of other parameters. See also :doc:`Function Nodes Notebook <notebooks/function_nodes>`
+**Function Nodes** - The parameterized nodes that take input model parameters and compute new parameters. See also :doc:`Function Nodes Notebook <notebooks/function_nodes>`
 
 **GraphState**: The ``GraphState`` object is an internal bookkeeping object that tracks the values of parameters during the simulation. It is implemented as nested dictionaries where the outer dictionary maps the name of the generating node to a dictionary of that node's parameters. The inner dictionary maps a parameter name to its values. See also :doc:`Introduction Notebook <notebooks/introduction>`, :doc:`Sampling Notebook <notebooks/sampling>`, and :doc:`Debugging Notebook <notebooks/debugging>`.
 
@@ -45,9 +45,9 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **HATS** - A catalog data format that can be used to store LightCurveLynx results. See also `HATS Page <https://docs.lsdb.io/en/latest/data-access/hats.html>`_, :doc:`Frequently Asked Questions <faq>`, :doc:`Results and Output <results_and_output>`.
 
-**LightcurveTemplateModel** - A model that uses a predefined light curve template to generate fluxes. See also :doc:`LightcurveTemplateModel Notebook <notebooks/lightcurve_source_demo>`.
+**LightcurveTemplateModel** - A model that uses a predefined light curve as a template and interpolates it. See also :doc:`LightcurveTemplateModel Notebook <notebooks/lightcurve_source_demo>`.
 
-**LocationFreeObsTable** - An observation table that does not perform spatial filtering. See also :doc:`LocationFreeObsTable Notebook <notebooks/location_free_obstable>`.
+**LocationFreeObsTable** - An observation table that does not perform spatial filtering, e.g., all observations match any model's RA and Dec. See also :doc:`LocationFreeObsTable Notebook <notebooks/location_free_obstable>`.
 
 **MilkyWayCoordSampler** - A parameterized node used to sample positions in the Milky Way in (RA, Dec, distance). See also :doc:`Sampling Positions Notebook <notebooks/sampling_positions>`.
 
@@ -59,19 +59,19 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **Multiple Surveys** - For information on how to simulate from multiple surveys, see :doc:`Frequently Asked Questions <faq>`, :doc:`Simulations <simulations>`, :doc:`Multiple Surveys Notebook <notebooks/multiple_surveys>`
 
-**MultiLightcurveTemplateModel** - A model that uses multiple predefined light curve templates to generate fluxes. See also :doc:`MultiLightcurveTemplateModel Notebook <notebooks/lightcurve_source_demo>`.
+**MultiLightcurveTemplateModel** - A model that choses one of multiple predefined light curve templates and interpolate it to generate fluxes. See also :doc:`MultiLightcurveTemplateModel Notebook <notebooks/lightcurve_source_demo>`.
 
 **Node**: Nodes are the Python objects within the simulation that generate or use parameters. A node might represent a physical object that we are simulating, such as a Type Ia supernova with input parameters x0, x1, and c, or it might represent the statistical distributions for parameters, such as a Gaussian distribution for sampling an object's redshift (z). It is easiest to think of nodes as machines for generating portions of the simulation data. Nodes are implemented as subclasses of the ``ParameterizedNode`` class.
 
 **node_label**: The node label is a unique identifier for each ``ParameterizedNode`` that allows the simulation (and the user) to track which Python object (and thus which part of the simulation) is using a particular parameter value. All parameters are indexed by a combination of node label and parameter name so that multiple ``ParameterizedNode`` objects can use the same parameter name without inadvertently overwriting each other's values. If a node label is not specified, LightCurveLynx automatically assigns one.
 
-**noise model**: A noise model is a subclass of the ``FluxNoiseModel`` class that simulates the noise in the observations. Noise models are applied to the bandflux measurements to simulate the effects of atmospheric and detector noise. See also :doc:`Noise Models <noise_models>`, :doc:`Introduction Notebook <notebooks/introduction>`, and :doc:`PZFlow Learned Noise Model Notebook <notebooks/pre_executed/pzflow_noise_models>`
+**noise model**: A noise model is a subclass of the ``FluxNoiseModel`` class that simulates the bandflux error. The model may directly simulate photon noise, or it may be data-driven and based on the catalog data. See also :doc:`Noise Models <noise_models>`, :doc:`Introduction Notebook <notebooks/introduction>`, and :doc:`PZFlow Learned Noise Model Notebook <notebooks/pre_executed/pzflow_noise_models>`
 
 **NumpyRandomFunc** - A parameterized node used to sample values with numpy's random library. See also: :doc:`Building Simple Models Notebook <notebooks/technical_overview>` and :doc:`Sampling Parameters Notebook <notebooks/sampling>`.
 
 **Observer Frame**: The reference frame of the observer. Observations in the observer frame account for effects such as redshift.
 
-**ObsTable**: The ``ObsTable`` represents the set of data about the individual observations being simulated, including where the telescope is pointing (RA, Dec) and conditions affecting the detector noise. See also: :doc:`Survey Data <survey_data>` and :doc:`Introduction Notebook <notebooks/introduction>`.
+**ObsTable**: The ``ObsTable`` represents the set of data about the individual observations being simulated, including where the telescope is pointing (RA, Dec), footprint, and conditions affecting the detector noise. See also: :doc:`Survey Data <survey_data>` and :doc:`Introduction Notebook <notebooks/introduction>`.
 
 **OpSim**: A specific version of the ``ObsTable`` that stores data for the Rubin Observatory's LSST `Operations Simulator <https://www.lsst.org/scientists/simulations/opsim>`_ outputs. See also :doc:`Survey Data <survey_data>` and :doc:`OpSim Notebook <notebooks/opsim_notebook>`.
 
@@ -93,7 +93,7 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **Rest Frame**: The reference frame of the astronomical phenomenon being simulated. Observations in the rest frame do not account for effects like dust extinction or redshift, because they are local to the phenomenon.
 
-**Saturation Thresholds** - The threshold at which a detector becomes saturated. For more information, see :doc:`Saturation Notebook <notebooks/saturation>`.
+**Saturation Thresholds** - The threshold at which the detection becomes saturated. For more information, see :doc:`Saturation Notebook <notebooks/saturation>`.
 
 **Saving Results** - For information on saving results from a simulation, see :doc:`Results and Output <results_and_output>`, :doc:`Introduction Notebook <notebooks/introduction>`, and, for parallel computation, :doc:`Parallel Computation Notebook <notebooks/parallel_runs>`.
 
