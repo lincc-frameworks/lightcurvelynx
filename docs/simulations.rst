@@ -27,10 +27,7 @@ To perform a simulation that includes different populations of objects, the user
 simulate function multiple times--once for each population. The results can then be concatenated together
 to provide a full set of observations.
 
-For an overview of the package, we recommend starting with the notebooks in the "Getting Started"
-section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary <glossary>` provides definitions of
-key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*,
-*BandfluxModel*, and *SEDModel*.
+For an overview of the package, we recommend starting with the notebooks in the "Getting Started" section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary and index <glossary>` provides definitions of key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*, *BandfluxModel*, and *SEDModel*. It also provides links to relevant documentation throughout the package.
 
 Getting Started with a New Simulation
 -------------------------------------------------------------------------------
