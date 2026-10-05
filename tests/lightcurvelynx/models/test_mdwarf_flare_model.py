@@ -2,7 +2,6 @@
 
 import numpy as np
 from astropy import units as u
-
 from lightcurvelynx.models.mdwarf_flare_model import MDwarfFlareModel
 
 # test values with known output. first, no sampling
