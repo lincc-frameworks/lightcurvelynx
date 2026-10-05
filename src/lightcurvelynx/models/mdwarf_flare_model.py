@@ -7,6 +7,7 @@ from astroquery.svo_fps import SvoFps
 from citation_compass import cite_function
 from scipy import special
 from scipy.stats import binned_statistic
+import warnings
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
@@ -35,7 +36,7 @@ class MDwarfFlareModel(SEDModel):
     * star_temp - The temperature of the star in Kelvins.
     * star_radius - The radius of the star in cm.
     * flare_fwhm - The full width half max of the flare in time (days).
-    * flare_temp - The temperature of the cold part of the flare in Kelvins. 
+    * flare_temp - The temperature of the cold part of the flare in Kelvins.
     * balmer_jump_ratio - the ratio of the spectral intensity below the balmer jump to above the balmer jump
     
     Parameters
@@ -189,14 +190,14 @@ class MDwarfFlareModel(SEDModel):
 
         # We include the corresponding errors for each parameter from the MCMC analysis
 
-        A_err, B_err, C_err, D1_err, D2_err, f1_err = [
-            0.007941622683556804,
-            0.0004073709715788909,
-            0.0006863488251125649,
-            0.0013498012884345656,
-            0.00453458098656645,
-            0.001053149344530907,
-        ]
+        # A_err, B_err, C_err, D1_err, D2_err, f1_err = [
+        #     0.007941622683556804,
+        #     0.0004073709715788909,
+        #     0.0006863488251125649,
+        #     0.0013498012884345656,
+        #     0.00453458098656645,
+        #     0.001053149344530907,
+        # ]
 
         f2 = 1 - f1
 
@@ -364,7 +365,7 @@ class MDwarfFlareModel(SEDModel):
             wavelengths = wavelengths * u.AA
         wl_AA = wavelengths.to(u.AA).value
         
-        return np.interp(wl_AA, tess_wave.to(u.AA).value, self._tess_trans, left=0.0, right=0.0)
+        return np.interp(wl_AA, self._tess_wave.to(u.AA).value, self._tess_trans, left=0.0, right=0.0)
 
     def _tess_band_integrate(self, spectrum, wavelengths, axis=0):
         """
