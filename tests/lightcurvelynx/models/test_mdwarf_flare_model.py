@@ -1,9 +1,7 @@
 """Tests for the m dwarf flare model"""
 
-
 import numpy as np
 from astropy import units as u
-
 from lightcurvelynx.models.mdwarf_flare_model import MDwarfFlareModel
 
 # test values with known output. first, no sampling
@@ -22,7 +20,6 @@ def check_if_monotonic(values_array):
         the array of values to check
 
     Returns Bool
-
     """
     return np.all(np.diff(values_array) > 0) | np.all(np.diff(values_array) < 0)
 
@@ -102,18 +99,19 @@ def test_mdwarf_flare_model_with_assigned_inputs():
 def test_mdwarf_flare_model_parameter_sampling():
     """Test the sampling from parameter distributions for MDwarfFlareModel objects."""
 
-    model = MDwarfFlareModel(t0=10)
+    model = MDwarfFlareModel(t0=10, node_label="model")
     state = model.sample_parameters(num_samples=1)
     assert state["mw"]["distance_pc"] > 0
     assert state["mw"]["ra"] >= 0
     assert state["mw"]["ra"] <= 360
     assert state["mw"]["dec"] >= -90
     assert state["mw"]["dec"] <= 90
-    # there must be a better way to index these but this is what i have for now
     # star temp
-    assert state["BasicMathNode:eval_2"]["function_node_result"] > 0
+    assert state["model"]["star_temp"] > 0
     # star radius - to make sure it's not in solar radii i assert >100
-    assert state["BasicMathNode:eval_4"]["function_node_result"] > 100
+    assert state["model"]["star_radius"] > 100
     # flare_fwhm
-    assert state["BasicMathNode:eval_5"]["function_node_result"] > 0
-    assert state["BasicMathNode:eval_6"]["function_node_result"] > 0
+    assert state["model"]["flare_fwhm"] > 0
+    # flare_amp
+    assert state["model"]["flare_amplitude"] > 0
+ 
