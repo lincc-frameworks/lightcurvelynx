@@ -93,8 +93,8 @@ class MDwarfFlareModel(SEDModel):
                     "`pip install pzflow` or `conda install conda-forge::pzflow`."
                 ) from err
                 # TURN THIS BACK WHEN I HAVE A PATH SOLUTION
-            flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
-            # flow = Flow(file="/Users/wickcedar/lightcurvelynx/data/model_files/flare_flow.pzflow.pkl")
+            flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
+            # flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
             node = PZFlowNode(flow)
             # the node has them in log space
             star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff, label="mathnode")
