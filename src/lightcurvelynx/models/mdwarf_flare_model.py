@@ -1,5 +1,7 @@
 """Models to simulate M-Dwarf Flares."""
 
+import warnings
+
 import numpy as np
 from astropy import units as u  # angstroms, nanojanskies for flux density
 from astropy.modeling.models import BlackBody
@@ -7,7 +9,6 @@ from astroquery.svo_fps import SvoFps
 from citation_compass import cite_function
 from scipy import special
 from scipy.stats import binned_statistic
-import warnings
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
@@ -38,7 +39,7 @@ class MDwarfFlareModel(SEDModel):
     * flare_fwhm - The full width half max of the flare in time (days).
     * flare_temp - The temperature of the cold part of the flare in Kelvins.
     * balmer_jump_ratio - the ratio of the spectral intensity below the balmer jump to above the balmer jump
-    
+
     Parameters
     ----------
     star_temp : parameter, optional
@@ -114,26 +115,22 @@ class MDwarfFlareModel(SEDModel):
         )
 
         self.add_parameter("star_radius", value=star_radius, description="The radius of the star in cm.")
-        self.add_parameter(
-                "flare_fwhm",
-                value=flare_fwhm,
-                description="The FWHM of the flare in days"
-            ),
+        (self.add_parameter("flare_fwhm", value=flare_fwhm, description="The FWHM of the flare in days"),)
         self.add_parameter(
             "flare_amplitude",
             value=flare_amplitude,
-            description="The amplitude of the flare relative to the star."
+            description="The amplitude of the flare relative to the star.",
         )
         self.add_parameter(
             "balmer_jump_ratio",
             value=balmer_jump_ratio,
             description="The ratio of the spectral intensity below the balmer jump \
-            to above the balmer jump (which is a blackbody at flare_temp)"
+            to above the balmer jump (which is a blackbody at flare_temp)",
         )
         self.add_parameter(
             "flare_temp",
             value=flare_temp,
-            description="The temperature of the cold part of the flare in Kelvins."
+            description="The temperature of the cold part of the flare in Kelvins.",
         )
         if not self.has_valid_param("distance"):
             sampler = MilkyWayCoordSampler(node_label="mw")
@@ -145,12 +142,12 @@ class MDwarfFlareModel(SEDModel):
                 )
             self.set_parameter("ra", value=sampler.ra)
             self.set_parameter("dec", value=sampler.dec)
-        #tess calculation to be done once
+        # tess calculation to be done once
         _tess_red_filter = SvoFps.get_transmission_data("TESS/TESS.Red")
-        self._tess_wave =  np.asarray(_tess_red_filter["Wavelength"]) * u.AA
+        self._tess_wave = np.asarray(_tess_red_filter["Wavelength"]) * u.AA
         self._tess_trans = np.asarray(_tess_red_filter["Transmission"])
 
-    @cite_function  
+    @cite_function
     def _flare_eqn(self, time, tpeak, flare_fwhm, flare_amplitude):
         """
         The equation that defines the shape for the Continuous Flare Model.
@@ -302,7 +299,7 @@ class MDwarfFlareModel(SEDModel):
             The Full Width at Half Maximum, timescale of the flare (days)
         **kwargs
             Optional, for upsampling in _flare_model
-            
+
         Returns
         -------
          normalized flare : 1-d numpy.ndarray
@@ -312,7 +309,7 @@ class MDwarfFlareModel(SEDModel):
         return self._flare_model(time, tpeak, flare_fwhm, flare_amplitude=1.0, **kwargs) / peak
 
     def _build_spectrum_bb_with_balmer(self, wavelengths, temp_low=9000, balmer_jump_ratio=2):
-        '''
+        """
         Makes a spectrum for the flare temperature:
         Blackbody at 9000 K (default) where below the balmer jump,
         the intensity is twice (or balmer_jump_ratio) as high
@@ -329,12 +326,12 @@ class MDwarfFlareModel(SEDModel):
         balmer_jump_ratio : float or int
             the multiplicative factor that the blackbody spectrum is multiplied by below the balmer jump
             default: 2
-            
+
         Returns
         -------
         Intensity : np.ndarray
             flare spectrum. units: erg / (Hz s sr cm**2 )
-        '''
+        """
         if not isinstance(wavelengths, u.Quantity):
             wavelengths = wavelengths * u.AA
         if not isinstance(temp_low, u.Quantity):
@@ -364,7 +361,7 @@ class MDwarfFlareModel(SEDModel):
         if not isinstance(wavelengths, u.Quantity):
             wavelengths = wavelengths * u.AA
         wl_AA = wavelengths.to(u.AA).value
-        
+
         return np.interp(wl_AA, self._tess_wave.to(u.AA).value, self._tess_trans, left=0.0, right=0.0)
 
     def _tess_band_integrate(self, spectrum, wavelengths, axis=0):
@@ -410,7 +407,7 @@ class MDwarfFlareModel(SEDModel):
             assumed Kelvin if plain float
         wavelengths : np.ndarray
             Wavelength values; shape matches spectrum's wave axis
-        
+
         Returns
         -------
         Quantity, shape (n_wave,), units erg/(Hz s sr cm^2)

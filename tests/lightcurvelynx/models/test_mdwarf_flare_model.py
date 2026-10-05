@@ -2,6 +2,7 @@
 
 import numpy as np
 from astropy import units as u
+
 from lightcurvelynx.models.mdwarf_flare_model import MDwarfFlareModel
 
 # test values with known output. first, no sampling
@@ -114,4 +115,3 @@ def test_mdwarf_flare_model_parameter_sampling():
     assert state["model"]["flare_fwhm"] > 0
     # flare_amp
     assert state["model"]["flare_amplitude"] > 0
- 
