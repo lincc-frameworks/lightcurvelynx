@@ -38,7 +38,7 @@ class MDwarfFlareModel(SEDModel):
     * star_temp - The temperature of the star in kelvins.
     * star_radius - The radius of the star in cm.
     * flare_fwhm - The full width half max of the flare in time (days).
-    * flare_temp - The temperature of the cold part of the flare in Kelvins.
+    * flare_temp - The temperature of the cold part of the flare in kelvins.
     * balmer_jump_ratio - the ratio of the spectral intensity below the Balmer jump wavelength (3645Å) to above the Balmer jump wavelength
 
     Parameters
