@@ -35,7 +35,7 @@ class MDwarfFlareModel(SEDModel):
     * ra - The object's right ascension in degrees. [from BasePhysicalModel]
     * redshift - The object's redshift. [from BasePhysicalModel]
     * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
-    * star_temp - The temperature of the star in Kelvins.
+    * star_temp - The temperature of the star in kelvins.
     * star_radius - The radius of the star in cm.
     * flare_fwhm - The full width half max of the flare in time (days).
     * flare_temp - The temperature of the cold part of the flare in Kelvins.
