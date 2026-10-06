@@ -131,7 +131,7 @@ class MDwarfFlareModel(SEDModel):
         self.add_parameter(
             "flare_temp",
             value=flare_temp,
-            description="The temperature of the cold part of the flare in Kelvins.",
+            description="The temperature of the cold part of the flare in kelvins.",
         )
         if not self.has_valid_param("distance"):
             sampler = MilkyWayCoordSampler(node_label="mw")
