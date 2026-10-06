@@ -325,7 +325,8 @@ class MDwarfFlareModel(SEDModel):
             temperature for the blackbody spectrum in Kelvin.
             default: 9000
         balmer_jump_ratio : float or int
-            the multiplicative factor that the blackbody spectrum is multiplied by below the balmer jump
+            the multiplicative factor that the blackbody spectrum is multiplied by below
+            the Balmer jump wavelength of 3645Å
             default: 2
 
         Returns
