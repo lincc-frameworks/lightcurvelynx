@@ -50,7 +50,6 @@ def test_mdwarf_flare_model_with_assigned_inputs():
     assert np.isclose(
         model._quiescent_flux_no_distance(star_temp, wavelengths)[0].value, 9.133526742251799e-08
     )
-    # print(model._build_spectrum_bb_with_balmer(wavelengths, 9000*u.K)[0])
     assert np.isclose(
         model._build_spectrum_bb_with_balmer(wavelengths, 9000 * u.K)[0].value, 0.00014342158215047032
     )
