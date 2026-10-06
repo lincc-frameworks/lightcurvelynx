@@ -55,7 +55,6 @@ def test_mdwarf_flare_model_with_assigned_inputs():
     )
 
     I_lam_star = model._quiescent_flux_no_distance(star_temp, wavelengths)
-    # print(model._tess_band_integrate(I_lam_star, wavelengths* u.AA))
     assert np.isclose(model._tess_band_integrate(I_lam_star, wavelengths * u.AA), 0.032670867030168554)
 
     I_lam_flare = model._build_spectrum_bb_with_balmer(wavelengths, temp_low=9000)
