@@ -19,7 +19,8 @@ from lightcurvelynx.models.physical_model import SEDModel
 
 class MDwarfFlareModel(SEDModel):
     """An M-Dwarf Flare Model. The spectrum is modeled as a modified black body,
-    where the flare is ~twice (or balmer_jump_ratio) as intense below the balmer jump.
+    where the flare is ~twice (or balmer_jump_ratio) as intense below the Balmer jump
+    wavelength.
 
     The time evolution of the M-Dwarf is modeled as in Mendoza et al. (2022),
     with free parameters for amplitude and full width half max of the flare.
