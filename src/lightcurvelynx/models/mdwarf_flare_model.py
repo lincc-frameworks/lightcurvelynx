@@ -124,8 +124,9 @@ class MDwarfFlareModel(SEDModel):
         self.add_parameter(
             "balmer_jump_ratio",
             value=balmer_jump_ratio,
-            description="The ratio of the spectral intensity below the balmer jump \
-            to above the balmer jump (which is a blackbody at flare_temp)",
+            description="The ratio of the spectral intensity below the Balmer jump \
+            wavelength (3645Å) to above the Balmer jump (which is a blackbody at \
+            flare_temp)",
         )
         self.add_parameter(
             "flare_temp",
