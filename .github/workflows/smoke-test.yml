@@ -46,7 +46,7 @@ jobs:
         pip list
     - name: Run unit tests with pytest
       run: |
-        python -m pytest
+        python -m pytest -o log_cli=true -vv
     - name: Send status to Slack app
       if: ${{ failure() && github.event_name != 'workflow_dispatch' }}
       id: slack

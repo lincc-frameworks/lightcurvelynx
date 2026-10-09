@@ -1,3 +1,4 @@
+
 # This workflow will upload a Python Package using Twine when a release is created
 # For more information see: https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
 
@@ -12,14 +13,14 @@ on:
   release:
     types: [published]
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   deploy:
 
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
     - uses: actions/checkout@v7
