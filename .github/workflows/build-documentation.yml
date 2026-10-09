@@ -10,6 +10,8 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions: {}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -18,9 +20,13 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
     - name: Set up Python 3.12
       uses: actions/setup-python@v7
       with:
