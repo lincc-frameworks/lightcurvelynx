@@ -1,3 +1,4 @@
+
 # This workflow will upload a Python Package using Twine when a release is created
 # For more information see: https://github.com/pypa/gh-action-pypi-publish#trusted-publishing
 
@@ -23,6 +24,8 @@ jobs:
       id-token: write
     steps:
     - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
     - name: Set up Python
       uses: actions/setup-python@v7
       with:

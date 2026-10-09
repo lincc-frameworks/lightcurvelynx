@@ -9,6 +9,8 @@ on:
     workflows: ["Run benchmarks for PR"]
     types: [completed]
 
+permissions: {}
+
 jobs:
   upload-pr-comment:
     runs-on: ubuntu-latest
@@ -16,6 +18,7 @@ jobs:
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
     permissions:
+      actions: read
       issues: write
       pull-requests: write
     steps:
@@ -27,7 +30,7 @@ jobs:
         echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
         echo "Event: ${{ github.event.workflow_run.event }}"
     - name: Download artifact
-      uses: dawidd6/action-download-artifact@v26
+      uses: dawidd6/action-download-artifact@v27
       with:
         name: benchmark-artifacts
         run_id: ${{ github.event.workflow_run.id }}
