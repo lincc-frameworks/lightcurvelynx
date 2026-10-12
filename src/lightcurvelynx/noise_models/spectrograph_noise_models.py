@@ -326,7 +326,7 @@ class SNANANoiseModel(SpectrographNoiseModel):
 
         # SNANA sanity check
         check = flux / np.sqrt(sqsigsky + flux)  # (2, W, T)
-        if not np.allclose(snr.transpose(1, 0, 2), check, rtol=1e-3):
+        if not np.allclose(snr.transpose(1, 0, 2), check, rtol=1e-3):  # pragma: no cover
             raise ValueError("Solved ZP/SQSIGSKY cannot reproduce the input SNR values.")
 
         return zp, sqsigsky

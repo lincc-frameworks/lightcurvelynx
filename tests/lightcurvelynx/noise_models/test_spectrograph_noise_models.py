@@ -107,6 +107,23 @@ def test_snana_noise_model_solve(test_data_dir):
         assert_allclose(flux_pe / np.sqrt(model.sqsigsky_grid + flux_pe), snr[:, m, :], rtol=1e-8)
 
 
+@pytest.mark.parametrize(
+    "magref, snr, match",
+    [
+        ([19.0, 23.0], [10.0, 0.0], "must be positive"),  # SNR <= 0
+        ([23.0, 19.0], [1.0, 10.0], "Cannot solve"),  # magrefs out of order: TOP <= 0
+        ([19.0, 23.0], [10.0, 0.2], "Cannot solve"),  # SNR1 below the sky-limited floor: BOT <= 0
+        ([np.nan, 23.0], [10.0, 3.0], "not finite"),  # NaN propagates to ZP
+    ],
+)
+def test_snana_noise_model_solve_fail(test_data_dir, magref, snr, match):
+    """Test that _solve raises a clear error for SNR tables that cannot be solved."""
+    model = SNANANoiseModel(test_data_dir / "fake_snana_spectrograph_gapless.dat")
+    snr = np.asarray(snr, dtype=float).reshape(1, 2, 1)  # (W=1, M=2, T=1)
+    with pytest.raises(ValueError, match=match):
+        model._solve(magref, snr)
+
+
 def test_snana_spectrograph_noise_model(test_data_dir):
     """Seeded RNG gives reproducible noise; a different seed gives different noise."""
 
