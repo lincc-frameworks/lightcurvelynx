@@ -94,6 +94,7 @@ testpaths = [
     "docs",
 ]
 addopts = "--doctest-modules --doctest-glob=*.rst"
+log_cli_level = "INFO"
 
 [tool.ruff]
 line-length = 110
@@ -125,7 +126,9 @@ select = [
     "D300",
     "D417",
     "D419",
-]
+    # Numpy v2.0 compatibility
+    "NPY201",
+    ]
 ignore = [
     "UP006", # Allow non standard library generics in type hints
     "UP007", # Allow Union in type hints
