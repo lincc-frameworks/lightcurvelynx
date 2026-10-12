@@ -58,7 +58,7 @@ class MDwarfFlareModel(SEDModel):
         If not provided, the model uses samples from the default pzflow model.
     flare_temp : parameter, optional
         The temperature of the cold part of the flare in Kelvins. Defaults to 9000 K.
-        If not provided, uses 
+        If not provided, uses [to be adjusted]
     balmer_jump_ratio : parameter, optional
         the ratio of the spectral intensity below the balmer jump to above the balmer jump
         (which is a blackbody at flare_temp). Defaults to 2
@@ -95,7 +95,8 @@ class MDwarfFlareModel(SEDModel):
                     "pzflow package is not installed by default. You can install it with "
                     "`pip install pzflow` or `conda install conda-forge::pzflow`."
                 ) from err
-            flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
+            # flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
+            flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
             node = PZFlowNode(flow)
             # the node has them in log space
             star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff, label="mathnode")
@@ -451,15 +452,15 @@ class MDwarfFlareModel(SEDModel):
                                                        for_tess=False)
         integral_star = self._tess_band_integrate(I_star_for_tess)
         flux_flare_no_distance = (
-            constants * (integral_star / integral_flare) * norm_shape[None, :] * I_flare_full[:, None]
+            constants * (integral_star / integral_flare) * norm_shape[:,None] * I_flare_full[ None, :]
         )
         q_no_distance = I_star_full * constants
 
-        total_no_distance = q_no_distance[:, None] + flux_flare_no_distance  # erg/s/AA, no D yet
+        total_no_distance = q_no_distance[None,:] + flux_flare_no_distance  # erg/s/AA, no D yet
         distance = params["distance"]
         if not isinstance(distance, u.Quantity):
             distance = distance * u.parsec
 
         total_flux_at_earth = total_no_distance / ((distance.to(u.cm)) ** 2)
-        flux_density = (total_flux_at_earth).to(u.nJy, equivalencies=u.spectral_density(wavelengths[:, None])).T
+        flux_density = (total_flux_at_earth).to(u.nJy, equivalencies=u.spectral_density(wavelengths[:, None]))
         return flux_density
