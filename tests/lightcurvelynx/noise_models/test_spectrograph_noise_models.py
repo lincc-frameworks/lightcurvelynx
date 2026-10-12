@@ -1,10 +1,11 @@
 import numpy as np
 import pytest
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
-from lightcurvelynx.noise_models.spectrograph_noise_models import ConstantSpectrographNoiseModel, SNANANoiseModel
+from lightcurvelynx.noise_models.spectrograph_noise_models import (
+    ConstantSpectrographNoiseModel,
+    SNANANoiseModel,
+)
 
-# Local helper class.
-from lightcurvelynx_main.tests.lightcurvelynx.conftest import test_data_dir
 from lookup_only_obstable import LookupOnlyObsTable
 from numpy.testing import assert_allclose
 
@@ -94,6 +95,7 @@ def test_constant_spectrograph_noise_model_check_compatibility():
     with pytest.raises(ValueError):
         model.check_compatibility(obs_table, fail_on_incompatible=True)
 
+
 def test_snana_noise_model_solve(test_data_dir):
     """Test that the solved (ZP, SQSIGSKY) reproduce the file's SNR at both magrefs
     (SNANA's own self-check, sntools_spectrograph.c:748-754)."""
@@ -104,6 +106,7 @@ def test_snana_noise_model_solve(test_data_dir):
     for m, magref in enumerate(model.magref):
         flux_pe = 10.0 ** (-0.4 * (magref - model.zp_grid))
         assert_allclose(flux_pe / np.sqrt(model.sqsigsky_grid + flux_pe), snr[:, m, :], rtol=1e-8)
+
 
 def test_snana_spectrograph_noise_model(test_data_dir):
     """Seeded RNG gives reproducible noise; a different seed gives different noise."""
@@ -117,12 +120,15 @@ def test_snana_spectrograph_noise_model(test_data_dir):
     sed = np.full((len(indices), len(model.spectrograph.query_waves)), flux_density)
     measurements = model.spectrograph.evaluate(sed)
 
-    flux1, err1 = model.apply_noise(measurements, sed=sed, obs_table=obs_table,
-                                    indices=indices, rng=np.random.default_rng(1234))
-    flux2, err2 = model.apply_noise(measurements, sed=sed, obs_table=obs_table,
-                                    indices=indices, rng=np.random.default_rng(1234))
-    flux3, _ = model.apply_noise(measurements, sed=sed, obs_table=obs_table,
-                                 indices=indices, rng=np.random.default_rng(5678))
+    flux1, err1 = model.apply_noise(
+        measurements, sed=sed, obs_table=obs_table, indices=indices, rng=np.random.default_rng(1234)
+    )
+    flux2, err2 = model.apply_noise(
+        measurements, sed=sed, obs_table=obs_table, indices=indices, rng=np.random.default_rng(1234)
+    )
+    flux3, _ = model.apply_noise(
+        measurements, sed=sed, obs_table=obs_table, indices=indices, rng=np.random.default_rng(5678)
+    )
 
     assert flux1.shape == err1.shape == measurements.shape == (2, model.spectrograph.num_bins)
     assert np.all(err1[0] < err1[1])  # row 0 used 3600 s, row 1 used 120 s
