@@ -109,6 +109,7 @@ class LSSTObsTable(ObsTable):
         "ra": "ra",  # degrees
         "rotation": "skyRotation",  # degrees
         "seeing": "seeing",  # arcseconds
+        "psf_footprint": "psfArea",  # pixel^2
         "sky_bg_adu": "skyBg",  # Average sky background in ADU
         "time": ["expMidptMJD", "obsStartMJD"],  # days
         "zp_mag_adu": "zeroPoint",  # magnitudes to produce 1 count (ADU)

@@ -56,10 +56,6 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         where before_model is the model for before the first valid time and after_model is
         the model for after the last valid time. If None is provided the model will not try to
         extrapolate, but rather call compute_sed() for all times.
-    seed : int, optional
-        The seed to set the node's default random number generator. If None, then a random seed is used.
-        This parameter is for testing and has no effect when a user-provided random number generator is
-        used during simulation. Default: None
     **kwargs : dict, optional
         Any additional keyword arguments.
     """
@@ -73,7 +69,6 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         node_label=None,
         wave_extrapolation=None,
         time_extrapolation=None,
-        seed=None,
         **kwargs,
     ):
         try:
@@ -92,7 +87,6 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             node_label=node_label,
             wave_extrapolation=wave_extrapolation,
             time_extrapolation=time_extrapolation,
-            seed=seed,
             **kwargs,
         )
         self.source_name = source_name

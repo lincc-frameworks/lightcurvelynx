@@ -1470,7 +1470,7 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
 
 
 def test_compute_noise_free_lightcurves_single(test_data_dir):
-    """Test computing noise free light curves for a set of times and filters."""
+    """Test computing noise-free light curves for a set of times and filters."""
     # Load the passband data for the griz filters only.
     passband_group = PassbandGroup.from_preset(
         preset="LSST",
@@ -1505,7 +1505,7 @@ def test_compute_noise_free_lightcurves_single(test_data_dir):
 
 
 def test_compute_noise_free_lightcurves_multiple(test_data_dir):
-    """Test computing noise free light curves for a set of times and filters
+    """Test computing noise-free light curves for a set of times and filters
     and multiple sample states"""
     # Load the passband data for the griz filters only.
     passband_group = PassbandGroup.from_preset(

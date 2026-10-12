@@ -1,6 +1,8 @@
 Frequently Asked Questions
 ========================================================================================
 
+Below are some frequently asked questions about using LightCurveLynx. To look up a specific concept or aspect, we recommend consulting the :doc:`glossary and index page <glossary>`.
+
 Where Does LightCurveLynx Store Downloaded Data?
 -------------------------------------------------------------------------------
 
@@ -82,9 +84,9 @@ How Do I Use an External Simulation Package?
 LightCurveLynx is designed to be modular and extensible, allowing users to wrap external
 simulation packages for use within the LightCurveLynx framework. How you wrap the package will
 depend largely on the specifics of the package you are trying to wrap. We have provided
-a few demo notebooks to illustrate various approachs, including:
+a few demo notebooks on how to do this:
 
-  * :doc:`Wrapping Bagle Models <notebooks/pre_executed/wrapping_bagle>`
+  * :doc:`Wrapping BAGLE Models <notebooks/pre_executed/wrapping_bagle>`
   * :doc:`Wrapping Redback Models <notebooks/pre_executed/wrapping_redback>`
   * :doc:`Wrapping VBMicrolensing <notebooks/pre_executed/wrapping_vbmicrolensing>`
 
@@ -103,7 +105,7 @@ in multiple observation tables and corresponding passband groups. See the
 Can I Rerun a Simulation with the Same Parameters?
 -------------------------------------------------------------------------------
 
-Yes. There are two approaches to doing this. 
+Yes. There are two approaches to doing this.
 
 First, if you want to produce exactly the same results, you can provide a random number generator with a fixed seed to the ``simulate_lightcurves()`` function. This will ensure that the same random numbers are used in the simulation for both parameter sampling and noise generation, resulting in identical outputs.
 
@@ -134,23 +136,18 @@ It is possible to change the values within the ``GraphState`` object before pass
 Can I Simulate Spectra?
 --------------------------------------------------------------------------------
 
-Yes with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph in units of erg/s/cm². This feature is currently in an early stage of development and does not yet add noise to the measurements. In addition, spectra simulation is **only** compaible with models that generate data on the spectral level (not bandflux-only models).  For more detail see :doc:`the spectrograph demo notebook <notebooks/spectrograph_demo>`.
+Yes, with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph, in units of erg/s/cm². This feature is currently in an early stage of development and can only simulate simple noise in the measurements. In addition, spectra simulation can **only** be applied to spectra-level models. It will not work on bandflux-only models. For more details, see :doc:`the spectrograph demo notebook <notebooks/spectrograph_demo>`.
 
 
 Can I Generate Points from a Catalog?
 --------------------------------------------------------------------------------
 
-Yes. LightCurveLynx allows you to generate light curves for objects in a catalog containing 
-positions using the``CatalogRADECSampler`` object This sampler takes in a table
-of information with at least "ra" and "dec" columns. The helper function 
-``from_hats()`` is provided to load directly from a [HATS](https://www.ivoa.net/documents/Notes/HATS/)
-catalog.
+Yes. LightCurveLynx allows you to generate light curves for objects in a catalog containing positions using the ``CatalogRADECSampler`` object. This sampler takes a table with at least ``ra`` and ``dec`` columns. The ``from_hats()`` helper function loads catalogs directly from the `HATS format <https://www.ivoa.net/documents/Notes/HATS/>`_.
 
-See the :doc:`sampling positions demo notebook <notebooks/sampling_positions>` notebook
-for a detailed description of how to sample (RA, dec) positions.
+See the :doc:`sampling positions demo notebook <notebooks/sampling_positions>` for a detailed description of how to sample (RA, dec) positions.
 
 
 Why does my light curve have multiple points at the same time?
 --------------------------------------------------------------------------------
 
-While this can legitimately happen if multiple surveys have the exact same MJD for an observations, this is more likely an artifact of per-CCD level information. If the survey data is provided at the CCD-level (such as with Rubin's DP1 CCD visit table) **and** no detector footprint is set, the code will estimate a circular footprint per-CCD. Points that lie near the edge of one CCD may also be picked up by another CCD. This can often be solved by setting the detector footprint for each CCD. See the :doc:`ccd-level obstable <notebooks/ccd_obstables>` for more information.
+While this can legitimately happen if multiple surveys have the exact same MJD for an observation, it is more likely to be an artifact of per-CCD-level information. If the survey data is provided at the CCD level (such as with Rubin's DP1 CCD visit table) **and** no detector footprint is set, the code will estimate a circular footprint for each CCD. Points that lie near the edge of one CCD may also be picked up by another CCD. This can often be solved by setting the detector footprint for each CCD. See the :doc:`CCD-level ObsTables notebook <notebooks/ccd_obstables>` for more information.

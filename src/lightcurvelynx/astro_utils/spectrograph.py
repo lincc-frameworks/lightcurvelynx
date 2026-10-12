@@ -7,6 +7,7 @@ import scipy
 from astropy import units as u
 
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
+from lightcurvelynx.utils.io_utils import read_snana_spectrograph_data
 
 
 def gaussian_integral(nsigma_low, nsigma_high):
@@ -245,6 +246,28 @@ class Spectrograph:
             if not np.allclose(self.scale, other.scale):
                 return False
         return True
+
+    @classmethod
+    def from_snana_file(cls, file_name: str, *, compute_smear: bool = False):
+        """Load a Spectrograph object from a SNANA file.
+
+        Parameters
+        ----------
+        file_name : str
+            The path to the SNANA file containing the spectrograph data.
+        compute_smear : bool, optional
+            Flag to enable smearing of flux between bins based on the wavelength resolution.
+            If true, fluxes from Spectrograph.evaluate() will be smeared.
+            Default: False
+        """
+        file_data = read_snana_spectrograph_data(file_name)
+        return cls(
+            waves_min=file_data["waves_min"],
+            waves_max=file_data["waves_max"],
+            wavelength_resolution=file_data["waves_sigma"],
+            instrument=file_data.get("instrument", "Spectrograph"),
+            compute_smear=compute_smear,
+        )
 
     def _compute_padded_bins(self):
         """Compute the parameters for padded bins on either side of the main spectrograph bins. This allows

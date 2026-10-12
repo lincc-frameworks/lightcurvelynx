@@ -42,6 +42,7 @@ many excellent existing modeling packages. Wrappers are provided for popular pac
 
 * `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`_ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
 * `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/Bayesian>`).
+* `MOSFiT <https://github.com/guillochon/MOSFiT>`_ - A package of semi-analytic models for a wide range of transients, including superluminous supernovae, kilonovae and tidal disruption events.
 * `PyLIMA <https://github.com/ebachelet/pyLIMA>`_ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
 * `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
 * `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`_ - A package for simulating supernovae.
@@ -52,10 +53,7 @@ LightCurveLynx also allows users to load and sample pre-generated light curves, 
 ``LCLIB`` (:doc:`example <notebooks/pre_executed/lclib_example>`) and
 ``SIMSED`` (:doc:`example <notebooks/pre_executed/snana_example>`) formats used by SNANA.
 
-For an overview of the package, we recommend starting with the notebooks in the "Getting Started"
-section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary <glossary>` provides definitions of
-key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*,
-*BandfluxModel*, and *SEDModel*.
+For an overview of the package, we recommend starting with the notebooks in the "Getting Started" section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary and index <glossary>` provides definitions of key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*, *BandfluxModel*, and *SEDModel*. It also provides links to relevant documentation throughout the package.
 
 The `full source code <https://github.com/lincc-frameworks/lightcurvelynx>`_ is available on GitHub.
 
@@ -183,7 +181,7 @@ This project is supported by Schmidt Sciences.
    Randomness <randomness>
    Notebooks <notebooks>
    API Reference <autoapi/index>
-   Glossary <glossary>
+   Glossary and Index <glossary>
    Contribution Guide <contributing>
    Citations <citations>
    Frequently Asked Questions <faq>

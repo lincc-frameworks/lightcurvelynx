@@ -27,17 +27,14 @@ To perform a simulation that includes different populations of objects, the user
 simulate function multiple times--once for each population. The results can then be concatenated together
 to provide a full set of observations.
 
-For an overview of the package, we recommend starting with the notebooks in the "Getting Started"
-section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary <glossary>` provides definitions of
-key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*,
-*BandfluxModel*, and *SEDModel*.
+For an overview of the package, we recommend starting with the notebooks in the "Getting Started" section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary and index <glossary>` provides definitions of key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*, *BandfluxModel*, and *SEDModel*. It also provides links to relevant documentation throughout the package.
 
 Getting Started with a New Simulation
 -------------------------------------------------------------------------------
 
 When starting a new simulation there are a few key questions to ask (in this order):
 
-1. What do you want to simulate (supernova, kilanova, AGN, etc.)? The answer to this question determines the class you use to create the model object. For example, if you want to simulate a kilanova using the ``redback`` package, you would start by creating ``RedbackWrapperModel`` object.
+1. What do you want to simulate (supernova, kilonova, AGN, etc.)? The answer to this question determines the class you use to create the model object. For example, if you want to simulate a kilonova using the ``redback`` package, you would start by creating ``RedbackWrapperModel`` object.
 
 2. What parameters does your model have? And how do you want to set them? The answers to these questions determine how you set the parameters of the model object. All parameters within a model are set using arguments in the object’s constructors.
 
@@ -58,6 +55,7 @@ In addition to the built-in models, the software provides wrappers to common mod
 
 * `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`_ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
 * `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/Bayesian>`).
+* `MOSFiT <https://github.com/guillochon/MOSFiT>`_ - A package of semi-analytic models for a wide range of transients, including superluminous supernovae, kilonovae and tidal disruption events.
 * `PyLIMA <https://github.com/ebachelet/pyLIMA>`_ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
 * `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
 * `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`_ - A package for simulating supernovae.
