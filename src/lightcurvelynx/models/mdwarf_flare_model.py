@@ -15,7 +15,7 @@ from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayCoordSampler
 from lightcurvelynx.models.physical_model import SEDModel
-
+from lightcurvelynx.astro_utils.passbands import Passband
 
 class MDwarfFlareModel(SEDModel):
     """An M-Dwarf Flare Model. The spectrum is modeled as a modified black body,
@@ -93,7 +93,6 @@ class MDwarfFlareModel(SEDModel):
                     "pzflow package is not installed by default. You can install it with "
                     "`pip install pzflow` or `conda install conda-forge::pzflow`."
                 ) from err
-                # TURN THIS BACK WHEN I HAVE A PATH SOLUTION
             flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
             node = PZFlowNode(flow)
             # the node has them in log space
@@ -115,7 +114,7 @@ class MDwarfFlareModel(SEDModel):
         )
 
         self.add_parameter("star_radius", value=star_radius, description="The radius of the star in cm.")
-        (self.add_parameter("flare_fwhm", value=flare_fwhm, description="The FWHM of the flare in days"),)
+        self.add_parameter("flare_fwhm", value=flare_fwhm, description="The FWHM of the flare in days")
         self.add_parameter(
             "flare_amplitude",
             value=flare_amplitude,
@@ -143,13 +142,12 @@ class MDwarfFlareModel(SEDModel):
                 )
             self.set_parameter("ra", value=sampler.ra)
             self.set_parameter("dec", value=sampler.dec)
-        # tess calculation to be done once
-        _tess_red_filter = SvoFps.get_transmission_data("TESS/TESS.Red")
-        self._tess_wave = np.asarray(_tess_red_filter["Wavelength"]) * u.AA
-        self._tess_trans = np.asarray(_tess_red_filter["Transmission"])
+            
+        # downloading the passband once to use later
+        self._tess_band = Passband.from_svo("TESS/TESS.Red")
 
     @cite_function
-    def _flare_eqn(self, time, tpeak, flare_fwhm, flare_amplitude):
+    def _flare_eqn(self, time, tpeak):
         """
         The equation that defines the shape for the Continuous Flare Model.
         taken from Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
@@ -160,12 +158,6 @@ class MDwarfFlareModel(SEDModel):
             The time array to evaluate the flare over, days
         tpeak : float
             The center time of the flare peak in days
-        flare_fwhm : float
-            The Full Width at Half Maximum, timescale of the flare. same units as time
-        flare_amplitude : float
-            The amplitude of the flare relative to the star
-            (almost - must normalize in a later step in order for it to be perfect)
-
         Returns
         -------
         flare : 1-d numpy.ndarray
@@ -216,10 +208,10 @@ class MDwarfFlareModel(SEDModel):
             * np.exp(-D2 * time + ((B / C) + (D2 * C / 2)) ** 2)
             * special.erfc(((B - time) / C) + (C * D2 / 2))
         )
-        return eqn * flare_amplitude
+        return eqn 
 
     @cite_function
-    def _flare_model(self, time, tpeak, flare_fwhm, flare_amplitude, upsample=False, uptime=10):
+    def _flare_model(self, time, tpeak, flare_fwhm, upsample=False, uptime=10):
         """
         Taken directly from Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
         assumes kepler bandpass
@@ -241,10 +233,8 @@ class MDwarfFlareModel(SEDModel):
         tpeak : float
             The center time of the flare peak (days)
         flare_fwhm : float
-            The Full Width at Half Maximum, timescale of the flare (days)
-        flare_amplitude : float
-            The amplitude of the flare relative to the star
-            (almost - must normalize in a later step in order for it to be perfect)
+            The Full Width at Half Maximum, timescale of the flare 
+            (scaling of the time array)
         upsample: Bool
             whether to upsample (we should not need to use this for lightcurvelynx)
         uptime: float or int
@@ -268,14 +258,14 @@ class MDwarfFlareModel(SEDModel):
             dt = np.nanmedian(np.diff(np.abs(t_new)))
             timeup = np.linspace(min(t_new) - dt, max(t_new) + dt, t_new.size * uptime)
 
-            flareup = self._flare_eqn(timeup, tpeak, flare_fwhm, flare_amplitude)
+            flareup = self._flare_eqn(timeup, tpeak)
 
             # and now downsample back to the original time...
 
             downbins = np.concatenate((t_new - dt / 2.0, [max(t_new) + dt / 2.0]))
             flare, _, _ = binned_statistic(timeup, flareup, statistic="mean", bins=np.sort(downbins))
         else:
-            flare = self._flare_eqn(t_new, tpeak, flare_fwhm, flare_amplitude)
+            flare = self._flare_eqn(t_new, tpeak)
 
         return flare
 
@@ -306,10 +296,10 @@ class MDwarfFlareModel(SEDModel):
          normalized flare : 1-d numpy.ndarray
             The flux of the flare model evaluated at each time
         """
-        peak = self._flare_model(np.array([tpeak]), tpeak, flare_fwhm, flare_amplitude=1.0, **kwargs)[0]
-        return self._flare_model(time, tpeak, flare_fwhm, flare_amplitude=1.0, **kwargs) / peak
+        peak = self._flare_model(np.array([tpeak]), tpeak, flare_fwhm, **kwargs)[0]
+        return self._flare_model(time, tpeak, flare_fwhm, **kwargs) / peak
 
-    def _build_spectrum_bb_with_balmer(self, wavelengths, temp_low=9000, balmer_jump_ratio=2):
+    def _build_spectrum_bb_with_balmer(self, wavelengths, for_tess, temp_low=9000, balmer_jump_ratio=2):
         """
         Makes a spectrum for the flare temperature:
         Blackbody at 9000 K (default) where below the balmer jump,
@@ -319,8 +309,8 @@ class MDwarfFlareModel(SEDModel):
 
         Parameters
         ----------
-        wavelengths : np.ndarray
-            Wavelength values in angstroms
+        wavelengths : np.ndarray or None
+            Wavelength values in angstroms. Must be None if for_tess==True
         temp_low : float or int
             temperature for the blackbody spectrum in Kelvin.
             default: 9000
@@ -328,78 +318,53 @@ class MDwarfFlareModel(SEDModel):
             the multiplicative factor that the blackbody spectrum is multiplied by below
             the Balmer jump wavelength of 3645Å
             default: 2
+        for_tess : Bool
+            whether this is going to be used for the tess integrals. 
+            If yes, tess's wavelength array is used and the wavelengths argument must be None.
 
         Returns
         -------
         Intensity : np.ndarray
             flare spectrum. units: erg / (Hz s sr cm**2 )
         """
+        if wavelengths is None and for_tess==False:
+            raise ValueError("Must input wavelengths if for_tess is False")
+        elif wavelengths is not None and for_tess==True:
+            raise ValueError("Cannot input wavelengths if for_tess is True")
+
+        if for_tess==True:
+            wavelengths = self._tess_band.waves
+            
         if not isinstance(wavelengths, u.Quantity):
             wavelengths = wavelengths * u.AA
+            
         if not isinstance(temp_low, u.Quantity):
             temp_low = temp_low * u.K
+            
         bb_low = BlackBody(temperature=temp_low)
-
         intensity = bb_low(wavelengths)
         balmer_jump = 3645 * u.AA  # angstroms
-
         intensity[wavelengths < balmer_jump] *= balmer_jump_ratio
         return intensity
 
-    def _tess_passband(self, wavelengths):
-        """
-        Interpolate TESS T(lambda) onto arbitrary wavelengths. 0 outside range.
-
-        Parameters
-        ----------
-        wavelengths : np.ndarray
-            Wavelength values in angstroms
-
-        Returns
-        -------
-        Interpolated tess : np.ndarray
-            The tess transmission at the wavelengths given in wavelengths
-        """
-        if not isinstance(wavelengths, u.Quantity):
-            wavelengths = wavelengths * u.AA
-        wl_AA = wavelengths.to(u.AA).value
-
-        return np.interp(wl_AA, self._tess_wave.to(u.AA).value, self._tess_trans, left=0.0, right=0.0)
-
-    def _tess_band_integrate(self, spectrum, wavelengths, axis=0):
+    def _tess_band_integrate(self, spectrum):
         """
         Collapse a spectrum onto the TESS band: total_flux = integral of
         spectrum(lambda) * T(lambda) dlambda / lambda .
-
-        Works on a plain 1D spectrum (n_wave,) or a stack with the wavelength
-        axis at `axis` (e.g. an (n_wave, n_time) array — pass axis=0, the
-        default).
 
         Parameters
         ----------
         spectrum : numpy.ndarray
             Wavelength axis at `axis`. Should be in terms of frequency
-        wavelengths : numpy.ndarray
-            Wavelength values; shape matches spectrum's wave axis
-        axis : int
-            Which axis of `spectrum` is the wavelength axis
-
+            
         Returns
         -------
         Quantity
-            The spectrum with the wavelength axis integrated out
+            The spectrum with the wavelength axis integrated out (tess's wavelengths)
         """
-        if not isinstance(wavelengths, u.Quantity):
-            wavelengths = wavelengths * u.AA
-        T_lambda = self._tess_passband(wavelengths)
-        wl = wavelengths.to(u.AA).value
-        w = T_lambda * wl
-        shape = [1] * spectrum.ndim
-        shape[axis] = -1
-        w = w.reshape(shape)
-        return np.trapezoid(spectrum.value * w / wl, wl, axis=axis)
+        return self._tess_band.fluxes_to_bandflux(np.r_[[spectrum]]).item()
 
-    def _quiescent_flux_no_distance(self, temp_star, wavelengths):
+    def _quiescent_flux_no_distance(self, temp_star, wavelengths, for_tess):
         """
         Quiescent stellar spectral intensity. it's a blackbody
 
@@ -407,14 +372,25 @@ class MDwarfFlareModel(SEDModel):
         ----------
         temp_star : float or Quantity
             assumed Kelvin if plain float
-        wavelengths : np.ndarray
+        wavelengths : np.ndarray or None
             Wavelength values; shape matches spectrum's wave axis
+        for_tess : Bool
+            whether this is going to be used for the tess integrals. 
+            If yes, tess's wavelength array is used and the wavelengths argument must be None.
 
         Returns
         -------
         Quantity, shape (n_wave,), units erg/(Hz s sr cm^2)
         it is now in terms of frequency and not wavelength
         """
+        if wavelengths is None and for_tess==False:
+            raise ValueError("Must input wavelengths if for_tess is False")
+        elif wavelengths is not None and for_tess==True:
+            raise ValueError("Cannot input wavelengths if for_tess is True")
+
+        if for_tess==True:
+            wavelengths = self._tess_band.waves
+            
         if not isinstance(wavelengths, u.Quantity):
             wavelengths = wavelengths * u.AA  # otherwise it assumes frequency
         if not isinstance(temp_star, u.Quantity):
@@ -455,25 +431,26 @@ class MDwarfFlareModel(SEDModel):
         wavelengths = wavelengths * u.AA  # angstroms
 
         flux_density = np.zeros((num_times, num_waves))
-
-        constants = np.pi * params["star_radius"] ** 2 * u.sr * (u.cm**2)
+        
         # adding the units for radius
+        constants = np.pi * params["star_radius"] ** 2 * u.sr * (u.cm**2)
 
         norm_shape = (
             self._norm_flare_shape(times, params["t0"], params["flare_fwhm"]) * params["flare_amplitude"]
         )
         # if we want to upsample it we can add that here
-        I_flare = self._build_spectrum_bb_with_balmer(wavelengths, temp_low=params["flare_temp"])
-        integral_flare = self._tess_band_integrate(I_flare, wavelengths)
-        I_star = self._quiescent_flux_no_distance(params["star_temp"], wavelengths)
-        integral_star = self._tess_band_integrate(I_star, wavelengths)
+        I_flare_for_tess = self._build_spectrum_bb_with_balmer(wavelengths=None, temp_low=params["flare_temp"], for_tess=True)
+        I_flare_full = self._build_spectrum_bb_with_balmer(wavelengths=wavelengths, temp_low=params["flare_temp"], for_tess=False)
+        integral_flare = self._tess_band_integrate(I_flare_for_tess)
+        I_star_for_tess = self._quiescent_flux_no_distance(params["star_temp"], wavelengths=None, for_tess=True)
+        I_star_full = self._quiescent_flux_no_distance(params["star_temp"], wavelengths=wavelengths, for_tess=False)
+        integral_star = self._tess_band_integrate(I_star_for_tess)
         flux_flare_no_distance = (
-            constants * (integral_star / integral_flare) * norm_shape[None, :] * I_flare[:, None]
+            constants * (integral_star / integral_flare) * norm_shape[None, :] * I_flare_full[:, None]
         )
-        q_no_distance = self._quiescent_flux_no_distance(params["star_temp"], wavelengths) * constants
+        q_no_distance = I_star_full * constants
 
         total_no_distance = q_no_distance[:, None] + flux_flare_no_distance  # erg/s/AA, no D yet
-        # print(total_no_distance.unit)
         distance = params["distance"]
         if not isinstance(distance, u.Quantity):
             distance = distance * u.parsec
