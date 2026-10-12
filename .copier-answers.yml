@@ -1,6 +1,6 @@
 # Changes here will be overwritten by Copier
-_commit: v2.2.0-23-ga0862f6
-_src_path: ../python-project-template
+_commit: v2.3.0
+_src_path: gh:lincc-frameworks/python-project-template
 author_email: lincc-frameworks-team@lists.lsst.org
 author_name: LINCC Frameworks
 create_example_module: false
@@ -11,6 +11,7 @@ enforce_style:
 failure_notification:
 - slack
 include_benchmarks: true
+include_dev_guide: true
 include_docs: true
 include_notebooks: true
 mypy_type_checking: none
@@ -24,4 +25,5 @@ python_versions:
 - '3.12'
 - '3.13'
 - '3.14'
+- '3.15'
 test_lowest_version: none
