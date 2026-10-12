@@ -39,7 +39,7 @@ class MDwarfFlareModel(SEDModel):
     * star_radius - The radius of the star in cm.
     * flare_fwhm - The full width half max of the flare in time (days).
     * flare_temp - The temperature of the cold part of the flare in kelvins.
-    * balmer_jump_ratio - the ratio of the spectral intensity
+    * balmer_jump_ratio - the ratio of the spectral intensity`
         below the Balmer jump wavelength (3645Å) to above the Balmer jump wavelength
 
     Parameters
@@ -58,6 +58,7 @@ class MDwarfFlareModel(SEDModel):
         If not provided, the model uses samples from the default pzflow model.
     flare_temp : parameter, optional
         The temperature of the cold part of the flare in Kelvins. Defaults to 9000 K.
+        If not provided, uses 
     balmer_jump_ratio : parameter, optional
         the ratio of the spectral intensity below the balmer jump to above the balmer jump
         (which is a blackbody at flare_temp). Defaults to 2
@@ -426,11 +427,7 @@ class MDwarfFlareModel(SEDModel):
             A length T x N matrix of observer frame SED values (in nJy).
         """
         params = self.get_local_params(graph_state)  # has everything that was instantiated
-        num_times = len(times)
-        num_waves = len(wavelengths)
         wavelengths = wavelengths * u.AA  # angstroms
-
-        flux_density = np.zeros((num_times, num_waves))
 
         # adding the units for radius
         constants = np.pi * params["star_radius"] ** 2 * u.sr * (u.cm**2)
@@ -464,5 +461,5 @@ class MDwarfFlareModel(SEDModel):
             distance = distance * u.parsec
 
         total_flux_at_earth = total_no_distance / ((distance.to(u.cm)) ** 2)
-        flux_density = (total_flux_at_earth).to(u.nJy, equivalencies=u.spectral_density(wavelengths[:, None]))
+        flux_density = (total_flux_at_earth).to(u.nJy, equivalencies=u.spectral_density(wavelengths[:, None])).T
         return flux_density

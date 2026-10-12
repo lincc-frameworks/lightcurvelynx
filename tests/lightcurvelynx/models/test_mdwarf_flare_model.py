@@ -67,9 +67,9 @@ def test_mdwarf_flare_model_with_assigned_inputs():
 
     sample = model.sample_parameters()
     values = model.evaluate_sed(times, wavelengths, sample)
-    assert check_if_monotonic(values[:, 0])  # should be no flare
+    assert check_if_monotonic(values[0])  # should be no flare
     # that may not be a good check if the wavelength range is crazy but should work for normal ranges
-    assert not check_if_monotonic(values[:, 100])  # when flare should exist
+    assert not check_if_monotonic(values[100])  # when flare should exist
 
     # check that the peak amp of the flare is the same as the amplitude that we put in
 
@@ -94,7 +94,7 @@ def test_mdwarf_flare_model_with_assigned_inputs():
     state = model.sample_parameters(num_samples=1)
     fluxes = model.evaluate_sed(times, wavelengths, state)
 
-    assert fluxes.shape == (4000, 201)
+    assert fluxes.shape == (201, 4000)
 
 
 def test_mdwarf_flare_model_parameter_sampling():
