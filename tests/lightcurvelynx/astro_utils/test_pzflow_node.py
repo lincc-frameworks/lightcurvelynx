@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from citation_compass import find_in_citations
+
 from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
 from lightcurvelynx.base_models import FunctionNode, ParameterizedNode
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc

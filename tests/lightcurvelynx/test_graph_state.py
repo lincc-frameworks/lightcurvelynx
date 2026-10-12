@@ -6,6 +6,7 @@ import numpy as np
 import pyarrow as pa
 import pytest
 from astropy.table import Table
+
 from lightcurvelynx.graph_state import DependencyGraph, GraphState, transpose_dict_of_list
 
 

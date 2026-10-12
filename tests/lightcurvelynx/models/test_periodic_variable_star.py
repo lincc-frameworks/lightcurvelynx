@@ -2,9 +2,10 @@ import astropy.constants as const
 import astropy.units as u
 import numpy as np
 import pytest
-from lightcurvelynx.models.periodic_variable_star import EclipsingBinaryStar
 from numpy.testing import assert_allclose
 from scipy.spatial.transform import Rotation
+
+from lightcurvelynx.models.periodic_variable_star import EclipsingBinaryStar
 
 
 def test_circle_overlap_area_total_eclipse():

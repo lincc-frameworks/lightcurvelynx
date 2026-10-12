@@ -11,6 +11,9 @@ import numpy as np
 import pandas as pd
 import pytest
 from astropy.coordinates import Latitude, Longitude, SkyCoord, angular_separation
+from mocpy import MOC
+from nested_pandas import NestedFrame
+
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.milky_way_density import MilkyWayDensityJuric2008
 from lightcurvelynx.math_nodes.ra_dec_sampler import (
@@ -24,8 +27,6 @@ from lightcurvelynx.math_nodes.ra_dec_sampler import (
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
 from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.utils.io_utils import write_results_as_hats
-from mocpy import MOC
-from nested_pandas import NestedFrame
 
 
 def test_uniform_ra_dec():

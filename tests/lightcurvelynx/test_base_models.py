@@ -3,6 +3,7 @@ import random
 import jax
 import numpy as np
 import pytest
+
 from lightcurvelynx.base_models import FunctionNode, ParameterizedNode, _ParameterSource
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode

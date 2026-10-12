@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.mag_flux import (
     Flux2MagNode,
     Mag2FluxNode,

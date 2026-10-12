@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from astropy.cosmology import WMAP9, Planck18
+
 from lightcurvelynx.astro_utils.redshift import (
     RedshiftDistFunc,
     obs_to_rest_times_waves,

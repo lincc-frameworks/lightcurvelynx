@@ -1,4 +1,5 @@
 import numpy as np
+
 from lightcurvelynx.astro_utils.obs_utils import phot_eff_function, spec_eff_function
 
 

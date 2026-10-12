@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from astropy.cosmology import Planck18
+
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList

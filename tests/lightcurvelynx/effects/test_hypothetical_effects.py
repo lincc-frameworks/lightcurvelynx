@@ -4,6 +4,7 @@ are working as expected in a variety of scenarios.
 """
 
 import numpy as np
+
 from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
 from lightcurvelynx.effects.effect_model import EffectModel
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList

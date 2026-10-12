@@ -3,6 +3,8 @@ import numpy as np
 import pytest
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
+from scipy.stats import norm
+
 from lightcurvelynx.astro_utils.snia_utils import (
     DistModFromRedshift,
     HostmassX1Distr,
@@ -10,7 +12,6 @@ from lightcurvelynx.astro_utils.snia_utils import (
     SNCoordGivenPhysicalSep,
 )
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
-from scipy.stats import norm
 
 
 def test_hostmass_x1_distr():

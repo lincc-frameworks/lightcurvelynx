@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from citation_compass import find_in_citations
+
 from lightcurvelynx.models.salt2_jax import SALT2JaxModel
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 

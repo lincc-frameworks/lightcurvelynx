@@ -2,11 +2,13 @@ import tempfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
-import lightcurvelynx.simulate as simulate_module
 import numpy as np
 import pandas as pd
 import pytest
 from astropy import units as u
+from nested_pandas import NestedFrame, read_parquet
+
+import lightcurvelynx.simulate as simulate_module
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
@@ -37,7 +39,6 @@ from lightcurvelynx.simulate import (
     simulate_lightcurves,
 )
 from lightcurvelynx.survey_info import SurveyInfo
-from nested_pandas import NestedFrame, read_parquet
 
 
 def test_get_time_windows():

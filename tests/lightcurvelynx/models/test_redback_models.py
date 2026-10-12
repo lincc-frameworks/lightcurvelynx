@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 from citation_compass import find_in_citations
+
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.redback_models import RedbackWrapperModel
 from lightcurvelynx.utils.extrapolate import ConstantPadding

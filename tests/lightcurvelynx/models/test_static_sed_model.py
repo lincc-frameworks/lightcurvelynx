@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from astropy import units as u
+
 from lightcurvelynx.astro_utils.sed import SED
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam

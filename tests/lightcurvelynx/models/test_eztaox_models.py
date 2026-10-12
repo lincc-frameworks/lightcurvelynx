@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.models.eztaox_models import EzTaoXWrapperModel
 
 

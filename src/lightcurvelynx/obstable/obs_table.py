@@ -236,9 +236,7 @@ class ObsTable:
             return True
         if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
             return True
-        if key in self.survey_values and self.survey_values[key] is not None:
-            return True
-        return False
+        return key in self.survey_values and self.survey_values[key] is not None
 
     def copy(self):
         """Create a copy of the ObsTable."""

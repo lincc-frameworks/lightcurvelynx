@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from astropy.table import Table
 from citation_compass import find_in_citations
+
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.effects.basic_effects import ScaleFluxEffect

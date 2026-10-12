@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import pandas as pd
 import pytest
+
 from lightcurvelynx.utils.io_utils import (
     SquashLogging,
     SquashOutput,

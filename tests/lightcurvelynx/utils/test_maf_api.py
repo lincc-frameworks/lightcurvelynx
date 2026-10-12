@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import StepModel

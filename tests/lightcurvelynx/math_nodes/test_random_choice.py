@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.random_choice import RandomChoiceNode
 

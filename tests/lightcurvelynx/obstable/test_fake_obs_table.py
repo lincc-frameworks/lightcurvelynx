@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 
 

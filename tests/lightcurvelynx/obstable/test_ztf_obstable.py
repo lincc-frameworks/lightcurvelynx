@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
 

@@ -4,6 +4,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from astropy import units as u
+
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc

@@ -1,4 +1,5 @@
 import numpy as np
+
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
 
 

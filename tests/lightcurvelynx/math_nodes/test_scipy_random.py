@@ -1,5 +1,7 @@
 import numpy as np
 import pytest
+from scipy.interpolate import interp1d
+
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.scipy_random import (
@@ -8,7 +10,6 @@ from lightcurvelynx.math_nodes.scipy_random import (
     SamplePDF,
     ScipyRandomDist,
 )
-from scipy.interpolate import interp1d
 
 
 class FlatDist:

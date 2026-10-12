@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.models.periodic_model import PeriodicModel
 
 

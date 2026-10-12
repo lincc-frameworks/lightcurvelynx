@@ -15,6 +15,7 @@ import functools
 import timeit
 
 import numpy as np
+
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.ra_dec_sampler import ApproximateMOCSampler

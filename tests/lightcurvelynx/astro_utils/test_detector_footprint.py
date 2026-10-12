@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from regions import (
     CirclePixelRegion,
     CircleSkyRegion,
@@ -14,6 +13,8 @@ from regions import (
     PixCoord,
     RectanglePixelRegion,
 )
+
+from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 
 
 def test_rotate_to_center():

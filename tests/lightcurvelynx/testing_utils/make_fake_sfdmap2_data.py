@@ -2,6 +2,7 @@
 
 import numpy as np
 from astropy.io import fits
+
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
 
 

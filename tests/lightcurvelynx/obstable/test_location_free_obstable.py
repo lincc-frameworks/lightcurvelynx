@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.obstable.location_free_obstable import LocationFreeObsTable
 
 

@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from citation_compass import find_in_citations
+
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
 from lightcurvelynx.models.sed_template_model import (
     MultiSEDTemplateModel,

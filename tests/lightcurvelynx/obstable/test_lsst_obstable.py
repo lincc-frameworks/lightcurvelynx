@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable
 from lightcurvelynx.utils.io_utils import read_sqlite_table

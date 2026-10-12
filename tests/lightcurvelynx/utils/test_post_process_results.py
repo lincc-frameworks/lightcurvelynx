@@ -4,6 +4,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from nested_pandas import NestedFrame
+
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
@@ -18,7 +20,6 @@ from lightcurvelynx.utils.post_process_results import (
     results_drop_empty,
     results_use_full_filter_names,
 )
-from nested_pandas import NestedFrame
 
 
 def test_concat_results():

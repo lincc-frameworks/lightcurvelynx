@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from citation_compass import find_in_citations
+
 from lightcurvelynx.astro_utils.agn_utils import eddington_ratio_dist_fun
 
 

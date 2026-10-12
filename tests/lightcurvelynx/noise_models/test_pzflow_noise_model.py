@@ -1,14 +1,15 @@
 import numpy as np
 import pandas as pd
 import pytest
+
+# Local helper class.
+from lookup_only_obstable import LookupOnlyObsTable
+
 from lightcurvelynx.noise_models.pzflow_noise_model import (
     PZFlowNoiseModel,
     _ColumnNormalizationData,
     learn_pzflow_noise_model,
 )
-
-# Local helper class.
-from lookup_only_obstable import LookupOnlyObsTable
 
 
 def test_column_normalization_data():

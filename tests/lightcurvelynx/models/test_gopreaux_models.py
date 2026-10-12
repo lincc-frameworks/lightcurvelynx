@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.gopreaux_models import GoPreauxModel
 from lightcurvelynx.utils.extrapolate import LastValue

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.dustmap import ConstantHemisphereDustMap, DustmapWrapper
 from lightcurvelynx.effects.extinction import ExtinctionEffect, _DustExtinctionWrapper
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
