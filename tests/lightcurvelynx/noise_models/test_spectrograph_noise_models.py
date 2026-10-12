@@ -1,9 +1,10 @@
 import numpy as np
 import pytest
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
-from lightcurvelynx.noise_models.spectrograph_noise_models import ConstantSpectrographNoiseModel
-
-# Local helper class.
+from lightcurvelynx.noise_models.spectrograph_noise_models import (
+    ConstantSpectrographNoiseModel,
+    SNANANoiseModel,
+)
 from lookup_only_obstable import LookupOnlyObsTable
 from numpy.testing import assert_allclose
 
@@ -92,3 +93,62 @@ def test_constant_spectrograph_noise_model_check_compatibility():
     assert not model.check_compatibility(obs_table)
     with pytest.raises(ValueError):
         model.check_compatibility(obs_table, fail_on_incompatible=True)
+
+
+def test_snana_noise_model_solve(test_data_dir):
+    """Test that the solved (ZP, SQSIGSKY) reproduce the file's SNR at both magrefs
+    (SNANA's own self-check, sntools_spectrograph.c:748-754)."""
+    snana_file = test_data_dir / "fake_snana_spectrograph_gapless.dat"
+    model = SNANANoiseModel(snana_file)
+    snr = np.array([[50.01, 100.8, 148.36], [3.14, 4.90, 6.55]])[None] + 0.001 * np.arange(8)[:, None, None]
+
+    for m, magref in enumerate(model.magref):
+        flux_pe = 10.0 ** (-0.4 * (magref - model.zp_grid))
+        assert_allclose(flux_pe / np.sqrt(model.sqsigsky_grid + flux_pe), snr[:, m, :], rtol=1e-8)
+
+
+@pytest.mark.parametrize(
+    "magref, snr, match",
+    [
+        ([19.0, 23.0], [10.0, 0.0], "must be positive"),  # SNR <= 0
+        ([23.0, 19.0], [1.0, 10.0], "Cannot solve"),  # magrefs out of order: TOP <= 0
+        ([19.0, 23.0], [10.0, 0.2], "Cannot solve"),  # SNR1 below the sky-limited floor: BOT <= 0
+        ([np.nan, 23.0], [10.0, 3.0], "not finite"),  # NaN propagates to ZP
+    ],
+)
+def test_snana_noise_model_solve_fail(test_data_dir, magref, snr, match):
+    """Test that _solve raises a clear error for SNR tables that cannot be solved."""
+    model = SNANANoiseModel(test_data_dir / "fake_snana_spectrograph_gapless.dat")
+    snr = np.asarray(snr, dtype=float).reshape(1, 2, 1)  # (W=1, M=2, T=1)
+    with pytest.raises(ValueError, match=match):
+        model._solve(magref, snr)
+
+
+def test_snana_spectrograph_noise_model(test_data_dir):
+    """Seeded RNG gives reproducible noise; a different seed gives different noise."""
+
+    obs_table = LookupOnlyObsTable({"exptime": [120.0, 600.0, 3600.0]})
+    indices = np.array([2, 0])
+
+    snana_file = test_data_dir / "fake_snana_spectrograph_gapless.dat"
+    model = SNANANoiseModel(snana_file)
+    flux_density = 100
+    sed = np.full((len(indices), len(model.spectrograph.query_waves)), flux_density)
+    measurements = model.spectrograph.evaluate(sed)
+
+    flux1, err1 = model.apply_noise(
+        measurements, sed=sed, obs_table=obs_table, indices=indices, rng=np.random.default_rng(1234)
+    )
+    flux2, err2 = model.apply_noise(
+        measurements, sed=sed, obs_table=obs_table, indices=indices, rng=np.random.default_rng(1234)
+    )
+    flux3, _ = model.apply_noise(
+        measurements, sed=sed, obs_table=obs_table, indices=indices, rng=np.random.default_rng(5678)
+    )
+
+    assert flux1.shape == err1.shape == measurements.shape == (2, model.spectrograph.num_bins)
+    assert np.all(err1[0] < err1[1])  # row 0 used 3600 s, row 1 used 120 s
+    assert not np.allclose(flux1, measurements, atol=0.0)  # fluxes are ~1e-15, so atol must be 0
+    assert_allclose(flux2, flux1)
+    assert_allclose(err2, err1)
+    assert not np.allclose(flux3, flux1, atol=0.0)
