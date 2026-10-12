@@ -4,17 +4,15 @@ basis.  They may use information from the Spectrograph object and/or ObsTable.
 
 from abc import ABC, abstractmethod
 
-from astropy import units as u
 import numpy as np
-from scipy.interpolate import interp1d
+from astropy import units as u
 from citation_compass import cite_function
+from scipy.interpolate import interp1d
 
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
-from lightcurvelynx.obstable.spectrograph_table import SpectrographObsTable
-from lightcurvelynx.utils.io_utils import read_snana_spectrograph_data
-
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
+from lightcurvelynx.utils.io_utils import read_snana_spectrograph_data
 
 
 class SpectrographNoiseModel(ABC):

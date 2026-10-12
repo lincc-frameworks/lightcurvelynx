@@ -5,7 +5,6 @@ from lightcurvelynx.noise_models.spectrograph_noise_models import (
     ConstantSpectrographNoiseModel,
     SNANANoiseModel,
 )
-
 from lookup_only_obstable import LookupOnlyObsTable
 from numpy.testing import assert_allclose
 
