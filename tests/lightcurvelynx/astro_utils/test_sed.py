@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.sed import SED
 from lightcurvelynx.utils.io_utils import write_numpy_data
 

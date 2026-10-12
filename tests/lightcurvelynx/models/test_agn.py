@@ -5,6 +5,7 @@ https://github.com/RickKessler/SNANA/blob/master/src/gensed_AGN.py
 
 import numpy as np
 import pytest
+
 from lightcurvelynx.consts import M_SUN_G
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.agn import AGN, sample_damped_random_walk

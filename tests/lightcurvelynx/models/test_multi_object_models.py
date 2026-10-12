@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc

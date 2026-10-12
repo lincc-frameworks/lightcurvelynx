@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.noise_models.base_noise_models import ConstantFluxNoiseModel, PoissonFluxNoiseModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable

@@ -1,5 +1,10 @@
 import numpy as np
 import pytest
+
+# Local helper class.
+from lookup_only_obstable import LookupOnlyObsTable
+from numpy.testing import assert_allclose
+
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.noise_models.base_noise_models import (
     ConstantFluxNoiseModel,
@@ -8,10 +13,6 @@ from lightcurvelynx.noise_models.base_noise_models import (
     PoissonFluxNoiseModel,
 )
 from lightcurvelynx.noise_models.noise_utils import poisson_bandflux_std
-
-# Local helper class.
-from lookup_only_obstable import LookupOnlyObsTable
-from numpy.testing import assert_allclose
 
 
 def test_constant_flux_noise_model_init_raises_for_negative_noise_level():

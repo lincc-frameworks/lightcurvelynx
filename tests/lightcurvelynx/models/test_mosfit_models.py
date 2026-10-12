@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 from citation_compass import find_in_citations
+
 from lightcurvelynx.models.mosfit_models import MOSFiTWrapperModel
 from lightcurvelynx.utils.extrapolate import ConstantPadding
 

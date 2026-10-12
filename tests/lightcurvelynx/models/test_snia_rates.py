@@ -1,5 +1,6 @@
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
+
 from lightcurvelynx.astro_utils.snia_utils import num_snia_per_redshift_bin, snia_volumetric_rates
 
 

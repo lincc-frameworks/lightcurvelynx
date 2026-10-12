@@ -1,12 +1,13 @@
 import numpy as np
 import pytest
+from lookup_only_obstable import LookupOnlyObsTable
+from numpy.testing import assert_allclose
+
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.noise_models.spectrograph_noise_models import (
     ConstantSpectrographNoiseModel,
     SNANANoiseModel,
 )
-from lookup_only_obstable import LookupOnlyObsTable
-from numpy.testing import assert_allclose
 
 
 def test_constant_spectrograph_noise_model():

@@ -2,6 +2,7 @@ import os
 
 import jax.numpy as jnp
 import pytest
+
 from lightcurvelynx.astro_utils.salt2_color_law import (
     _SALT2CL_B,
     _SALT2CL_V,

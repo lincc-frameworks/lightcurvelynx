@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.models.bagle_models import BagleMultiWrapperModel, BagleWrapperModel
 

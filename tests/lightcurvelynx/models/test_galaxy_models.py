@@ -1,4 +1,5 @@
 import numpy as np
+
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 from lightcurvelynx.models.galaxy_models import GaussianGalaxy

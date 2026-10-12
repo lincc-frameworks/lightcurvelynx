@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 from astropy.coordinates import SkyCoord
 from cdshealpix import skycoord_to_healpix
+
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.argus_obstable import ArgusHealpixObsTable
 

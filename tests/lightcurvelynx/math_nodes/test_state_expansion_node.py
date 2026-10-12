@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.base_models import FunctionNode, ParameterizedNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode

@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from lightcurvelynx.models.physical_model import BandfluxModel, SEDModel
 from lightcurvelynx.utils.extrapolate import LinearDecay, LinearFit, ZeroPadding
 

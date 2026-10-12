@@ -5,6 +5,7 @@ from importlib.util import find_spec
 
 import numpy as np
 import pytest
+
 from lightcurvelynx.models.pylima_models import PyLIMAWrapperModel
 
 if find_spec("pyLIMA") is None:

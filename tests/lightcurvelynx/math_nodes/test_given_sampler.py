@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from astropy.table import Table
+
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.given_sampler import (

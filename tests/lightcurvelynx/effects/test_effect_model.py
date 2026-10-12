@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.effects.effect_model import EffectModel
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.astro_utils.snia_utils import DistModFromRedshift, HostmassX1Func, X0FromDistMod
 from lightcurvelynx.base_models import FunctionNode

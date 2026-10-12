@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+
 from lightcurvelynx.utils.plotting import (
     _build_colormap,
     plot_bandflux_lightcurves,

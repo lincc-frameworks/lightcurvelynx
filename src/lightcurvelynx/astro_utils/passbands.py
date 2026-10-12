@@ -834,9 +834,7 @@ class Passband:
         # Check that they have the (approximately) same transmission tables.
         if self.normalized_system_response.shape != other.normalized_system_response.shape:
             return False
-        if not np.allclose(self.normalized_system_response, other.normalized_system_response):
-            return False
-        return True
+        return np.allclose(self.normalized_system_response, other.normalized_system_response)
 
     @classmethod
     def from_file(

@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.table import Table
+
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.models.sed_template_model import SEDTemplateModel
 from lightcurvelynx.utils.extrapolate import ZeroPadding

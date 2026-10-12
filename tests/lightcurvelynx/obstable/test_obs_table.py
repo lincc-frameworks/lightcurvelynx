@@ -6,10 +6,11 @@ import numpy as np
 import pandas as pd
 import pytest
 from astropy.coordinates import SkyCoord
+from regions import CircleSkyRegion
+
 from lightcurvelynx.astro_utils.detector_footprint import DetectorFootprint
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.obstable.obs_table import ObsTable
-from regions import CircleSkyRegion
 
 
 def test_create_obs_table():

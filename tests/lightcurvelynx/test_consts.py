@@ -1,5 +1,6 @@
-from lightcurvelynx import consts
 from numpy.testing import assert_allclose
+
+from lightcurvelynx import consts
 
 
 def test_parsec_to_cm():

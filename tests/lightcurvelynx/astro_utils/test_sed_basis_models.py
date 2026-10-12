@@ -4,6 +4,7 @@ matplotlib.use("Agg")  # Suppress the plots
 
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.sed_basis_models import SEDBasisModel
 

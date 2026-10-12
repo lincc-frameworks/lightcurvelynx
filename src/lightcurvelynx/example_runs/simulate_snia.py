@@ -4,6 +4,8 @@ from pathlib import Path
 
 import numpy as np
 from astropy import units as u
+from scipy.interpolate import interp1d
+
 from lightcurvelynx.astro_utils.passbands import PassbandGroup
 from lightcurvelynx.astro_utils.snia_utils import (
     DistModFromRedshift,
@@ -16,7 +18,6 @@ from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.scipy_random import SamplePDF
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.models.snia_host import SNIaHost
-from scipy.interpolate import interp1d
 
 logger = logging.getLogger(__name__)
 

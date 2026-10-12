@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from astropy import units as u
+
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu, fnu_to_flam
 
 

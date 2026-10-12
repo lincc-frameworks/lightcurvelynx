@@ -3,6 +3,7 @@ import importlib
 import numpy as np
 import pytest
 from citation_compass import find_in_citations
+
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
 from lightcurvelynx.astro_utils.dustmap import ConstantHemisphereDustMap, DustmapWrapper, SFDMap
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList

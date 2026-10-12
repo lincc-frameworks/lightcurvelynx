@@ -1,7 +1,8 @@
 import astropy.constants as const
 import numpy as np
-from lightcurvelynx.astro_utils.black_body import black_body_luminosity_density_per_solid
 from scipy.integrate import trapezoid
+
+from lightcurvelynx.astro_utils.black_body import black_body_luminosity_density_per_solid
 
 
 def test_bolometric_luminosity():

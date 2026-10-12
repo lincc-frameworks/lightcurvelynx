@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
 
 

@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 from astropy.coordinates import ICRS
+
 from lightcurvelynx.astro_utils.milky_way_density import (
     MilkyWayDensityBase,
     MilkyWayDensityJuric2008,
