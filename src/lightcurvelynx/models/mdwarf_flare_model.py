@@ -278,7 +278,7 @@ class MDwarfFlareModel(SEDModel):
 
         The Tovar Mendoza `amplitude` parameter is close to but not exactly
         the peak flux (the peak of flare_model(..., amplitude=1) is ~0.95,
-        not 1.0),so we explicitly renormalize here rather than assume
+        not 1.0), so we explicitly renormalize here rather than assume
         amplitude == peak height. This allows us to use the TESS amplitude
         distribution instead of what the parameter was originally meant for which was Kepler
         ...hopefully :)
