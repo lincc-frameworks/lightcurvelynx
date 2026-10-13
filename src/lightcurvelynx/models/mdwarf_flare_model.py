@@ -107,7 +107,7 @@ class MDwarfFlareModel(SEDModel):
             flare_amplitude = BasicMathNode("10 ** log_amp", log_amp=node.logAmp)
 
         if flare_temp is None:
-            flare_temp = NumpyRandomFunc("uniform", low=9000, high=14000)# default, Kelvin
+            flare_temp = NumpyRandomFunc("uniform", low=9000, high=14000)  # default, Kelvin
 
         if balmer_jump_ratio is None:
             balmer_jump_ratio = 2  # default
@@ -437,26 +437,26 @@ class MDwarfFlareModel(SEDModel):
             self._norm_flare_shape(times, params["t0"], params["flare_fwhm"]) * params["flare_amplitude"]
         )
         # if we want to upsample it we can add that here
-        I_flare_for_tess = self._build_spectrum_bb_with_balmer(wavelengths=None,
-                                                               temp_low=params["flare_temp"],
-                                                               for_tess=True)
-        I_flare_full = self._build_spectrum_bb_with_balmer(wavelengths=wavelengths,
-                                                           temp_low=params["flare_temp"],
-                                                           for_tess=False)
+        I_flare_for_tess = self._build_spectrum_bb_with_balmer(
+            wavelengths=None, temp_low=params["flare_temp"], for_tess=True
+        )
+        I_flare_full = self._build_spectrum_bb_with_balmer(
+            wavelengths=wavelengths, temp_low=params["flare_temp"], for_tess=False
+        )
         integral_flare = self._tess_band_integrate(I_flare_for_tess)
-        I_star_for_tess = self._quiescent_flux_no_distance(params["star_temp"],
-                                                           wavelengths=None,
-                                                           for_tess=True)
-        I_star_full = self._quiescent_flux_no_distance(params["star_temp"],
-                                                       wavelengths=wavelengths,
-                                                       for_tess=False)
+        I_star_for_tess = self._quiescent_flux_no_distance(
+            params["star_temp"], wavelengths=None, for_tess=True
+        )
+        I_star_full = self._quiescent_flux_no_distance(
+            params["star_temp"], wavelengths=wavelengths, for_tess=False
+        )
         integral_star = self._tess_band_integrate(I_star_for_tess)
         flux_flare_no_distance = (
-            constants * (integral_star / integral_flare) * norm_shape[:,None] * I_flare_full[ None, :]
+            constants * (integral_star / integral_flare) * norm_shape[:, None] * I_flare_full[None, :]
         )
         q_no_distance = I_star_full * constants
 
-        total_no_distance = q_no_distance[None,:] + flux_flare_no_distance  # erg/s/AA, no D yet
+        total_no_distance = q_no_distance[None, :] + flux_flare_no_distance  # erg/s/AA, no D yet
         distance = params["distance"]
         if not isinstance(distance, u.Quantity):
             distance = distance * u.parsec
