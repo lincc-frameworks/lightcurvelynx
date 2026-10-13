@@ -13,6 +13,7 @@ from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.astro_utils.passbands import Passband
 from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
+from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayCoordSampler
 from lightcurvelynx.models.physical_model import SEDModel
 
@@ -57,8 +58,8 @@ class MDwarfFlareModel(SEDModel):
         The maximum amplitude of the flare, relative to star flux.
         If not provided, the model uses samples from the default pzflow model.
     flare_temp : parameter, optional
-        The temperature of the cold part of the flare in Kelvins. Defaults to 9000 K.
-        If not provided, uses [to be adjusted]
+        The temperature of the cold part of the flare in Kelvins.
+        If not provided, uniform-randomly sampled between 9000 and 14000 K.
     balmer_jump_ratio : parameter, optional
         the ratio of the spectral intensity below the balmer jump to above the balmer jump
         (which is a blackbody at flare_temp). Defaults to 2
@@ -95,8 +96,7 @@ class MDwarfFlareModel(SEDModel):
                     "pzflow package is not installed by default. You can install it with "
                     "`pip install pzflow` or `conda install conda-forge::pzflow`."
                 ) from err
-            # flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
-            flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
+            flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
             node = PZFlowNode(flow)
             # the node has them in log space
             star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff, label="mathnode")
@@ -107,7 +107,7 @@ class MDwarfFlareModel(SEDModel):
             flare_amplitude = BasicMathNode("10 ** log_amp", log_amp=node.logAmp)
 
         if flare_temp is None:
-            flare_temp = 9000  # default, Kelvin
+            flare_temp = NumpyRandomFunc("uniform", low=9000, high=14000)# default, Kelvin
 
         if balmer_jump_ratio is None:
             balmer_jump_ratio = 2  # default
