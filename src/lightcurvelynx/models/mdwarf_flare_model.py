@@ -153,7 +153,8 @@ class MDwarfFlareModel(SEDModel):
     def _flare_eqn(self, time, tpeak):
         """
         The equation that defines the shape for the Continuous Flare Model.
-        taken from Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
+        From Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
+        Code adapted from https://github.com/lupitatovar/Llamaradas-Estelares under MIT License.
 
         Parameters
         ----------
@@ -161,6 +162,7 @@ class MDwarfFlareModel(SEDModel):
             The time array to evaluate the flare over, days
         tpeak : float
             The center time of the flare peak in days
+
         Returns
         -------
         flare : 1-d numpy.ndarray
@@ -216,12 +218,10 @@ class MDwarfFlareModel(SEDModel):
     @cite_function
     def _flare_model(self, time, tpeak, flare_fwhm, upsample=False, uptime=10):
         """
-        Taken directly from Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
-        assumes kepler bandpass
-
         The Continuous Flare Model evaluated for single-peak (classical) flare events.
-        Use this function for fitting classical flares with most curve_fit
-        tools. Reference: Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
+        Assumes Kepler bandpass; later modified to use parameters from TESS.
+        Reference: Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
+        Code adapted from https://github.com/lupitatovar/Llamaradas-Estelares under MIT License.
 
         References
         --------------
