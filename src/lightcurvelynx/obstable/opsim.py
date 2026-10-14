@@ -173,6 +173,13 @@ class OpSim(ObsTable):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
+        # OpSim data (including the MAF queries) switched to using the "band" column
+        # for the short band names and now uses "filter" column for the extended name.
+        # Since filter is already used as a column name, we cannot map band->filter
+        # using colmap. Instead we overwrite the "filter" column directly.
+        if "band" in table:
+            table["filter"] = table["band"]
+
         super().__init__(
             table,
             colmap=colmap,
