@@ -135,6 +135,36 @@ def test_create_opsim_filter_mapping():
     assert np.array_equal(opsim["filter"], np.array(["g", "i", "r", "u", "z", "r", "g"]))
 
 
+def test_create_opsim_band_data():
+    """Create an OpSim with filter information specified as in the band column
+    and the filter column including the longer names.
+    """
+    # Check that we can only provide band information (no filter column).
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0, 45.0, 90.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0]),
+        "band": np.array(["g", "i", "r", "u", "z", "r", "g"]),
+        "zp": np.ones(7),
+    }
+    opsim = OpSim(pd.DataFrame(values))
+    assert set(opsim.filters) == set(["g", "i", "r", "u", "z"])
+    assert np.array_equal(opsim["filter"], np.array(["g", "i", "r", "u", "z", "r", "g"]))
+
+    # Check that we completely overwrite filter when band is provided.
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0, 45.0, 90.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0]),
+        "band": np.array(["g", "i", "r", "u", "z", "r", "g"]),
+        "filter": np.array(["ignore"] * 7),  # We overwrite filter when band is provided.
+        "zp": np.ones(7),
+    }
+    opsim = OpSim(pd.DataFrame(values))
+    assert set(opsim.filters) == set(["g", "i", "r", "u", "z"])
+    assert np.array_equal(opsim["filter"], np.array(["g", "i", "r", "u", "z", "r", "g"]))
+
+
 def test_create_opsim_saturation():
     """Test that we can control whether saturation mags are stored."""
     values = {
