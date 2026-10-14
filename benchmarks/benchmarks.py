@@ -135,14 +135,6 @@ class TimeSuite:
         """Time the computation of the X0 function."""
         _ = self.x0_func.sample_parameters()
 
-    def time_make_and_evaluate_step_model(self):
-        """Time creating and evaluating a StepModel."""
-        model = StepModel(brightness=100.0, t0=2.0, t1=5.0)
-        state = model.sample_parameters()
-        times = np.arange(0.0, 10.0, 0.05)
-        wavelengths = np.arange(1000.0, 2000.0, 5.0)
-        _ = model.evaluate_sed(times, wavelengths, state)
-
     def time_make_evaluate_constant_sed_model(self):
         """Time creating and querying a constant SEC model model."""
         source1 = ConstantSEDModel(brightness=100.0, node_label="my_constant_sed_model")
@@ -189,22 +181,9 @@ class TimeSuite:
             graph_state=self.graph_state,
         )
 
-    def time_load_passbands(self):
-        """Time loading the passbands from files."""
-        _ = _load_test_passbands()
-
     def time_apply_passbands(self):
         """Time applying the (already loaded) passbands to flux."""
         _ = self.passbands.fluxes_to_bandfluxes(self.fluxes)
-
-    def time_evaluate_salt3_passbands(self):
-        """Time evaluate the SALT3 model at the passband level."""
-        _ = self.salt3_model.evaluate_bandfluxes(
-            self.passbands,
-            self.times,
-            self.filters,
-            self.graph_state,
-        )
 
     def time_lightcurve_source(self):
         """Time the creation and query of a LightcurveTemplateModel."""
