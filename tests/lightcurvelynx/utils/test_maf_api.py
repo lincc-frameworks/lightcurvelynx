@@ -63,7 +63,7 @@ def test_execute_maf_query():
         "time": np.array([0.0, 1.0, 2.0, 3.0]),
         "ra": np.array([15.0, 15.0, 15.0, 15.0]),
         "dec": np.array([-10.0, -10.0, -10.0, -10.0]),
-        "filter": np.array(["r", "g", "r", "r"]),
+        "band": np.array(["r", "g", "r", "r"]),  # MAF queries use band column
         "zp": np.full(4, 1.0),
         "seeing": [1.12] * 4,
         "skybrightness": [20.0] * 4,
@@ -80,7 +80,7 @@ def test_execute_maf_query():
     assert np.allclose(result["mjd"], maf_query_data["time"])
     assert np.allclose(result["flux_perfect"], [0.0, 1000.0, 1000.0, 0.0])
     assert np.all(result["fluxerr"] > 0.0)
-    assert np.array_equal(result["filter"], maf_query_data["filter"])
+    assert np.array_equal(result["filter"], maf_query_data["band"])
     assert not np.allclose(result["flux_perfect"], result["flux"])
     assert isinstance(params, dict)
     assert len(params) > 0

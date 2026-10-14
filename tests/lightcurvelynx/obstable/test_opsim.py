@@ -147,7 +147,7 @@ def test_create_opsim_band_data():
         "band": np.array(["g", "i", "r", "u", "z", "r", "g"]),
         "zp": np.ones(7),
     }
-    opsim = OpSim(pd.DataFrame(values))
+    opsim = OpSim(values)  # Input as a dictionary
     assert set(opsim.filters) == set(["g", "i", "r", "u", "z"])
     assert np.array_equal(opsim["filter"], np.array(["g", "i", "r", "u", "z", "r", "g"]))
 
@@ -160,7 +160,7 @@ def test_create_opsim_band_data():
         "filter": np.array(["ignore"] * 7),  # We overwrite filter when band is provided.
         "zp": np.ones(7),
     }
-    opsim = OpSim(pd.DataFrame(values))
+    opsim = OpSim(pd.DataFrame(values))  # Input as a DataFrame
     assert set(opsim.filters) == set(["g", "i", "r", "u", "z"])
     assert np.array_equal(opsim["filter"], np.array(["g", "i", "r", "u", "z", "r", "g"]))
 
