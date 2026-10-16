@@ -12,7 +12,8 @@ torch = pytest.importorskip("torch")
 caustics = pytest.importorskip("caustics")
 adaptive = pytest.importorskip("caustics.lenses.func.adaptive")
 
-from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup  # noqa: E402,I001
+from caskade import Module, Param  # noqa: E402,I001
+from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup  # noqa: E402
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode  # noqa: E402
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc  # noqa: E402
 from lightcurvelynx.models.basic_models import LinearTimeModel  # noqa: E402
@@ -179,6 +180,14 @@ def test_name_collision_raises():
         _make_system(_make_lens(sie_name="z"), lens_parameters=params)
 
 
+def test_mapped_keys_with_one_node_name_raise():
+    """Test that two mapped keys becoming the same node parameter name ('a.b_c', 'a_b.c' -> 'a_b_c') raise."""
+    lens, inner = Module("a"), Module("a_b")
+    lens.b_c, inner.c, lens.inner = Param("b_c", 1.0), Param("c", 1.0), inner
+    with pytest.raises(ValueError, match=r"'a\.b_c' and 'a_b\.c'.*'a_b_c'"):
+        _make_system(lens, lens_parameters={"a.b_c": 1.0, "a_b.c": 2.0})
+
+
 def test_key_errors_list_available_keys():
     """Test that unknown-key errors list the available module.param keys."""
     with pytest.raises(ValueError, match=r"sie\.Rein"):
@@ -246,7 +255,7 @@ def test_multi_system_shapes():
 
 
 def test_images_solve_lens_equation_and_observables_match_caustics():
-    """Test that images map back to the source and observables equal direct caustics calls."""
+    """Test that images map back to the source, and image counts and observables match caustics."""
     out = _make_system().sample_parameters(num_samples=2)["system"]
     ref = _reference_lens()
     for i in range(2):
@@ -263,7 +272,10 @@ def test_images_solve_lens_equation_and_observables_match_caustics():
         g1, g2 = ref.shear(x, y)
         assert_allclose(out["shear_1"][i, :n], g1.numpy(), atol=1e-10)
         assert_allclose(out["shear_2"][i, :n], g2.numpy(), atol=1e-10)
-    _, curves = _mesh_and_curves()
+    mesh, curves = _mesh_and_curves()
+    sx, sy = torch.as_tensor(out["source_x"]), torch.as_tensor(out["source_y"])
+    _, _, counts = ref.forward_raytrace(sx, sy, mesh=mesh)
+    assert_array_equal(out["num_images"], counts.numpy())
     assert_allclose(out["area"], adaptive.caustic_area(curves), rtol=1e-10)
 
 
@@ -281,17 +293,36 @@ def test_mu_region_area_and_membership():
     assert np.all(out["num_images"] >= 1)
 
 
-def test_mu_region_acceptance_matches_region_area():
-    """Test that mu-region acceptance agrees with region.area (statistical)."""
+@pytest.mark.parametrize(
+    "mu_min, mu_max",
+    [
+        (10.0, None),
+        (10.0, 50.0),
+        pytest.param(
+            100.0,
+            None,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="caustics' region contours misestimate the area near caustics; see "
+                "CausticsStrongLensSystem docstring",
+            ),
+        ),
+    ],
+)
+def test_mu_region_acceptance_matches_region_area(mu_min, mu_max):
+    """Test that the node's mu-region acceptance rule agrees with region.area (statistical)."""
     mesh, _, region = _reference_lens().build_closed_lens_mesh(
-        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=10.0
+        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=mu_min, mu_max=mu_max
     )
     lo, hi = region.source.min(dim=0).values, region.source.max(dim=0).values
+    # At mu_min=100 the region fills ~1% of its bounding box, so this many points are needed to keep
+    # the statistical error (~1.5% there, ~0.25% at mu_min=10) small against the 3% tolerance.
     points = lo + (hi - lo) * torch.rand(
-        20000, 2, dtype=torch.float64, generator=torch.Generator().manual_seed(1)
+        400_000, 2, dtype=torch.float64, generator=torch.Generator().manual_seed(1)
     )
     mu_tot = adaptive.total_magnification(points[:, 0], points[:, 1], mesh)
-    fraction = (mu_tot >= 10.0).double().mean().item()  # NaN compares False
+    upper = np.inf if mu_max is None else mu_max
+    fraction = ((mu_tot >= mu_min) & (mu_tot <= upper)).double().mean().item()  # NaN compares False
     assert fraction * float(torch.prod(hi - lo)) == pytest.approx(region.area, rel=0.03)
 
 
@@ -316,7 +347,7 @@ def test_same_seed_reproduces_and_rng_advances_by_num_samples():
 
 
 def test_linked_fov_varies_per_system():
-    """Test that fov linked to a sampled Einstein radius is used per system."""
+    """Test that fov and Rein linked to a sampled Einstein radius are used per system."""
     rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
     system = _make_system(
         lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein}, fov=BasicMathNode("5 * r", r=rein)
@@ -324,6 +355,7 @@ def test_linked_fov_varies_per_system():
     out = system.sample_parameters(num_samples=2)["system"]
     assert_allclose(out["fov"], 5.0 * out["sie_Rein"])
     assert out["fov"][0] != out["fov"][1]
+    assert out["area"][0] != out["area"][1]  # Each system's mesh is built from its own inputs.
 
 
 def test_integer_settings_given_as_floats():
@@ -340,23 +372,39 @@ def test_mapped_parameter_link_samples():
     assert state["double_q"]["function_node_result"] == pytest.approx(2 * VALUES["q"])
 
 
-def test_no_strong_lensing_region_raises():
-    """Test that a lens with no critical curves (external shear alone) raises, naming the system."""
+@pytest.mark.parametrize(
+    "mu_min, match",
+    [(None, "no strong-lensing region"), (10.0, r"no mu-region \(10.0 <= mu_tot <= inf\)")],
+)
+def test_no_sampling_region_raises(mu_min, match):
+    """Test that a lens with no critical curves (external shear alone) raises in both modes."""
+    # Its mu_tot stays near the far-field 1.003 everywhere, so the mu-region is empty (area 0).
     cosmo = caustics.FlatLambdaCDM(name="cosmo")
     shear = caustics.ExternalShear(cosmology=cosmo, name="shear", x0=0.0, y0=0.0)
     lens = caustics.SinglePlane(cosmology=cosmo, lenses=[shear], name="lens")
     params = {k: v for k, v in LENS_PARAMETERS.items() if not k.startswith("sie.")}
-    with pytest.raises(RuntimeError, match="system 0 .*no strong-lensing region"):
-        _make_system(lens, lens_parameters=params).sample_parameters(num_samples=1)
+    with pytest.raises(RuntimeError, match=f"system 0 .*{match}"):
+        _make_system(lens, lens_parameters=params, mu_min=mu_min).sample_parameters(num_samples=1)
 
 
-def test_rejection_cap_raises():
-    """Test that sampling gives up when no candidate lands inside the caustics."""
+def test_rejection_cap_returns_none():
+    """Test that sampling gives up, returning None, when no candidate lands inside the caustics."""
     # A polyline that doubles back on itself has a non-empty bounding box but winds about nothing.
     source = torch.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=torch.float64)
     curves = SimpleNamespace(source=source, offsets=torch.tensor([0, 2]))
-    with pytest.raises(RuntimeError, match="no strong-lensing region"):
-        _make_system()._sample_source(None, curves, None, np.random.default_rng(0))
+    assert _make_system()._sample_source(None, curves, None, np.random.default_rng(0)) is None
+
+
+@pytest.mark.parametrize(
+    "mu_min, match",
+    [(None, "strong-lensing region"), (10.0, r"mu-region \(10.0 <= mu_tot <= inf\)")],
+)
+def test_rejection_cap_error_names_system_and_region(monkeypatch, mu_min, match):
+    """Test that hitting the rejection cap raises, naming the system and the mode's sampling region."""
+    system = _make_system(mu_min=mu_min)
+    monkeypatch.setattr(system, "_sample_source", lambda *args: None)
+    with pytest.raises(RuntimeError, match=f"system 0 .*candidate sources.*{match}"):
+        system.sample_parameters(num_samples=1)
 
 
 @pytest.mark.parametrize(

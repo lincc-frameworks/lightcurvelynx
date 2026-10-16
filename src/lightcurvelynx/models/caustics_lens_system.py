@@ -168,7 +168,12 @@ class CausticsStrongLensSystem(FunctionNode):
     where ``mu_min <= mu_total <= mu_max`` (singly imaged sources are then legitimate).
     ``area`` is the area (arcsec\\ :sup:`2`) of whichever region was sampled from
     (``caustic_area(curves)``, or ``region.area`` in μ-region mode), so a population can
-    be weighted by lensing cross-section.
+    be weighted by lensing cross-section. A limitation: the region contours that caustics
+    traces can misestimate the area of ``mu_min <= mu_total <= mu_max`` near the lensing
+    caustics, by about 1% at ``mu_min = 10`` and roughly 5-30% for ``mu_min`` from about 30
+    to 300 on an SIE + external shear test lens. The sampled sources still follow the true
+    ``mu_total``, since each candidate is accepted by caustics' ``total_magnification``;
+    caustic mode is unaffected.
 
     **Outputs** (one entry per system; ``I = max_images``):
 
@@ -184,7 +189,8 @@ class CausticsStrongLensSystem(FunctionNode):
     time_delays           (I,)       (S, I)     Observer-frame days; earliest image is 0;
                                                  NaN padding.
     convergences          (I,)       (S, I)     κ, dimensionless; NaN padding.
-    shear_1, shear_2      (I,)       (S, I)     γ1, γ2, dimensionless; NaN padding.
+    shear_1, shear_2      (I,)       (S, I)     γ1 = (ψ_xx - ψ_yy) / 2, γ2 = ψ_xy, with ψ the
+                                                 lensing potential; dimensionless; NaN padding.
     area                  scalar     (S,)       The sampled region's area, in arcsec\\ :sup:`2`.
     ===================== ========== ========= ==============================================
 
@@ -196,10 +202,10 @@ class CausticsStrongLensSystem(FunctionNode):
     raise ``ValueError``. Every other per-system failure raises ``RuntimeError`` naming
     the system (its global index and parameter values): the mesh failing to close,
     depth-limited mesh refinement, an unbounded μ-region, a hole curve hitting its sample
-    cap, no strong-lensing region, a source outside the image of the fov boundary (too few
-    images in the fov), too few images for the sampling mode, or more than ``max_images``
-    images. Other caustics and torch warnings (e.g. a fov-widening notice) are re-emitted
-    unchanged.
+    cap, no strong-lensing region or an empty μ-region, a source outside the image of the
+    fov boundary (too few images in the fov), too few images for the sampling mode, or
+    more than ``max_images`` images. Other caustics and torch warnings (e.g. a
+    fov-widening notice) are re-emitted unchanged.
 
     **Threads.** All of a system's caustics work (mesh build, source sampling, raytracing,
     observables) runs under one module-level lock, because ``torch.func.jacfwd``, which
@@ -218,11 +224,17 @@ class CausticsStrongLensSystem(FunctionNode):
     process that built the node, but uses 1 thread in any other process (a worker
     process), which avoids a fork deadlock after multi-threaded torch use in the parent
     and avoids oversubscription under many workers; pass an explicit int for a cluster
-    worker that owns many cores. ``device`` defaults to ``"cpu"``; the stored lens copy is
-    moved to ``device`` lazily inside sampling, so the process that builds this node never
-    initializes CUDA, and caustics' mesh bookkeeping follows ``device`` through a
-    ``torch.device`` context. GPU speedup is unmeasured, since caustics handles one system
-    per call.
+    worker that owns many cores. ``device`` defaults to ``"cpu"``. The node moves its
+    stored lens copy to ``device`` only inside sampling, never in the process that builds
+    it, and caustics' mesh bookkeeping follows ``device`` through a ``torch.device``
+    context. ``import caustics`` itself probes CUDA, though, so a forked worker cannot use
+    CUDA ("Cannot re-initialize CUDA in forked subprocess"); ``num_jobs`` and a default
+    ``ProcessPoolExecutor`` fork on Linux with Python 3.13 or earlier. For
+    ``device="cuda"`` with a process-based executor, pass ``simulate_lightcurves`` an
+    executor with a spawn or forkserver context, e.g.
+    ``ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn"))``, or use Dask,
+    loky or Ray, or set ``PYTORCH_NVML_BASED_CUDA_CHECK=1`` before importing torch. GPU
+    speedup is unmeasured, since caustics handles one system per call.
 
     **Performance.** One caustics call per system (there is no batching across systems);
     each takes roughly 0.1-0.7 s on CPU, dominated by the mesh build.
@@ -281,7 +293,9 @@ class CausticsStrongLensSystem(FunctionNode):
         The torch device used for caustics calls. Default: "cpu".
     torch_num_threads : int, optional
         If given, ``torch.set_num_threads`` is called with this value at the start of
-        ``compute``.
+        ``compute``. Default: None, which uses 1 thread in a worker process (any process
+        other than the one that built the node) and leaves torch's thread count alone in
+        the building process.
     seed : int, optional
         The seed for this node's random number generator. Default: None (OS entropy).
     node_label : str, optional
@@ -364,13 +378,18 @@ class CausticsStrongLensSystem(FunctionNode):
             )
 
         reserved_names = {"z_s", "fov", "init_res", "min_img_sep"} | set(self.OUTPUTS)
-        node_inputs = {}
+        node_inputs, key_of = {}, {}
         for key, setter in lens_parameters.items():
             name = key.replace(".", "_")
             if name in reserved_names:
                 raise ValueError(
                     f"Mapped key '{key}' collides with the reserved node parameter name '{name}'."
                 )
+            if name in key_of:
+                raise ValueError(
+                    f"Mapped keys '{key_of[name]}' and '{key}' both become the node parameter name '{name}'."
+                )
+            key_of[name] = key
             node_inputs[name] = setter
         node_inputs.update(z_s=z_s, fov=fov, init_res=init_res, min_img_sep=min_img_sep)
 
@@ -386,20 +405,16 @@ class CausticsStrongLensSystem(FunctionNode):
 
         mapped_keys = set(lens_parameters) | {z_s_key}
         stored_lens = copy.deepcopy(lens)
-        stored_index = _lens_param_index(stored_lens)
-        for key, p in stored_index.items():
+        names = {}
+        for key, p in _lens_param_index(stored_lens).items():
             if key in mapped_keys:
                 p.to_dynamic()
             else:
                 p.to_static()
+            names[id(p)] = "z_s" if key == z_s_key else key.replace(".", "_")
+        # caskade's Module.to casts in place, so the parameters keep their identities.
         self._lens = stored_lens.to(dtype=torch.float64)
-
-        stored_index = _lens_param_index(self._lens)
-        param_order = []
-        for p in self._lens.dynamic_params:
-            key = next(k for k, v in stored_index.items() if v is p)
-            param_order.append("z_s" if key == z_s_key else key.replace(".", "_"))
-        self._param_order = param_order
+        self._param_order = [names[id(p)] for p in self._lens.dynamic_params]
 
         self._z_l_name = z_l_name
         self._z_l_value = z_l_value
@@ -575,13 +590,9 @@ class CausticsStrongLensSystem(FunctionNode):
 
         Returns
         -------
-        source_x, source_y : float
-            The source offset (east, north) from the lens origin in arcseconds.
-
-        Raises
-        ------
-        RuntimeError
-            If no candidate is accepted within 100 batches.
+        source : tuple of float or None
+            The source offset ``(source_x, source_y)`` (east, north) from the lens origin in
+            arcseconds, or None if no candidate is accepted within 100 batches.
         """
         import torch
 
@@ -611,10 +622,7 @@ class CausticsStrongLensSystem(FunctionNode):
                 if inside.any():
                     source_x, source_y = chunk[np.argmax(inside)]
                     return float(source_x), float(source_y)
-        raise RuntimeError(
-            f"no strong-lensing region found: none of {_MAX_CANDIDATE_BATCHES * _CANDIDATE_BATCH} "
-            "candidate sources drawn in the bounding box of the caustics lies inside them."
-        )
+        return None
 
     def _solve_system(self, lens, values, rng, system_index):
         """Build one system's mesh, draw its source, and solve and evaluate its images.
@@ -642,12 +650,11 @@ class CausticsStrongLensSystem(FunctionNode):
         ValueError
             If ``z_l >= z_s``.
         RuntimeError
-            If the mesh build fails (see ``_build``); the system has no strong-lensing region
-            (its caustic area is not finite or not positive in caustic mode, or its μ-region area
-            is not finite in μ-region mode, or no candidate source is accepted); the source lies
-            outside the image of the fov boundary; or the source has more than ``max_images``
-            images, or fewer than the sampling region guarantees (2 in caustic mode, 1 in
-            μ-region mode).
+            If the mesh build fails (see ``_build``); the sampled region (the strong-lensing
+            region, or the μ-region) has an area that is not finite or not positive, or none of
+            the candidate sources drawn for it is accepted; the source lies outside the image of
+            the fov boundary; or the source has more than ``max_images`` images, or fewer than
+            the sampling region guarantees (2 in caustic mode, 1 in μ-region mode).
         """
         import torch
         from caustics.lenses.func.adaptive import caustic_area
@@ -667,23 +674,25 @@ class CausticsStrongLensSystem(FunctionNode):
         mesh, curves, region = self._build(lens, values, params, system_index)
         if region is not None:
             area = float(region.area)
-            if not np.isfinite(area):
-                raise RuntimeError(
-                    f"{_describe_system(system_index, values)} has no bounded mu-region: its area is "
-                    f"{area} arcsec^2."
-                )
+            sampled = f"mu-region ({region.mu_min} <= mu_tot <= {region.mu_max})"
+            empty = "NaN when it is unbounded, 0 when mu_tot never reaches mu_min"
         else:
             area = float(caustic_area(curves))
-            if not np.isfinite(area) or area <= 0.0:
-                raise RuntimeError(
-                    f"{_describe_system(system_index, values)} has no strong-lensing region: its "
-                    f"caustic area is {area} arcsec^2 (NaN when the fov cuts a critical curve, 0 when "
-                    "the lens forms none)."
-                )
-        try:
-            source_x, source_y = self._sample_source(mesh, curves, region, rng)
-        except RuntimeError as err:
-            raise RuntimeError(f"{_describe_system(system_index, values)}: {err}") from err
+            sampled = "strong-lensing region"
+            empty = "NaN when the fov cuts a critical curve, 0 when the lens forms none"
+        if not np.isfinite(area) or area <= 0.0:
+            raise RuntimeError(
+                f"{_describe_system(system_index, values)} has no {sampled}: its area is {area} "
+                f"arcsec^2 ({empty})."
+            )
+        source = self._sample_source(mesh, curves, region, rng)
+        if source is None:
+            raise RuntimeError(
+                f"{_describe_system(system_index, values)}: none of "
+                f"{_MAX_CANDIDATE_BATCHES * _CANDIDATE_BATCH} candidate sources drawn in the bounding "
+                f"box of its {sampled} lies inside it."
+            )
+        source_x, source_y = source
 
         # forward_raytrace raises for a source outside the image of the fov boundary, where some
         # of its images lie outside the fov; check first so the error names the system.
