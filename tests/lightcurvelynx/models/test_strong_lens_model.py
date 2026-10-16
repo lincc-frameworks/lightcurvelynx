@@ -2,10 +2,18 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.coordinates import SkyCoord, SkyOffsetFrame
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_allclose, assert_array_equal
 
+from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
-from lightcurvelynx.models.strong_lens_model import _LensImageExpansionNode, _LensImagePositionNode
+from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.models.basic_models import LinearTimeModel
+from lightcurvelynx.models.strong_lens_model import (
+    ResolvedStrongLensModel,
+    _LensImageExpansionNode,
+    _LensImagePositionNode,
+)
 
 # Two systems with fixed width 4. System 0 has 3 active images, given out of arrival order
 # and with a delay tie. System 1 has 2 active images, and its 0.0 padding is smaller than its
@@ -177,3 +185,122 @@ def test_position_node_matches_scalar_rows():
         expected = single.sample_parameters(num_samples=1)["row"]
         for name in ("lens_ra", "lens_dec", "ra", "dec"):
             assert state["positions"][name][row] == pytest.approx(expected[name], abs=1e-9)
+
+
+SOURCE_RA = np.array([10.0, 250.0])
+SOURCE_DEC = np.array([-30.0, 45.0])
+SOURCE_T0 = np.array([100.0, 200.0])
+SOURCE_X = np.array([0.3, -0.2])
+SOURCE_Y = np.array([0.1, 0.4])
+
+
+def _make_source(**overrides):
+    """Return a LinearTimeModel source: flux = 10 + 2 * max(0, t - t0), flat in wavelength."""
+    params = {
+        "linear_base": 10.0,
+        "linear_scale": 2.0,
+        "t0": _given(SOURCE_T0),
+        "ra": _given(SOURCE_RA),
+        "dec": _given(SOURCE_DEC),
+        "redshift": 0.0,
+        "node_label": "source",
+    }
+    return LinearTimeModel(**(params | overrides))
+
+
+def _make_lens(source=None, **image_overrides):
+    """Return a ResolvedStrongLensModel over the two test systems."""
+    source = _make_source() if source is None else source
+    return ResolvedStrongLensModel(
+        source,
+        source_x=_given(SOURCE_X),
+        source_y=_given(SOURCE_Y),
+        node_label="lens",
+        **(_two_system_image_inputs() | image_overrides),
+    )
+
+
+def test_resolved_lens_rows_and_parameters():
+    """Test the per-image parameters exposed by the wrapper."""
+    state = _make_lens().sample_parameters(num_samples=2)
+    assert state.num_samples == 5
+    params = state["lens"]
+    ids = EXPECTED_SYSTEM_ID
+    assert_array_equal(params["system_id"], ids)
+    assert_array_equal(params["image_id"], EXPECTED_IMAGE_ID)
+    assert_array_equal(params["image_x"], EXPECTED_IMAGE_X)
+    assert_array_equal(params["image_y"], EXPECTED_IMAGE_Y)
+    assert_array_equal(params["macro_magnification"], EXPECTED_MAGNIFICATION)
+    assert_array_equal(params["time_delay"], EXPECTED_TIME_DELAY)
+    assert_array_equal(params["source_x"], SOURCE_X[ids])
+    assert_array_equal(params["source_y"], SOURCE_Y[ids])
+    assert_allclose(params["t0"], SOURCE_T0[ids] + EXPECTED_TIME_DELAY)
+    assert_array_equal(params["redshift"], 0.0)
+
+    ix, iy = _lens_frame_offsets(params["ra"], params["dec"], params["lens_ra"], params["lens_dec"])
+    assert_allclose(ix, EXPECTED_IMAGE_X, atol=1e-6)
+    assert_allclose(iy, EXPECTED_IMAGE_Y, atol=1e-6)
+    sx, sy = _lens_frame_offsets(SOURCE_RA[ids], SOURCE_DEC[ids], params["lens_ra"], params["lens_dec"])
+    assert_allclose(sx, SOURCE_X[ids], atol=1e-6)
+    assert_allclose(sy, SOURCE_Y[ids], atol=1e-6)
+
+
+def test_source_parameters_are_shared_per_system():
+    """Test that a random source parameter is drawn once per system."""
+    source = _make_source(linear_base=NumpyRandomFunc("uniform", low=0.0, high=1.0))
+    state = _make_lens(source).sample_parameters(num_samples=2, rng_info=np.random.default_rng(0))
+    base = state["source"]["linear_base"]
+    assert base[0] == base[1] == base[2]
+    assert base[3] == base[4]
+    assert base[0] != base[3]
+
+
+def test_random_source_t0_is_shared_and_delayed_per_image():
+    """Test that each image's t0 is the shared source t0 plus its delay."""
+    source = _make_source(t0=NumpyRandomFunc("uniform", low=0.0, high=100.0))
+    state = _make_lens(source).sample_parameters(num_samples=2, rng_info=np.random.default_rng(1))
+    source_t0 = state["source"]["t0"]
+    assert source_t0[0] == source_t0[2]
+    assert source_t0[3] == source_t0[4]
+    assert_allclose(state["lens"]["t0"], source_t0 + EXPECTED_TIME_DELAY)
+
+
+def test_wrapper_observer_frame_effect_parameters_are_per_image():
+    """Test that an observer-frame effect added to the wrapper draws per image."""
+    lens = _make_lens()
+    flux_scale = NumpyRandomFunc("uniform", low=1.0, high=2.0)
+    lens.add_effect(ScaleFluxEffect(flux_scale=flux_scale, rest_frame=False))
+    state = lens.sample_parameters(num_samples=2, rng_info=np.random.default_rng(2))
+    assert len(np.unique(state["lens"]["flux_scale"])) == 5
+
+
+def test_wrapper_rest_frame_effect_is_shared_per_system():
+    """Test that a rest-frame effect added to the wrapper goes to the source and is shared."""
+    lens = _make_lens()
+    flux_scale = NumpyRandomFunc("uniform", low=1.0, high=2.0)
+    lens.add_effect(ScaleFluxEffect(flux_scale=flux_scale, rest_frame=True))
+    state = lens.sample_parameters(num_samples=2, rng_info=np.random.default_rng(3))
+    scale = state["source"]["flux_scale"]
+    assert scale[0] == scale[1] == scale[2]
+    assert scale[3] == scale[4]
+    assert scale[0] != scale[3]
+
+
+def test_rest_frame_effect_linked_to_image_position_varies_per_image():
+    """Test that a rest-frame effect parameter linked to the image RA is per image."""
+    lens = _make_lens()
+    flux_scale = BasicMathNode("1.0 + ra / 360.0", ra=lens.ra)
+    lens.add_effect(ScaleFluxEffect(flux_scale=flux_scale, rest_frame=True))
+    state = lens.sample_parameters(num_samples=2)
+    assert_allclose(state["source"]["flux_scale"], 1.0 + state["lens"]["ra"] / 360.0)
+
+
+def test_source_model_is_not_modified():
+    """Test that wrapping leaves the source's setters and effects untouched."""
+    source = _make_source()
+    setters_before = dict(source.setters)
+    _make_lens(source)
+    assert list(source.setters) == list(setters_before)
+    assert all(source.setters[name] is setter for name, setter in setters_before.items())
+    assert source.rest_frame_effects == []
+    assert source.obs_frame_effects == []
