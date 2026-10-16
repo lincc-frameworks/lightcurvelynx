@@ -5,10 +5,18 @@ per-image observables that ``ResolvedStrongLensModel`` consumes.
 
 import copy
 import os
+from itertools import pairwise
 
 import numpy as np
 
 from lightcurvelynx.base_models import FunctionNode
+
+# Points per winding-number call. Each call holds a few (points, curve points, 2) float64
+# temporaries, so this bounds the memory; it also sets how many candidates are tested at once.
+_WINDING_CHUNK = 128
+# Candidate sources per rng draw, and the number of draws before the rejection sampler gives up.
+_CANDIDATE_BATCH = 1024
+_MAX_CANDIDATE_BATCHES = 100
 
 
 def _import_caustics():
@@ -73,6 +81,43 @@ def _lens_param_index(lens):
                         )
                     index.setdefault(full_key, child)
     return index
+
+
+def _inside_caustics(curves, points):
+    """Test which source-plane points lie inside the caustics or pseudo-caustics.
+
+    A point is inside when its winding number about at least one curve's source polyline is
+    nonzero. This is the rule ``caustic_area`` uses for the area of the multiply imaged region.
+
+    Parameters
+    ----------
+    curves : caustics.lenses.func.adaptive.CriticalCurvesAndCaustics
+        The curves of a closed lens mesh.
+    points : torch.Tensor
+        A (B, 2) float64 tensor of source-plane positions in arcseconds, on the device of
+        ``curves.source``.
+
+    Returns
+    -------
+    inside : torch.Tensor
+        A (B,) bool tensor, True where a point is inside.
+    """
+    import torch
+    from caustics.lenses.func.adaptive.geometry import winding_number
+
+    bounds = curves.offsets.tolist()
+    inside = torch.zeros(points.shape[0], dtype=torch.bool, device=points.device)
+    for start in range(0, points.shape[0], _WINDING_CHUNK):
+        chunk = slice(start, start + _WINDING_CHUNK)
+        for first, stop in pairwise(bounds):
+            inside[chunk] |= winding_number(curves.source[first:stop], points[chunk]) != 0
+    return inside
+
+
+def _describe_system(system_index, values):
+    """Return ``"system <index> (<name>=<value>, ...)"``, naming a system in error messages."""
+    inputs = ", ".join(f"{name}={value}" for name, value in values.items())
+    return f"system {system_index} ({inputs})"
 
 
 class CausticsStrongLensSystem(FunctionNode):
@@ -268,6 +313,198 @@ class CausticsStrongLensSystem(FunctionNode):
             "num_images": self.num_images,
         }
 
+    def _build(self, lens, values, params):
+        """Build one system's closed lens mesh.
+
+        Parameters
+        ----------
+        lens : caustics.lenses.base.Lens
+            This call's working copy of the stored lens, on ``device``.
+        values : dict
+            This system's node input values, keyed by node parameter name.
+        params : list of torch.Tensor
+            The values of the lens's dynamic parameters, in ``lens.dynamic_params`` order.
+
+        Returns
+        -------
+        mesh : caustics.lenses.func.adaptive.LensMesh
+            The closed lens mesh.
+        curves : caustics.lenses.func.adaptive.CriticalCurvesAndCaustics
+            Its critical curves, caustics and pseudo-caustics.
+        region : caustics.lenses.func.adaptive.MagnificationRegion or None
+            The μ-region, or None when ``mu_min`` is not given.
+        """
+        return lens.build_closed_lens_mesh(
+            float(values["fov"]),
+            int(values["init_res"]),
+            float(values["min_img_sep"]),
+            mu_min=self._mu_min,
+            mu_max=self._mu_max,
+            device=self._device,
+            params=params,
+            **self._mesh_kwargs,
+        )
+
+    def _sample_source(self, mesh, curves, region, rng):
+        """Draw a source uniformly inside the caustics by rejection sampling.
+
+        Candidates are drawn uniformly in the bounding box of the caustics' source polylines,
+        in batches of 1024, and the first one inside (in draw order) is accepted.
+
+        Parameters
+        ----------
+        mesh : caustics.lenses.func.adaptive.LensMesh
+            The closed lens mesh.
+        curves : caustics.lenses.func.adaptive.CriticalCurvesAndCaustics
+            The mesh's critical curves, caustics and pseudo-caustics.
+        region : caustics.lenses.func.adaptive.MagnificationRegion or None
+            The μ-region, or None when ``mu_min`` is not given.
+        rng : numpy.random.Generator
+            This system's random number generator.
+
+        Returns
+        -------
+        source_x, source_y : float
+            The source offset (east, north) from the lens origin in arcseconds.
+
+        Raises
+        ------
+        RuntimeError
+            If no candidate is accepted within 100 batches.
+        """
+        import torch
+
+        source = curves.source
+        low = source.min(dim=0).values.cpu().numpy()
+        high = source.max(dim=0).values.cpu().numpy()
+        for _ in range(_MAX_CANDIDATE_BATCHES):
+            candidates = rng.uniform(low, high, size=(_CANDIDATE_BATCH, 2))
+            # Test the batch a chunk at a time, stopping at the first chunk that accepts one.
+            for start in range(0, _CANDIDATE_BATCH, _WINDING_CHUNK):
+                chunk = candidates[start : start + _WINDING_CHUNK]
+                inside = _inside_caustics(curves, torch.as_tensor(chunk, device=source.device)).cpu().numpy()
+                if inside.any():
+                    source_x, source_y = chunk[np.argmax(inside)]
+                    return float(source_x), float(source_y)
+        raise RuntimeError(
+            f"no strong-lensing region found: none of {_MAX_CANDIDATE_BATCHES * _CANDIDATE_BATCH} "
+            "candidate sources drawn in the bounding box of the caustics lies inside them."
+        )
+
+    def _solve_system(self, lens, values, rng, system_index):
+        """Build one system's mesh, draw its source, and solve and evaluate its images.
+
+        Parameters
+        ----------
+        lens : caustics.lenses.base.Lens
+            This call's working copy of the stored lens, on ``device``.
+        values : dict
+            This system's node input values, keyed by node parameter name.
+        rng : numpy.random.Generator
+            This system's random number generator.
+        system_index : int
+            The global index of the system, used in error messages.
+
+        Returns
+        -------
+        row : dict
+            One entry per name in ``OUTPUTS``: scalars for ``source_x``, ``source_y``,
+            ``num_images`` and ``area``, and (max_images,) float64 arrays, sorted by arrival
+            time and padded, for the per-image outputs.
+
+        Raises
+        ------
+        RuntimeError
+            If the system has no strong-lensing region: its caustic area is not finite or not
+            positive, or no candidate source is accepted.
+        """
+        import torch
+        from caustics.lenses.func.adaptive import caustic_area
+
+        params = [
+            torch.as_tensor(values[name], dtype=torch.float64, device=self._device)
+            for name in self._param_order
+        ]
+        mesh, curves, region = self._build(lens, values, params)
+        area = float(caustic_area(curves))
+        if not np.isfinite(area) or area <= 0.0:
+            raise RuntimeError(
+                f"{_describe_system(system_index, values)} has no strong-lensing region: its caustic "
+                f"area is {area} arcsec^2 (NaN when the fov cuts a critical curve, 0 when the lens "
+                "forms none)."
+            )
+        try:
+            source_x, source_y = self._sample_source(mesh, curves, region, rng)
+        except RuntimeError as err:
+            raise RuntimeError(f"{_describe_system(system_index, values)}: {err}") from err
+
+        x, y, counts = lens.forward_raytrace(
+            torch.tensor([source_x], dtype=torch.float64),
+            torch.tensor([source_y], dtype=torch.float64),
+            mesh=mesh,
+            params=params,
+            **self._raytrace_kwargs,
+        )
+        shear_1, shear_2 = lens.shear(x, y, params=params)
+        per_image = {
+            "image_x": x,
+            "image_y": y,
+            "macro_magnifications": lens.magnification(x, y, params=params),
+            "time_delays": lens.time_delay(x, y, params=params),
+            "convergences": lens.convergence(x, y, params=params),
+            "shear_1": shear_1,
+            "shear_2": shear_2,
+        }
+        per_image = {name: value.detach().cpu().numpy() for name, value in per_image.items()}
+        order = np.argsort(per_image["time_delays"], kind="stable")
+        per_image["time_delays"] = per_image["time_delays"] - per_image["time_delays"][order[0]]
+
+        num_images = int(counts[0])
+        row = {"source_x": source_x, "source_y": source_y, "num_images": num_images, "area": area}
+        for name, value in per_image.items():
+            row[name] = np.full(self._max_images, 0.0 if name == "macro_magnifications" else np.nan)
+            row[name][:num_images] = value[order]
+        return row
+
     def compute(self, graph_state, rng_info=None, **kwargs):
-        """Placeholder; the mesh build, sampling and raytracing are implemented in a later task."""
-        raise NotImplementedError("CausticsStrongLensSystem.compute is implemented in a later task.")
+        """Build each system's mesh, draw its source, and save its images and observables.
+
+        Parameters
+        ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values. This object is modified
+            in place as it is sampled.
+        rng_info : numpy.random._generator.Generator, optional
+            A given numpy random number generator to use for this computation. If not
+            provided, the function uses the node's random number generator. It advances by
+            exactly one draw per system.
+        **kwargs : dict, optional
+            Additional function arguments.
+
+        Returns
+        -------
+        list
+            The values of the outputs, in ``OUTPUTS`` order.
+        """
+        import torch
+
+        args = self._build_inputs(graph_state, **kwargs)
+        rng = rng_info if rng_info is not None else self._rng
+        num_samples = graph_state.num_samples
+        sub_seeds = rng.integers(0, 2**63, size=num_samples, dtype=np.uint64)
+
+        lens = copy.deepcopy(self._lens).to(device=self._device)
+        sample_offset = graph_state.sample_offset or 0
+        rows = []
+        with torch.device(self._device):
+            for i, sub_seed in enumerate(sub_seeds):
+                values = {name: value if num_samples == 1 else value[i] for name, value in args.items()}
+                rows.append(
+                    self._solve_system(lens, values, np.random.default_rng(sub_seed), sample_offset + i)
+                )
+
+        results = [np.array([row[name] for row in rows]) for name in self.OUTPUTS]
+        if num_samples == 1:
+            results = [value[0] for value in results]
+        self._save_results(results, graph_state)
+        return results

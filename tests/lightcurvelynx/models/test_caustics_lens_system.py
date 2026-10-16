@@ -1,23 +1,25 @@
 import pickle  # noqa: F401 (used starting Task 8's pickling tests)
 import warnings  # noqa: F401 (used starting Task 3's warning-escalation tests)
 from concurrent.futures import ThreadPoolExecutor  # noqa: F401 (used starting Task 8's parallel-safety tests)
+from types import SimpleNamespace
 
-import numpy as np  # noqa: F401 (used starting Task 2)
+import numpy as np
 import pytest
-from numpy.testing import assert_allclose, assert_array_equal  # noqa: F401 (used starting Task 2)
+from numpy.testing import assert_allclose, assert_array_equal
 
 torch = pytest.importorskip("torch")
 caustics = pytest.importorskip("caustics")
 adaptive = pytest.importorskip("caustics.lenses.func.adaptive")
 
-from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode  # noqa: E402,F401,I001 (used starting Task 2)
-from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc  # noqa: E402,F401 (used starting Task 2)
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode  # noqa: E402,I001
+from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc  # noqa: E402
 from lightcurvelynx.models.caustics_lens_system import (  # noqa: E402
     CausticsStrongLensSystem,
+    _inside_caustics,
     _lens_param_index,
 )
-# Task 2 adds `_inside_caustics` to this import. Task 5 adds the LinearTimeModel,
-# ResolvedStrongLensModel and simulate_lightcurves imports here, at the top.
+# Task 5 adds the LinearTimeModel, ResolvedStrongLensModel and simulate_lightcurves
+# imports here, at the top.
 
 Z_L, Z_S = 0.5, 1.5
 VALUES = {"q": 0.7, "phi": 0.3, "Rein": 1.0, "gamma_1": 0.05, "gamma_2": -0.02}
@@ -43,8 +45,15 @@ def _make_lens(sie_name="sie", q=None, phi=None, Rein=None, gamma_1=None, gamma_
 
 
 def _reference_lens():
-    """Return the test lens with every value set (static), in float64, for direct caustics calls."""
-    return _make_lens(**VALUES, z_l=Z_L, z_s=Z_S).to(dtype=torch.float64)
+    """Return the test lens with every value set (static), in float64, for direct caustics calls.
+
+    The values are passed as float64 tensors: caskade would store python floats in float32, and
+    casting the lens to float64 afterwards would keep that rounding (e.g. q = 0.699999988).
+    """
+    values = VALUES | {"z_l": Z_L, "z_s": Z_S}
+    return _make_lens(**{k: torch.tensor(v, dtype=torch.float64) for k, v in values.items()}).to(
+        dtype=torch.float64
+    )
 
 
 def _snapshot(lens):
@@ -168,3 +177,140 @@ def test_key_errors_list_available_keys():
     """Test that unknown-key errors list the available module.param keys."""
     with pytest.raises(ValueError, match=r"sie\.Rein"):
         _make_system(lens_parameters=LENS_PARAMETERS | {"SIE.q": 0.5})
+
+
+def test_user_lens_unchanged_by_sampling():
+    """Test that sampling leaves the user's lens untouched."""
+    lens = _make_lens()
+    before = _snapshot(lens)
+    _make_system(lens).sample_parameters(num_samples=1)
+    _assert_same_snapshot(before, _snapshot(lens))
+
+
+def _mesh_and_curves():
+    """Return a mesh and curves of the reference lens at the test settings."""
+    mesh, curves, _ = _reference_lens().build_closed_lens_mesh(
+        MESH["fov"], MESH["init_res"], MESH["min_img_sep"]
+    )
+    return mesh, curves
+
+
+def test_inside_caustics_matches_caustic_area_and_is_multiply_imaged():
+    """Test that the acceptance test agrees with caustic_area and only accepts multiply imaged sources."""
+    mesh, curves = _mesh_and_curves()
+    lo, hi = curves.source.min(dim=0).values, curves.source.max(dim=0).values
+    points = lo + (hi - lo) * torch.rand(
+        20000, 2, dtype=torch.float64, generator=torch.Generator().manual_seed(0)
+    )
+    inside = _inside_caustics(curves, points)
+    box_area = float(torch.prod(hi - lo))
+    assert inside.double().mean().item() * box_area == pytest.approx(adaptive.caustic_area(curves), rel=0.03)
+    accepted = points[inside][:2000]
+    _, _, counts = _reference_lens().forward_raytrace(accepted[:, 0], accepted[:, 1], mesh=mesh)
+    assert counts.min() >= 2
+    assert (counts == 2).any() and (counts >= 3).any()  # pseudo-caustic-only and inside-caustic parts
+
+
+def test_single_system_shapes_and_padding():
+    """Test one-system outputs: scalars, (I,) arrays, padding and sorted, zero-based delays."""
+    state = _make_system().sample_parameters(num_samples=1)
+    out = state["system"]
+    n = int(out["num_images"])
+    assert np.ndim(out["source_x"]) == 0 and np.ndim(out["area"]) == 0
+    for name in (
+        "image_x",
+        "image_y",
+        "macro_magnifications",
+        "time_delays",
+        "convergences",
+        "shear_1",
+        "shear_2",
+    ):
+        assert np.shape(out[name]) == (5,)
+    assert 2 <= n <= 5
+    assert np.all(np.isnan(out["image_x"][n:])) and np.all(out["macro_magnifications"][n:] == 0.0)
+    assert out["time_delays"][0] == 0.0 and np.all(np.diff(out["time_delays"][:n]) >= 0.0)
+
+
+def test_multi_system_shapes():
+    """Test that S systems give (S,) and (S, I) outputs."""
+    out = _make_system().sample_parameters(num_samples=3)["system"]
+    assert out["source_x"].shape == (3,) and out["num_images"].shape == (3,) and out["area"].shape == (3,)
+    assert out["image_x"].shape == (3, 5) and out["shear_2"].shape == (3, 5)
+
+
+def test_images_solve_lens_equation_and_observables_match_caustics():
+    """Test that images map back to the source and observables equal direct caustics calls."""
+    out = _make_system().sample_parameters(num_samples=2)["system"]
+    ref = _reference_lens()
+    for i in range(2):
+        n = int(out["num_images"][i])
+        x = torch.as_tensor(out["image_x"][i, :n])
+        y = torch.as_tensor(out["image_y"][i, :n])
+        bx, by = ref.raytrace(x, y)
+        assert_allclose(bx.numpy(), out["source_x"][i], atol=1e-5)
+        assert_allclose(by.numpy(), out["source_y"][i], atol=1e-5)
+        assert_allclose(out["macro_magnifications"][i, :n], ref.magnification(x, y).numpy(), rtol=1e-8)
+        delays = ref.time_delay(x, y).numpy()
+        assert_allclose(out["time_delays"][i, :n], delays - delays.min(), atol=1e-8)
+        assert_allclose(out["convergences"][i, :n], ref.convergence(x, y).numpy(), rtol=1e-8)
+        g1, g2 = ref.shear(x, y)
+        assert_allclose(out["shear_1"][i, :n], g1.numpy(), atol=1e-10)
+        assert_allclose(out["shear_2"][i, :n], g2.numpy(), atol=1e-10)
+    _, curves = _mesh_and_curves()
+    assert_allclose(out["area"], adaptive.caustic_area(curves), rtol=1e-10)
+
+
+def test_same_seed_reproduces_and_rng_advances_by_num_samples():
+    """Test reproducibility and that the shared rng advances by exactly num_samples draws."""
+    rng_a, rng_b = np.random.default_rng(7), np.random.default_rng(7)
+    first = _make_system().sample_parameters(num_samples=2, rng_info=rng_a)["system"]
+    rng_b.integers(0, 2**63, size=2, dtype=np.uint64)
+    assert rng_a.random() == rng_b.random()
+    second = _make_system().sample_parameters(num_samples=2, rng_info=np.random.default_rng(7))["system"]
+    for name in CausticsStrongLensSystem.OUTPUTS:
+        assert_array_equal(first[name], second[name])
+
+
+def test_linked_fov_varies_per_system():
+    """Test that fov linked to a sampled Einstein radius is used per system."""
+    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
+    system = _make_system(
+        lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein}, fov=BasicMathNode("5 * r", r=rein)
+    )
+    out = system.sample_parameters(num_samples=2)["system"]
+    assert_allclose(out["fov"], 5.0 * out["sie_Rein"])
+    assert out["fov"][0] != out["fov"][1]
+
+
+def test_integer_settings_given_as_floats():
+    """Test that init_res given as a float-valued node output is cast to int."""
+    out = _make_system(init_res=BasicMathNode("16.0 * 2")).sample_parameters(num_samples=1)["system"]
+    assert int(out["num_images"]) >= 2
+
+
+def test_mapped_parameter_link_samples():
+    """Test that a node linked to a mapped lens parameter sees its sampled value."""
+    system = _make_system()
+    double_q = BasicMathNode("2 * q", q=system.sie_q, node_label="double_q")
+    state = double_q.sample_parameters(num_samples=1)
+    assert state["double_q"]["function_node_result"] == pytest.approx(2 * VALUES["q"])
+
+
+def test_no_strong_lensing_region_raises():
+    """Test that a lens with no critical curves (external shear alone) raises, naming the system."""
+    cosmo = caustics.FlatLambdaCDM(name="cosmo")
+    shear = caustics.ExternalShear(cosmology=cosmo, name="shear", x0=0.0, y0=0.0)
+    lens = caustics.SinglePlane(cosmology=cosmo, lenses=[shear], name="lens")
+    params = {k: v for k, v in LENS_PARAMETERS.items() if not k.startswith("sie.")}
+    with pytest.raises(RuntimeError, match="system 0 .*no strong-lensing region"):
+        _make_system(lens, lens_parameters=params).sample_parameters(num_samples=1)
+
+
+def test_rejection_cap_raises():
+    """Test that sampling gives up when no candidate lands inside the caustics."""
+    # A polyline that doubles back on itself has a non-empty bounding box but winds about nothing.
+    source = torch.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=torch.float64)
+    curves = SimpleNamespace(source=source, offsets=torch.tensor([0, 2]))
+    with pytest.raises(RuntimeError, match="no strong-lensing region"):
+        _make_system()._sample_source(None, curves, None, np.random.default_rng(0))
