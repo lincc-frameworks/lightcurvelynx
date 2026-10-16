@@ -4,6 +4,8 @@ simulation, with its own sky position, arrival time, and magnification.
 """
 
 import numpy as np
+from astropy import units as u
+from astropy.coordinates import SkyCoord, SkyOffsetFrame
 
 from lightcurvelynx.base_models import FunctionNode
 
@@ -103,5 +105,78 @@ class _LensImageExpansionNode(FunctionNode):
         ]
         if graph_state.num_samples == 1:
             results = [value[0] for value in results]
+        self._save_results(results, graph_state)
+        return results
+
+
+class _LensImagePositionNode(FunctionNode):
+    """Compute the lens origin and an image's sky position from the unlensed source position.
+
+    The source and image offsets are measured in the lens-centred frame
+    (``SkyOffsetFrame(origin=lens)``). The lens origin is the point from which the source
+    appears at (``source_x``, ``source_y``). It is found with a closed-form first guess
+    followed by two fixed-point corrections, which are accurate to better than 1e-6 arcsec
+    for arcsecond offsets, even near the poles.
+
+    Parameters
+    ----------
+    source_ra, source_dec : parameter
+        The unlensed source position in degrees.
+    source_x, source_y : parameter
+        The source offset (east, north) from the lens origin in arcseconds.
+    image_x, image_y : parameter
+        The image offset (east, north) from the lens origin in arcseconds.
+    **kwargs : dict, optional
+        Additional keyword arguments, such as ``node_label``.
+    """
+
+    def __init__(self, *, source_ra, source_dec, source_x, source_y, image_x, image_y, **kwargs):
+        super().__init__(
+            self._non_func,
+            outputs=["lens_ra", "lens_dec", "ra", "dec"],
+            source_ra=source_ra,
+            source_dec=source_dec,
+            source_x=source_x,
+            source_y=source_y,
+            image_x=image_x,
+            image_y=image_y,
+            **kwargs,
+        )
+
+    def compute(self, graph_state, rng_info=None, **kwargs):
+        """Compute and save the lens and image positions.
+
+        Parameters
+        ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values. This object is modified
+            in place as it is sampled.
+        rng_info : numpy.random._generator.Generator, optional
+            Unused.
+        **kwargs : dict, optional
+            Additional function arguments.
+
+        Returns
+        -------
+        list
+            The lens RA, lens Dec, image RA, and image Dec in degrees.
+        """
+        args = self._build_inputs(graph_state, **kwargs)
+        source_x = np.asarray(args["source_x"]) * u.arcsec
+        source_y = np.asarray(args["source_y"]) * u.arcsec
+        source = SkyCoord(np.asarray(args["source_ra"]) * u.deg, np.asarray(args["source_dec"]) * u.deg)
+
+        # Start from the source shifted back by its offset (exact on the equator), then
+        # move the lens until the source appears at the requested lens-frame offset.
+        lens = source.spherical_offsets_by(-source_x, -source_y)
+        for _ in range(2):
+            seen = source.transform_to(SkyOffsetFrame(origin=lens))
+            lens = lens.spherical_offsets_by(seen.lon.wrap_at(180 * u.deg) - source_x, seen.lat - source_y)
+
+        image = lens.spherical_offsets_by(
+            np.asarray(args["image_x"]) * u.arcsec,
+            np.asarray(args["image_y"]) * u.arcsec,
+        )
+        results = [lens.ra.deg, lens.dec.deg, image.ra.deg, image.dec.deg]
         self._save_results(results, graph_state)
         return results
