@@ -82,7 +82,8 @@ class _LensImageExpansionNode(FunctionNode):
 
         # Sort each system's active images by delay, pushing the inactive padding to the end.
         active = np.arange(width) < counts[:, np.newaxis]
-        order = np.argsort(np.where(active, delays, np.inf), axis=1, kind="stable")
+        active_delays = np.where(active, delays, np.inf)
+        order = np.argsort(active_delays, axis=1, kind="stable")
 
         def take(values):
             # After sorting, each row's active entries lead the row, so the active mask
@@ -91,8 +92,7 @@ class _LensImageExpansionNode(FunctionNode):
             return np.take_along_axis(values, order, axis=1)[active]
 
         starts = np.cumsum(counts) - counts  # The index of each system's first image.
-        time_delay = take(delays)
-        time_delay -= np.repeat(time_delay[starts], counts)
+        time_delay = take(delays) - np.repeat(np.min(active_delays, axis=1), counts)
         sample_offset = graph_state.sample_offset or 0
         system_id = np.repeat(np.arange(num_systems) + sample_offset, counts)
         image_id = np.arange(np.sum(counts)) - np.repeat(starts, counts)
@@ -220,7 +220,11 @@ class ResolvedStrongLensModel(MultiObjectModel):
     source, and of rest-frame effects added through this wrapper) are sampled once per
     system and shared by all of its images. Parameters reachable only through this wrapper,
     such as those of observer-frame effects added to it or nodes linked to its ``ra``/``dec``,
-    are sampled per image.
+    are sampled per image. A rest-frame effect whose parameters link to this wrapper's values
+    (e.g. a dust map at ``lens.ra``/``lens.dec``) is sampled per image and triggers the
+    expansion while the source is being sampled, so source parameters registered after it
+    (including those of rest-frame effects added later) are also sampled per image. Add such
+    effects last.
 
     Notes
     -----

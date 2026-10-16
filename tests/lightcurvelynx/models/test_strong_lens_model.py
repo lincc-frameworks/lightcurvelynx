@@ -144,6 +144,18 @@ def test_expansion_accepts_integer_valued_float_counts():
     assert_array_equal(state["images"]["time_delay"], EXPECTED_TIME_DELAY)
 
 
+@pytest.mark.parametrize("num_images", [[3, 0], [0, 2]])
+def test_expansion_drops_zero_image_systems(num_images):
+    """Test that a system with no images is dropped wherever it falls in the batch."""
+    inputs = _two_system_image_inputs() | {"num_images": _given(np.array(num_images))}
+    state = _LensImageExpansionNode(**inputs, node_label="images").sample_parameters(num_samples=2)
+    keep = np.repeat([0, 1], num_images)
+    rows = np.isin(EXPECTED_SYSTEM_ID, keep)
+    assert state.num_samples == sum(num_images)
+    assert_array_equal(state["images"]["system_id"], EXPECTED_SYSTEM_ID[rows])
+    assert_array_equal(state["images"]["time_delay"], EXPECTED_TIME_DELAY[rows])
+
+
 POSITION_NAMES = ["source_ra", "source_dec", "source_x", "source_y", "image_x", "image_y"]
 POSITION_CASES = [
     (10.0, 0.0, 2.0, -1.5, -1.0, 2.5),
