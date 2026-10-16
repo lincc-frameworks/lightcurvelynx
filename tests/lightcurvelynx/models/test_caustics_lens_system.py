@@ -493,6 +493,19 @@ def _simulate(**kwargs):
     )
 
 
+def test_simulate_one_row_per_image_with_delayed_t0():
+    """Test that simulate_lightcurves gives one row per caustics image with per-image t0."""
+    results = _simulate()
+    assert set(results["lensed_system_id"]) == {0, 1}
+    for system_id in range(2):
+        rows = results[results["lensed_system_id"] == system_id]
+        assert 2 <= len(rows) <= 5
+        assert_array_equal(rows["lensed_image_id"], np.arange(len(rows)))
+        assert rows["t0"].iloc[0] == pytest.approx(100.0)  # Earliest image keeps the source t0.
+        assert np.all(np.diff(rows["t0"].to_numpy()) >= 0.0)  # Arrival order.
+        assert np.all(rows["nobs"].to_numpy() > 0)  # Every image falls in the pointing.
+
+
 def test_pickle_round_trip_samples_identically():
     """Test that a stdlib pickle round trip (via cloudpickle for the lens) samples identically."""
     pytest.importorskip("cloudpickle")

@@ -150,6 +150,99 @@ def _describe_system(system_index, values):
 class CausticsStrongLensSystem(FunctionNode):
     """A sampling node that produces strong-lens image arrays with caustics.
 
+    For each sampled lens system this node uses `caustics
+    <https://github.com/Ciela-Institute/caustics>`_ to build a closed lens mesh, draw a
+    source uniformly inside the region of the source plane where it is strongly lensed,
+    raytrace it to its images, and evaluate the per-image observables. Its outputs plug
+    directly into ``ResolvedStrongLensModel`` (see the example below); nothing in
+    lightcurvelynx consumes convergence or shear yet, but they are evaluated now in
+    preparation for future microlensing work.
+
+    **Coordinates.** Every offset (``source_x``/``source_y``, ``image_x``/``image_y``) is
+    caustics' ``(x, y)``: east and north in arcseconds from the lens origin, the same
+    convention ``ResolvedStrongLensModel`` expects.
+
+    **Sampling region and area.** By default the source is drawn uniformly inside the
+    union of the caustics and pseudo-caustics (every point there is multiply imaged). If
+    ``mu_min`` is given, it is instead drawn uniformly inside the source-plane region
+    where ``mu_min <= mu_total <= mu_max`` (singly imaged sources are then legitimate).
+    ``area`` is the area (arcsec\\ :sup:`2`) of whichever region was sampled from
+    (``caustic_area(curves)``, or ``region.area`` in μ-region mode), so a population can
+    be weighted by lensing cross-section.
+
+    **Outputs** (one entry per system; ``I = max_images``):
+
+    ===================== ========== ========= ==============================================
+    Output                One system S systems  Meaning
+    ===================== ========== ========= ==============================================
+    source_x, source_y    scalar     (S,)       Source offset (east, north) from the lens
+                                                 origin, in arcsec.
+    num_images            int        (S,)       Number of active leading image entries.
+    image_x, image_y      (I,)       (S, I)     Image offsets (east, north), in arcsec;
+                                                 NaN padding.
+    macro_magnifications  (I,)       (S, I)     \\|μ\\|, dimensionless; 0 padding.
+    time_delays           (I,)       (S, I)     Observer-frame days; earliest image is 0;
+                                                 NaN padding.
+    convergences          (I,)       (S, I)     κ, dimensionless; NaN padding.
+    shear_1, shear_2      (I,)       (S, I)     γ1, γ2, dimensionless; NaN padding.
+    area                  scalar     (S,)       The sampled region's area, in arcsec\\ :sup:`2`.
+    ===================== ========== ========= ==============================================
+
+    Within a system the images are sorted by arrival time (a stable sort), so
+    ``image_id`` in ``ResolvedStrongLensModel`` matches this order; an image's parity is
+    the sign of ``(1 - κ)**2 - γ1**2 - γ2**2``.
+
+    **Failure policy.** Construction-time input errors and a per-system ``z_l >= z_s``
+    raise ``ValueError``. Every other per-system failure raises ``RuntimeError`` naming
+    the system (its global index and parameter values): the mesh failing to close,
+    depth-limited mesh refinement, an unbounded μ-region, a hole curve hitting its sample
+    cap, no strong-lensing region, a source outside the image of the fov boundary (too few
+    images in the fov), too few images for the sampling mode, or more than ``max_images``
+    images. Other caustics and torch warnings (e.g. a fov-widening notice) are re-emitted
+    unchanged.
+
+    **Threads.** All of a system's caustics work (mesh build, source sampling, raytracing,
+    observables) runs under one module-level lock, because ``torch.func.jacfwd``, which
+    caustics uses internally, keeps process-global forward-AD state and is not
+    thread-safe. Under a ``ThreadPoolExecutor`` this node's work is therefore serialized
+    across threads: correct, but no faster than running serially. Prefer a process-based
+    executor (``num_jobs``, ``ProcessPoolExecutor``, Dask, loky, Ray) for speed.
+
+    **Pickling** this node (e.g. for ``num_jobs``) requires ``cloudpickle``, and
+    unpickling it in a worker does too, because the pickled state holds the stored lens
+    serialized by ``cloudpickle.dumps``; install ``cloudpickle`` on every worker.
+
+    **Torch threads and devices.** If ``torch_num_threads`` is an int, it is applied with
+    ``torch.set_num_threads`` at the start of sampling, a process-wide side effect. If it
+    is left as ``None`` (the default), sampling leaves torch's thread count alone in the
+    process that built the node, but uses 1 thread in any other process (a worker
+    process), which avoids a fork deadlock after multi-threaded torch use in the parent
+    and avoids oversubscription under many workers; pass an explicit int for a cluster
+    worker that owns many cores. ``device`` defaults to ``"cpu"``; the stored lens copy is
+    moved to ``device`` lazily inside sampling, so the process that builds this node never
+    initializes CUDA, and caustics' mesh bookkeeping follows ``device`` through a
+    ``torch.device`` context. GPU speedup is unmeasured, since caustics handles one system
+    per call.
+
+    **Performance.** One caustics call per system (there is no batching across systems);
+    each takes roughly 0.1-0.7 s on CPU, dominated by the mesh build.
+
+    **Precision.** A value set statically on the user's caustics object as a Python float
+    is stored by caskade in float32, and that rounding carries into this node's float64
+    copy (e.g. ``q=0.7`` becomes ``0.699999988...``). For an exact float64 value, map the
+    parameter through ``lens_parameters`` instead, or set it on the lens as a float64
+    tensor.
+
+    Example wiring this node into ``ResolvedStrongLensModel``:
+
+    .. code-block:: python
+
+        system = CausticsStrongLensSystem(
+            lens, lens_parameters=lens_parameters, z_s=source.redshift,
+            fov=5.0, init_res=32, min_img_sep=1e-2, max_images=5,
+        )
+        lensed = ResolvedStrongLensModel(source, **system.resolved_inputs())
+
     Parameters
     ----------
     lens : caustics.lenses.base.Lens
@@ -345,6 +438,12 @@ class CausticsStrongLensSystem(FunctionNode):
 
         A caustics ``SinglePlane`` does not pickle with the standard library ``pickle``.
 
+        Returns
+        -------
+        state : dict
+            This node's ``__dict__``, with ``_lens`` replaced by its ``cloudpickle.dumps``
+            bytes.
+
         Raises
         ------
         ImportError
@@ -362,7 +461,18 @@ class CausticsStrongLensSystem(FunctionNode):
         return state
 
     def __setstate__(self, state):
-        """Restore the pickling state, loading the stored lens from its cloudpickle bytes."""
+        """Restore the pickling state, loading the stored lens from its cloudpickle bytes.
+
+        The call itself is ``pickle.loads``, but the bytes were produced by
+        ``cloudpickle.dumps`` and reference it, so cloudpickle must also be importable
+        wherever this runs (e.g. on every worker of a process-based executor).
+
+        Parameters
+        ----------
+        state : dict
+            A state as returned by ``__getstate__``: this node's ``__dict__``, with
+            ``_lens`` as ``cloudpickle.dumps`` bytes.
+        """
         self.__dict__.update(state)
         if isinstance(self._lens, bytes):
             self._lens = pickle.loads(self._lens)
