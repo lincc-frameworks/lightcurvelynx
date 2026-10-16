@@ -5,6 +5,8 @@ per-image observables that ``ResolvedStrongLensModel`` consumes.
 
 import copy
 import os
+import threading
+import warnings
 from itertools import pairwise
 
 import numpy as np
@@ -17,6 +19,13 @@ _WINDING_CHUNK = 128
 # Candidate sources per rng draw, and the number of draws before the rejection sampler gives up.
 _CANDIDATE_BATCH = 1024
 _MAX_CANDIDATE_BATCHES = 100
+# Substrings of the caustics warnings that mark a failed build: the mesh did not close or the
+# μ-region is unbounded (lens_mesh.py, region.py), refinement was depth-limited (lattice.py), or
+# a hole curve hit its sample cap (holes.py). Some are emitted with stacklevel=3, which hides the
+# emitting module, so all are recognized by text.
+_FAILURE_MESSAGES = ("extension(s), at fov=", "is depth-limited", "before every chord fell below")
+# Serializes the warning capture around mesh builds: catch_warnings mutates process-global state.
+_BUILD_LOCK = threading.Lock()
 
 
 def _import_caustics():
@@ -313,8 +322,11 @@ class CausticsStrongLensSystem(FunctionNode):
             "num_images": self.num_images,
         }
 
-    def _build(self, lens, values, params):
-        """Build one system's closed lens mesh.
+    def _build(self, lens, values, params, system_index):
+        """Build one system's closed lens mesh, raising on caustics' failure warnings.
+
+        The build runs under a module lock with its warnings recorded. Failure warnings are
+        raised as one error; every other warning is re-emitted unchanged.
 
         Parameters
         ----------
@@ -324,6 +336,8 @@ class CausticsStrongLensSystem(FunctionNode):
             This system's node input values, keyed by node parameter name.
         params : list of torch.Tensor
             The values of the lens's dynamic parameters, in ``lens.dynamic_params`` order.
+        system_index : int
+            The global index of the system, used in error messages.
 
         Returns
         -------
@@ -333,17 +347,39 @@ class CausticsStrongLensSystem(FunctionNode):
             Its critical curves, caustics and pseudo-caustics.
         region : caustics.lenses.func.adaptive.MagnificationRegion or None
             The μ-region, or None when ``mu_min`` is not given.
+
+        Raises
+        ------
+        RuntimeError
+            If caustics warns that the mesh did not close, the μ-region is unbounded,
+            refinement was depth-limited, or a hole curve hit its sample cap.
         """
-        return lens.build_closed_lens_mesh(
-            float(values["fov"]),
-            int(values["init_res"]),
-            float(values["min_img_sep"]),
-            mu_min=self._mu_min,
-            mu_max=self._mu_max,
-            device=self._device,
-            params=params,
-            **self._mesh_kwargs,
-        )
+        with _BUILD_LOCK, warnings.catch_warnings(record=True) as records:
+            warnings.simplefilter("always")
+            built = lens.build_closed_lens_mesh(
+                float(values["fov"]),
+                int(values["init_res"]),
+                float(values["min_img_sep"]),
+                mu_min=self._mu_min,
+                mu_max=self._mu_max,
+                device=self._device,
+                params=params,
+                **self._mesh_kwargs,
+            )
+        failures = []
+        for w in records:
+            message = str(w.message)
+            if any(text in message for text in _FAILURE_MESSAGES):
+                failures.append(message)
+            else:
+                warnings.warn_explicit(w.message, w.category, w.filename, w.lineno, source=w.source)
+        if failures:
+            raise RuntimeError(
+                f"{_describe_system(system_index, values)}: caustics could not build a valid lens "
+                "mesh; adjust fov, init_res or min_img_sep (or max_depth / max_iters in mesh_kwargs). "
+                f"Caustics warned: {' | '.join(failures)}"
+            )
+        return built
 
     def _sample_source(self, mesh, curves, region, rng):
         """Draw a source uniformly inside the caustics by rejection sampling.
@@ -414,18 +450,29 @@ class CausticsStrongLensSystem(FunctionNode):
 
         Raises
         ------
+        ValueError
+            If ``z_l >= z_s``.
         RuntimeError
-            If the system has no strong-lensing region: its caustic area is not finite or not
-            positive, or no candidate source is accepted.
+            If the mesh build fails (see ``_build``); the system has no strong-lensing region
+            (its caustic area is not finite or not positive, or no candidate source is
+            accepted); or the source has more than ``max_images`` images, or fewer than the
+            sampling region guarantees (2 in caustic mode, 1 in μ-region mode).
         """
         import torch
         from caustics.lenses.func.adaptive import caustic_area
+
+        z_l = values[self._z_l_name] if self._z_l_name is not None else self._z_l_value
+        if z_l is not None and z_l >= values["z_s"]:
+            raise ValueError(
+                f"{_describe_system(system_index, values)}: z_l ({z_l}) must be less than "
+                f"z_s ({values['z_s']})."
+            )
 
         params = [
             torch.as_tensor(values[name], dtype=torch.float64, device=self._device)
             for name in self._param_order
         ]
-        mesh, curves, region = self._build(lens, values, params)
+        mesh, curves, region = self._build(lens, values, params, system_index)
         area = float(caustic_area(curves))
         if not np.isfinite(area) or area <= 0.0:
             raise RuntimeError(
@@ -445,6 +492,19 @@ class CausticsStrongLensSystem(FunctionNode):
             params=params,
             **self._raytrace_kwargs,
         )
+        num_images = int(counts[0])
+        if num_images > self._max_images:
+            raise RuntimeError(
+                f"{_describe_system(system_index, values)}: the source has {num_images} images, "
+                f"more than max_images={self._max_images}; raise max_images."
+            )
+        min_images = 1 if self._mu_min is not None else 2
+        if num_images < min_images:
+            raise RuntimeError(
+                f"{_describe_system(system_index, values)}: too few images ({num_images}, expected "
+                f"at least {min_images}); the starting fov may lie inside the critical curves, so "
+                "try a larger fov."
+            )
         shear_1, shear_2 = lens.shear(x, y, params=params)
         per_image = {
             "image_x": x,
@@ -459,7 +519,6 @@ class CausticsStrongLensSystem(FunctionNode):
         order = np.argsort(per_image["time_delays"], kind="stable")
         per_image["time_delays"] = per_image["time_delays"] - per_image["time_delays"][order[0]]
 
-        num_images = int(counts[0])
         row = {"source_x": source_x, "source_y": source_y, "num_images": num_images, "area": area}
         for name, value in per_image.items():
             row[name] = np.full(self._max_images, 0.0 if name == "macro_magnifications" else np.nan)

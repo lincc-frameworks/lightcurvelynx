@@ -1,5 +1,5 @@
 import pickle  # noqa: F401 (used starting Task 8's pickling tests)
-import warnings  # noqa: F401 (used starting Task 3's warning-escalation tests)
+import warnings
 from concurrent.futures import ThreadPoolExecutor  # noqa: F401 (used starting Task 8's parallel-safety tests)
 from types import SimpleNamespace
 
@@ -314,3 +314,61 @@ def test_rejection_cap_raises():
     curves = SimpleNamespace(source=source, offsets=torch.tensor([0, 2]))
     with pytest.raises(RuntimeError, match="no strong-lensing region"):
         _make_system()._sample_source(None, curves, None, np.random.default_rng(0))
+
+
+@pytest.mark.parametrize(
+    "overrides, error, match",
+    [
+        ({"lens_parameters": LENS_PARAMETERS | {"lens.z_l": 2.0}}, ValueError, "z_l"),
+        ({"max_images": 1}, RuntimeError, "max_images"),
+        ({"fov": 2.0, "mesh_kwargs": {"max_iters": 0}}, RuntimeError, r"extension\(s\)"),
+        # A starting fov inside the critical curves. At fov=0.5 about half the sources drawn
+        # inside the pseudo-caustic lie outside the image of the fov boundary, and caustics'
+        # forward_raytrace raises its own ValueError for them; at fov=0.1 every one lies inside
+        # it and has zero images in the fov, which the image-count floor catches.
+        ({"fov": 0.1}, RuntimeError, "too few images"),
+        ({"mesh_kwargs": {"max_depth": 2}}, RuntimeError, "depth-limited"),
+    ],
+)
+def test_per_system_failures_raise(overrides, error, match):
+    """Test that bad systems raise instead of reaching the output."""
+    with pytest.raises(error, match=match):
+        _make_system(**overrides).sample_parameters(num_samples=1)
+
+
+def test_error_names_global_system_index():
+    """Test that errors name the system by its global index (sample_offset + local index)."""
+    system = _make_system(lens_parameters=LENS_PARAMETERS | {"lens.z_l": 2.0})
+    with pytest.raises(ValueError, match="system 7"):
+        system.sample_parameters(num_samples=1, sample_offset=7)
+
+
+def test_informational_caustics_warnings_are_reemitted():
+    """Test that the fov-widening notice passes through as a warning, not an error."""
+    # The hole around a center has radius min_img_sep / 2 = 0.005, so a center at x = 2.498
+    # reaches past the fov edge at 2.5 and caustics widens the fov (a center at 2.45 does not).
+    system = _make_system(mesh_kwargs={"centers": [[2.498, 0.0]]})
+    with pytest.warns(UserWarning, match="reach outside fov"):
+        system.sample_parameters(num_samples=1)
+
+
+def test_build_escalates_failure_warnings_and_reemits_others():
+    """Test that _build raises on caustics' capped-hole-curve warning and re-emits the rest unchanged."""
+
+    def build_closed_lens_mesh(*args, **kwargs):
+        warnings.warn_explicit("a dependency notice", DeprecationWarning, "dependency.py", 3)
+        # The text of caustics' holes.py warning, at its sample cap of 1 << 16.
+        warnings.warn(
+            "the hole curve around (0, 0) stopped at 65536 samples (cap 65536) before every chord "
+            "fell below min_img_sep=0.01; it is exact at its samples but coarser than min_img_sep "
+            "between them"
+        )
+
+    system = _make_system()
+    lens = SimpleNamespace(build_closed_lens_mesh=build_closed_lens_mesh)
+    values = {"fov": 5.0, "init_res": 32, "min_img_sep": 0.01}
+    with pytest.warns(DeprecationWarning, match="a dependency notice") as record:
+        with pytest.raises(RuntimeError, match="system 3 .*before every chord fell below"):
+            system._build(lens, values, [], 3)
+    # Only the dependency notice comes back, at its recorded location; the failure is not re-emitted.
+    assert [(w.filename, w.lineno) for w in record] == [("dependency.py", 3)]
