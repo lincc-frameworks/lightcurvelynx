@@ -10,7 +10,7 @@ from astropy.coordinates import SkyCoord, SkyOffsetFrame
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.models.multi_object_model import MultiObjectModel
-from lightcurvelynx.models.physical_model import BandfluxModel
+from lightcurvelynx.models.physical_model import BandfluxModel, SEDModel
 
 
 class _LensImageExpansionNode(FunctionNode):
@@ -358,3 +358,39 @@ class ResolvedStrongLensModel(MultiObjectModel):
         for effect in self.obs_frame_effects:
             flux_density = effect.apply(flux_density, times=times, wavelengths=wavelengths, **params)
         return flux_density
+
+    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state):
+        """Evaluate one image's band fluxes.
+
+        For an SED source, the image's SED (including this wrapper's observer-frame effects)
+        is integrated over each passband. For a bandflux source, the magnified source band
+        fluxes at ``t - time_delay`` are computed and this wrapper's effects are applied with
+        ``apply_bandflux`` at the observed times.
+
+        Parameters
+        ----------
+        passband_group : PassbandGroup
+            The passband group to use.
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        filters : numpy.ndarray
+            A length T array of filter names.
+        state : GraphState
+            An object mapping graph parameters to their values with num_samples=1.
+
+        Returns
+        -------
+        bandfluxes : numpy.ndarray
+            A length T array of band fluxes (in nJy).
+        """
+        if not isinstance(self.source_model, BandfluxModel):
+            # MultiObjectModel disables this path, so use the SEDModel integration directly.
+            return SEDModel._evaluate_bandfluxes_single(self, passband_group, times, filters, state)
+
+        params = self.get_local_params(state)
+        bandfluxes = params["macro_magnification"] * self.source_model.evaluate_bandfluxes(
+            passband_group, times - params["time_delay"], filters, state
+        )
+        for effect in self.obs_frame_effects:
+            bandfluxes = effect.apply_bandflux(bandfluxes, times=times, filters=filters, **params)
+        return bandfluxes

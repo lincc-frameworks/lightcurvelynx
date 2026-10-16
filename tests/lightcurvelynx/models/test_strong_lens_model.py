@@ -4,6 +4,7 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord, SkyOffsetFrame
 from numpy.testing import assert_allclose, assert_array_equal
 
+from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
 from lightcurvelynx.effects.effect_model import EffectModel
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
@@ -433,3 +434,64 @@ def test_single_image_system_evaluates_as_one_row():
     flux = lens.evaluate_sed(TIMES, WAVES, state)
     assert flux.shape == (4, 2)
     assert_allclose(flux[:, 0], 3.0 * (10.0 + 2.0 * np.maximum(0.0, TIMES - 100.0)))
+
+
+FILTERS = np.array(["g", "r", "g", "r"])
+
+
+def _toy_passbands():
+    """Return a two-filter toy passband group in Angstroms."""
+    return PassbandGroup(
+        [
+            Passband(np.array([[4000.0, 0.5], [5000.0, 0.75], [6000.0, 0.25]]), "toy", "g"),
+            Passband(np.array([[5000.0, 0.25], [6000.0, 0.5], [7000.0, 0.75]]), "toy", "r"),
+        ]
+    )
+
+
+class _WavelengthTiltEffect(EffectModel):
+    """Observer-frame test effect with no apply_bandflux: multiplies flux by wavelength / 5000 Å."""
+
+    def __init__(self):
+        super().__init__(rest_frame=False)
+
+    def apply(self, flux_density, times=None, wavelengths=None, **kwargs):
+        return flux_density * (wavelengths[np.newaxis, :] / 5000.0)
+
+
+def test_evaluate_bandfluxes_sed_source():
+    """Test bandfluxes for an SED source (a flat SED integrates to its own value)."""
+    lens = _make_lens()
+    state = lens.sample_parameters(num_samples=2)
+    fluxes = lens.evaluate_bandfluxes(_toy_passbands(), TIMES, FILTERS, state)
+    assert fluxes.shape == (5, 4)
+    assert_allclose(fluxes, _expected_linear_flux(TIMES))
+
+
+def test_sed_only_wrapper_effect_works_on_bandflux_path():
+    """Test that a wavelength-dependent wrapper effect is applied to the SED before integration."""
+    lens = _make_lens()
+    lens.add_effect(_WavelengthTiltEffect())
+    state = lens.sample_parameters(num_samples=2)
+    passbands = _toy_passbands()
+    fluxes = lens.evaluate_bandfluxes(passbands, TIMES, FILTERS, state)
+    expected = _expected_linear_flux(TIMES)
+    for col, filter_name in enumerate(FILTERS):
+        passband = passbands[filter_name]
+        tilt = passband.fluxes_to_bandflux((passband.waves / 5000.0)[np.newaxis, :])[0]
+        assert_allclose(fluxes[:, col], expected[:, col] * tilt)
+
+
+def test_evaluate_bandfluxes_bandflux_source():
+    """Test a bandflux source: magnified at t - delay, wrapper effect at observed times."""
+    lens = _make_lens(_make_bandflux_source())
+    lens.add_effect(_AddTimeEffect())
+    state = lens.sample_parameters(num_samples=2)
+    fluxes = lens.evaluate_bandfluxes(_toy_passbands(), TIMES, FILTERS, state)
+    filter_offset = np.where(FILTERS == "r", 1.0, 0.0)
+    expected = (
+        _expected_linear_flux(TIMES)
+        + EXPECTED_MAGNIFICATION[:, np.newaxis] * filter_offset
+        + TIMES[np.newaxis, :]
+    )
+    assert_allclose(fluxes, expected)
