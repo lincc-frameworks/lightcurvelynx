@@ -391,12 +391,20 @@ class GraphState:
         for full_name in all_param_full_names:
             node_name, param_name = full_name.split(".")
 
-            # Create a numpy array that is the concatenation of all the values
-            # from each of the GraphStates.
+            # Create a numpy array that is the concatenation of all the values from each
+            # of the GraphStates along the sample axis, so vector-valued parameters keep
+            # their per-sample shape.
             values_list = []
             for current in graph_states:
-                values_list.append(np.atleast_1d(current[full_name]))
+                values = np.asarray(current[full_name])
+                if current.num_samples == 1:
+                    values = values[np.newaxis, ...]
+                values_list.append(values)
             values = np.concatenate(values_list)
+
+            # If we only have a single sample, store its value.
+            if total_samples == 1:
+                values = values[0]
             result.set(node_name, param_name, values, force_copy=False, fixed=False)
         return result
 

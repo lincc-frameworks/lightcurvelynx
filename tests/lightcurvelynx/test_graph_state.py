@@ -481,6 +481,37 @@ def test_create_single_graph_state_from_list():
         _ = GraphState.from_list([])
 
 
+def test_create_graph_state_from_list_vector_values():
+    """Test that from_list concatenates vector-valued parameters along the sample axis."""
+    state1 = GraphState(num_samples=1)
+    state1.set("a", "v1", 1.0)
+    state1.set("a", "vec", np.array([1.0, 2.0, 3.0]))
+
+    state2 = GraphState(num_samples=2)
+    state2.set("a", "v1", [2.0, 3.0])
+    state2.set("a", "vec", np.array([[4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]))
+
+    dict1 = {"a.v1": 4.0, "a.vec": np.array([10.0, 11.0, 12.0])}
+    state = GraphState.from_list([state1, state2, dict1])
+
+    assert state.num_samples == 4
+    assert np.array_equal(state["a"]["v1"], [1.0, 2.0, 3.0, 4.0])
+    assert np.array_equal(state["a"]["vec"], np.arange(1.0, 13.0).reshape(4, 3))
+
+
+def test_create_graph_state_from_list_single_sample():
+    """Test that from_list of one single-sample state stores its values directly."""
+    state1 = GraphState(num_samples=1)
+    state1.set("a", "v1", 1.0)
+    state1.set("a", "vec", np.array([1.0, 2.0, 3.0]))
+
+    state = GraphState.from_list([state1])
+    assert state.num_samples == 1
+    assert np.isscalar(state["a"]["v1"])
+    assert state["a"]["v1"] == 1.0
+    assert np.array_equal(state["a"]["vec"], [1.0, 2.0, 3.0])
+
+
 def test_create_multi_sample_graph_state_reference():
     """Test that we can create and access a multi-sample GraphState with variables
     that were created from each other (with and without references)."""
