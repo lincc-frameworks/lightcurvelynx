@@ -5,6 +5,7 @@ per-image observables that ``ResolvedStrongLensModel`` consumes.
 
 import copy
 import os
+import pickle
 import sys
 import threading
 import warnings
@@ -25,8 +26,10 @@ _MAX_CANDIDATE_BATCHES = 100
 # a hole curve hit its sample cap (holes.py). Some are emitted with stacklevel=3, which hides the
 # emitting module, so all are recognized by text.
 _FAILURE_MESSAGES = ("extension(s), at fov=", "is depth-limited", "before every chord fell below")
-# Serializes the warning capture around mesh builds: catch_warnings mutates process-global state.
-_BUILD_LOCK = threading.Lock()
+# Serializes the caustics work of every CausticsStrongLensSystem across threads: torch.func.jacfwd,
+# used by caustics' builds, raytraces and Jacobians, keeps process-global forward-AD state, and the
+# warning capture around each build (catch_warnings) mutates process-global state.
+_CAUSTICS_LOCK = threading.Lock()
 
 
 def _import_caustics():
@@ -337,11 +340,57 @@ class CausticsStrongLensSystem(FunctionNode):
             "num_images": self.num_images,
         }
 
+    def __getstate__(self):
+        """Return the pickling state, with the stored lens serialized by cloudpickle.
+
+        A caustics ``SinglePlane`` does not pickle with the standard library ``pickle``.
+
+        Raises
+        ------
+        ImportError
+            If cloudpickle is not installed.
+        """
+        try:
+            import cloudpickle
+        except ImportError as err:
+            raise ImportError(
+                "Pickling CausticsStrongLensSystem (e.g. for num_jobs) requires cloudpickle: "
+                "pip install cloudpickle"
+            ) from err
+        state = self.__dict__.copy()
+        state["_lens"] = cloudpickle.dumps(self._lens)
+        return state
+
+    def __setstate__(self, state):
+        """Restore the pickling state, loading the stored lens from its cloudpickle bytes."""
+        self.__dict__.update(state)
+        if isinstance(self._lens, bytes):
+            self._lens = pickle.loads(self._lens)
+
+    def _set_torch_threads(self, torch):
+        """Apply ``torch_num_threads``, or 1 thread in a process other than the one that built the node.
+
+        In a forked worker, the first parallel torch op can deadlock if the parent already ran
+        multi-threaded torch work; one thread avoids it.
+
+        Parameters
+        ----------
+        torch : module
+            The ``torch`` module.
+        """
+        num_threads = self._torch_num_threads
+        if num_threads is None:
+            if os.getpid() == self._owner_pid:
+                return
+            num_threads = 1
+        if torch.get_num_threads() != num_threads:
+            torch.set_num_threads(num_threads)
+
     def _build(self, lens, values, params, system_index):
         """Build one system's closed lens mesh, raising on caustics' failure warnings.
 
-        The build runs under a module lock with its warnings recorded. Failure warnings are
-        raised as one error; every other warning is re-emitted unchanged.
+        The build runs with its warnings recorded (``compute`` holds the module lock around it).
+        Failure warnings are raised as one error; every other warning is re-emitted unchanged.
 
         Parameters
         ----------
@@ -369,7 +418,7 @@ class CausticsStrongLensSystem(FunctionNode):
             If caustics warns that the mesh did not close, the μ-region is unbounded,
             refinement was depth-limited, or a hole curve hit its sample cap.
         """
-        with _BUILD_LOCK, warnings.catch_warnings(record=True) as records:
+        with warnings.catch_warnings(record=True) as records:
             warnings.simplefilter("always")
             built = lens.build_closed_lens_mesh(
                 float(values["fov"]),
@@ -593,6 +642,7 @@ class CausticsStrongLensSystem(FunctionNode):
         """
         import torch
 
+        self._set_torch_threads(torch)
         args = self._build_inputs(graph_state, **kwargs)
         rng = rng_info if rng_info is not None else self._rng
         num_samples = graph_state.num_samples
@@ -601,7 +651,9 @@ class CausticsStrongLensSystem(FunctionNode):
         lens = copy.deepcopy(self._lens).to(device=self._device)
         sample_offset = graph_state.sample_offset or 0
         rows = []
-        with torch.device(self._device):
+        # torch.device also moves caustics' mesh bookkeeping, which runs on torch's default device
+        # (geometry.build_device()), onto device.
+        with _CAUSTICS_LOCK, torch.device(self._device):
             for i, sub_seed in enumerate(sub_seeds):
                 values = {name: value if num_samples == 1 else value[i] for name, value in args.items()}
                 rows.append(

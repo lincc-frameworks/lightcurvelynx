@@ -1,7 +1,7 @@
 import json
-import pickle  # noqa: F401 (used starting Task 8's pickling tests)
+import pickle
 import warnings
-from concurrent.futures import ThreadPoolExecutor  # noqa: F401 (used starting Task 8's parallel-safety tests)
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import numpy as np
@@ -12,15 +12,20 @@ torch = pytest.importorskip("torch")
 caustics = pytest.importorskip("caustics")
 adaptive = pytest.importorskip("caustics.lenses.func.adaptive")
 
-from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode  # noqa: E402,I001
+from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup  # noqa: E402,I001
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode  # noqa: E402
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc  # noqa: E402
+from lightcurvelynx.models.basic_models import LinearTimeModel  # noqa: E402
 from lightcurvelynx.models.caustics_lens_system import (  # noqa: E402
     CausticsStrongLensSystem,
     _inside_caustics,
     _lens_param_index,
 )
-# Task 5 adds the LinearTimeModel, ResolvedStrongLensModel and simulate_lightcurves
-# imports here, at the top.
+from lightcurvelynx.models.strong_lens_model import ResolvedStrongLensModel  # noqa: E402
+from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel  # noqa: E402
+from lightcurvelynx.obstable.fake_obs_table import FakeObsTable  # noqa: E402
+from lightcurvelynx.simulate import simulate_lightcurves  # noqa: E402
+from lightcurvelynx.survey_info import SurveyInfo  # noqa: E402
 
 Z_L, Z_S = 0.5, 1.5
 VALUES = {"q": 0.7, "phi": 0.3, "Rein": 1.0, "gamma_1": 0.05, "gamma_2": -0.02}
@@ -429,3 +434,136 @@ def test_reemitted_warnings_keep_module_scoped_filters(ignore_json, expected):
             warnings.filterwarnings("ignore", category=UserWarning, module="json")
         system._build(lens, values, [], 0)
     assert len(record) == expected
+
+
+def _toy_passbands():
+    """Return a two-filter toy passband group in Angstroms."""
+    return PassbandGroup(
+        [
+            Passband(np.array([[4000.0, 0.5], [5000.0, 0.75], [6000.0, 0.25]]), "toy", "g"),
+            Passband(np.array([[5000.0, 0.25], [6000.0, 0.5], [7000.0, 0.75]]), "toy", "r"),
+        ]
+    )
+
+
+def _survey_info():
+    """Return a fake survey with 18 g/r observations pointed at (10, -30) deg."""
+    values = {
+        "time": np.linspace(90.0, 260.0, 18),
+        "ra": np.full(18, 10.0),
+        "dec": np.full(18, -30.0),
+        "filter": np.tile(["g", "r"], 9),
+    }
+    obstable = FakeObsTable(
+        values,
+        bandflux_error={"g": 1.0, "r": 1.0},
+        radius=0.5,
+        fwhm_px=2.0,
+        sky_bg_electrons=100.0,
+    )
+    return SurveyInfo(obstable=obstable, passbands=_toy_passbands(), noise_model=GivenNoiseModel())
+
+
+class _InProcessExecutor:
+    """Executor that runs batches sequentially in this process."""
+
+    def map(self, fn, iterable):
+        return [fn(item) for item in iterable]
+
+
+def _make_resolved():
+    """Return a ResolvedStrongLensModel whose images come from the caustics test system."""
+    source = LinearTimeModel(
+        linear_base=10.0, linear_scale=2.0, t0=100.0, ra=10.0, dec=-30.0, redshift=Z_S, node_label="source"
+    )
+    system = _make_system(z_s=source.redshift)
+    return ResolvedStrongLensModel(source, **system.resolved_inputs(), node_label="lensed")
+
+
+def _simulate(**kwargs):
+    """Run a two-system simulation with param_cols for the image layout."""
+    return simulate_lightcurves(
+        _make_resolved(),
+        2,
+        _survey_info(),
+        param_cols=["lensed.system_id", "lensed.image_id"],
+        rng=np.random.default_rng(4),
+        progress_bar=False,
+        **kwargs,
+    )
+
+
+def test_pickle_round_trip_samples_identically():
+    """Test that a stdlib pickle round trip (via cloudpickle for the lens) samples identically."""
+    pytest.importorskip("cloudpickle")
+    system = _make_system()
+    clone = pickle.loads(pickle.dumps(system))
+    a = system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(3))["system"]
+    b = clone.sample_parameters(num_samples=2, rng_info=np.random.default_rng(3))["system"]
+    for name in CausticsStrongLensSystem.OUTPUTS:
+        assert_array_equal(a[name], b[name])
+
+
+@pytest.fixture
+def restore_torch_threads():
+    """Restore torch's thread count after a test changes it."""
+    before = torch.get_num_threads()
+    yield
+    torch.set_num_threads(before)
+
+
+def test_worker_process_defaults_to_one_thread(restore_torch_threads):
+    """Test that a node running outside its construction process uses one torch thread by default."""
+    system = _make_system()
+    system._owner_pid = -1  # Pretend we are in a worker process.
+    system.sample_parameters(num_samples=1)
+    assert torch.get_num_threads() == 1
+
+
+def test_explicit_thread_count_is_applied(restore_torch_threads):
+    """Test that torch_num_threads is applied in compute."""
+    _make_system(torch_num_threads=2).sample_parameters(num_samples=1)
+    assert torch.get_num_threads() == 2
+
+
+def test_stored_lens_unchanged_by_sampling():
+    """Test that sampling leaves the stored lens copy on CPU, float64, with the same dynamic set."""
+    system = _make_system()
+    dynamic_before = [p.name for p in system._lens.dynamic_params]
+    first = system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(2))["system"]
+    second = system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(2))["system"]
+    assert [p.name for p in system._lens.dynamic_params] == dynamic_before
+    x0 = _lens_param_index(system._lens)["sie.x0"].value
+    assert x0.device.type == "cpu" and x0.dtype == torch.float64
+    assert_array_equal(first["image_x"], second["image_x"])
+
+
+def test_thread_executor_matches_in_process_batches():
+    """Test that a ThreadPoolExecutor run matches in-process batches."""
+    serial = _simulate(executor=_InProcessExecutor(), batch_size=1)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        threaded = _simulate(executor=pool, batch_size=1)
+    assert_array_equal(threaded["lensed_system_id"], serial["lensed_system_id"])
+    for col in ("ra", "dec", "t0"):
+        assert_allclose(threaded[col], serial[col], rtol=1e-12)
+
+
+def test_process_executor_matches_in_process_batches():
+    """Test that num_jobs=2 (fork, 1 torch thread per worker) matches in-process batches within tolerance."""
+    pytest.importorskip("cloudpickle")
+    serial = _simulate(executor=_InProcessExecutor(), batch_size=1)
+    parallel = _simulate(num_jobs=2)
+    assert_array_equal(parallel["lensed_system_id"], serial["lensed_system_id"])
+    for col in ("ra", "dec", "t0"):
+        assert_allclose(parallel[col], serial[col], rtol=1e-9)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+def test_cuda_matches_cpu():
+    """Test that running on CUDA gives the same outputs as CPU for the same seed."""
+    cpu = _make_system().sample_parameters(num_samples=2, rng_info=np.random.default_rng(5))["system"]
+    gpu = _make_system(device="cuda").sample_parameters(num_samples=2, rng_info=np.random.default_rng(5))
+    gpu = gpu["system"]
+    assert_array_equal(gpu["num_images"], cpu["num_images"])
+    for name in ("source_x", "source_y", "image_x", "macro_magnifications", "time_delays", "area"):
+        assert_allclose(gpu[name], cpu[name], rtol=1e-6, equal_nan=True)
