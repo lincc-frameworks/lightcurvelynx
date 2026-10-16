@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import pytest
 from astropy import units as u
@@ -7,6 +9,7 @@ from numpy.testing import assert_allclose, assert_array_equal
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
 from lightcurvelynx.effects.effect_model import EffectModel
+from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
@@ -17,6 +20,10 @@ from lightcurvelynx.models.strong_lens_model import (
     _LensImageExpansionNode,
     _LensImagePositionNode,
 )
+from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel
+from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
+from lightcurvelynx.simulate import simulate_lightcurves
+from lightcurvelynx.survey_info import SurveyInfo
 
 # Two systems with fixed width 4. System 0 has 3 active images, given out of arrival order
 # and with a delay tie. System 1 has 2 active images, and its 0.0 padding is smaller than its
@@ -495,3 +502,123 @@ def test_evaluate_bandfluxes_bandflux_source():
         + TIMES[np.newaxis, :]
     )
     assert_allclose(fluxes, expected)
+
+
+PARAM_COLS = ["lens.system_id", "lens.image_id"]
+
+
+def _survey_info(radius=0.5):
+    """Return a fake survey with 18 g/r observations pointed at (10, -30) deg."""
+    values = {
+        "time": np.linspace(90.0, 260.0, 18),
+        "ra": np.full(18, 10.0),
+        "dec": np.full(18, -30.0),
+        "filter": np.tile(["g", "r"], 9),
+    }
+    obstable = FakeObsTable(
+        values,
+        bandflux_error={"g": 1.0, "r": 1.0},
+        radius=radius,
+        fwhm_px=2.0,
+        sky_bg_electrons=100.0,
+    )
+    return SurveyInfo(obstable=obstable, passbands=_toy_passbands(), noise_model=GivenNoiseModel())
+
+
+class _InProcessExecutor:
+    """Executor that runs batches sequentially in this process."""
+
+    def map(self, fn, iterable):
+        return [fn(item) for item in iterable]
+
+
+def test_simulate_one_row_per_image():
+    """Test that simulation returns one ordinary row per image."""
+    results = simulate_lightcurves(
+        _make_lens(),
+        2,
+        _survey_info(),
+        param_cols=PARAM_COLS,
+        rng=np.random.default_rng(3),
+        progress_bar=False,
+    )
+    assert len(results) == 5
+    assert_array_equal(results["lens_system_id"], EXPECTED_SYSTEM_ID)
+    assert_array_equal(results["lens_image_id"], EXPECTED_IMAGE_ID)
+    assert_allclose(results["t0"], SOURCE_T0[EXPECTED_SYSTEM_ID] + EXPECTED_TIME_DELAY)
+    nobs = results["nobs"].to_numpy()
+    assert np.all(nobs[:3] > 0)  # system 0 is inside the pointing
+    assert np.all(nobs[3:] == 0)  # system 1 (RA 250, Dec 45) is not
+
+
+def test_simulate_matches_footprint_per_image():
+    """Test that each image is matched to the survey footprint at its own position."""
+    source = LinearTimeModel(linear_base=10.0, linear_scale=0.0, t0=100.0, ra=10.0, dec=-30.0, redshift=0.0)
+    lens = ResolvedStrongLensModel(
+        source,
+        source_x=0.0,
+        source_y=0.0,
+        image_x=[0.0, 0.0],
+        image_y=[0.0, 7200.0],
+        macro_magnifications=[1.0, 1.0],
+        time_delays=[0.0, 5.0],
+        node_label="lens",
+    )
+    results = simulate_lightcurves(lens, 1, _survey_info(radius=1.0), progress_bar=False)
+    assert len(results) == 2
+    assert results["dec"].iloc[1] == pytest.approx(-28.0, abs=1e-6)
+    assert results["nobs"].iloc[0] > 0
+    assert results["nobs"].iloc[1] == 0
+
+
+def test_simulate_batches_match_serial():
+    """Test that batched simulation matches serial simulation, with unique system ids."""
+    survey = _survey_info()
+    serial = simulate_lightcurves(
+        _make_lens(), 2, survey, param_cols=PARAM_COLS, rng=np.random.default_rng(4), progress_bar=False
+    )
+    batched = simulate_lightcurves(
+        _make_lens(),
+        2,
+        survey,
+        param_cols=PARAM_COLS,
+        rng=np.random.default_rng(4),
+        executor=_InProcessExecutor(),
+        batch_size=1,
+        progress_bar=False,
+    )
+    assert_array_equal(batched["lens_system_id"], EXPECTED_SYSTEM_ID)
+    for col in ("ra", "dec", "t0"):
+        assert_allclose(batched[col], serial[col])
+    assert_allclose(batched["lightcurve.flux_perfect"], serial["lightcurve.flux_perfect"])
+
+
+def test_simulate_replay_from_state_and_params_column():
+    """Test replay from an in-memory GraphState and through GraphState.from_list(results["params"])."""
+    lens = _make_lens()
+    survey = _survey_info()
+    state = lens.sample_parameters(num_samples=2)
+    results = simulate_lightcurves(
+        lens, state.num_samples, survey, graph_state=state, rng=np.random.default_rng(5), progress_bar=False
+    )
+    assert_allclose(results["t0"], SOURCE_T0[EXPECTED_SYSTEM_ID] + EXPECTED_TIME_DELAY)
+
+    replayed_state = GraphState.from_list(results["params"].to_numpy())
+    replay = simulate_lightcurves(
+        lens,
+        len(results),
+        survey,
+        graph_state=replayed_state,
+        rng=np.random.default_rng(6),
+        progress_bar=False,
+    )
+    for col in ("ra", "dec", "t0"):
+        assert_allclose(replay[col], results[col])
+    assert_allclose(replay["lightcurve.flux_perfect"], results["lightcurve.flux_perfect"])
+
+
+def test_resolved_lens_survives_pickling():
+    """Test that a pickled and restored lens samples and evaluates identically (parallel runs)."""
+    clone = pickle.loads(pickle.dumps(_make_lens()))
+    state = clone.sample_parameters(num_samples=2)
+    assert_allclose(clone.evaluate_sed(TIMES, WAVES, state)[:, :, 0], _expected_linear_flux(TIMES))
