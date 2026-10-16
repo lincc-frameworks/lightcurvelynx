@@ -590,11 +590,12 @@ class GraphState:
         # repeating the values according to repeats.
         for node_name, node_vars in self.states.items():
             for var_name, value in node_vars.items():
-                # Compute the new values as an array.
+                # Compute the new values as an array, repeating along the sample axis so
+                # vector-valued parameters keep their per-sample shape.
+                values = np.asarray(value)
                 if self.num_samples == 1:
-                    new_values = np.full(repeats[0], value)
-                else:
-                    new_values = np.repeat(value, repeats)
+                    values = values[np.newaxis, ...]
+                new_values = np.repeat(values, repeats, axis=0)
 
                 # If we only have a single sample at the end, store its value.
                 if new_num_samples == 1:

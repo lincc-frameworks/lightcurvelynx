@@ -967,6 +967,47 @@ def test_graph_state_repeat_integer_shortcut():
     assert np.array_equal(state["a"]["v1"], [1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
 
 
+def test_graph_state_repeat_multi_sample_vector_values():
+    """Test that repeat expands vector-valued parameters along the sample axis."""
+    state = GraphState(num_samples=3)
+    state.set("a", "v1", [1.0, 2.0, 3.0])
+    state.set("a", "vec", np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]))
+
+    state.repeat([2, 0, 1])
+    assert state.num_samples == 3
+    assert np.array_equal(state["a"]["v1"], [1.0, 1.0, 3.0])
+    assert np.array_equal(state["a"]["vec"], [[1.0, 2.0], [1.0, 2.0], [5.0, 6.0]])
+
+
+def test_graph_state_repeat_single_sample_vector_values():
+    """Test that repeat copies a single sample's vector-valued parameters whole."""
+    state = GraphState(num_samples=1)
+    state.set("a", "v1", 2.5)
+    state.set("a", "vec4", np.array([0.0, 1.0, 2.0, 3.0]))
+    state.set("b", "vec2", np.array([-1.0, -2.0]))
+
+    state.repeat([4])
+    assert state.num_samples == 4
+    assert np.array_equal(state["a"]["v1"], [2.5, 2.5, 2.5, 2.5])
+    assert np.array_equal(state["a"]["vec4"], np.tile([0.0, 1.0, 2.0, 3.0], (4, 1)))
+    assert np.array_equal(state["b"]["vec2"], np.tile([-1.0, -2.0], (4, 1)))
+
+
+def test_graph_state_repeat_vector_values_to_single():
+    """Test that repeat keeps a vector-valued parameter intact when the
+    result is a single sample."""
+    state = GraphState(num_samples=3)
+    state.set("a", "vec", np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]))
+
+    state.repeat([0, 1, 0])
+    assert state.num_samples == 1
+    assert np.array_equal(state["a"]["vec"], [3.0, 4.0])
+
+    state.repeat([1])
+    assert state.num_samples == 1
+    assert np.array_equal(state["a"]["vec"], [3.0, 4.0])
+
+
 def test_graph_to_from_file(tmp_path):
     """Test that we can create an AstroPy Table from a GraphState."""
     state = GraphState(num_samples=3)
