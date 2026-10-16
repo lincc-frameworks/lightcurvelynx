@@ -455,11 +455,13 @@ class CausticsStrongLensSystem(FunctionNode):
         RuntimeError
             If the mesh build fails (see ``_build``); the system has no strong-lensing region
             (its caustic area is not finite or not positive, or no candidate source is
-            accepted); or the source has more than ``max_images`` images, or fewer than the
-            sampling region guarantees (2 in caustic mode, 1 in μ-region mode).
+            accepted); the source lies outside the image of the fov boundary; or the source has
+            more than ``max_images`` images, or fewer than the sampling region guarantees (2 in
+            caustic mode, 1 in μ-region mode).
         """
         import torch
         from caustics.lenses.func.adaptive import caustic_area
+        from caustics.lenses.func.adaptive.lens_mesh import inside_fov_image
 
         z_l = values[self._z_l_name] if self._z_l_name is not None else self._z_l_value
         if z_l is not None and z_l >= values["z_s"]:
@@ -485,12 +487,17 @@ class CausticsStrongLensSystem(FunctionNode):
         except RuntimeError as err:
             raise RuntimeError(f"{_describe_system(system_index, values)}: {err}") from err
 
+        # forward_raytrace raises for a source outside the image of the fov boundary, where some
+        # of its images lie outside the fov; check first so the error names the system.
+        beta = torch.tensor([[source_x, source_y]], dtype=torch.float64, device=mesh.vertices_source.device)
+        if not bool(inside_fov_image(mesh, beta)[0]):
+            raise RuntimeError(
+                f"{_describe_system(system_index, values)}: too few images in the fov: the source lies "
+                "outside the image of the fov boundary, so some of its images lie outside the fov; the "
+                "starting fov may lie inside the critical curves, so try a larger fov."
+            )
         x, y, counts = lens.forward_raytrace(
-            torch.tensor([source_x], dtype=torch.float64),
-            torch.tensor([source_y], dtype=torch.float64),
-            mesh=mesh,
-            params=params,
-            **self._raytrace_kwargs,
+            beta[:, 0], beta[:, 1], mesh=mesh, params=params, **self._raytrace_kwargs
         )
         num_images = int(counts[0])
         if num_images > self._max_images:

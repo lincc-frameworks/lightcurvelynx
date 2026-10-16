@@ -322,11 +322,12 @@ def test_rejection_cap_raises():
         ({"lens_parameters": LENS_PARAMETERS | {"lens.z_l": 2.0}}, ValueError, "z_l"),
         ({"max_images": 1}, RuntimeError, "max_images"),
         ({"fov": 2.0, "mesh_kwargs": {"max_iters": 0}}, RuntimeError, r"extension\(s\)"),
-        # A starting fov inside the critical curves. At fov=0.5 about half the sources drawn
-        # inside the pseudo-caustic lie outside the image of the fov boundary, and caustics'
-        # forward_raytrace raises its own ValueError for them; at fov=0.1 every one lies inside
-        # it and has zero images in the fov, which the image-count floor catches.
-        ({"fov": 0.1}, RuntimeError, "too few images"),
+        # A starting fov inside the critical curves, where the mesh holds only the pseudo-caustic.
+        # A source drawn inside it either lies outside the image of the fov boundary, where
+        # caustics' forward_raytrace would raise (the seed-11 source at fov=0.5), or inside it
+        # with zero images in the fov (the seed-11 source at fov=0.1). Both say "too few images".
+        ({"fov": 0.5}, RuntimeError, "too few images in the fov: the source lies outside"),
+        ({"fov": 0.1}, RuntimeError, r"too few images \(0, expected at least 2\)"),
         ({"mesh_kwargs": {"max_depth": 2}}, RuntimeError, "depth-limited"),
     ],
 )
