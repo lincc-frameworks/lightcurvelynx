@@ -397,10 +397,11 @@ class CausticsStrongLensSystem(FunctionNode):
         return built
 
     def _sample_source(self, mesh, curves, region, rng):
-        """Draw a source uniformly inside the caustics by rejection sampling.
+        """Draw a source uniformly inside the caustics, or inside the μ-region, by rejection sampling.
 
-        Candidates are drawn uniformly in the bounding box of the caustics' source polylines,
-        in batches of 1024, and the first one inside (in draw order) is accepted.
+        Candidates are drawn uniformly in the bounding box of the caustics' source polylines (or,
+        in μ-region mode, of ``region.source``), in batches of 1024, and the first one inside (in
+        draw order) is accepted.
 
         Parameters
         ----------
@@ -425,7 +426,21 @@ class CausticsStrongLensSystem(FunctionNode):
         """
         import torch
 
-        source = curves.source
+        if region is not None:
+            from caustics.lenses.func.adaptive import total_magnification
+
+            source = region.source
+            upper = np.inf if self._mu_max is None else self._mu_max
+
+            def accept(chunk):
+                mu_tot = total_magnification(chunk[:, 0], chunk[:, 1], mesh)
+                return ((mu_tot >= self._mu_min) & (mu_tot <= upper)).cpu().numpy()
+        else:
+            source = curves.source
+
+            def accept(chunk):
+                return _inside_caustics(curves, chunk).cpu().numpy()
+
         low = source.min(dim=0).values.cpu().numpy()
         high = source.max(dim=0).values.cpu().numpy()
         for _ in range(_MAX_CANDIDATE_BATCHES):
@@ -433,7 +448,7 @@ class CausticsStrongLensSystem(FunctionNode):
             # Test the batch a chunk at a time, stopping at the first chunk that accepts one.
             for start in range(0, _CANDIDATE_BATCH, _WINDING_CHUNK):
                 chunk = candidates[start : start + _WINDING_CHUNK]
-                inside = _inside_caustics(curves, torch.as_tensor(chunk, device=source.device)).cpu().numpy()
+                inside = accept(torch.as_tensor(chunk, device=source.device))
                 if inside.any():
                     source_x, source_y = chunk[np.argmax(inside)]
                     return float(source_x), float(source_y)
@@ -469,10 +484,11 @@ class CausticsStrongLensSystem(FunctionNode):
             If ``z_l >= z_s``.
         RuntimeError
             If the mesh build fails (see ``_build``); the system has no strong-lensing region
-            (its caustic area is not finite or not positive, or no candidate source is
-            accepted); the source lies outside the image of the fov boundary; or the source has
-            more than ``max_images`` images, or fewer than the sampling region guarantees (2 in
-            caustic mode, 1 in μ-region mode).
+            (its caustic area is not finite or not positive in caustic mode, or its μ-region area
+            is not finite in μ-region mode, or no candidate source is accepted); the source lies
+            outside the image of the fov boundary; or the source has more than ``max_images``
+            images, or fewer than the sampling region guarantees (2 in caustic mode, 1 in
+            μ-region mode).
         """
         import torch
         from caustics.lenses.func.adaptive import caustic_area
@@ -490,13 +506,21 @@ class CausticsStrongLensSystem(FunctionNode):
             for name in self._param_order
         ]
         mesh, curves, region = self._build(lens, values, params, system_index)
-        area = float(caustic_area(curves))
-        if not np.isfinite(area) or area <= 0.0:
-            raise RuntimeError(
-                f"{_describe_system(system_index, values)} has no strong-lensing region: its caustic "
-                f"area is {area} arcsec^2 (NaN when the fov cuts a critical curve, 0 when the lens "
-                "forms none)."
-            )
+        if region is not None:
+            area = float(region.area)
+            if not np.isfinite(area):
+                raise RuntimeError(
+                    f"{_describe_system(system_index, values)} has no bounded mu-region: its area is "
+                    f"{area} arcsec^2."
+                )
+        else:
+            area = float(caustic_area(curves))
+            if not np.isfinite(area) or area <= 0.0:
+                raise RuntimeError(
+                    f"{_describe_system(system_index, values)} has no strong-lensing region: its "
+                    f"caustic area is {area} arcsec^2 (NaN when the fov cuts a critical curve, 0 when "
+                    "the lens forms none)."
+                )
         try:
             source_x, source_y = self._sample_source(mesh, curves, region, rng)
         except RuntimeError as err:

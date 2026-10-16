@@ -262,6 +262,43 @@ def test_images_solve_lens_equation_and_observables_match_caustics():
     assert_allclose(out["area"], adaptive.caustic_area(curves), rtol=1e-10)
 
 
+def test_mu_region_area_and_membership():
+    """Test that mu-region mode samples inside mu_min <= mu_tot <= mu_max and returns region.area."""
+    out = _make_system(mu_min=10.0, mu_max=50.0).sample_parameters(num_samples=2)["system"]
+    mesh, _, region = _reference_lens().build_closed_lens_mesh(
+        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=10.0, mu_max=50.0
+    )
+    assert_allclose(out["area"], region.area, rtol=1e-10)
+    mu_tot = adaptive.total_magnification(
+        torch.as_tensor(out["source_x"]), torch.as_tensor(out["source_y"]), mesh
+    )
+    assert torch.all((mu_tot >= 10.0) & (mu_tot <= 50.0))
+    assert np.all(out["num_images"] >= 1)
+
+
+def test_mu_region_acceptance_matches_region_area():
+    """Test that mu-region acceptance agrees with region.area (statistical)."""
+    mesh, _, region = _reference_lens().build_closed_lens_mesh(
+        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=10.0
+    )
+    lo, hi = region.source.min(dim=0).values, region.source.max(dim=0).values
+    points = lo + (hi - lo) * torch.rand(
+        20000, 2, dtype=torch.float64, generator=torch.Generator().manual_seed(1)
+    )
+    mu_tot = adaptive.total_magnification(points[:, 0], points[:, 1], mesh)
+    fraction = (mu_tot >= 10.0).double().mean().item()  # NaN compares False
+    assert fraction * float(torch.prod(hi - lo)) == pytest.approx(region.area, rel=0.03)
+
+
+def test_unbounded_mu_region_raises():
+    """Test that mu_min at/below the far-field total magnification raises (no fov bounds the region)."""
+    # External shear gamma ~= 0.054 gives far-field mu_tot ~= 1 / |1 - gamma^2| ~= 1.003, so no fov
+    # ever bounds the region; max_iters=0 skips the (slow, and here pointless) fov-growing retries
+    # and reaches caustics' "still reaches the edge" warning on the first attempt.
+    with pytest.raises(RuntimeError, match=r"system 0.*extension\(s\)"):
+        _make_system(mu_min=1.0, mesh_kwargs={"max_iters": 0}).sample_parameters(num_samples=1)
+
+
 def test_same_seed_reproduces_and_rng_advances_by_num_samples():
     """Test reproducibility and that the shared rng advances by exactly num_samples draws."""
     rng_a, rng_b = np.random.default_rng(7), np.random.default_rng(7)
