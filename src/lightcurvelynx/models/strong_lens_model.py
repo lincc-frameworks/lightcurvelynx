@@ -118,8 +118,7 @@ class _LensImagePositionNode(FunctionNode):
     The source and image offsets are measured in the lens-centred frame
     (``SkyOffsetFrame(origin=lens)``). The lens origin is the point from which the source
     appears at (``source_x``, ``source_y``). It is found with a closed-form first guess
-    followed by two fixed-point corrections, which are accurate to better than 1e-6 arcsec
-    for arcsecond offsets, even near the poles.
+    followed by two fixed-point corrections.
 
     Parameters
     ----------
@@ -214,7 +213,9 @@ class ResolvedStrongLensModel(MultiObjectModel):
     derived. Delays are normalized so the earliest image has a delay of zero, and
     ``image_id`` numbers the images in arrival order. Use
     ``param_cols=["<label>.system_id", "<label>.image_id"]`` in ``simulate_lightcurves`` to
-    regroup images by system.
+    regroup images by system. When replaying a saved ``state`` with
+    ``simulate_lightcurves(..., graph_state=state)``, pass ``num_samples=state.num_samples``
+    (the number of image rows), not the number of systems.
 
     Sampling semantics: the source's parameters (including those of effects attached to the
     source, and of rest-frame effects added through this wrapper) are sampled once per
@@ -240,7 +241,8 @@ class ResolvedStrongLensModel(MultiObjectModel):
     Parameters
     ----------
     source_model : BasePhysicalModel
-        The (single) physical source to lens. It is evaluated once per image.
+        The (single) physical source to lens. It must define ``t0``, since each image's
+        ``t0`` is the source ``t0`` plus its delay. It is evaluated once per image.
     source_x, source_y : parameter
         The source offset (east, north) from the lens origin in arcseconds.
     image_x, image_y : parameter
