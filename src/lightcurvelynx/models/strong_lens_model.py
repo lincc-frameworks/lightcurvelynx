@@ -10,6 +10,7 @@ from astropy.coordinates import SkyCoord, SkyOffsetFrame
 from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.models.multi_object_model import MultiObjectModel
+from lightcurvelynx.models.physical_model import BandfluxModel
 
 
 class _LensImageExpansionNode(FunctionNode):
@@ -319,3 +320,41 @@ class ResolvedStrongLensModel(MultiObjectModel):
 
         # The source applies its own redshift; the wrapper must not apply it again.
         self.apply_redshift = False
+
+    def minwave(self, graph_state=None):
+        """Get the source's minimum supported wavelength (in angstroms) or None."""
+        return self.source_model.minwave(graph_state=graph_state)
+
+    def maxwave(self, graph_state=None):
+        """Get the source's maximum supported wavelength (in angstroms) or None."""
+        return self.source_model.maxwave(graph_state=graph_state)
+
+    def _evaluate_single(self, times, wavelengths, state, **kwargs):
+        """Evaluate one image's SED: the magnified source at ``t - time_delay``, followed
+        by this wrapper's observer-frame effects at the observed times.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        wavelengths : numpy.ndarray
+            A length N array of wavelengths (in angstroms).
+        state : GraphState
+            An object mapping graph parameters to their values with num_samples=1.
+        **kwargs : dict, optional
+            Additional keyword arguments passed to the source.
+
+        Returns
+        -------
+        flux_density : numpy.ndarray
+            A length T x N matrix of SED values (in nJy).
+        """
+        if isinstance(self.source_model, BandfluxModel):
+            raise TypeError("ResolvedStrongLensModel with a BandfluxModel source does not support SEDs.")
+        params = self.get_local_params(state)
+        flux_density = params["macro_magnification"] * self.source_model.evaluate_sed(
+            times - params["time_delay"], wavelengths, state, **kwargs
+        )
+        for effect in self.obs_frame_effects:
+            flux_density = effect.apply(flux_density, times=times, wavelengths=wavelengths, **params)
+        return flux_density

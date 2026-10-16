@@ -5,10 +5,12 @@ from astropy.coordinates import SkyCoord, SkyOffsetFrame
 from numpy.testing import assert_allclose, assert_array_equal
 
 from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
+from lightcurvelynx.effects.effect_model import EffectModel
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
-from lightcurvelynx.models.basic_models import LinearTimeModel
+from lightcurvelynx.models.basic_models import LinearTimeModel, LinearWavelengthModel
+from lightcurvelynx.models.physical_model import BandfluxModel
 from lightcurvelynx.models.strong_lens_model import (
     ResolvedStrongLensModel,
     _LensImageExpansionNode,
@@ -304,3 +306,130 @@ def test_source_model_is_not_modified():
     assert all(source.setters[name] is setter for name, setter in setters_before.items())
     assert source.rest_frame_effects == []
     assert source.obs_frame_effects == []
+
+
+TIMES = np.array([90.0, 105.0, 130.0, 210.0])
+WAVES = np.array([4000.0, 5000.0])
+
+
+def _expected_linear_flux(times):
+    """Return the magnified, delayed LinearTimeModel flux for each expected image row, shape (5, T)."""
+    image_t0 = SOURCE_T0[EXPECTED_SYSTEM_ID] + EXPECTED_TIME_DELAY
+    linear = 10.0 + 2.0 * np.maximum(0.0, times[np.newaxis, :] - image_t0[:, np.newaxis])
+    return EXPECTED_MAGNIFICATION[:, np.newaxis] * linear
+
+
+class _AddTimeEffect(EffectModel):
+    """Observer-frame test effect that adds the observation time to the flux."""
+
+    def __init__(self):
+        super().__init__(rest_frame=False)
+
+    def apply(self, flux_density, times=None, wavelengths=None, **kwargs):
+        return flux_density + times[:, np.newaxis]
+
+    def apply_bandflux(self, bandfluxes, *, times=None, filters=None, **kwargs):
+        return bandfluxes + times
+
+
+class _LinearBandfluxSource(BandfluxModel):
+    """Bandflux test source: flux = linear_base + linear_scale * max(0, t - t0), plus 1.0 in "r"."""
+
+    def __init__(self, linear_base, linear_scale, **kwargs):
+        super().__init__(**kwargs)
+        self.add_parameter("linear_base", linear_base)
+        self.add_parameter("linear_scale", linear_scale)
+
+    def compute_bandflux(self, times, filter, state):
+        params = self.get_local_params(state)
+        offset = 1.0 if filter == "r" else 0.0
+        return params["linear_base"] + params["linear_scale"] * np.maximum(0.0, times - params["t0"]) + offset
+
+
+def _make_bandflux_source():
+    """Return a bandflux source with the same parameters as _make_source()."""
+    return _LinearBandfluxSource(
+        linear_base=10.0,
+        linear_scale=2.0,
+        t0=_given(SOURCE_T0),
+        ra=_given(SOURCE_RA),
+        dec=_given(SOURCE_DEC),
+        node_label="source",
+    )
+
+
+def test_evaluate_sed_matches_magnified_delayed_source():
+    """Test that each image row is the magnified source at t - delay."""
+    lens = _make_lens()
+    state = lens.sample_parameters(num_samples=2)
+    flux = lens.evaluate_sed(TIMES, WAVES, state)
+    assert flux.shape == (5, 4, 2)
+    assert_allclose(flux, np.repeat(_expected_linear_flux(TIMES)[:, :, np.newaxis], 2, axis=2))
+
+
+def test_wrapper_sed_effect_sees_observed_times():
+    """Test that wrapper observer-frame effects get the unshifted observation times."""
+    lens = _make_lens()
+    lens.add_effect(_AddTimeEffect())
+    state = lens.sample_parameters(num_samples=2)
+    flux = lens.evaluate_sed(TIMES, WAVES, state)
+    assert_allclose(flux[:, :, 0], _expected_linear_flux(TIMES) + TIMES[np.newaxis, :])
+
+
+def test_redshift_is_applied_once():
+    """Test that a redshifted source is converted once, by the source itself."""
+    source = _make_source(redshift=1.0)
+    lens = _make_lens(source)
+    state = lens.sample_parameters(num_samples=2)
+    flux = lens.evaluate_sed(TIMES, WAVES, state)
+    for row, row_state in enumerate(state):
+        expected = EXPECTED_MAGNIFICATION[row] * source.evaluate_sed(
+            TIMES - EXPECTED_TIME_DELAY[row], WAVES, row_state
+        )
+        assert_allclose(flux[row], expected)
+
+
+def test_evaluate_sed_rejects_bandflux_source():
+    """Test that SED evaluation is refused for a bandflux-only source."""
+    lens = _make_lens(_make_bandflux_source())
+    state = lens.sample_parameters(num_samples=2)
+    with pytest.raises(TypeError):
+        lens.evaluate_sed(TIMES, WAVES, state)
+
+
+def test_minwave_maxwave_forward_to_source():
+    """Test that wavelength bounds come from the source."""
+    source = LinearWavelengthModel(
+        linear_base=1.0, linear_scale=0.0, min_wave=1000.0, max_wave=9000.0, t0=0.0, ra=10.0, dec=-30.0
+    )
+    lens = ResolvedStrongLensModel(
+        source,
+        source_x=0.0,
+        source_y=0.0,
+        image_x=[0.5, -0.5],
+        image_y=[0.0, 0.0],
+        macro_magnifications=[1.0, 1.0],
+        time_delays=[0.0, 1.0],
+    )
+    assert lens.minwave() == 1000.0
+    assert lens.maxwave() == 9000.0
+
+
+def test_single_image_system_evaluates_as_one_row():
+    """Test that a one-image system evaluates to a (T, W) SED."""
+    source = LinearTimeModel(linear_base=10.0, linear_scale=2.0, t0=100.0, ra=10.0, dec=-30.0, redshift=0.0)
+    lens = ResolvedStrongLensModel(
+        source,
+        source_x=0.0,
+        source_y=0.0,
+        image_x=[0.4, np.nan],
+        image_y=[0.0, np.nan],
+        macro_magnifications=[3.0, np.nan],
+        time_delays=[5.0, np.nan],
+        num_images=1,
+    )
+    state = lens.sample_parameters(num_samples=1)
+    assert state.num_samples == 1
+    flux = lens.evaluate_sed(TIMES, WAVES, state)
+    assert flux.shape == (4, 2)
+    assert_allclose(flux[:, 0], 3.0 * (10.0 + 2.0 * np.maximum(0.0, TIMES - 100.0)))
