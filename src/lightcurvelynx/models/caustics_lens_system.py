@@ -5,6 +5,7 @@ per-image observables that ``ResolvedStrongLensModel`` consumes.
 
 import copy
 import os
+import sys
 import threading
 import warnings
 from itertools import pairwise
@@ -121,6 +122,20 @@ def _inside_caustics(curves, points):
         for first, stop in pairwise(bounds):
             inside[chunk] |= winding_number(curves.source[first:stop], points[chunk]) != 0
     return inside
+
+
+def _reemit(w):
+    """Re-emit a recorded warning unchanged.
+
+    A recorded warning keeps only its filename, so ``warn_explicit`` is also given the name of the
+    loaded module that owns the file, as the original ``warn`` call was; module-scoped filters then
+    still apply. When no loaded module owns it, ``module`` is left out: CPython drops a warning
+    whose module is given as None.
+    """
+    modules = list(sys.modules.values())
+    name = next((m.__name__ for m in modules if getattr(m, "__file__", None) == w.filename), None)
+    module = {} if name is None else {"module": name}
+    warnings.warn_explicit(w.message, w.category, w.filename, w.lineno, source=w.source, **module)
 
 
 def _describe_system(system_index, values):
@@ -372,7 +387,7 @@ class CausticsStrongLensSystem(FunctionNode):
             if any(text in message for text in _FAILURE_MESSAGES):
                 failures.append(message)
             else:
-                warnings.warn_explicit(w.message, w.category, w.filename, w.lineno, source=w.source)
+                _reemit(w)
         if failures:
             raise RuntimeError(
                 f"{_describe_system(system_index, values)}: caustics could not build a valid lens "

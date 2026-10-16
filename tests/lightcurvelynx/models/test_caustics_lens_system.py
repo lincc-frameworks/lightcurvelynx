@@ -1,3 +1,4 @@
+import json
 import pickle  # noqa: F401 (used starting Task 8's pickling tests)
 import warnings
 from concurrent.futures import ThreadPoolExecutor  # noqa: F401 (used starting Task 8's parallel-safety tests)
@@ -373,3 +374,21 @@ def test_build_escalates_failure_warnings_and_reemits_others():
             system._build(lens, values, [], 3)
     # Only the dependency notice comes back, at its recorded location; the failure is not re-emitted.
     assert [(w.filename, w.lineno) for w in record] == [("dependency.py", 3)]
+
+
+@pytest.mark.parametrize("ignore_json, expected", [(False, 1), (True, 0)])
+def test_reemitted_warnings_keep_module_scoped_filters(ignore_json, expected):
+    """Test that a filter scoped to the emitting module still applies to a re-emitted warning."""
+
+    def build_closed_lens_mesh(*args, **kwargs):
+        warnings.warn_explicit("a json notice", UserWarning, json.__file__, 1)
+
+    system = _make_system()
+    lens = SimpleNamespace(build_closed_lens_mesh=build_closed_lens_mesh)
+    values = {"fov": 5.0, "init_res": 32, "min_img_sep": 0.01}
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        if ignore_json:
+            warnings.filterwarnings("ignore", category=UserWarning, module="json")
+        system._build(lens, values, [], 0)
+    assert len(record) == expected
