@@ -4,6 +4,7 @@ import pytest
 
 from lightcurvelynx.utils.plotting import (
     _build_colormap,
+    _build_line_map,
     _build_symbol_map,
     plot_bandflux_lightcurves,
     plot_flux_spectrogram,
@@ -32,6 +33,25 @@ def test_build_symbol_map():
     assert set(symbol_map.keys()) == set(filters)
     for i, f in enumerate(filters):
         assert symbol_map[f] == expected[i]
+
+
+def test_build_line_map():
+    """Test that we can build a line map."""
+    # Check the LSST filters
+    filters = ["u", "g", "r", "i", "z", "y"]
+    line_map = _build_line_map(filters)
+    assert isinstance(line_map, dict)
+    assert set(line_map.keys()) == set(filters)
+    for f in filters:
+        assert isinstance(line_map[f], (str, tuple))
+
+    # Check an extended list of filters.
+    filters = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n"]
+    line_map = _build_line_map(filters)
+    assert isinstance(line_map, dict)
+    assert set(line_map.keys()) == set(filters)
+    for f in filters:
+        assert isinstance(line_map[f], (str, tuple))
 
 
 def test_build_colormap():

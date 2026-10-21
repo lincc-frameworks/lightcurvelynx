@@ -54,6 +54,27 @@ def _build_symbol_map(unique_filters):
     return plot_symbols
 
 
+def _build_line_map(unique_filters):
+    """Construct a mapping of filters to line styles."""
+    filter_list = list(unique_filters)
+
+    # If we have limited filters like ugriz, the line styles proposed in:
+    # https://rtn-045.lsst.io/#colorblind-friendly-plots
+    if set(filter_list).issubset({"u", "g", "r", "i", "z", "y"}):
+        return {
+            "u": "--",
+            "g": (0, (3, 1, 1, 1)),
+            "r": "-.",
+            "i": "-",
+            "z": (0, (3, 1, 1, 1, 1, 1)),
+            "y": ":",
+        }
+    else:
+        line_styles = ["-", "--", "-.", ":"]
+        line_map = {f: line_styles[i % len(line_styles)] for i, f in enumerate(filter_list)}
+        return line_map
+
+
 def plot_lightcurves(
     fluxes,
     times,
@@ -162,10 +183,11 @@ def plot_lightcurves(
 
         # Plot the underlying model if it is provided.
         if underlying_model is not None and filter in underlying_model:
+            line_map = _build_line_map(unique_filters)
             ax.plot(
                 underlying_model["times"],
                 underlying_model[filter],
-                linestyle="-",
+                linestyle=line_map[filter],
                 color=colormap[filter],
                 alpha=0.5,
                 label=f"Model {filter}",
