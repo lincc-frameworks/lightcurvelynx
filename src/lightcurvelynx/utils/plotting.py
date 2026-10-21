@@ -40,6 +40,20 @@ def _build_colormap(unique_filters):
     return colormap
 
 
+def _build_symbol_map(unique_filters):
+    """Construct a mapping of filters to symbols."""
+    filter_list = list(unique_filters)
+
+    # If we have limited filters like ugriz, the symbols proposed in:
+    # https://rtn-045.lsst.io/#colorblind-friendly-plots
+    if set(filter_list).issubset({"u", "g", "r", "i", "z", "y"}):
+        plot_symbols = {"u": "o", "g": "^", "r": "v", "i": "s", "z": "*", "y": "p"}
+    else:
+        symbols = ["o", "^", "v", "s", "*", "p", "h", "H", "D", "d"]
+        plot_symbols = {f: symbols[i % len(symbols)] for i, f in enumerate(filter_list)}
+    return plot_symbols
+
+
 def plot_lightcurves(
     fluxes,
     times,
@@ -139,6 +153,9 @@ def plot_lightcurves(
     if colormap is None:
         colormap = _build_colormap(unique_filters)
 
+    # Assign different symbols for each filter.
+    symbol_map = _build_symbol_map(unique_filters)
+
     # Plot the data with one line for each filter.
     for filter in unique_filters:
         filter_mask = filters == filter
@@ -158,7 +175,7 @@ def plot_lightcurves(
             ax.plot(
                 times[filter_mask],
                 fluxes[filter_mask],
-                marker="o",
+                marker=symbol_map[filter],
                 label=f"Sample {filter}",
                 color=colormap[filter],
                 **kwargs,
@@ -168,7 +185,7 @@ def plot_lightcurves(
                 times[filter_mask],
                 fluxes[filter_mask],
                 yerr=fluxerrs[filter_mask],
-                fmt="o",
+                fmt=symbol_map[filter],
                 label=f"Sample {filter}",
                 color=colormap[filter],
                 **kwargs,

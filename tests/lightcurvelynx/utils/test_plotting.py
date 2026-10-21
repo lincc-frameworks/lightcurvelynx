@@ -4,10 +4,34 @@ import pytest
 
 from lightcurvelynx.utils.plotting import (
     _build_colormap,
+    _build_symbol_map,
     plot_bandflux_lightcurves,
     plot_flux_spectrogram,
     plot_lightcurves,
 )
+
+
+def test_build_symbol_map():
+    """Test that we can build a symbol map."""
+    # Check the LSST recommended filters.
+    filters = ["u", "g", "r", "i", "z", "y"]
+    symbol_map = _build_symbol_map(filters)
+    assert isinstance(symbol_map, dict)
+    assert symbol_map["u"] == "o"
+    assert symbol_map["g"] == "^"
+    assert symbol_map["r"] == "v"
+    assert symbol_map["i"] == "s"
+    assert symbol_map["z"] == "*"
+    assert symbol_map["y"] == "p"
+
+    # Check an extended list of filters.
+    filters = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n"]
+    expected = ["o", "^", "v", "s", "*", "p", "h", "H", "D", "d", "o", "^", "v", "s"]
+    symbol_map = _build_symbol_map(filters)
+    assert isinstance(symbol_map, dict)
+    assert set(symbol_map.keys()) == set(filters)
+    for i, f in enumerate(filters):
+        assert symbol_map[f] == expected[i]
 
 
 def test_build_colormap():
@@ -19,6 +43,26 @@ def test_build_colormap():
         assert set(colormap.keys()) == set(filters)
         for color in colormap.values():
             assert isinstance(color, tuple) and len(color) == 4  # RGBA color
+
+    # Test red and green only.
+    filters = ["g", "r"]
+    colormap = _build_colormap(filters)
+    assert isinstance(colormap, dict)
+    assert set(colormap.keys()) == set(filters)
+    assert colormap["g"] == "green"
+    assert colormap["r"] == "red"
+
+    # Test the LSST standard filters.
+    filters = ["u", "g", "r", "i", "z", "y"]
+    colormap = _build_colormap(filters)
+    assert isinstance(colormap, dict)
+    assert set(colormap.keys()) == set(filters)
+    assert colormap["u"] == "#1600ea"
+    assert colormap["g"] == "#31de1f"
+    assert colormap["r"] == "#b52626"
+    assert colormap["i"] == "#370201"
+    assert colormap["z"] == "#ba52ff"
+    assert colormap["y"] == "#61a2b3"
 
 
 def test_plot_lightcurves():
