@@ -76,6 +76,20 @@ class MDwarfFlareModel(SEDModel):
         balmer_jump_ratio=None,
         **kwargs,
     ):
+        # Check for cases where distance will be auto-computed from redshift and cosmology.
+        # This happens in the parent class if distance is not explicitly provided,
+        # but redshift and cosmology are available.
+        if (
+            (kwargs.get("distance") is None)
+            and (kwargs.get("redshift") is not None)
+            and (kwargs.get("cosmology") is not None)
+        ):
+            warnings.warn(
+                "Distance is not provided, but will be computed from redshift "
+                "and cosmology. This may not match the expected distribution for "
+                "Galactic m-dwarf flares."
+            )
+
         super().__init__(**kwargs)
 
         if star_temp is None or star_radius is None or flare_fwhm is None or flare_amplitude is None:
