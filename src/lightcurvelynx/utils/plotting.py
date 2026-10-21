@@ -17,9 +17,16 @@ def _build_colormap(unique_filters):
         return {"g": "green", "r": "red"}
 
     # If we have the "standard" filters like ugriz, use the LSST color mapping
-    # as shown in https://lsstcam.lsst.io.
+    # as shown in https://rtn-045.lsst.io/#colorblind-friendly-plots
     if set(filter_list).issubset({"u", "g", "r", "i", "z", "y"}):
-        return {"u": "blue", "g": "cyan", "r": "green", "i": "orange", "z": "red", "y": "purple"}
+        return {
+            "u": "#1600ea",
+            "g": "#31de1f",
+            "r": "#b52626",
+            "i": "#370201",
+            "z": "#ba52ff",
+            "y": "#61a2b3",
+        }
 
     # Use different colormaps depending on the number of filters.
     if n_filters <= 10:
