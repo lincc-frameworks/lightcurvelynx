@@ -11,6 +11,7 @@ import os
 import pickle
 import sys
 import threading
+import uuid
 import warnings
 from itertools import pairwise
 
@@ -34,6 +35,11 @@ _FAILURE_MESSAGES = ("extension(s), at fov=", "is depth-limited", "before every 
 # caustics' builds, raytraces and Jacobians, keeps process-global forward-AD state; and the warning
 # capture around each build (catch_warnings) mutates process-global state.
 _CAUSTICS_LOCK = threading.Lock()
+# This process's working lenses and their jitted observables, keyed by (node token, backend, device):
+# every copy of one node (e.g. one unpickled per executor batch) shares one, so caustics' compiled
+# programs, cached per lens object, are reused. Process-local, never pickled, kept for the life of
+# the process, and used only under _CAUSTICS_LOCK.
+_WORKING_LENSES = {}
 
 
 def _import_caustics():
@@ -239,17 +245,21 @@ class CausticsStrongLensSystem(FunctionNode):
     caustics is imported, e.g. ``CASKADE_BACKEND=jax python run.py``; worker processes
     then inherit it. The node records the backend at construction, and sampling in a
     process that runs the other one raises ``ValueError``. Under jax, the mesh build, the
-    raytrace and the observables run as compiled programs, compiled once per worker
-    process per padded input shape; caustics' mesh bookkeeping still runs on torch, on the
-    CPU.
+    raytrace and the observables run as compiled programs; caustics' mesh bookkeeping
+    still runs on torch, on the CPU.
 
-    **Working lens.** On its first ``compute`` in a process the node deep-copies its
-    stored lens to ``device`` and wraps this working lens's ``magnification``,
-    ``time_delay``, ``convergence`` and ``shear`` with ``caustics.jit_forward``; later
-    calls in that process reuse both, and with them jax's compiled programs. Parameter
-    values are passed on every call, so none carry over between systems. The observables
-    see the images padded to ``max_images`` (by repeating the first image), so their input
-    shape never changes. Neither the working lens nor the wrappers are pickled.
+    **Working lens.** The first ``compute`` of a node in a process deep-copies its stored
+    lens to ``device`` and wraps this working lens's ``magnification``, ``time_delay``,
+    ``convergence`` and ``shear`` with ``caustics.jit_forward``. Both are kept in a
+    process-local registry, keyed by a token made when the node is constructed, for the
+    life of the process. Every copy of the node, such as the one an executor unpickles
+    for each batch, carries the token and reuses them, and with them jax's compiled
+    programs. So under any executor each worker process compiles once per constructed
+    node, device and padded input shape, not once per batch. Two separately constructed
+    nodes compile separately, even with identical lenses. Parameter values are passed on
+    every call, so none carry over between systems. The observables see the images padded
+    to ``max_images`` (by repeating the first image), so their input shape never changes.
+    Neither the working lens nor the wrappers are pickled.
 
     **Threads.** All of a system's caustics work (mesh build, source sampling, raytracing,
     observables) runs under one module-level lock, because every call fills the parameters
@@ -286,14 +296,18 @@ class CausticsStrongLensSystem(FunctionNode):
     forks. GPU speedup is unmeasured, since caustics handles one system per call.
 
     **Performance.** One caustics call per system (there is no batching across systems);
-    each takes roughly 0.1-0.7 s on CPU, dominated by the mesh build. Under jax a worker
-    process's first system takes a few seconds more, to compile.
+    each takes roughly 0.1-0.7 s on CPU, dominated by the mesh build. Under jax a node's
+    first system in a worker process takes a few seconds more, to compile, and a later
+    build that needs a padded batch size not seen before compiles for it.
 
     **Precision.** Under torch, a value set statically on the user's caustics object as a
     Python float is stored by caskade in float32, and that rounding carries into this
-    node's float64 copy (e.g. ``q=0.7`` becomes ``0.699999988...``). For an exact float64
-    value, map the parameter through ``lens_parameters`` instead, or set it on the lens as
-    a float64 tensor. Under jax it is stored in float64.
+    node's float64 copy (e.g. ``q=0.7`` becomes ``0.699999988...``). This includes
+    caustics' own Python-float defaults: ``FlatLambdaCDM``'s default ``h0 = 0.6766`` is off
+    by a relative -3e-8, so time delays, which scale as 1/h0, are off by about +3e-8
+    against jax. For an exact float64 value, map the parameter through
+    ``lens_parameters`` instead, or set it on the lens as a float64 tensor. Under jax it is
+    stored in float64.
 
     Example wiring this node into ``ResolvedStrongLensModel``:
 
@@ -478,6 +492,8 @@ class CausticsStrongLensSystem(FunctionNode):
         self._backend = caustics.backend.backend
         self._torch_num_threads = torch_num_threads
         self._owner_pid = os.getpid()
+        # Copies of this node, pickled with it, share this token and so one working lens per process.
+        self._lens_key = uuid.uuid4().hex
         self._working = None
         self._observables = None
         if seed is None:
@@ -506,8 +522,8 @@ class CausticsStrongLensSystem(FunctionNode):
         """Return the pickling state, with the stored lens serialized by cloudpickle.
 
         A caustics ``SinglePlane`` does not pickle with the standard library ``pickle``. The
-        working lens and its jitted observables are left out: each process makes its own on
-        its first ``compute``.
+        working lens and its jitted observables are left out: an unpickled copy takes them from
+        its process's registry, or makes them there, on its first ``compute``.
 
         Returns
         -------
@@ -552,9 +568,10 @@ class CausticsStrongLensSystem(FunctionNode):
     def _working_lens(self, device):
         """Return this process's working copy of the stored lens, making it on first use.
 
-        Its observables, wrapped by ``caustics.jit_forward``, are made with it and stored in
-        ``_observables``. ``compute`` calls this under the module lock. The stored lens is never
-        modified.
+        The working lens and its observables, wrapped by ``caustics.jit_forward``, are made once per
+        process for every copy of this node and kept in ``_WORKING_LENSES``; this copy holds them in
+        ``_working`` and ``_observables``. ``compute`` calls this under the module lock. The stored
+        lens is never modified.
 
         Parameters
         ----------
@@ -567,14 +584,17 @@ class CausticsStrongLensSystem(FunctionNode):
             The working lens, on ``device``.
         """
         if self._working is None:
-            from caustics import jit_forward
+            key = (self._lens_key, self._backend, str(device))
+            if key not in _WORKING_LENSES:
+                from caustics import jit_forward
 
-            lens = copy.deepcopy(self._lens).to(device=device)
-            self._observables = {
-                name: jit_forward(getattr(lens, name))
-                for name in ("magnification", "time_delay", "convergence", "shear")
-            }
-            self._working = lens
+                lens = copy.deepcopy(self._lens).to(device=device)
+                observables = {
+                    name: jit_forward(getattr(lens, name))
+                    for name in ("magnification", "time_delay", "convergence", "shear")
+                }
+                _WORKING_LENSES[key] = lens, observables
+            self._working, self._observables = _WORKING_LENSES[key]
         return self._working
 
     def _set_torch_threads(self, torch):

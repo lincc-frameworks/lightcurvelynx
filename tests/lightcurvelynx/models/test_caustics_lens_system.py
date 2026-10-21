@@ -1,3 +1,4 @@
+import contextlib
 import json
 import multiprocessing
 import os
@@ -59,14 +60,14 @@ def _make_lens(sie_name="sie", q=None, phi=None, Rein=None, gamma_1=None, gamma_
     return caustics.SinglePlane(cosmology=cosmo, lenses=[sie, shear], name="lens", z_l=z_l, z_s=z_s)
 
 
-def _reference_lens():
+def _reference_lens(**overrides):
     """Return the test lens with every value set (static), in float64, for direct caustics calls.
 
     The values are passed as float64 arrays of caustics' active backend: under torch caskade would
     store python floats in float32, and casting the lens to float64 afterwards would keep that
-    rounding (e.g. q = 0.699999988).
+    rounding (e.g. q = 0.699999988). Keyword overrides (e.g. ``Rein=0.9``) replace the test values.
     """
-    values = VALUES | {"z_l": Z_L, "z_s": Z_S}
+    values = VALUES | {"z_l": Z_L, "z_s": Z_S} | overrides
     return _make_lens(**{k: backend.as_array(v, dtype=backend.float64) for k, v in values.items()}).to(
         dtype=backend.float64
     )
@@ -273,25 +274,30 @@ def test_multi_system_shapes():
     assert out["image_x"].shape == (3, 5) and out["shear_2"].shape == (3, 5)
 
 
+def _assert_system_matches_caustics(row, ref):
+    """Assert that one system's images map back to its source and its observables match ``ref``'s."""
+    n = int(row["num_images"])
+    x, y = backend.as_array(row["image_x"][:n]), backend.as_array(row["image_y"][:n])
+    bx, by = (backend.to_numpy(b) for b in ref.raytrace(x, y))
+    assert_allclose(bx, row["source_x"], atol=1e-5)
+    assert_allclose(by, row["source_y"], atol=1e-5)
+    assert_allclose(row["macro_magnifications"][:n], backend.to_numpy(ref.magnification(x, y)), rtol=1e-8)
+    delays = backend.to_numpy(ref.time_delay(x, y))
+    assert_allclose(row["time_delays"][:n], delays - delays.min(), atol=1e-8)
+    assert_allclose(row["convergences"][:n], backend.to_numpy(ref.convergence(x, y)), rtol=1e-8)
+    g1, g2 = (backend.to_numpy(g) for g in ref.shear(x, y))
+    assert_allclose(row["shear_1"][:n], g1, atol=1e-10)
+    assert_allclose(row["shear_2"][:n], g2, atol=1e-10)
+
+
 def test_images_solve_lens_equation_and_observables_match_caustics():
     """Test that images map back to the source, and image counts and observables match caustics."""
     out = _make_system().sample_parameters(num_samples=2)["system"]
     ref = _reference_lens()
     for i in range(2):
-        n = int(out["num_images"][i])
-        x = backend.as_array(out["image_x"][i, :n])
-        y = backend.as_array(out["image_y"][i, :n])
-        bx, by = (backend.to_numpy(b) for b in ref.raytrace(x, y))
-        assert_allclose(bx, out["source_x"][i], atol=1e-5)
-        assert_allclose(by, out["source_y"][i], atol=1e-5)
-        mu = backend.to_numpy(ref.magnification(x, y))
-        assert_allclose(out["macro_magnifications"][i, :n], mu, rtol=1e-8)
-        delays = backend.to_numpy(ref.time_delay(x, y))
-        assert_allclose(out["time_delays"][i, :n], delays - delays.min(), atol=1e-8)
-        assert_allclose(out["convergences"][i, :n], backend.to_numpy(ref.convergence(x, y)), rtol=1e-8)
-        g1, g2 = (backend.to_numpy(g) for g in ref.shear(x, y))
-        assert_allclose(out["shear_1"][i, :n], g1, atol=1e-10)
-        assert_allclose(out["shear_2"][i, :n], g2, atol=1e-10)
+        _assert_system_matches_caustics(
+            {name: out[name][i] for name in CausticsStrongLensSystem.OUTPUTS}, ref
+        )
     mesh, curves = _mesh_and_curves()
     sx, sy = backend.as_array(out["source_x"]), backend.as_array(out["source_y"])
     _, _, counts = ref.forward_raytrace(sx, sy, mesh=mesh)
@@ -601,17 +607,74 @@ def test_working_lens_is_reused_and_not_pickled():
     assert clone._working is None and clone._observables is None
 
 
-@pytest.mark.skipif(backend.backend != "jax", reason="only jax compiles")
-def test_second_compute_compiles_no_new_observable_programs(monkeypatch):
-    """Test that a second compute, at new lens parameter values, reuses the observables' compiled programs."""
+def test_reused_working_lens_matches_caustics_at_new_parameter_values():
+    """Test that a second compute, reusing the working lens at a new Einstein radius, matches caustics."""
+    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
+    system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein})
+    first = system.sample_parameters(num_samples=1)["system"]
+    second = system.sample_parameters(num_samples=1)["system"]
+    assert second["sie_Rein"] != first["sie_Rein"]
+    for row in (first, second):
+        _assert_system_matches_caustics(row, _reference_lens(Rein=row["sie_Rein"]))
+
+
+def test_unpickled_copies_of_one_node_share_its_working_lens():
+    """Test that copies of one node (e.g. one per executor batch) share one working lens per process."""
+    pytest.importorskip("cloudpickle")
+    system = _make_system()
+    first, second = (pickle.loads(pickle.dumps(system)) for _ in range(2))
+    first.sample_parameters(num_samples=1)
+    second.sample_parameters(num_samples=1)
+    assert first._working is not None
+    assert second._working is first._working and second._observables is first._observables
+
+
+def test_separately_built_nodes_get_their_own_working_lenses():
+    """Test that two nodes built from identical lenses do not share a working lens."""
+    first, second = _make_system(), _make_system()
+    first.sample_parameters(num_samples=1)
+    second.sample_parameters(num_samples=1)
+    assert first._working is not second._working
+
+
+@contextlib.contextmanager
+def _jax_compiles():
+    """Record every XLA compile in the block, as the keyword arguments of jax's compile event."""
     import jax
-    from caustics.jit import JitForward
 
     compiles = []
 
     def count_compiles(event, duration, **kwargs):
         if event == "/jax/core/compile/backend_compile_duration":
-            compiles.append(event)
+            compiles.append(kwargs)
+
+    jax.monitoring.register_event_duration_secs_listener(count_compiles)
+    try:
+        yield compiles
+    finally:
+        jax.monitoring.unregister_event_duration_listener(count_compiles)
+
+
+@pytest.mark.skipif(backend.backend != "jax", reason="only jax compiles")
+def test_unpickled_copy_at_new_parameter_values_compiles_nothing():
+    """Test that a second unpickled copy of a node (a later executor batch) compiles nothing at new values."""
+    pytest.importorskip("cloudpickle")
+    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
+    system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein})
+    first, second = (pickle.loads(pickle.dumps(system)) for _ in range(2))
+    first_out = first.sample_parameters(num_samples=1, rng_info=np.random.default_rng(1))["system"]
+    # The second system's build needs no padded batch size the first one did not (a new size would
+    # legitimately compile once).
+    with _jax_compiles() as compiles:
+        second_out = second.sample_parameters(num_samples=1, rng_info=np.random.default_rng(2))["system"]
+    assert second_out["sie_Rein"] != first_out["sie_Rein"]
+    assert compiles == []  # Not the build, the raytrace or the observables.
+
+
+@pytest.mark.skipif(backend.backend != "jax", reason="only jax compiles")
+def test_second_compute_compiles_no_new_observable_programs(monkeypatch):
+    """Test that a second compute, at new lens parameter values, reuses the observables' compiled programs."""
+    from caustics.jit import JitForward
 
     # Compiles during each observable call, as (method name, count).
     observable_compiles = []
@@ -628,13 +691,10 @@ def test_second_compute_compiles_no_new_observable_programs(monkeypatch):
     rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
     # Seed 25 draws a 2-image system, then a 4-image one.
     system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein}, seed=25)
-    jax.monitoring.register_event_duration_secs_listener(count_compiles)
-    try:
+    with _jax_compiles() as compiles:
         first = system.sample_parameters(num_samples=1)["system"]
         num_first = len(observable_compiles)
         second = system.sample_parameters(num_samples=1)["system"]
-    finally:
-        jax.monitoring.unregister_event_duration_listener(count_compiles)
     assert second["sie_Rein"] != first["sie_Rein"]
     assert second["num_images"] != first["num_images"]  # Padding keeps one input shape.
     first_calls, second_calls = observable_compiles[:num_first], observable_compiles[num_first:]
@@ -746,7 +806,10 @@ import numpy as np
 
 from lightcurvelynx.models.caustics_lens_system import CausticsStrongLensSystem
 
-cosmo = caustics.FlatLambdaCDM(name="cosmo")
+# Caustics' default h0 and Om0, as float64 arrays: under torch its Python-float defaults are float32.
+f64 = caustics.backend.float64
+h0, Om0 = (caustics.backend.as_array(v, dtype=f64) for v in (0.6766, 0.30966))
+cosmo = caustics.FlatLambdaCDM(name="cosmo", h0=h0, Om0=Om0)
 sie = caustics.SIE(cosmology=cosmo, name="sie", x0=0.0, y0=0.0, s=0.0)
 shear = caustics.ExternalShear(cosmology=cosmo, name="shear", x0=0.0, y0=0.0)
 lens = caustics.SinglePlane(cosmology=cosmo, lenses=[sie, shear], name="lens")
@@ -760,10 +823,9 @@ np.savez(sys.argv[1], **{{name: out[name] for name in system.OUTPUTS}})
 
 def _run_case(caustics_backend, path):
     """Run ``_CASE`` in a new process under the given caustics backend and return its outputs."""
-    env = os.environ | {
-        "CASKADE_BACKEND": caustics_backend,
-        "PYTHONPATH": str(Path(lightcurvelynx.__file__).parents[1]),
-    }
+    src = str(Path(lightcurvelynx.__file__).parents[1])
+    pythonpath = os.pathsep.join(filter(None, [src, os.environ.get("PYTHONPATH")]))
+    env = os.environ | {"CASKADE_BACKEND": caustics_backend, "PYTHONPATH": pythonpath}
     result = subprocess.run(
         [sys.executable, "-c", _CASE, str(path)], env=env, capture_output=True, text=True, timeout=600
     )
@@ -779,4 +841,4 @@ def test_jax_backend_matches_torch(tmp_path):
     torch_out = _run_case("torch", tmp_path / "torch.npz")
     assert_array_equal(jax_out["num_images"], torch_out["num_images"])
     for name in CausticsStrongLensSystem.OUTPUTS:
-        assert_allclose(jax_out[name], torch_out[name], rtol=1e-6, equal_nan=True, err_msg=name)
+        assert_allclose(jax_out[name], torch_out[name], rtol=1e-12, equal_nan=True, err_msg=name)
