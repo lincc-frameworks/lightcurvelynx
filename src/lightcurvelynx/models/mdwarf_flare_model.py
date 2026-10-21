@@ -87,7 +87,7 @@ class MDwarfFlareModel(SEDModel):
             warnings.warn(
                 "Distance is not provided, but will be computed from redshift "
                 "and cosmology. This may not match the expected distribution for "
-                "galactic m-dwarf flares."
+                "Galactic m-dwarf flares."
             )
 
         super().__init__(**kwargs)
