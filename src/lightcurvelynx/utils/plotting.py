@@ -12,6 +12,15 @@ def _build_colormap(unique_filters):
     filter_list = list(unique_filters)
     n_filters = len(filter_list)
 
+    # If we have limited filters like "g" and "r", use those colors directly.
+    if set(filter_list).issubset({"g", "r"}):
+        return {"g": "green", "r": "red"}
+
+    # If we have the "standard" filters like ugriz, use the LSST color mapping
+    # as shown in https://lsstcam.lsst.io.
+    if set(filter_list).issubset({"u", "g", "r", "i", "z", "y"}):
+        return {"u": "blue", "g": "cyan", "r": "green", "i": "orange", "z": "red", "y": "purple"}
+
     # Use different colormaps depending on the number of filters.
     if n_filters <= 10:
         cmap = plt.get_cmap("tab10", 10)
