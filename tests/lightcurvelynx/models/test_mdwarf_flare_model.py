@@ -1,7 +1,11 @@
 """Tests for the m dwarf flare model"""
 
+import warnings
+
 import numpy as np
+import pytest
 from astropy import units as u
+from astropy.cosmology import Planck18
 
 from lightcurvelynx.models.mdwarf_flare_model import MDwarfFlareModel
 
@@ -120,3 +124,32 @@ def test_mdwarf_flare_model_parameter_sampling():
     assert state["model"]["flare_fwhm"] > 0
     # flare_amp
     assert state["model"]["flare_amplitude"] > 0
+
+
+def test_mdwarf_flare_model_warnings():
+    """
+    Test we get a warning if we do not provide distance but provide redshift and cosmology.
+    """
+    with pytest.warns(UserWarning):
+        _ = MDwarfFlareModel(
+            star_temp=4000,
+            star_radius=0.09 * u.R_sun.to(u.cm),
+            flare_fwhm=0.1,
+            flare_amplitude=0.03,
+            redshift=0.01,
+            cosmology=Planck18,
+            t0=10,
+        )
+
+    with warnings.catch_warnings():
+        # Treat all warnings inside this block as errors
+        warnings.simplefilter("error")
+
+        _ = MDwarfFlareModel(
+            star_temp=4000,
+            star_radius=0.09 * u.R_sun.to(u.cm),
+            flare_fwhm=0.1,
+            flare_amplitude=0.03,
+            t0=10,
+            distance=10.0,  # 10 parsec
+        )
