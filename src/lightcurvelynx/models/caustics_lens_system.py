@@ -1,6 +1,9 @@
 """A sampling node that uses caustics to build a strong-lens mesh for a caustics lens model,
 draw a source inside its strong-lensing region, raytrace it to images, and evaluate the
 per-image observables that ``ResolvedStrongLensModel`` consumes.
+
+The node runs on caustics' active backend, torch or jax, which caustics picks once per process, at
+import, from the ``CASKADE_BACKEND`` environment variable (default ``torch``).
 """
 
 import copy
@@ -26,9 +29,10 @@ _MAX_CANDIDATE_BATCHES = 100
 # a hole curve hit its sample cap (holes.py). Some are emitted with stacklevel=3, which hides the
 # emitting module, so all are recognized by text.
 _FAILURE_MESSAGES = ("extension(s), at fov=", "is depth-limited", "before every chord fell below")
-# Serializes the caustics work of every CausticsStrongLensSystem across threads: torch.func.jacfwd,
-# used by caustics' builds, raytraces and Jacobians, keeps process-global forward-AD state, and the
-# warning capture around each build (catch_warnings) mutates process-global state.
+# Serializes the caustics work of every CausticsStrongLensSystem across threads: every call fills the
+# parameters of a node's working lens, which its threads share; under torch, torch.func.jacfwd, used by
+# caustics' builds, raytraces and Jacobians, keeps process-global forward-AD state; and the warning
+# capture around each build (catch_warnings) mutates process-global state.
 _CAUSTICS_LOCK = threading.Lock()
 
 
@@ -53,10 +57,29 @@ def _import_caustics():
         import torch
     except ImportError as err:
         raise ImportError(
-            "CausticsStrongLensSystem requires torch and caustics (with the adaptive mesh API). "
-            "Install caustics from its feat/adaptive_refactor branch."
+            "CausticsStrongLensSystem requires torch and caustics (with the adaptive mesh API), and "
+            "jax for caustics' jax backend. Install caustics from its feat/adaptive_refactor branch."
         ) from err
     return torch, caustics
+
+
+def _jax_device(device):
+    """Return the jax device named by a torch-style device string.
+
+    Parameters
+    ----------
+    device : str
+        ``"cpu"``, ``"cuda"``, ``"cuda:N"`` or ``"gpu"``.
+
+    Returns
+    -------
+    jax.Device
+        The jax CPU device, or the first (or N-th) jax GPU device.
+    """
+    import jax
+
+    kind, _, index = device.partition(":")
+    return jax.devices("gpu" if kind == "cuda" else kind)[int(index or 0)]
 
 
 def _lens_param_index(lens):
@@ -106,25 +129,28 @@ def _inside_caustics(curves, points):
     ----------
     curves : caustics.lenses.func.adaptive.CriticalCurvesAndCaustics
         The curves of a closed lens mesh.
-    points : torch.Tensor
-        A (B, 2) float64 tensor of source-plane positions in arcseconds, on the device of
-        ``curves.source``.
+    points : array
+        A (B, 2) float64 array of caustics' active backend: source-plane positions in
+        arcseconds, on the device of ``curves.source``.
 
     Returns
     -------
-    inside : torch.Tensor
-        A (B,) bool tensor, True where a point is inside.
+    inside : numpy.ndarray
+        A (B,) bool array, True where a point is inside.
     """
-    import torch
     from caustics.lenses.func.adaptive.geometry import winding_number
+    from caustics.lenses.func.adaptive.mesh_backend import mesh_backend, to_mesh
 
-    bounds = curves.offsets.tolist()
-    inside = torch.zeros(points.shape[0], dtype=torch.bool, device=points.device)
+    # winding_number runs on caustics' mesh backend (torch, also under jax), so it gets copies there.
+    source, offsets, points = to_mesh((curves.source, curves.offsets, points))
+    inside = mesh_backend.zeros(
+        (points.shape[0],), dtype=mesh_backend.bool, device=mesh_backend.device(points)
+    )
     for start in range(0, points.shape[0], _WINDING_CHUNK):
         chunk = slice(start, start + _WINDING_CHUNK)
-        for first, stop in pairwise(bounds):
-            inside[chunk] |= winding_number(curves.source[first:stop], points[chunk]) != 0
-    return inside
+        for first, stop in pairwise(offsets.tolist()):
+            inside[chunk] |= winding_number(source[first:stop], points[chunk]) != 0
+    return mesh_backend.to_numpy(inside)
 
 
 def _reemit(w):
@@ -204,46 +230,70 @@ class CausticsStrongLensSystem(FunctionNode):
     depth-limited mesh refinement, an unbounded μ-region, a hole curve hitting its sample
     cap, no strong-lensing region or an empty μ-region, a source outside the image of the
     fov boundary (too few images in the fov), too few images for the sampling mode, or
-    more than ``max_images`` images. Other caustics and torch warnings (e.g. a
+    more than ``max_images`` images. Other warnings from the mesh build (e.g. a
     fov-widening notice) are re-emitted unchanged.
 
+    **Backends.** The node runs, in float64, on caustics' active backend: torch or jax.
+    Caustics picks it once per process, at import, from the ``CASKADE_BACKEND``
+    environment variable (default ``"torch"``), so set it in the environment before
+    caustics is imported, e.g. ``CASKADE_BACKEND=jax python run.py``; worker processes
+    then inherit it. The node records the backend at construction, and sampling in a
+    process that runs the other one raises ``ValueError``. Under jax, the mesh build, the
+    raytrace and the observables run as compiled programs, compiled once per worker
+    process per padded input shape; caustics' mesh bookkeeping still runs on torch, on the
+    CPU.
+
+    **Working lens.** On its first ``compute`` in a process the node deep-copies its
+    stored lens to ``device`` and wraps this working lens's ``magnification``,
+    ``time_delay``, ``convergence`` and ``shear`` with ``caustics.jit_forward``; later
+    calls in that process reuse both, and with them jax's compiled programs. Parameter
+    values are passed on every call, so none carry over between systems. The observables
+    see the images padded to ``max_images`` (by repeating the first image), so their input
+    shape never changes. Neither the working lens nor the wrappers are pickled.
+
     **Threads.** All of a system's caustics work (mesh build, source sampling, raytracing,
-    observables) runs under one module-level lock, because ``torch.func.jacfwd``, which
-    caustics uses internally, keeps process-global forward-AD state and is not
-    thread-safe. Under a ``ThreadPoolExecutor`` this node's work is therefore serialized
-    across threads: correct, but no faster than running serially. Prefer a process-based
-    executor (``num_jobs``, ``ProcessPoolExecutor``, Dask, loky, Ray) for speed.
+    observables) runs under one module-level lock, because every call fills the parameters
+    of the shared working lens, and under torch ``torch.func.jacfwd``, which caustics uses
+    internally, keeps process-global forward-AD state and is not thread-safe. Under a
+    ``ThreadPoolExecutor`` this node's work is therefore serialized across threads:
+    correct, but no faster than running serially. Prefer a process-based executor
+    (``num_jobs`` under torch, ``ProcessPoolExecutor``, Dask, loky, Ray) for speed.
 
     **Pickling** this node (e.g. for ``num_jobs``) requires ``cloudpickle``, and
     unpickling it in a worker does too, because the pickled state holds the stored lens
     serialized by ``cloudpickle.dumps``; install ``cloudpickle`` on every worker.
 
-    **Torch threads and devices.** If ``torch_num_threads`` is an int, it is applied with
-    ``torch.set_num_threads`` at the start of sampling, a process-wide side effect. If it
-    is left as ``None`` (the default), sampling leaves torch's thread count alone in the
-    process that built the node, but uses 1 thread in any other process (a worker
-    process), which avoids a fork deadlock after multi-threaded torch use in the parent
-    and avoids oversubscription under many workers; pass an explicit int for a cluster
-    worker that owns many cores. ``device`` defaults to ``"cpu"``. The node moves its
-    stored lens copy to ``device`` only inside sampling, never in the process that builds
-    it, and caustics' mesh bookkeeping follows ``device`` through a ``torch.device``
-    context. ``import caustics`` itself probes CUDA, though, so a forked worker cannot use
-    CUDA ("Cannot re-initialize CUDA in forked subprocess"); ``num_jobs`` and a default
-    ``ProcessPoolExecutor`` fork on Linux with Python 3.13 or earlier. For
-    ``device="cuda"`` with a process-based executor, pass ``simulate_lightcurves`` an
-    executor with a spawn or forkserver context, e.g.
+    **Torch threads, devices and worker processes.** If ``torch_num_threads`` is an int, it
+    is applied with ``torch.set_num_threads`` at the start of sampling, a process-wide side
+    effect, under either backend. If it is left as ``None`` (the default), sampling leaves
+    torch's thread count alone in the process that built the node, but uses 1 thread in
+    any other process (a worker process), which avoids a fork deadlock after
+    multi-threaded torch use in the parent and avoids oversubscription under many workers;
+    pass an explicit int for a cluster worker that owns many cores. ``device`` defaults to
+    ``"cpu"``. The node moves its working lens to ``device`` only inside sampling, never in
+    the process that builds it. Under torch, caustics' mesh bookkeeping follows ``device``
+    through a ``torch.device`` context. ``import caustics`` itself probes CUDA, though, so
+    a forked worker cannot use CUDA ("Cannot re-initialize CUDA in forked subprocess");
+    ``num_jobs`` and a default ``ProcessPoolExecutor`` fork on Linux with Python 3.13 or
+    earlier. For ``device="cuda"`` with a process-based executor, pass
+    ``simulate_lightcurves`` an executor with a spawn or forkserver context, e.g.
     ``ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn"))``, or use Dask,
-    loky or Ray, or set ``PYTORCH_NVML_BASED_CUDA_CHECK=1`` before importing torch. GPU
-    speedup is unmeasured, since caustics handles one system per call.
+    loky or Ray, or set ``PYTORCH_NVML_BASED_CUDA_CHECK=1`` before importing torch. Under
+    jax, ``"cpu"`` is jax's CPU device and ``"cuda"``, ``"cuda:N"`` or ``"gpu"`` its first
+    (or N-th) GPU, made jax's default device during sampling. Forked workers are unsafe
+    under jax on any device, since jax is multithreaded: use an executor with a spawn or
+    forkserver context, as above, or Dask, loky or Ray, and not ``num_jobs`` where it
+    forks. GPU speedup is unmeasured, since caustics handles one system per call.
 
     **Performance.** One caustics call per system (there is no batching across systems);
-    each takes roughly 0.1-0.7 s on CPU, dominated by the mesh build.
+    each takes roughly 0.1-0.7 s on CPU, dominated by the mesh build. Under jax a worker
+    process's first system takes a few seconds more, to compile.
 
-    **Precision.** A value set statically on the user's caustics object as a Python float
-    is stored by caskade in float32, and that rounding carries into this node's float64
-    copy (e.g. ``q=0.7`` becomes ``0.699999988...``). For an exact float64 value, map the
-    parameter through ``lens_parameters`` instead, or set it on the lens as a float64
-    tensor.
+    **Precision.** Under torch, a value set statically on the user's caustics object as a
+    Python float is stored by caskade in float32, and that rounding carries into this
+    node's float64 copy (e.g. ``q=0.7`` becomes ``0.699999988...``). For an exact float64
+    value, map the parameter through ``lens_parameters`` instead, or set it on the lens as
+    a float64 tensor. Under jax it is stored in float64.
 
     Example wiring this node into ``ResolvedStrongLensModel``:
 
@@ -290,12 +340,13 @@ class CausticsStrongLensSystem(FunctionNode):
         Extra keyword arguments passed to ``lens.forward_raytrace``. May not set ``mesh`` or
         ``params``, which the node sets itself.
     device : str, optional
-        The torch device used for caustics calls. Default: "cpu".
+        The device for caustics calls: a torch device under torch, and ``"cpu"``, ``"cuda"``,
+        ``"cuda:N"`` or ``"gpu"`` under jax. Default: "cpu".
     torch_num_threads : int, optional
         If given, ``torch.set_num_threads`` is called with this value at the start of
-        ``compute``. Default: None, which uses 1 thread in a worker process (any process
-        other than the one that built the node) and leaves torch's thread count alone in
-        the building process.
+        ``compute``, under either backend. Default: None, which uses 1 thread in a worker
+        process (any process other than the one that built the node) and leaves torch's
+        thread count alone in the building process.
     seed : int, optional
         The seed for this node's random number generator. Default: None (OS entropy).
     node_label : str, optional
@@ -335,7 +386,7 @@ class CausticsStrongLensSystem(FunctionNode):
         seed=None,
         node_label=None,
     ):
-        torch, _ = _import_caustics()
+        _, caustics = _import_caustics()
 
         if max_images < 1:
             raise ValueError(f"max_images must be at least 1, got {max_images}.")
@@ -413,7 +464,7 @@ class CausticsStrongLensSystem(FunctionNode):
                 p.to_static()
             names[id(p)] = "z_s" if key == z_s_key else key.replace(".", "_")
         # caskade's Module.to casts in place, so the parameters keep their identities.
-        self._lens = stored_lens.to(dtype=torch.float64)
+        self._lens = stored_lens.to(dtype=caustics.backend.float64)
         self._param_order = [names[id(p)] for p in self._lens.dynamic_params]
 
         self._z_l_name = z_l_name
@@ -424,8 +475,11 @@ class CausticsStrongLensSystem(FunctionNode):
         self._mesh_kwargs = mesh_kwargs
         self._raytrace_kwargs = raytrace_kwargs
         self._device = device
+        self._backend = caustics.backend.backend
         self._torch_num_threads = torch_num_threads
         self._owner_pid = os.getpid()
+        self._working = None
+        self._observables = None
         if seed is None:
             seed = int.from_bytes(os.urandom(4), "big")
         self._rng = np.random.default_rng(seed)
@@ -451,13 +505,15 @@ class CausticsStrongLensSystem(FunctionNode):
     def __getstate__(self):
         """Return the pickling state, with the stored lens serialized by cloudpickle.
 
-        A caustics ``SinglePlane`` does not pickle with the standard library ``pickle``.
+        A caustics ``SinglePlane`` does not pickle with the standard library ``pickle``. The
+        working lens and its jitted observables are left out: each process makes its own on
+        its first ``compute``.
 
         Returns
         -------
         state : dict
             This node's ``__dict__``, with ``_lens`` replaced by its ``cloudpickle.dumps``
-            bytes.
+            bytes, and the working lens and its jitted observables by None.
 
         Raises
         ------
@@ -473,6 +529,7 @@ class CausticsStrongLensSystem(FunctionNode):
             ) from err
         state = self.__dict__.copy()
         state["_lens"] = cloudpickle.dumps(self._lens)
+        state["_working"] = state["_observables"] = None
         return state
 
     def __setstate__(self, state):
@@ -491,6 +548,34 @@ class CausticsStrongLensSystem(FunctionNode):
         self.__dict__.update(state)
         if isinstance(self._lens, bytes):
             self._lens = pickle.loads(self._lens)
+
+    def _working_lens(self, device):
+        """Return this process's working copy of the stored lens, making it on first use.
+
+        Its observables, wrapped by ``caustics.jit_forward``, are made with it and stored in
+        ``_observables``. ``compute`` calls this under the module lock. The stored lens is never
+        modified.
+
+        Parameters
+        ----------
+        device : str or jax.Device
+            ``device`` in the form caustics' active backend takes.
+
+        Returns
+        -------
+        lens : caustics.lenses.base.Lens
+            The working lens, on ``device``.
+        """
+        if self._working is None:
+            from caustics import jit_forward
+
+            lens = copy.deepcopy(self._lens).to(device=device)
+            self._observables = {
+                name: jit_forward(getattr(lens, name))
+                for name in ("magnification", "time_delay", "convergence", "shear")
+            }
+            self._working = lens
+        return self._working
 
     def _set_torch_threads(self, torch):
         """Apply ``torch_num_threads``, or 1 thread in a process other than the one that built the node.
@@ -511,7 +596,7 @@ class CausticsStrongLensSystem(FunctionNode):
         if torch.get_num_threads() != num_threads:
             torch.set_num_threads(num_threads)
 
-    def _build(self, lens, values, params, system_index):
+    def _build(self, lens, values, params, device, system_index):
         """Build one system's closed lens mesh, raising on caustics' failure warnings.
 
         The build runs with its warnings recorded (``compute`` holds the module lock around it).
@@ -520,11 +605,13 @@ class CausticsStrongLensSystem(FunctionNode):
         Parameters
         ----------
         lens : caustics.lenses.base.Lens
-            This call's working copy of the stored lens, on ``device``.
+            The working lens, on ``device``.
         values : dict
             This system's node input values, keyed by node parameter name.
-        params : list of torch.Tensor
+        params : list of array
             The values of the lens's dynamic parameters, in ``lens.dynamic_params`` order.
+        device : str or jax.Device
+            ``device`` in the form caustics' active backend takes.
         system_index : int
             The global index of the system, used in error messages.
 
@@ -551,7 +638,7 @@ class CausticsStrongLensSystem(FunctionNode):
                 float(values["min_img_sep"]),
                 mu_min=self._mu_min,
                 mu_max=self._mu_max,
-                device=self._device,
+                device=device,
                 params=params,
                 **self._mesh_kwargs,
             )
@@ -594,7 +681,7 @@ class CausticsStrongLensSystem(FunctionNode):
             The source offset ``(source_x, source_y)`` (east, north) from the lens origin in
             arcseconds, or None if no candidate is accepted within 100 batches.
         """
-        import torch
+        from caustics import backend
 
         if region is not None:
             from caustics.lenses.func.adaptive import total_magnification
@@ -603,38 +690,40 @@ class CausticsStrongLensSystem(FunctionNode):
             upper = np.inf if self._mu_max is None else self._mu_max
 
             def accept(chunk):
-                mu_tot = total_magnification(chunk[:, 0], chunk[:, 1], mesh)
-                return ((mu_tot >= self._mu_min) & (mu_tot <= upper)).cpu().numpy()
+                mu_tot = backend.to_numpy(total_magnification(chunk[:, 0], chunk[:, 1], mesh))
+                return (mu_tot >= self._mu_min) & (mu_tot <= upper)
         else:
             source = curves.source
 
             def accept(chunk):
-                return _inside_caustics(curves, chunk).cpu().numpy()
+                return _inside_caustics(curves, chunk)
 
-        low = source.min(dim=0).values.cpu().numpy()
-        high = source.max(dim=0).values.cpu().numpy()
+        corners = backend.to_numpy(source)
+        low, high = corners.min(axis=0), corners.max(axis=0)
         for _ in range(_MAX_CANDIDATE_BATCHES):
             candidates = rng.uniform(low, high, size=(_CANDIDATE_BATCH, 2))
             # Test the batch a chunk at a time, stopping at the first chunk that accepts one.
             for start in range(0, _CANDIDATE_BATCH, _WINDING_CHUNK):
                 chunk = candidates[start : start + _WINDING_CHUNK]
-                inside = accept(torch.as_tensor(chunk, device=source.device))
+                inside = accept(backend.as_array(chunk, dtype=backend.float64, device=backend.device(source)))
                 if inside.any():
                     source_x, source_y = chunk[np.argmax(inside)]
                     return float(source_x), float(source_y)
         return None
 
-    def _solve_system(self, lens, values, rng, system_index):
+    def _solve_system(self, lens, values, rng, device, system_index):
         """Build one system's mesh, draw its source, and solve and evaluate its images.
 
         Parameters
         ----------
         lens : caustics.lenses.base.Lens
-            This call's working copy of the stored lens, on ``device``.
+            The working lens, on ``device``.
         values : dict
             This system's node input values, keyed by node parameter name.
         rng : numpy.random.Generator
             This system's random number generator.
+        device : str or jax.Device
+            ``device`` in the form caustics' active backend takes.
         system_index : int
             The global index of the system, used in error messages.
 
@@ -656,9 +745,10 @@ class CausticsStrongLensSystem(FunctionNode):
             the fov boundary; or the source has more than ``max_images`` images, or fewer than
             the sampling region guarantees (2 in caustic mode, 1 in μ-region mode).
         """
-        import torch
+        from caustics import backend
         from caustics.lenses.func.adaptive import caustic_area
         from caustics.lenses.func.adaptive.lens_mesh import inside_fov_image
+        from caustics.lenses.func.adaptive.mesh_backend import to_mesh
 
         z_l = values[self._z_l_name] if self._z_l_name is not None else self._z_l_value
         if z_l is not None and z_l >= values["z_s"]:
@@ -668,10 +758,9 @@ class CausticsStrongLensSystem(FunctionNode):
             )
 
         params = [
-            torch.as_tensor(values[name], dtype=torch.float64, device=self._device)
-            for name in self._param_order
+            backend.as_array(values[name], dtype=backend.float64, device=device) for name in self._param_order
         ]
-        mesh, curves, region = self._build(lens, values, params, system_index)
+        mesh, curves, region = self._build(lens, values, params, device, system_index)
         if region is not None:
             area = float(region.area)
             sampled = f"mu-region ({region.mu_min} <= mu_tot <= {region.mu_max})"
@@ -696,8 +785,9 @@ class CausticsStrongLensSystem(FunctionNode):
 
         # forward_raytrace raises for a source outside the image of the fov boundary, where some
         # of its images lie outside the fov; check first so the error names the system.
-        beta = torch.tensor([[source_x, source_y]], dtype=torch.float64, device=mesh.vertices_source.device)
-        if not bool(inside_fov_image(mesh, beta)[0]):
+        beta = backend.as_array([[source_x, source_y]], dtype=backend.float64, device=device)
+        # inside_fov_image runs on caustics' mesh backend (torch, also under jax), so it gets copies there.
+        if not bool(inside_fov_image(*to_mesh((mesh, beta)))[0]):
             raise RuntimeError(
                 f"{_describe_system(system_index, values)}: too few images in the fov: the source lies "
                 "outside the image of the fov boundary, so some of its images lie outside the fov; the "
@@ -719,17 +809,24 @@ class CausticsStrongLensSystem(FunctionNode):
                 f"at least {min_images}); the starting fov may lie inside the critical curves, so "
                 "try a larger fov."
             )
-        shear_1, shear_2 = lens.shear(x, y, params=params)
+        x, y = backend.to_numpy(x), backend.to_numpy(y)
+        # Pad to max_images by repeating the first image, so the observables always see one input
+        # shape (one compiled program each under jax) and the padding is finite; sliced off below.
+        pad = np.arange(self._max_images)
+        pad[num_images:] = 0
+        x_pad, y_pad = (backend.as_array(v[pad], dtype=backend.float64, device=device) for v in (x, y))
+        jitted = self._observables
+        shear_1, shear_2 = jitted["shear"](x_pad, y_pad, params=params)
         per_image = {
-            "image_x": x,
-            "image_y": y,
-            "macro_magnifications": lens.magnification(x, y, params=params),
-            "time_delays": lens.time_delay(x, y, params=params),
-            "convergences": lens.convergence(x, y, params=params),
+            "macro_magnifications": jitted["magnification"](x_pad, y_pad, params=params),
+            "time_delays": jitted["time_delay"](x_pad, y_pad, params=params),
+            "convergences": jitted["convergence"](x_pad, y_pad, params=params),
             "shear_1": shear_1,
             "shear_2": shear_2,
         }
-        per_image = {name: value.detach().cpu().numpy() for name, value in per_image.items()}
+        per_image = {"image_x": x, "image_y": y} | {
+            name: backend.to_numpy(value)[:num_images] for name, value in per_image.items()
+        }
         order = np.argsort(per_image["time_delays"], kind="stable")
         per_image["time_delays"] = per_image["time_delays"] - per_image["time_delays"][order[0]]
 
@@ -758,26 +855,49 @@ class CausticsStrongLensSystem(FunctionNode):
         -------
         list
             The values of the outputs, in ``OUTPUTS`` order.
-        """
-        import torch
 
+        Raises
+        ------
+        ValueError
+            If caustics runs a backend other than the one the node was built under, or a
+            system has ``z_l >= z_s``.
+        RuntimeError
+            If a system fails otherwise (see the failure policy in the class docstring).
+        """
+        torch, caustics = _import_caustics()
+
+        if caustics.backend.backend != self._backend:
+            raise ValueError(
+                f"This CausticsStrongLensSystem was built under caustics' '{self._backend}' backend, but "
+                f"caustics runs its '{caustics.backend.backend}' backend in this process. Set "
+                f"CASKADE_BACKEND={self._backend} in the environment, before caustics is imported, so "
+                "that worker processes inherit it."
+            )
         self._set_torch_threads(torch)
         args = self._build_inputs(graph_state, **kwargs)
         rng = rng_info if rng_info is not None else self._rng
         num_samples = graph_state.num_samples
         sub_seeds = rng.integers(0, 2**63, size=num_samples, dtype=np.uint64)
 
-        lens = copy.deepcopy(self._lens).to(device=self._device)
+        if self._backend == "jax":
+            import jax
+
+            # Caustics' mesh bookkeeping stays on torch's CPU under jax.
+            device = _jax_device(self._device)
+            default_device = jax.default_device(device)
+        else:
+            # torch.device also moves caustics' mesh bookkeeping, which runs on torch's default device
+            # (geometry.build_device()), onto device.
+            device = self._device
+            default_device = torch.device(device)
         sample_offset = graph_state.sample_offset or 0
         rows = []
-        # torch.device also moves caustics' mesh bookkeeping, which runs on torch's default device
-        # (geometry.build_device()), onto device.
-        with _CAUSTICS_LOCK, torch.device(self._device):
+        with _CAUSTICS_LOCK, default_device:
+            lens = self._working_lens(device)
             for i, sub_seed in enumerate(sub_seeds):
                 values = {name: value if num_samples == 1 else value[i] for name, value in args.items()}
-                rows.append(
-                    self._solve_system(lens, values, np.random.default_rng(sub_seed), sample_offset + i)
-                )
+                rng_i = np.random.default_rng(sub_seed)
+                rows.append(self._solve_system(lens, values, rng_i, device, sample_offset + i))
 
         results = [np.array([row[name] for row in rows]) for name in self.OUTPUTS]
         if num_samples == 1:

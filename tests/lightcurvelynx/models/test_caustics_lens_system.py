@@ -1,7 +1,12 @@
 import json
+import multiprocessing
+import os
 import pickle
+import subprocess
+import sys
 import warnings
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -12,7 +17,9 @@ torch = pytest.importorskip("torch")
 caustics = pytest.importorskip("caustics")
 adaptive = pytest.importorskip("caustics.lenses.func.adaptive")
 
-from caskade import Module, Param  # noqa: E402,I001
+import lightcurvelynx  # noqa: E402,I001
+from caskade import Module, Param  # noqa: E402
+from caustics import backend  # noqa: E402
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup  # noqa: E402
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode  # noqa: E402
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc  # noqa: E402
@@ -20,6 +27,7 @@ from lightcurvelynx.models.basic_models import LinearTimeModel  # noqa: E402
 from lightcurvelynx.models.caustics_lens_system import (  # noqa: E402
     CausticsStrongLensSystem,
     _inside_caustics,
+    _jax_device,
     _lens_param_index,
 )
 from lightcurvelynx.models.strong_lens_model import ResolvedStrongLensModel  # noqa: E402
@@ -54,19 +62,20 @@ def _make_lens(sie_name="sie", q=None, phi=None, Rein=None, gamma_1=None, gamma_
 def _reference_lens():
     """Return the test lens with every value set (static), in float64, for direct caustics calls.
 
-    The values are passed as float64 tensors: caskade would store python floats in float32, and
-    casting the lens to float64 afterwards would keep that rounding (e.g. q = 0.699999988).
+    The values are passed as float64 arrays of caustics' active backend: under torch caskade would
+    store python floats in float32, and casting the lens to float64 afterwards would keep that
+    rounding (e.g. q = 0.699999988).
     """
     values = VALUES | {"z_l": Z_L, "z_s": Z_S}
-    return _make_lens(**{k: torch.tensor(v, dtype=torch.float64) for k, v in values.items()}).to(
-        dtype=torch.float64
+    return _make_lens(**{k: backend.as_array(v, dtype=backend.float64) for k, v in values.items()}).to(
+        dtype=backend.float64
     )
 
 
 def _snapshot(lens):
     """Return each parameter's (state, value, dtype), to check that a lens is unchanged."""
     return {
-        key: (p.node_type, None if p.value is None else p.value.clone(), p.dtype)
+        key: (p.node_type, None if p.value is None else np.array(backend.to_numpy(p.value)), p.dtype)
         for key, p in _lens_param_index(lens).items()
     }
 
@@ -76,7 +85,7 @@ def _assert_same_snapshot(before, after):
     assert before.keys() == after.keys()
     for key, (state, value, dtype) in before.items():
         assert after[key][0] == state and after[key][2] == dtype
-        assert (value is None and after[key][1] is None) or torch.equal(value, after[key][1])
+        assert (value is None and after[key][1] is None) or np.array_equal(value, after[key][1])
 
 
 def _make_system(lens=None, **overrides):
@@ -142,7 +151,7 @@ def test_private_lens_copy_is_float64_with_mapped_dynamic():
         for key, p in _lens_param_index(system._lens).items()
         if key.replace(".", "_") not in system._param_order and key != "lens.z_s"
     )
-    assert _lens_param_index(system._lens)["sie.x0"].value.dtype == torch.float64
+    assert _lens_param_index(system._lens)["sie.x0"].value.dtype == backend.float64
 
 
 def test_static_lens_values_need_no_mapping():
@@ -194,6 +203,16 @@ def test_key_errors_list_available_keys():
         _make_system(lens_parameters=LENS_PARAMETERS | {"SIE.q": 0.5})
 
 
+def test_compute_under_another_backend_raises():
+    """Test that compute raises when caustics' active backend is not the one the node was built under."""
+    system = _make_system()
+    system._backend = "jax" if backend.backend == "torch" else "torch"
+    with pytest.raises(
+        ValueError, match=f"built under caustics' '{system._backend}' backend.*CASKADE_BACKEND"
+    ):
+        system.sample_parameters(num_samples=1)
+
+
 def test_user_lens_unchanged_by_sampling():
     """Test that sampling leaves the user's lens untouched."""
     lens = _make_lens()
@@ -213,15 +232,15 @@ def _mesh_and_curves():
 def test_inside_caustics_matches_caustic_area_and_is_multiply_imaged():
     """Test that the acceptance test agrees with caustic_area and only accepts multiply imaged sources."""
     mesh, curves = _mesh_and_curves()
-    lo, hi = curves.source.min(dim=0).values, curves.source.max(dim=0).values
-    points = lo + (hi - lo) * torch.rand(
-        20000, 2, dtype=torch.float64, generator=torch.Generator().manual_seed(0)
-    )
-    inside = _inside_caustics(curves, points)
-    box_area = float(torch.prod(hi - lo))
-    assert inside.double().mean().item() * box_area == pytest.approx(adaptive.caustic_area(curves), rel=0.03)
-    accepted = points[inside][:2000]
+    source = backend.to_numpy(curves.source)
+    lo, hi = source.min(axis=0), source.max(axis=0)
+    points = lo + (hi - lo) * np.random.default_rng(0).random((20000, 2))
+    inside = _inside_caustics(curves, backend.as_array(points))
+    box_area = float(np.prod(hi - lo))
+    assert inside.mean() * box_area == pytest.approx(adaptive.caustic_area(curves), rel=0.03)
+    accepted = backend.as_array(points[inside][:2000])
     _, _, counts = _reference_lens().forward_raytrace(accepted[:, 0], accepted[:, 1], mesh=mesh)
+    counts = backend.to_numpy(counts)
     assert counts.min() >= 2
     assert (counts == 2).any() and (counts >= 3).any()  # pseudo-caustic-only and inside-caustic parts
 
@@ -260,22 +279,23 @@ def test_images_solve_lens_equation_and_observables_match_caustics():
     ref = _reference_lens()
     for i in range(2):
         n = int(out["num_images"][i])
-        x = torch.as_tensor(out["image_x"][i, :n])
-        y = torch.as_tensor(out["image_y"][i, :n])
-        bx, by = ref.raytrace(x, y)
-        assert_allclose(bx.numpy(), out["source_x"][i], atol=1e-5)
-        assert_allclose(by.numpy(), out["source_y"][i], atol=1e-5)
-        assert_allclose(out["macro_magnifications"][i, :n], ref.magnification(x, y).numpy(), rtol=1e-8)
-        delays = ref.time_delay(x, y).numpy()
+        x = backend.as_array(out["image_x"][i, :n])
+        y = backend.as_array(out["image_y"][i, :n])
+        bx, by = (backend.to_numpy(b) for b in ref.raytrace(x, y))
+        assert_allclose(bx, out["source_x"][i], atol=1e-5)
+        assert_allclose(by, out["source_y"][i], atol=1e-5)
+        mu = backend.to_numpy(ref.magnification(x, y))
+        assert_allclose(out["macro_magnifications"][i, :n], mu, rtol=1e-8)
+        delays = backend.to_numpy(ref.time_delay(x, y))
         assert_allclose(out["time_delays"][i, :n], delays - delays.min(), atol=1e-8)
-        assert_allclose(out["convergences"][i, :n], ref.convergence(x, y).numpy(), rtol=1e-8)
-        g1, g2 = ref.shear(x, y)
-        assert_allclose(out["shear_1"][i, :n], g1.numpy(), atol=1e-10)
-        assert_allclose(out["shear_2"][i, :n], g2.numpy(), atol=1e-10)
+        assert_allclose(out["convergences"][i, :n], backend.to_numpy(ref.convergence(x, y)), rtol=1e-8)
+        g1, g2 = (backend.to_numpy(g) for g in ref.shear(x, y))
+        assert_allclose(out["shear_1"][i, :n], g1, atol=1e-10)
+        assert_allclose(out["shear_2"][i, :n], g2, atol=1e-10)
     mesh, curves = _mesh_and_curves()
-    sx, sy = torch.as_tensor(out["source_x"]), torch.as_tensor(out["source_y"])
+    sx, sy = backend.as_array(out["source_x"]), backend.as_array(out["source_y"])
     _, _, counts = ref.forward_raytrace(sx, sy, mesh=mesh)
-    assert_array_equal(out["num_images"], counts.numpy())
+    assert_array_equal(out["num_images"], backend.to_numpy(counts))
     assert_allclose(out["area"], adaptive.caustic_area(curves), rtol=1e-10)
 
 
@@ -286,10 +306,12 @@ def test_mu_region_area_and_membership():
         MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=10.0, mu_max=50.0
     )
     assert_allclose(out["area"], region.area, rtol=1e-10)
-    mu_tot = adaptive.total_magnification(
-        torch.as_tensor(out["source_x"]), torch.as_tensor(out["source_y"]), mesh
+    mu_tot = backend.to_numpy(
+        adaptive.total_magnification(
+            backend.as_array(out["source_x"]), backend.as_array(out["source_y"]), mesh
+        )
     )
-    assert torch.all((mu_tot >= 10.0) & (mu_tot <= 50.0))
+    assert np.all((mu_tot >= 10.0) & (mu_tot <= 50.0))
     assert np.all(out["num_images"] >= 1)
 
 
@@ -314,16 +336,15 @@ def test_mu_region_acceptance_matches_region_area(mu_min, mu_max):
     mesh, _, region = _reference_lens().build_closed_lens_mesh(
         MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=mu_min, mu_max=mu_max
     )
-    lo, hi = region.source.min(dim=0).values, region.source.max(dim=0).values
+    source = backend.to_numpy(region.source)
+    lo, hi = source.min(axis=0), source.max(axis=0)
     # At mu_min=100 the region fills ~1% of its bounding box, so this many points are needed to keep
     # the statistical error (~1.5% there, ~0.25% at mu_min=10) small against the 3% tolerance.
-    points = lo + (hi - lo) * torch.rand(
-        400_000, 2, dtype=torch.float64, generator=torch.Generator().manual_seed(1)
-    )
-    mu_tot = adaptive.total_magnification(points[:, 0], points[:, 1], mesh)
+    points = backend.as_array(lo + (hi - lo) * np.random.default_rng(1).random((400_000, 2)))
+    mu_tot = backend.to_numpy(adaptive.total_magnification(points[:, 0], points[:, 1], mesh))
     upper = np.inf if mu_max is None else mu_max
-    fraction = ((mu_tot >= mu_min) & (mu_tot <= upper)).double().mean().item()  # NaN compares False
-    assert fraction * float(torch.prod(hi - lo)) == pytest.approx(region.area, rel=0.03)
+    fraction = ((mu_tot >= mu_min) & (mu_tot <= upper)).mean()  # NaN compares False
+    assert fraction * float(np.prod(hi - lo)) == pytest.approx(region.area, rel=0.03)
 
 
 def test_unbounded_mu_region_raises():
@@ -390,8 +411,8 @@ def test_no_sampling_region_raises(mu_min, match):
 def test_rejection_cap_returns_none():
     """Test that sampling gives up, returning None, when no candidate lands inside the caustics."""
     # A polyline that doubles back on itself has a non-empty bounding box but winds about nothing.
-    source = torch.tensor([[0.0, 0.0], [1.0, 1.0]], dtype=torch.float64)
-    curves = SimpleNamespace(source=source, offsets=torch.tensor([0, 2]))
+    source = backend.as_array([[0.0, 0.0], [1.0, 1.0]], dtype=backend.float64)
+    curves = SimpleNamespace(source=source, offsets=backend.as_array([0, 2]))
     assert _make_system()._sample_source(None, curves, None, np.random.default_rng(0)) is None
 
 
@@ -461,7 +482,7 @@ def test_build_escalates_failure_warnings_and_reemits_others():
     values = {"fov": 5.0, "init_res": 32, "min_img_sep": 0.01}
     with pytest.warns(DeprecationWarning, match="a dependency notice") as record:
         with pytest.raises(RuntimeError, match="system 3 .*before every chord fell below"):
-            system._build(lens, values, [], 3)
+            system._build(lens, values, [], "cpu", 3)
     # Only the dependency notice comes back, at its recorded location; the failure is not re-emitted.
     assert [(w.filename, w.lineno) for w in record] == [("dependency.py", 3)]
 
@@ -480,7 +501,7 @@ def test_reemitted_warnings_keep_module_scoped_filters(ignore_json, expected):
         warnings.simplefilter("always")
         if ignore_json:
             warnings.filterwarnings("ignore", category=UserWarning, module="json")
-        system._build(lens, values, [], 0)
+        system._build(lens, values, [], "cpu", 0)
     assert len(record) == expected
 
 
@@ -565,6 +586,62 @@ def test_pickle_round_trip_samples_identically():
         assert_array_equal(a[name], b[name])
 
 
+def test_working_lens_is_reused_and_not_pickled():
+    """Test that compute makes one working lens and its observables, reuses them, and pickling drops them."""
+    pytest.importorskip("cloudpickle")
+    system = _make_system()
+    assert system._working is None and system._observables is None  # Nothing is copied at construction.
+    system.sample_parameters(num_samples=1)
+    working, observables = system._working, system._observables
+    system.sample_parameters(num_samples=1)
+    assert working is not None and working is not system._lens
+    assert system._working is working and system._observables is observables
+    assert all(f.module is working for f in observables.values())
+    clone = pickle.loads(pickle.dumps(system))
+    assert clone._working is None and clone._observables is None
+
+
+@pytest.mark.skipif(backend.backend != "jax", reason="only jax compiles")
+def test_second_compute_compiles_no_new_observable_programs(monkeypatch):
+    """Test that a second compute, at new lens parameter values, reuses the observables' compiled programs."""
+    import jax
+    from caustics.jit import JitForward
+
+    compiles = []
+
+    def count_compiles(event, duration, **kwargs):
+        if event == "/jax/core/compile/backend_compile_duration":
+            compiles.append(event)
+
+    # Compiles during each observable call, as (method name, count).
+    observable_compiles = []
+    jit_call = JitForward.__call__
+
+    def counting_call(self, *args, params=None):
+        before = len(compiles)
+        out = jit_call(self, *args, params=params)
+        if self.method.__name__ in ("magnification", "time_delay", "convergence", "shear"):
+            observable_compiles.append((self.method.__name__, len(compiles) - before))
+        return out
+
+    monkeypatch.setattr(JitForward, "__call__", counting_call)
+    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
+    # Seed 25 draws a 2-image system, then a 4-image one.
+    system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein}, seed=25)
+    jax.monitoring.register_event_duration_secs_listener(count_compiles)
+    try:
+        first = system.sample_parameters(num_samples=1)["system"]
+        num_first = len(observable_compiles)
+        second = system.sample_parameters(num_samples=1)["system"]
+    finally:
+        jax.monitoring.unregister_event_duration_listener(count_compiles)
+    assert second["sie_Rein"] != first["sie_Rein"]
+    assert second["num_images"] != first["num_images"]  # Padding keeps one input shape.
+    first_calls, second_calls = observable_compiles[:num_first], observable_compiles[num_first:]
+    assert len(first_calls) == 4 and all(count > 0 for _, count in first_calls)
+    assert len(second_calls) == 4 and all(count == 0 for _, count in second_calls)
+
+
 @pytest.fixture
 def restore_torch_threads():
     """Restore torch's thread count after a test changes it."""
@@ -588,14 +665,15 @@ def test_explicit_thread_count_is_applied(restore_torch_threads):
 
 
 def test_stored_lens_unchanged_by_sampling():
-    """Test that sampling leaves the stored lens copy on CPU, float64, with the same dynamic set."""
+    """Test that sampling leaves the stored lens copy unmoved, float64, with the same dynamic set."""
     system = _make_system()
     dynamic_before = [p.name for p in system._lens.dynamic_params]
+    x0 = _lens_param_index(system._lens)["sie.x0"]
+    x0_before = x0.value
     first = system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(2))["system"]
     second = system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(2))["system"]
     assert [p.name for p in system._lens.dynamic_params] == dynamic_before
-    x0 = _lens_param_index(system._lens)["sie.x0"].value
-    assert x0.device.type == "cpu" and x0.dtype == torch.float64
+    assert x0.value is x0_before and x0_before.dtype == backend.float64  # Not moved or cast.
     assert_array_equal(first["image_x"], second["image_x"])
 
 
@@ -610,16 +688,33 @@ def test_thread_executor_matches_in_process_batches():
 
 
 def test_process_executor_matches_in_process_batches():
-    """Test that num_jobs=2 (fork, 1 torch thread per worker) matches in-process batches within tolerance."""
+    """Test that a process-based run matches in-process batches within tolerance.
+
+    Under torch it is num_jobs=2 (fork, 1 torch thread per worker); under jax, where forked workers
+    are unsafe, a spawn ProcessPoolExecutor.
+    """
     pytest.importorskip("cloudpickle")
     serial = _simulate(executor=_InProcessExecutor(), batch_size=1)
-    parallel = _simulate(num_jobs=2)
+    if backend.backend == "jax":
+        with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context("spawn")) as pool:
+            parallel = _simulate(executor=pool, batch_size=1)
+    else:
+        parallel = _simulate(num_jobs=2)
     assert_array_equal(parallel["lensed_system_id"], serial["lensed_system_id"])
     for col in ("ra", "dec", "t0"):
         assert_allclose(parallel[col], serial[col], rtol=1e-9)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+def _has_gpu():
+    """Return whether caustics' active backend has a GPU."""
+    if backend.backend == "jax":
+        import jax
+
+        return jax.default_backend() == "gpu"
+    return torch.cuda.is_available()
+
+
+@pytest.mark.skipif(not _has_gpu(), reason="caustics' active backend has no GPU")
 def test_cuda_matches_cpu():
     """Test that running on CUDA gives the same outputs as CPU for the same seed."""
     cpu = _make_system().sample_parameters(num_samples=2, rng_info=np.random.default_rng(5))["system"]
@@ -628,3 +723,60 @@ def test_cuda_matches_cpu():
     assert_array_equal(gpu["num_images"], cpu["num_images"])
     for name in ("source_x", "source_y", "image_x", "macro_magnifications", "time_delays", "area"):
         assert_allclose(gpu[name], cpu[name], rtol=1e-6, equal_nan=True)
+
+
+@pytest.mark.parametrize(
+    "device, expected",
+    [("cpu", ("cpu", 0)), ("cuda", ("gpu", 0)), ("cuda:1", ("gpu", 1)), ("gpu", ("gpu", 0))],
+)
+def test_jax_device_maps_torch_style_names(monkeypatch, device, expected):
+    """Test that a torch-style device name maps to the jax device of its platform and index."""
+    jax = pytest.importorskip("jax")
+    monkeypatch.setattr(jax, "devices", lambda platform: [(platform, 0), (platform, 1)])
+    assert _jax_device(device) == expected
+
+
+# The fixed case of test_jax_backend_matches_torch, run in a fresh process: caustics picks its backend
+# once, at import, from CASKADE_BACKEND.
+_CASE = f"""
+import sys
+
+import caustics
+import numpy as np
+
+from lightcurvelynx.models.caustics_lens_system import CausticsStrongLensSystem
+
+cosmo = caustics.FlatLambdaCDM(name="cosmo")
+sie = caustics.SIE(cosmology=cosmo, name="sie", x0=0.0, y0=0.0, s=0.0)
+shear = caustics.ExternalShear(cosmology=cosmo, name="shear", x0=0.0, y0=0.0)
+lens = caustics.SinglePlane(cosmology=cosmo, lenses=[sie, shear], name="lens")
+system = CausticsStrongLensSystem(
+    lens, lens_parameters={LENS_PARAMETERS!r}, z_s={Z_S!r}, max_images=5, node_label="system", **{MESH!r}
+)
+out = system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(5))["system"]
+np.savez(sys.argv[1], **{{name: out[name] for name in system.OUTPUTS}})
+"""
+
+
+def _run_case(caustics_backend, path):
+    """Run ``_CASE`` in a new process under the given caustics backend and return its outputs."""
+    env = os.environ | {
+        "CASKADE_BACKEND": caustics_backend,
+        "PYTHONPATH": str(Path(lightcurvelynx.__file__).parents[1]),
+    }
+    result = subprocess.run(
+        [sys.executable, "-c", _CASE, str(path)], env=env, capture_output=True, text=True, timeout=600
+    )
+    assert result.returncode == 0, result.stderr
+    with np.load(path) as outputs:
+        return dict(outputs)
+
+
+def test_jax_backend_matches_torch(tmp_path):
+    """Test that a fixed two-system case gives the same outputs under caustics' jax and torch backends."""
+    pytest.importorskip("jax")
+    jax_out = _run_case("jax", tmp_path / "jax.npz")
+    torch_out = _run_case("torch", tmp_path / "torch.npz")
+    assert_array_equal(jax_out["num_images"], torch_out["num_images"])
+    for name in CausticsStrongLensSystem.OUTPUTS:
+        assert_allclose(jax_out[name], torch_out[name], rtol=1e-6, equal_nan=True, err_msg=name)
