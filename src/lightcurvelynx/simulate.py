@@ -68,6 +68,8 @@ class SimulationInfo:
         Whether to save the full filter names in the results (including survey prefix).
     progress_bar : bool
         Whether to show a progress bar during the simulation.
+    drop_empty_rows : bool
+        Whether to drop rows that have no observations after applying the filters.
     graph_state : GraphState, optional
         The predefined graph state to use to replay a previous simulation. If None,
         a new graph state is sampled.
@@ -91,6 +93,7 @@ class SimulationInfo:
         output_file_path=None,
         save_full_filter_names=False,
         progress_bar=True,
+        drop_empty_rows=False,
         graph_state=None,
         **kwargs,
     ):
@@ -110,6 +113,7 @@ class SimulationInfo:
         self.output_file_path = None
         self.save_full_filter_names = save_full_filter_names
         self.progress_bar = progress_bar
+        self.drop_empty_rows = drop_empty_rows
 
         if self.num_samples <= 0:
             raise ValueError("Number of samples must be a positive integer.")
@@ -210,6 +214,7 @@ class SimulationInfo:
                 output_file_path=batch_output_file_path,
                 save_full_filter_names=self.save_full_filter_names,
                 progress_bar=False,  # Don't show per-batch progress bars.
+                drop_empty_rows=self.drop_empty_rows,
                 graph_state=batch_graph_state,
                 **self.kwargs,
             )
