@@ -156,7 +156,7 @@ class ObsTable:
 
                 # Save the inverse mapping as well
                 self._inv_colmap[value] = key
-        self._table.rename(columns=name_map, inplace=True)
+        self._table = self._table.rename(columns=name_map)
 
         # Check that we have the required columns and filter out any NaNs.
         for col in self._required_columns:
