@@ -19,12 +19,6 @@ import numpy as np
 
 from lightcurvelynx.base_models import FunctionNode
 
-# Points per winding-number call. Each call holds a few (points, curve points, 2) float64
-# temporaries, so this bounds the memory; it also sets how many candidates are tested at once.
-_WINDING_CHUNK = 128
-# Candidate sources per rng draw, and the number of draws before the rejection sampler gives up.
-_CANDIDATE_BATCH = 1024
-_MAX_CANDIDATE_BATCHES = 100
 # Substrings of the caustics warnings that mark a failed build: the mesh did not close or the
 # μ-region is unbounded (lens_mesh.py, region.py), refinement was depth-limited (lattice.py), or
 # a hole curve hit its sample cap (holes.py). Some are emitted with stacklevel=3, which hides the
@@ -130,6 +124,7 @@ def _inside_caustics(curves, points):
 
     A point is inside when its winding number about at least one curve's source polyline is
     nonzero. This is the rule ``caustic_area`` uses for the area of the multiply imaged region.
+    Each winding-number call holds a few (B, curve points) temporaries, so B bounds the memory.
 
     Parameters
     ----------
@@ -152,10 +147,8 @@ def _inside_caustics(curves, points):
     inside = mesh_backend.zeros(
         (points.shape[0],), dtype=mesh_backend.bool, device=mesh_backend.device(points)
     )
-    for start in range(0, points.shape[0], _WINDING_CHUNK):
-        chunk = slice(start, start + _WINDING_CHUNK)
-        for first, stop in pairwise(offsets.tolist()):
-            inside[chunk] |= winding_number(source[first:stop], points[chunk]) != 0
+    for first, stop in pairwise(offsets.tolist()):
+        inside |= winding_number(source[first:stop], points) != 0
     return mesh_backend.to_numpy(inside)
 
 
@@ -206,6 +199,20 @@ class CausticsStrongLensSystem(FunctionNode):
     follow the true ``mu_total``, since each candidate is accepted by caustics' 
     ``total_magnification``; caustic mode is unaffected.
 
+    Candidate sources are drawn uniformly in the axis-aligned bounding box of the sampled
+    region's contour, ``candidate_batch_size`` at a time, and the first one inside (in draw
+    order) is accepted; ``n_draws`` counts the candidates drawn up to and including it, and
+    ``bb_area`` is the box's area. At most ``max_candidates`` are drawn. For a system whose
+    ``estimate_mc_area`` is true, all ``max_candidates`` are drawn and tested, and
+    ``mc_area = bb_area * accepted / max_candidates`` estimates the sampled region's area,
+    with standard error ``sqrt(mc_area * (bb_area - mc_area) / max_candidates)``, as a
+    cross-check of ``area`` (above all in μ-region mode). It sees only the part of the region
+    inside the box, so it cannot catch a traced contour that misses part of the region beyond
+    the contour's bounding box. The source drawn and ``n_draws`` do not depend on
+    ``estimate_mc_area``. Like ``fov``, ``estimate_mc_area`` is a node parameter, so it can
+    be a constant or a link to another node's output, e.g. a ``FunctionNode`` that returns
+    whether a sampled lens parameter exceeds a threshold, and it is evaluated per system.
+
     **Outputs** (one entry per system; ``I = max_images``):
 
     ===================== ========== ========= ==============================================
@@ -223,6 +230,12 @@ class CausticsStrongLensSystem(FunctionNode):
     shear_1, shear_2      (I,)       (S, I)     γ1 = (ψ_xx - ψ_yy) / 2, γ2 = ψ_xy, with ψ the
                                                  lensing potential; dimensionless; NaN padding.
     area                  scalar     (S,)       The sampled region's area, in ``arcsec^2``.
+    bb_area               scalar     (S,)       The area of the box the candidate sources are
+                                                 drawn in, in ``arcsec^2``.
+    mc_area               scalar     (S,)       Monte Carlo estimate of ``area``, in
+                                                 ``arcsec^2``; NaN unless ``estimate_mc_area``.
+    n_draws               int        (S,)       Candidate sources drawn up to and including the
+                                                 accepted one.
     ===================== ========== ========= ==============================================
 
     Within a system the images are sorted by arrival time (a stable sort), so
@@ -330,6 +343,18 @@ class CausticsStrongLensSystem(FunctionNode):
     mu_max : float, optional
         The upper bound of the total-magnification sampling region. Required when ``mu_min``
         is given, and must be greater than ``mu_min``.
+    max_candidates : int, optional
+        The most candidate sources drawn per system before sampling gives up, and the number
+        drawn when ``estimate_mc_area`` is set. Must be at least 1. Default: 16384.
+    candidate_batch_size : int, optional
+        The number of candidate sources drawn, and tested in one call, at a time. In caustic
+        mode each call holds a few (candidate_batch_size, caustic polyline points) float64
+        temporaries, so this bounds the memory. Must be at least 1. Default: 1024.
+    estimate_mc_area : parameter, optional
+        Whether a system draws and tests all ``max_candidates`` candidates and reports
+        ``mc_area``; where false, sampling stops at the batch holding the first accepted
+        candidate and ``mc_area`` is NaN. A bool, or a link to another node's output, evaluated
+        per system. Default: False.
     mesh_kwargs : dict, optional
         Extra keyword arguments passed to ``lens.build_closed_lens_mesh``. May not set
         ``fov``, ``init_res``, ``min_img_sep``, ``mu_min``, ``mu_max``, ``device`` or
@@ -363,6 +388,9 @@ class CausticsStrongLensSystem(FunctionNode):
         "shear_1",
         "shear_2",
         "area",
+        "bb_area",
+        "mc_area",
+        "n_draws",
     )
 
     def __init__(
@@ -377,6 +405,9 @@ class CausticsStrongLensSystem(FunctionNode):
         max_images,
         mu_min=None,
         mu_max=None,
+        max_candidates=16384,
+        candidate_batch_size=1024,
+        estimate_mc_area=False,
         mesh_kwargs=None,
         raytrace_kwargs=None,
         device="cpu",
@@ -388,6 +419,10 @@ class CausticsStrongLensSystem(FunctionNode):
 
         if max_images < 1:
             raise ValueError(f"max_images must be at least 1, got {max_images}.")
+        if max_candidates < 1:
+            raise ValueError(f"max_candidates must be at least 1, got {max_candidates}.")
+        if candidate_batch_size < 1:
+            raise ValueError(f"candidate_batch_size must be at least 1, got {candidate_batch_size}.")
         if mu_max is not None and mu_min is None:
             raise ValueError("mu_min must be given whenever mu_max is given.")
         if mu_min is not None and mu_max is not None and mu_max <= mu_min:
@@ -426,7 +461,7 @@ class CausticsStrongLensSystem(FunctionNode):
                 f"Available keys: {sorted(index)}."
             )
 
-        reserved_names = {"z_s", "fov", "init_res", "min_img_sep"} | set(self.OUTPUTS)
+        reserved_names = {"z_s", "fov", "init_res", "min_img_sep", "estimate_mc_area"} | set(self.OUTPUTS)
         node_inputs, key_of = {}, {}
         for key, setter in lens_parameters.items():
             name = key.replace(".", "_")
@@ -440,7 +475,9 @@ class CausticsStrongLensSystem(FunctionNode):
                 )
             key_of[name] = key
             node_inputs[name] = setter
-        node_inputs.update(z_s=z_s, fov=fov, init_res=init_res, min_img_sep=min_img_sep)
+        node_inputs.update(
+            z_s=z_s, fov=fov, init_res=init_res, min_img_sep=min_img_sep, estimate_mc_area=estimate_mc_area
+        )
 
         z_l_key = f"{lens.name}.z_l"
         if z_l_key not in index:
@@ -470,6 +507,8 @@ class CausticsStrongLensSystem(FunctionNode):
         self._max_images = int(max_images)
         self._mu_min = mu_min
         self._mu_max = mu_max
+        self._max_candidates = int(max_candidates)
+        self._candidate_batch_size = int(candidate_batch_size)
         self._mesh_kwargs = mesh_kwargs
         self._raytrace_kwargs = raytrace_kwargs
         self._device = device
@@ -661,12 +700,14 @@ class CausticsStrongLensSystem(FunctionNode):
             )
         return built
 
-    def _sample_source(self, mesh, curves, region, rng):
+    def _sample_source(self, mesh, curves, region, rng, estimate_mc_area):
         """Draw a source uniformly inside the caustics, or inside the μ-region, by rejection sampling.
 
         Candidates are drawn uniformly in the bounding box of the caustics' source polylines (or,
-        in μ-region mode, of ``region.source``), in batches of 1024, and the first one inside (in
-        draw order) is accepted.
+        in μ-region mode, of ``region.source``), in batches of ``candidate_batch_size``, each tested
+        in one call, up to ``max_candidates`` in all; the first one inside (in draw order) is
+        accepted. Sampling stops at the batch holding it, unless ``estimate_mc_area`` is true: then
+        all ``max_candidates`` are drawn and tested, and the fraction inside estimates the area.
 
         Parameters
         ----------
@@ -678,12 +719,18 @@ class CausticsStrongLensSystem(FunctionNode):
             The μ-region, or None when ``mu_min`` is not given.
         rng : numpy.random.Generator
             This system's random number generator.
+        estimate_mc_area : bool
+            This system's ``estimate_mc_area``: whether to draw and test all ``max_candidates``
+            candidates and estimate the sampled region's area from them.
 
         Returns
         -------
-        source : tuple of float or None
-            The source offset ``(source_x, source_y)`` (east, north) from the lens origin in
-            arcseconds, or None if no candidate is accepted within 100 batches.
+        source : dict or None
+            ``source_x`` and ``source_y``, the accepted source offset (east, north) from the lens
+            origin in arcseconds; ``n_draws``, the number of candidates drawn up to and including
+            it; ``bb_area``, the bounding box's area in arcsec^2; and ``mc_area``, the Monte Carlo
+            estimate of the sampled region's area in arcsec^2 (NaN unless ``estimate_mc_area``).
+            None if none of the ``max_candidates`` candidates is accepted.
         """
         from caustics import backend
 
@@ -693,27 +740,40 @@ class CausticsStrongLensSystem(FunctionNode):
             source = region.source
             upper = np.inf if self._mu_max is None else self._mu_max
 
-            def accept(chunk):
-                mu_tot = backend.to_numpy(total_magnification(chunk[:, 0], chunk[:, 1], mesh))
+            def accept(points):
+                mu_tot = backend.to_numpy(total_magnification(points[:, 0], points[:, 1], mesh))
                 return (mu_tot >= self._mu_min) & (mu_tot <= upper)
         else:
             source = curves.source
 
-            def accept(chunk):
-                return _inside_caustics(curves, chunk)
+            def accept(points):
+                return _inside_caustics(curves, points)
 
         corners = backend.to_numpy(source)
         low, high = corners.min(axis=0), corners.max(axis=0)
-        for _ in range(_MAX_CANDIDATE_BATCHES):
-            candidates = rng.uniform(low, high, size=(_CANDIDATE_BATCH, 2))
-            # Test the batch a chunk at a time, stopping at the first chunk that accepts one.
-            for start in range(0, _CANDIDATE_BATCH, _WINDING_CHUNK):
-                chunk = candidates[start : start + _WINDING_CHUNK]
-                inside = accept(backend.as_array(chunk, dtype=backend.float64, device=backend.device(source)))
-                if inside.any():
-                    source_x, source_y = chunk[np.argmax(inside)]
-                    return float(source_x), float(source_y)
-        return None
+        drawn, num_inside = None, 0
+        for start in range(0, self._max_candidates, self._candidate_batch_size):
+            size = min(self._candidate_batch_size, self._max_candidates - start)
+            candidates = rng.uniform(low, high, size=(size, 2))
+            points = backend.as_array(candidates, dtype=backend.float64, device=backend.device(source))
+            inside = accept(points)
+            num_inside += int(inside.sum())
+            if drawn is None and inside.any():
+                first = int(np.argmax(inside))
+                drawn = {
+                    "source_x": float(candidates[first, 0]),
+                    "source_y": float(candidates[first, 1]),
+                    "n_draws": start + first + 1,
+                }
+                if not estimate_mc_area:
+                    break
+        if drawn is None:
+            return None
+        drawn["bb_area"] = float(np.prod(high - low))
+        drawn["mc_area"] = (
+            drawn["bb_area"] * num_inside / self._max_candidates if estimate_mc_area else np.nan
+        )
+        return drawn
 
     def _solve_system(self, lens, values, rng, device, system_index):
         """Build one system's mesh, draw its source, and solve and evaluate its images.
@@ -735,8 +795,8 @@ class CausticsStrongLensSystem(FunctionNode):
         -------
         row : dict
             One entry per name in ``OUTPUTS``: scalars for ``source_x``, ``source_y``,
-            ``num_images`` and ``area``, and (max_images,) float64 arrays, sorted by arrival
-            time and padded, for the per-image outputs.
+            ``num_images``, ``area``, ``bb_area``, ``mc_area`` and ``n_draws``, and (max_images,)
+            float64 arrays, sorted by arrival time and padded, for the per-image outputs.
 
         Raises
         ------
@@ -778,14 +838,13 @@ class CausticsStrongLensSystem(FunctionNode):
                 f"{_describe_system(system_index, values)} has no {sampled}: its area is {area} "
                 f"arcsec^2 ({empty})."
             )
-        source = self._sample_source(mesh, curves, region, rng)
+        source = self._sample_source(mesh, curves, region, rng, bool(values["estimate_mc_area"]))
         if source is None:
             raise RuntimeError(
-                f"{_describe_system(system_index, values)}: none of "
-                f"{_MAX_CANDIDATE_BATCHES * _CANDIDATE_BATCH} candidate sources drawn in the bounding "
-                f"box of its {sampled} lies inside it."
+                f"{_describe_system(system_index, values)}: none of {self._max_candidates} candidate "
+                f"sources drawn in the bounding box of its {sampled} lies inside it."
             )
-        source_x, source_y = source
+        source_x, source_y = source["source_x"], source["source_y"]
 
         # forward_raytrace raises for a source outside the image of the fov boundary, where some
         # of its images lie outside the fov; check first so the error names the system.
@@ -834,7 +893,7 @@ class CausticsStrongLensSystem(FunctionNode):
         order = np.argsort(per_image["time_delays"], kind="stable")
         per_image["time_delays"] = per_image["time_delays"] - per_image["time_delays"][order[0]]
 
-        row = {"source_x": source_x, "source_y": source_y, "num_images": num_images, "area": area}
+        row = {"num_images": num_images, "area": area} | source
         for name, value in per_image.items():
             row[name] = np.full(self._max_images, 0.0 if name == "macro_magnifications" else np.nan)
             row[name][:num_images] = value[order]

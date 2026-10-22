@@ -171,6 +171,8 @@ def test_static_lens_values_need_no_mapping():
         ({"lens_parameters": {k: v for k, v in LENS_PARAMETERS.items() if k != "sie.q"}}, "sie.q"),
         ({"lens_parameters": LENS_PARAMETERS | {"lens.z_s": 1.0}}, "z_s"),
         ({"max_images": 0}, "max_images"),
+        ({"max_candidates": 0}, "max_candidates"),
+        ({"candidate_batch_size": 0}, "candidate_batch_size"),
         ({"mu_max": 50.0}, "mu_min"),
         ({"mu_min": 10.0, "mu_max": 5.0}, "mu_max"),
         ({"mesh_kwargs": {"fov": 3.0}}, "fov"),
@@ -236,7 +238,10 @@ def test_inside_caustics_matches_caustic_area_and_is_multiply_imaged():
     source = backend.to_numpy(curves.source)
     lo, hi = source.min(axis=0), source.max(axis=0)
     points = lo + (hi - lo) * np.random.default_rng(0).random((20000, 2))
-    inside = _inside_caustics(curves, backend.as_array(points))
+    # A few thousand points at a time: each call holds (points, curve points) temporaries.
+    inside = np.concatenate(
+        [_inside_caustics(curves, backend.as_array(points[i : i + 2000])) for i in range(0, 20000, 2000)]
+    )
     box_area = float(np.prod(hi - lo))
     assert inside.mean() * box_area == pytest.approx(adaptive.caustic_area(curves), rel=0.03)
     accepted = backend.as_array(points[inside][:2000])
@@ -271,6 +276,7 @@ def test_multi_system_shapes():
     """Test that S systems give (S,) and (S, I) outputs."""
     out = _make_system().sample_parameters(num_samples=3)["system"]
     assert out["source_x"].shape == (3,) and out["num_images"].shape == (3,) and out["area"].shape == (3,)
+    assert out["bb_area"].shape == out["mc_area"].shape == out["n_draws"].shape == (3,)
     assert out["image_x"].shape == (3, 5) and out["shear_2"].shape == (3, 5)
 
 
@@ -419,7 +425,59 @@ def test_rejection_cap_returns_none():
     # A polyline that doubles back on itself has a non-empty bounding box but winds about nothing.
     source = backend.as_array([[0.0, 0.0], [1.0, 1.0]], dtype=backend.float64)
     curves = SimpleNamespace(source=source, offsets=backend.as_array([0, 2]))
-    assert _make_system()._sample_source(None, curves, None, np.random.default_rng(0)) is None
+    assert _make_system()._sample_source(None, curves, None, np.random.default_rng(0), False) is None
+
+
+def _unit_square_in_box():
+    """Return curves whose only caustic is the unit square, in a [0, 4] x [0, 2] bounding box (1/8 inside)."""
+    # The second polyline doubles back on itself: it widens the bounding box but winds about nothing.
+    source = backend.as_array(
+        [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0], [4.0, 2.0]], dtype=backend.float64
+    )
+    return SimpleNamespace(source=source, offsets=backend.as_array([0, 4, 6]))
+
+
+def test_sample_source_takes_first_hit_and_estimates_area_from_every_candidate():
+    """Test the source, n_draws, bb_area and mc_area against the seeded candidates, across batches."""
+    # Batches of 7 do not divide max_candidates=1000, so the last batch holds only 6.
+    system = _make_system(max_candidates=1000, candidate_batch_size=7)
+    rng = np.random.default_rng(10)
+    sampled = system._sample_source(None, _unit_square_in_box(), None, rng, True)
+    reference = np.random.default_rng(10)
+    candidates = reference.uniform([0.0, 0.0], [4.0, 2.0], size=(1000, 2))
+    hits = np.flatnonzero((candidates < 1.0).all(axis=1))
+    assert hits[0] == 15  # Second in the third batch, so n_draws counts the batches before it.
+    assert sampled["n_draws"] == 16
+    assert (sampled["source_x"], sampled["source_y"]) == tuple(candidates[15])
+    assert sampled["bb_area"] == 8.0  # The rectangle, not a square.
+    assert sampled["mc_area"] == pytest.approx(8.0 * len(hits) / 1000, rel=1e-12)
+    assert rng.random() == reference.random()  # Exactly 1000 candidates were drawn.
+
+
+def test_mc_area_is_nan_unless_estimated_and_does_not_change_the_draw():
+    """Test that mc_area is NaN by default, and estimating it leaves every other output unchanged."""
+    rng = np.random.default_rng
+    off, on = (
+        _make_system(estimate_mc_area=flag).sample_parameters(num_samples=2, rng_info=rng(6))["system"]
+        for flag in (False, True)
+    )
+    assert np.all(np.isnan(off["mc_area"])) and np.all(np.isfinite(on["mc_area"]))
+    for name in set(CausticsStrongLensSystem.OUTPUTS) - {"mc_area"}:
+        assert_array_equal(on[name], off[name], err_msg=name)
+
+
+@pytest.mark.parametrize("mu_min", [None, 10.0])
+def test_mc_area_cross_checks_area(mu_min):
+    """Test that bb_area bounds the sampled region's contour and mc_area estimates its area."""
+    out = _make_system(mu_min=mu_min, estimate_mc_area=True).sample_parameters(num_samples=1)["system"]
+    _, curves, region = _reference_lens().build_closed_lens_mesh(
+        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=mu_min
+    )
+    contour = backend.to_numpy(curves.source if region is None else region.source)
+    assert out["bb_area"] == pytest.approx(np.prod(contour.max(axis=0) - contour.min(axis=0)), rel=1e-10)
+    # With the default 16384 candidates the statistical error is a few percent at most.
+    assert out["mc_area"] == pytest.approx(out["area"], rel=0.05)
+    assert 1 <= out["n_draws"] <= 16384
 
 
 @pytest.mark.parametrize(
@@ -427,10 +485,10 @@ def test_rejection_cap_returns_none():
     [(None, "strong-lensing region"), (10.0, r"mu-region \(10.0 <= mu_tot <= inf\)")],
 )
 def test_rejection_cap_error_names_system_and_region(monkeypatch, mu_min, match):
-    """Test that hitting the rejection cap raises, naming the system and the mode's sampling region."""
-    system = _make_system(mu_min=mu_min)
+    """Test that hitting the rejection cap raises, naming the system, the cap and the sampling region."""
+    system = _make_system(mu_min=mu_min, max_candidates=500)
     monkeypatch.setattr(system, "_sample_source", lambda *args: None)
-    with pytest.raises(RuntimeError, match=f"system 0 .*candidate sources.*{match}"):
+    with pytest.raises(RuntimeError, match=f"system 0 .*none of 500 candidate sources.*{match}"):
         system.sample_parameters(num_samples=1)
 
 
