@@ -13,7 +13,7 @@ from tqdm import tqdm
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.survey_info import SurveyInfo
-from lightcurvelynx.utils.post_process_results import concat_results
+from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
 
 logger = logging.getLogger(__name__)
 
@@ -580,6 +580,11 @@ def _simulate_lightcurves_batch(simulation_info):
         spectra_frame = pd.DataFrame(data=spectra_dict, index=spectra_index)
         results = results.join_nested(spectra_frame, "spectra")
 
+    # Drop any rows that have neither lightcurve nor spectra data.
+    if simulation_info.drop_empty:
+        results = results_drop_empty(results)
+
+    # If we are writing the subsets out to files, write this subset.
     if simulation_info.output_file_path is not None:
         results.to_parquet(simulation_info.output_file_path)
         return simulation_info.output_file_path
