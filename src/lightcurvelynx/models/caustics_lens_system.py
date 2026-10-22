@@ -7,6 +7,7 @@ import, from the ``CASKADE_BACKEND`` environment variable (default ``torch``).
 """
 
 import copy
+import numbers
 import os
 import pickle
 import sys
@@ -166,6 +167,34 @@ def _reemit(w):
     warnings.warn_explicit(w.message, w.category, w.filename, w.lineno, source=w.source, **module)
 
 
+def _check_mu_bounds(mu_min, mu_max):
+    """Check a pair of μ-region bounds, either of which may be unset (None or NaN).
+
+    Parameters
+    ----------
+    mu_min, mu_max : float or None
+        The lower and upper bounds of the total-magnification sampling region.
+
+    Returns
+    -------
+    mu_min, mu_max : float or None
+        The bounds as floats, with None for an unset bound.
+
+    Raises
+    ------
+    ValueError
+        If ``mu_max`` is set without ``mu_min``, or ``mu_max <= mu_min``.
+    """
+    mu_min, mu_max = (
+        None if bound is None or np.isnan(bound) else float(bound) for bound in (mu_min, mu_max)
+    )
+    if mu_max is not None and mu_min is None:
+        raise ValueError("mu_min must be given whenever mu_max is given.")
+    if mu_min is not None and mu_max is not None and mu_max <= mu_min:
+        raise ValueError(f"mu_max ({mu_max}) must be greater than mu_min ({mu_min}).")
+    return mu_min, mu_max
+
+
 def _describe_system(system_index, values):
     """Return ``"system <index> (<name>=<value>, ...)"``, naming a system in error messages."""
     inputs = ", ".join(f"{name}={value}" for name, value in values.items())
@@ -197,7 +226,10 @@ class CausticsStrongLensSystem(FunctionNode):
     the lensing caustics, by about 1% at ``mu_min = 10`` and roughly 5-30% for ``mu_min`` 
     from about 30to 300 on an SIE + external shear test lens. The sampled sources still 
     follow the true ``mu_total``, since each candidate is accepted by caustics' 
-    ``total_magnification``; caustic mode is unaffected.
+    ``total_magnification``; caustic mode is unaffected. ``mu_min`` and ``mu_max`` are node
+    parameters, unset when None or NaN, so they can be linked to other nodes' outputs and
+    evaluated per system: the sampling mode, and with it what ``area`` measures, can then
+    differ between systems.
 
     Candidate sources are drawn uniformly in the axis-aligned bounding box of the sampled
     region's contour, ``candidate_batch_size`` at a time, and the first one inside (in draw
@@ -242,7 +274,8 @@ class CausticsStrongLensSystem(FunctionNode):
     ``image_id`` in ``ResolvedStrongLensModel`` matches this order; an image's parity is
     the sign of ``(1 - κ)**2 - γ1**2 - γ2**2``.
 
-    Construction-time input errors and a per-system ``z_l >= z_s`` raise ``ValueError``. 
+    Construction-time input errors, and a per-system ``z_l >= z_s`` or invalid pair of
+    linked ``mu_min`` and ``mu_max``, raise ``ValueError``. 
     Every other per-system failure raises ``RuntimeError`` naming the system 
     (its global index and parameter values): the mesh failing to close, depth-limited mesh 
     refinement, an unbounded μ-region, a hole curve hitting its sample cap, no 
@@ -337,12 +370,15 @@ class CausticsStrongLensSystem(FunctionNode):
         The minimum image separation (arcsec) the mesh must resolve.
     max_images : int
         The fixed padded width of the per-image outputs. Must be at least 1.
-    mu_min : float, optional
-        The lower bound of the total-magnification sampling region. If given, the source is
+    mu_min : parameter, optional
+        The lower bound of the total-magnification sampling region. Where set, the source is
         drawn uniformly where ``mu_min <= mu_total <= mu_max`` instead of inside the caustics.
-    mu_max : float, optional
-        The upper bound of the total-magnification sampling region. Required when ``mu_min``
-        is given, and must be greater than ``mu_min``.
+        A float, or a link to another node's output, evaluated per system; None or NaN means
+        unset. Default: None.
+    mu_max : parameter, optional
+        The upper bound of the total-magnification sampling region; None or NaN means no
+        upper bound. Where set, ``mu_min`` must be set too, and ``mu_max`` must be greater
+        than it. Like ``mu_min``, it may be linked and is evaluated per system. Default: None.
     max_candidates : int, optional
         The most candidate sources drawn per system before sampling gives up, and the number
         drawn when ``estimate_mc_area`` is set. Must be at least 1. Default: 16384.
@@ -423,10 +459,9 @@ class CausticsStrongLensSystem(FunctionNode):
             raise ValueError(f"max_candidates must be at least 1, got {max_candidates}.")
         if candidate_batch_size < 1:
             raise ValueError(f"candidate_batch_size must be at least 1, got {candidate_batch_size}.")
-        if mu_max is not None and mu_min is None:
-            raise ValueError("mu_min must be given whenever mu_max is given.")
-        if mu_min is not None and mu_max is not None and mu_max <= mu_min:
-            raise ValueError(f"mu_max ({mu_max}) must be greater than mu_min ({mu_min}).")
+        # Constant bounds are checked now; bounds linked to other nodes, per system when sampled.
+        if all(value is None or isinstance(value, numbers.Real) for value in (mu_min, mu_max)):
+            _check_mu_bounds(mu_min, mu_max)
 
         mesh_kwargs = {} if mesh_kwargs is None else dict(mesh_kwargs)
         raytrace_kwargs = {} if raytrace_kwargs is None else dict(raytrace_kwargs)
@@ -461,7 +496,8 @@ class CausticsStrongLensSystem(FunctionNode):
                 f"Available keys: {sorted(index)}."
             )
 
-        reserved_names = {"z_s", "fov", "init_res", "min_img_sep", "estimate_mc_area"} | set(self.OUTPUTS)
+        reserved_names = {"z_s", "fov", "init_res", "min_img_sep", "mu_min", "mu_max", "estimate_mc_area"}
+        reserved_names |= set(self.OUTPUTS)
         node_inputs, key_of = {}, {}
         for key, setter in lens_parameters.items():
             name = key.replace(".", "_")
@@ -476,7 +512,13 @@ class CausticsStrongLensSystem(FunctionNode):
             key_of[name] = key
             node_inputs[name] = setter
         node_inputs.update(
-            z_s=z_s, fov=fov, init_res=init_res, min_img_sep=min_img_sep, estimate_mc_area=estimate_mc_area
+            z_s=z_s,
+            fov=fov,
+            init_res=init_res,
+            min_img_sep=min_img_sep,
+            mu_min=mu_min,
+            mu_max=mu_max,
+            estimate_mc_area=estimate_mc_area,
         )
 
         z_l_key = f"{lens.name}.z_l"
@@ -505,8 +547,6 @@ class CausticsStrongLensSystem(FunctionNode):
         self._z_l_name = z_l_name
         self._z_l_value = z_l_value
         self._max_images = int(max_images)
-        self._mu_min = mu_min
-        self._mu_max = mu_max
         self._max_candidates = int(max_candidates)
         self._candidate_batch_size = int(candidate_batch_size)
         self._mesh_kwargs = mesh_kwargs
@@ -639,7 +679,7 @@ class CausticsStrongLensSystem(FunctionNode):
         if torch.get_num_threads() != num_threads:
             torch.set_num_threads(num_threads)
 
-    def _build(self, lens, values, params, device, system_index):
+    def _build(self, lens, values, params, device, system_index, mu_min, mu_max):
         """Build one system's closed lens mesh, raising on caustics' failure warnings.
 
         The build runs with its warnings recorded (``compute`` holds the module lock around it).
@@ -657,6 +697,8 @@ class CausticsStrongLensSystem(FunctionNode):
             ``device`` in the form caustics' active backend takes.
         system_index : int
             The global index of the system, used in error messages.
+        mu_min, mu_max : float or None
+            This system's μ-region bounds; None when unset.
 
         Returns
         -------
@@ -665,7 +707,7 @@ class CausticsStrongLensSystem(FunctionNode):
         curves : caustics.lenses.func.adaptive.CriticalCurvesAndCaustics
             Its critical curves, caustics and pseudo-caustics.
         region : caustics.lenses.func.adaptive.MagnificationRegion or None
-            The μ-region, or None when ``mu_min`` is not given.
+            The μ-region, or None when ``mu_min`` is unset.
 
         Raises
         ------
@@ -679,8 +721,8 @@ class CausticsStrongLensSystem(FunctionNode):
                 float(values["fov"]),
                 int(values["init_res"]),
                 float(values["min_img_sep"]),
-                mu_min=self._mu_min,
-                mu_max=self._mu_max,
+                mu_min=mu_min,
+                mu_max=mu_max,
                 device=device,
                 params=params,
                 **self._mesh_kwargs,
@@ -716,7 +758,7 @@ class CausticsStrongLensSystem(FunctionNode):
         curves : caustics.lenses.func.adaptive.CriticalCurvesAndCaustics
             The mesh's critical curves, caustics and pseudo-caustics.
         region : caustics.lenses.func.adaptive.MagnificationRegion or None
-            The μ-region, or None when ``mu_min`` is not given.
+            The μ-region, or None when ``mu_min`` is unset.
         rng : numpy.random.Generator
             This system's random number generator.
         estimate_mc_area : bool
@@ -738,11 +780,10 @@ class CausticsStrongLensSystem(FunctionNode):
             from caustics.lenses.func.adaptive import total_magnification
 
             source = region.source
-            upper = np.inf if self._mu_max is None else self._mu_max
 
             def accept(points):
                 mu_tot = backend.to_numpy(total_magnification(points[:, 0], points[:, 1], mesh))
-                return (mu_tot >= self._mu_min) & (mu_tot <= upper)
+                return (mu_tot >= region.mu_min) & (mu_tot <= region.mu_max)  # mu_max is inf when unset.
         else:
             source = curves.source
 
@@ -801,7 +842,7 @@ class CausticsStrongLensSystem(FunctionNode):
         Raises
         ------
         ValueError
-            If ``z_l >= z_s``.
+            If ``z_l >= z_s``, or ``mu_min`` and ``mu_max`` are invalid (see ``_check_mu_bounds``).
         RuntimeError
             If the mesh build fails (see ``_build``); the sampled region (the strong-lensing
             region, or the μ-region) has an area that is not finite or not positive, or none of
@@ -824,7 +865,11 @@ class CausticsStrongLensSystem(FunctionNode):
         params = [
             backend.as_array(values[name], dtype=backend.float64, device=device) for name in self._param_order
         ]
-        mesh, curves, region = self._build(lens, values, params, device, system_index)
+        try:
+            mu_min, mu_max = _check_mu_bounds(values["mu_min"], values["mu_max"])
+        except ValueError as err:
+            raise ValueError(f"{_describe_system(system_index, values)}: {err}") from None
+        mesh, curves, region = self._build(lens, values, params, device, system_index, mu_min, mu_max)
         if region is not None:
             area = float(region.area)
             sampled = f"mu-region ({region.mu_min} <= mu_tot <= {region.mu_max})"
@@ -865,7 +910,7 @@ class CausticsStrongLensSystem(FunctionNode):
                 f"{_describe_system(system_index, values)}: the source has {num_images} images, "
                 f"more than max_images={self._max_images}; raise max_images."
             )
-        min_images = 1 if self._mu_min is not None else 2
+        min_images = 1 if mu_min is not None else 2
         if num_images < min_images:
             raise RuntimeError(
                 f"{_describe_system(system_index, values)}: too few images ({num_images}, expected "
@@ -923,7 +968,7 @@ class CausticsStrongLensSystem(FunctionNode):
         ------
         ValueError
             If caustics runs a backend other than the one the node was built under, or a
-            system has ``z_l >= z_s``.
+            system has ``z_l >= z_s`` or an invalid pair of ``mu_min`` and ``mu_max``.
         RuntimeError
             If a system fails otherwise (see the failure policy in the class docstring).
         """

@@ -23,6 +23,7 @@ from caskade import Module, Param  # noqa: E402
 from caustics import backend  # noqa: E402
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup  # noqa: E402
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode  # noqa: E402
+from lightcurvelynx.math_nodes.given_sampler import GivenValueList  # noqa: E402
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc  # noqa: E402
 from lightcurvelynx.models.basic_models import LinearTimeModel  # noqa: E402
 from lightcurvelynx.models.caustics_lens_system import (  # noqa: E402
@@ -174,6 +175,7 @@ def test_static_lens_values_need_no_mapping():
         ({"max_candidates": 0}, "max_candidates"),
         ({"candidate_batch_size": 0}, "candidate_batch_size"),
         ({"mu_max": 50.0}, "mu_min"),
+        ({"mu_min": np.nan, "mu_max": 50.0}, "mu_min"),  # NaN means unset.
         ({"mu_min": 10.0, "mu_max": 5.0}, "mu_max"),
         ({"mesh_kwargs": {"fov": 3.0}}, "fov"),
         ({"raytrace_kwargs": {"mesh": None}}, "mesh"),
@@ -325,6 +327,35 @@ def test_mu_region_area_and_membership():
     )
     assert np.all((mu_tot >= 10.0) & (mu_tot <= 50.0))
     assert np.all(out["num_images"] >= 1)
+
+
+def test_mu_min_picks_each_systems_sampling_region():
+    """Test that a per-system mu_min, NaN meaning caustic mode, sets each system's region and area."""
+    system = _make_system(mu_min=GivenValueList([np.nan, 10.0]))
+    out = system.sample_parameters(num_samples=2)["system"]
+    _, curves, _ = _reference_lens().build_closed_lens_mesh(
+        MESH["fov"], MESH["init_res"], MESH["min_img_sep"]
+    )
+    mesh, _, region = _reference_lens().build_closed_lens_mesh(
+        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=10.0
+    )
+    assert_allclose(out["area"], [adaptive.caustic_area(curves), region.area], rtol=1e-10)
+    sx, sy = (backend.as_array(out[name][1:]) for name in ("source_x", "source_y"))
+    assert backend.to_numpy(adaptive.total_magnification(sx, sy, mesh))[0] >= 10.0
+
+
+@pytest.mark.parametrize(
+    "mu_min, mu_max, match",
+    [
+        (GivenValueList([np.nan]), 50.0, "mu_min must be given"),
+        (GivenValueList([10.0]), 5.0, r"mu_max \(5.0\) must be greater than mu_min \(10.0\)"),
+        (10.0, GivenValueList([5.0]), r"mu_max \(5.0\) must be greater than mu_min \(10.0\)"),
+    ],
+)
+def test_invalid_per_system_mu_bounds_raise(mu_min, mu_max, match):
+    """Test that mu bounds that cannot be checked at construction raise per system, naming it."""
+    with pytest.raises(ValueError, match=f"system 0 .*{match}"):
+        _make_system(mu_min=mu_min, mu_max=mu_max).sample_parameters(num_samples=1)
 
 
 @pytest.mark.parametrize(
@@ -546,7 +577,7 @@ def test_build_escalates_failure_warnings_and_reemits_others():
     values = {"fov": 5.0, "init_res": 32, "min_img_sep": 0.01}
     with pytest.warns(DeprecationWarning, match="a dependency notice") as record:
         with pytest.raises(RuntimeError, match="system 3 .*before every chord fell below"):
-            system._build(lens, values, [], "cpu", 3)
+            system._build(lens, values, [], "cpu", 3, None, None)
     # Only the dependency notice comes back, at its recorded location; the failure is not re-emitted.
     assert [(w.filename, w.lineno) for w in record] == [("dependency.py", 3)]
 
@@ -565,7 +596,7 @@ def test_reemitted_warnings_keep_module_scoped_filters(ignore_json, expected):
         warnings.simplefilter("always")
         if ignore_json:
             warnings.filterwarnings("ignore", category=UserWarning, module="json")
-        system._build(lens, values, [], "cpu", 0)
+        system._build(lens, values, [], "cpu", 0, None, None)
     assert len(record) == expected
 
 
