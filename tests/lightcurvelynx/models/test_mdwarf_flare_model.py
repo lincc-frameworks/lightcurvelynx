@@ -7,10 +7,10 @@ import pytest
 from astropy import units as u
 from astropy.cosmology import Planck18
 
+from lightcurvelynx.astro_utils.passbands import check_connect_to_svo
 from lightcurvelynx.models.mdwarf_flare_model import MDwarfFlareModel
 
-# test values with known output. first, no sampling
-
+# The test values with known output. first, no sampling
 wavelengths = np.linspace(3000, 12000, 4000)
 times = np.linspace(0, 20, 201)  # want peak time to actually be in times
 
@@ -36,6 +36,9 @@ def test_mdwarf_flare_model_with_assigned_inputs():
     Using specific inputs and making sure the values are what we expect
     (Not sampling from parameter distributions)
     """
+    if not check_connect_to_svo():
+        pytest.skip("Skipping test if we cannot connect to the SVO service.")
+
     star_temp = 4000
     star_radius = 0.09 * u.R_sun.to(u.cm)
     flare_fwhm = 0.1
@@ -80,7 +83,6 @@ def test_mdwarf_flare_model_with_assigned_inputs():
     assert not check_if_monotonic(values[100])  # when flare should exist
 
     # check that the peak amp of the flare is the same as the amplitude that we put in
-
     norm_shape = model._norm_flare_shape(times, t0, flare_fwhm) * flare_amplitude
     I_flare_full = model._build_spectrum_bb_with_balmer(wavelengths, for_tess=False)
     I_star_full = model._quiescent_flux_no_distance(star_temp, wavelengths, for_tess=False)
@@ -108,6 +110,8 @@ def test_mdwarf_flare_model_with_assigned_inputs():
 
 def test_mdwarf_flare_model_parameter_sampling():
     """Test the sampling from parameter distributions for MDwarfFlareModel objects."""
+    if not check_connect_to_svo():
+        pytest.skip("Skipping test if we cannot connect to the SVO service.")
 
     model = MDwarfFlareModel(t0=10, node_label="model")
     state = model.sample_parameters(num_samples=1)
@@ -130,6 +134,9 @@ def test_mdwarf_flare_model_warnings():
     """
     Test we get a warning if we do not provide distance but provide redshift and cosmology.
     """
+    if not check_connect_to_svo():
+        pytest.skip("Skipping test if we cannot connect to the SVO service.")
+
     with pytest.warns(UserWarning):
         _ = MDwarfFlareModel(
             star_temp=4000,

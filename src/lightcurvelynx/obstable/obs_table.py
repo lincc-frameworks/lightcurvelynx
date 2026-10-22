@@ -43,10 +43,12 @@ class ObsTable:
         For example, in Rubin's OpSim we might have the column "observationStartMJD"
         which maps to "time". In that case we would have an entry with key="time"
         and value="observationStartMJD".
-    detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion, or
-        DetectorFootprint, optional
+    detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion,
+        DetectorFootprint, or str, optional
         The footprint object for the instrument's detector. If None, no footprint
-        filtering is done. Default is None.
+        filtering is done. Otherwise the input can define a spatial region or a string
+        indicating which preset of the detector footprint to use.
+        Default is None.
     wcs : astropy.wcs.WCS, optional
         The WCS for the footprint. Either this or pixel_scale must be provided if
         a footprint is provided as a Astropy region.
@@ -156,7 +158,7 @@ class ObsTable:
 
                 # Save the inverse mapping as well
                 self._inv_colmap[value] = key
-        self._table.rename(columns=name_map, inplace=True)
+        self._table = self._table.rename(columns=name_map)
 
         # Check that we have the required columns and filter out any NaNs.
         for col in self._required_columns:
@@ -211,6 +213,11 @@ class ObsTable:
 
         # Create the footprint if one is provided.
         if detector_footprint is not None:
+            # If a string is provided, try to load from one of the defaults. Otherwise,
+            # we have a full region.
+            if isinstance(detector_footprint, str):
+                logger.debug(f"Loading detector footprint from preset: {detector_footprint}")
+                detector_footprint = DetectorFootprint.from_preset(detector_footprint)
             self.set_detector_footprint(detector_footprint, wcs=wcs)
         else:
             self._detector_footprint = None

@@ -327,7 +327,7 @@ def test_get_value_per_row():
         _ = ops_data.get_value_per_row("other_value")
 
     # We fail if there is a dictionary backed key and we don't have a filter column.
-    ops_data._table.drop("filter", axis=1, inplace=True)
+    ops_data._table = ops_data._table.drop("filter", axis=1)
     with pytest.raises(ValueError):
         _ = ops_data.get_value_per_row("ext_coeff")
 
