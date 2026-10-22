@@ -299,6 +299,9 @@ class MOSFiTWrapperModel(SEDModel, CiteClass):
         # about the same thing. LynxSource rebuilds itself if it is handed a grid it was
         # not set up on, which also makes an externally supplied `source` safe to use.
         try:
+            print("Computing SED with parameters:\n", fn_args)
+            print("Computing SED with times:\n", self.phases)
+            print("Computing SED with wavelengths\n:", self.wavelengths)
             grid_sed = np.asarray(
                 self.source.compute_sed(
                     times=self.phases,

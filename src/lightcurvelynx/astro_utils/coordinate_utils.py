@@ -25,6 +25,7 @@ def validate_ra_dec_degrees(ra, dec):
     """
     if ra is None or dec is None:
         raise ValueError("RA and Dec must not be None.")
+    print("Validating RA:\n", ra, "\nValidating Dec:\n", dec)
 
     ra = np.atleast_1d(ra).astype(float) % 360.0
     dec = np.atleast_1d(dec).astype(float)
