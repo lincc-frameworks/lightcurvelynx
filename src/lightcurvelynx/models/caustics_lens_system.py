@@ -190,22 +190,21 @@ class CausticsStrongLensSystem(FunctionNode):
     lightcurvelynx consumes convergence or shear yet, but they are evaluated now in
     preparation for future microlensing work.
 
-    **Coordinates.** Every offset (``source_x``/``source_y``, ``image_x``/``image_y``) is
+    Every offset (``source_x``/``source_y``, ``image_x``/``image_y``) is
     caustics' ``(x, y)``: east and north in arcseconds from the lens origin, the same
     convention ``ResolvedStrongLensModel`` expects.
 
-    **Sampling region and area.** By default the source is drawn uniformly inside the
-    union of the caustics and pseudo-caustics (every point there is multiply imaged). If
-    ``mu_min`` is given, it is instead drawn uniformly inside the source-plane region
-    where ``mu_min <= mu_total <= mu_max`` (singly imaged sources are then legitimate).
-    ``area`` is the area (arcsec\\ :sup:`2`) of whichever region was sampled from
-    (``caustic_area(curves)``, or ``region.area`` in μ-region mode), so a population can
-    be weighted by lensing cross-section. A limitation: the region contours that caustics
-    traces can misestimate the area of ``mu_min <= mu_total <= mu_max`` near the lensing
-    caustics, by about 1% at ``mu_min = 10`` and roughly 5-30% for ``mu_min`` from about 30
-    to 300 on an SIE + external shear test lens. The sampled sources still follow the true
-    ``mu_total``, since each candidate is accepted by caustics' ``total_magnification``;
-    caustic mode is unaffected.
+    By default the source is drawn uniformly inside the union of the caustics and 
+    pseudo-caustics (every point there is multiply imaged). If ``mu_min`` is given, it is 
+    instead drawn uniformly inside the source-plane region where ``mu_min <= mu_total <= mu_max`` 
+    (singly imaged sources are then legitimate). ``area`` is the area (in in ``arcsec^2``) 
+    of whichever region was sampled from (``caustic_area(curves)``, or ``region.area`` in μ-region mode), 
+    so a population can be weighted by lensing cross-section. A limitation: the region contours 
+    that caustics traces can misestimate the area of ``mu_min <= mu_total <= mu_max`` near 
+    the lensing caustics, by about 1% at ``mu_min = 10`` and roughly 5-30% for ``mu_min`` 
+    from about 30to 300 on an SIE + external shear test lens. The sampled sources still 
+    follow the true ``mu_total``, since each candidate is accepted by caustics' 
+    ``total_magnification``; caustic mode is unaffected.
 
     **Outputs** (one entry per system; ``I = max_images``):
 
@@ -217,29 +216,29 @@ class CausticsStrongLensSystem(FunctionNode):
     num_images            int        (S,)       Number of active leading image entries.
     image_x, image_y      (I,)       (S, I)     Image offsets (east, north), in arcsec;
                                                  NaN padding.
-    macro_magnifications  (I,)       (S, I)     \\|μ\\|, dimensionless; 0 padding.
+    macro_magnifications  (I,)       (S, I)     ``|μ|``, dimensionless; 0 padding.
     time_delays           (I,)       (S, I)     Observer-frame days; earliest image is 0;
                                                  NaN padding.
     convergences          (I,)       (S, I)     κ, dimensionless; NaN padding.
     shear_1, shear_2      (I,)       (S, I)     γ1 = (ψ_xx - ψ_yy) / 2, γ2 = ψ_xy, with ψ the
                                                  lensing potential; dimensionless; NaN padding.
-    area                  scalar     (S,)       The sampled region's area, in arcsec\\ :sup:`2`.
+    area                  scalar     (S,)       The sampled region's area, in ``arcsec^2``.
     ===================== ========== ========= ==============================================
 
     Within a system the images are sorted by arrival time (a stable sort), so
     ``image_id`` in ``ResolvedStrongLensModel`` matches this order; an image's parity is
     the sign of ``(1 - κ)**2 - γ1**2 - γ2**2``.
 
-    **Failure policy.** Construction-time input errors and a per-system ``z_l >= z_s``
-    raise ``ValueError``. Every other per-system failure raises ``RuntimeError`` naming
-    the system (its global index and parameter values): the mesh failing to close,
-    depth-limited mesh refinement, an unbounded μ-region, a hole curve hitting its sample
-    cap, no strong-lensing region or an empty μ-region, a source outside the image of the
+    Construction-time input errors and a per-system ``z_l >= z_s`` raise ``ValueError``. 
+    Every other per-system failure raises ``RuntimeError`` naming the system 
+    (its global index and parameter values): the mesh failing to close, depth-limited mesh 
+    refinement, an unbounded μ-region, a hole curve hitting its sample cap, no 
+    strong-lensing region or an empty μ-region, a source outside the image of the
     fov boundary (too few images in the fov), too few images for the sampling mode, or
     more than ``max_images`` images. Other warnings from the mesh build (e.g. a
     fov-widening notice) are re-emitted unchanged.
 
-    **Backends.** The node runs, in float64, on caustics' active backend: torch or jax.
+    The node runs, in float64, on caustics' active backend: torch or jax.
     Caustics picks it once per process, at import, from the ``CASKADE_BACKEND``
     environment variable (default ``"torch"``), so set it in the environment before
     caustics is imported, e.g. ``CASKADE_BACKEND=jax python run.py``; worker processes
@@ -248,7 +247,7 @@ class CausticsStrongLensSystem(FunctionNode):
     raytrace and the observables run as compiled programs; caustics' mesh bookkeeping
     still runs on torch, on the CPU.
 
-    **Working lens.** The first ``compute`` of a node in a process deep-copies its stored
+    The first ``compute`` of a node in a process deep-copies its stored
     lens to ``device`` and wraps this working lens's ``magnification``, ``time_delay``,
     ``convergence`` and ``shear`` with ``caustics.jit_forward``. Both are kept in a
     process-local registry, keyed by a token made when the node is constructed, for the
@@ -261,7 +260,7 @@ class CausticsStrongLensSystem(FunctionNode):
     to ``max_images`` (by repeating the first image), so their input shape never changes.
     Neither the working lens nor the wrappers are pickled.
 
-    **Threads.** All of a system's caustics work (mesh build, source sampling, raytracing,
+    All of a system's caustics work (mesh build, source sampling, raytracing,
     observables) runs under one module-level lock, because every call fills the parameters
     of the shared working lens, and under torch ``torch.func.jacfwd``, which caustics uses
     internally, keeps process-global forward-AD state and is not thread-safe. Under a
@@ -269,45 +268,30 @@ class CausticsStrongLensSystem(FunctionNode):
     correct, but no faster than running serially. Prefer a process-based executor
     (``num_jobs`` under torch, ``ProcessPoolExecutor``, Dask, loky, Ray) for speed.
 
-    **Pickling** this node (e.g. for ``num_jobs``) requires ``cloudpickle``, and
+    Pickling this node (e.g. for ``num_jobs``) requires ``cloudpickle``, and
     unpickling it in a worker does too, because the pickled state holds the stored lens
     serialized by ``cloudpickle.dumps``; install ``cloudpickle`` on every worker.
 
-    **Torch threads, devices and worker processes.** If ``torch_num_threads`` is an int, it
-    is applied with ``torch.set_num_threads`` at the start of sampling, a process-wide side
-    effect, under either backend. If it is left as ``None`` (the default), sampling leaves
-    torch's thread count alone in the process that built the node, but uses 1 thread in
-    any other process (a worker process), which avoids a fork deadlock after
-    multi-threaded torch use in the parent and avoids oversubscription under many workers;
-    pass an explicit int for a cluster worker that owns many cores. ``device`` defaults to
-    ``"cpu"``. The node moves its working lens to ``device`` only inside sampling, never in
-    the process that builds it. Under torch, caustics' mesh bookkeeping follows ``device``
-    through a ``torch.device`` context. ``import caustics`` itself probes CUDA, though, so
-    a forked worker cannot use CUDA ("Cannot re-initialize CUDA in forked subprocess");
-    ``num_jobs`` and a default ``ProcessPoolExecutor`` fork on Linux with Python 3.13 or
-    earlier. For ``device="cuda"`` with a process-based executor, pass
-    ``simulate_lightcurves`` an executor with a spawn or forkserver context, e.g.
-    ``ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn"))``, or use Dask,
-    loky or Ray, or set ``PYTORCH_NVML_BASED_CUDA_CHECK=1`` before importing torch. Under
-    jax, ``"cpu"`` is jax's CPU device and ``"cuda"``, ``"cuda:N"`` or ``"gpu"`` its first
-    (or N-th) GPU, made jax's default device during sampling. Forked workers are unsafe
-    under jax on any device, since jax is multithreaded: use an executor with a spawn or
+    If ``torch_num_threads`` is an int, it is applied with ``torch.set_num_threads`` 
+    at the start of sampling, a process-wide side effect, under either backend. If it is 
+    left as ``None`` (the default), sampling leaves torch's thread count alone in the 
+    process that built the node, but uses 1 thread in any other process (a worker process), 
+    which avoids a fork deadlock after multi-threaded torch use in the parent and avoids 
+    oversubscription under many workers; pass an explicit int for a cluster worker that 
+    owns many cores. ``device`` defaults to ``"cpu"``. The node moves its working lens 
+    to ``device`` only inside sampling, never in the process that builds it. Under torch, 
+    caustics' mesh bookkeeping follows ``device`` through a ``torch.device`` context. 
+    ``import caustics`` itself probes CUDA, though, so a forked worker cannot use CUDA 
+    ("Cannot re-initialize CUDA in forked subprocess"); ``num_jobs`` and a default 
+    ``ProcessPoolExecutor`` fork on Linux with Python 3.13 or earlier. For ``device="cuda"`` 
+    with a process-based executor, pass ``simulate_lightcurves`` an executor with a spawn 
+    or forkserver context, e.g. ``ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn"))``, 
+    or use Dask, loky or Ray, or set ``PYTORCH_NVML_BASED_CUDA_CHECK=1`` before importing 
+    torch. Under jax, ``"cpu"`` is jax's CPU device and ``"cuda"``, ``"cuda:N"`` or ``"gpu"`` 
+    its first (or N-th) GPU, made jax's default device during sampling. Forked workers are 
+    unsafe under jax on any device, since jax is multithreaded: use an executor with a spawn or
     forkserver context, as above, or Dask, loky or Ray, and not ``num_jobs`` where it
     forks. GPU speedup is unmeasured, since caustics handles one system per call.
-
-    **Performance.** One caustics call per system (there is no batching across systems);
-    each takes roughly 0.1-0.7 s on CPU, dominated by the mesh build. Under jax a node's
-    first system in a worker process takes a few seconds more, to compile, and a later
-    build that needs a padded batch size not seen before compiles for it.
-
-    **Precision.** Under torch, a value set statically on the user's caustics object as a
-    Python float is stored by caskade in float32, and that rounding carries into this
-    node's float64 copy (e.g. ``q=0.7`` becomes ``0.699999988...``). This includes
-    caustics' own Python-float defaults: ``FlatLambdaCDM``'s default ``h0 = 0.6766`` is off
-    by a relative -3e-8, so time delays, which scale as 1/h0, are off by about +3e-8
-    against jax. For an exact float64 value, map the parameter through
-    ``lens_parameters`` instead, or set it on the lens as a float64 tensor. Under jax it is
-    stored in float64.
 
     Example wiring this node into ``ResolvedStrongLensModel``:
 
