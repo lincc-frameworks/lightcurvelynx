@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from citation_compass import find_in_citations
 
+from lightcurvelynx.astro_utils.passbands import check_connect_to_svo
 from lightcurvelynx.models.mosfit_models import MOSFiTWrapperModel
 from lightcurvelynx.utils.extrapolate import ConstantPadding
 
@@ -293,6 +294,8 @@ def test_mosfit_wrapper_real_source(tmp_path, monkeypatch) -> None:
         "mosfit.lynx",
         reason="Requires MOSFiT >= 2.1, the first release providing the mosfit.lynx module.",
     )
+    if not check_connect_to_svo():
+        pytest.skip("Skipping test if we cannot connect to the SVO service.")
 
     # Run from an empty directory so we can check that MOSFiT leaves it untouched.
     monkeypatch.chdir(tmp_path)
