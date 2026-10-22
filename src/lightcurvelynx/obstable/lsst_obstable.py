@@ -77,12 +77,12 @@ class LSSTObsTable(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, LSST-specific defaults will be
         used.
-    detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion, or
-        DetectorFootprint, optional
-        The footprint object for the instrument's detector. If None, no footprint
-        filtering is done. LSST footprints can be generated using the `DetectorFootprint.from_preset`
-        method with either "lsst" (for all 189 chips) or "lsst-approx" (for the approximate layout).
-        For per-CCD level information, users will want to use a CCD-specific footprint ("lsst-ccd").
+    detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion,
+        DetectorFootprint, or str, optional
+        The footprint object for the instrument's detector. If None, no footprint filtering is done.
+        You can provide a string indicating which preset of the LSST detector footprint to use
+        (e.g., "lsst" for all 189 chips, "lsst-approx" for the approximate layout, or "lsst-ccd" for
+        per-CCD level footprint).
         Default is None.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides

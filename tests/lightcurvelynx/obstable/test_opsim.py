@@ -67,6 +67,9 @@ def test_create_opsim():
     # Without a filters column we cannot access the filters.
     assert len(ops_data.filters) == 0
 
+    # Check that we do not have a detector footprint by default.
+    assert not ops_data.uses_footprint()
+
     # We can create an OpSim directly from the dictionary as well.
     ops_data2 = OpSim(pdf)
     assert len(ops_data2) == 5
@@ -355,6 +358,18 @@ def test_write_read_opsim_db():
         ops_data.write_db(file_path, overwrite=True)
 
 
+def test_create_opsim_detector_footprint():
+    """Create a minimal OpSim object with a preset detector footprint."""
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+    }
+    ops_data = OpSim(values, detector_footprint="lsst-approx")
+    assert ops_data.uses_footprint()
+
+
 def test_write_read_opsim_parquet():
     """Create a minimal opsim data frame, test that we can write it as a parquet file,
     and test that we can correctly read it back in."""
@@ -543,6 +558,11 @@ def test_read_opsim_shorten(opsim_shorten):
     """Read in a shorten OpSim file from the testing data directory."""
     ops_data = OpSim.from_db(opsim_shorten)
     assert len(ops_data) == 100
+    assert not ops_data.uses_footprint()
+
+    # Test that we can pass along a detector footprint preset.
+    ops_data2 = OpSim.from_db(opsim_shorten, detector_footprint="lsst-approx")
+    assert ops_data2.uses_footprint()
 
 
 def test_opsim_flux_err_point_source(opsim_shorten):
