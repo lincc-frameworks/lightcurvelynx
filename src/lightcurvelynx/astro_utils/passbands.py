@@ -1381,3 +1381,18 @@ class Passband:
 
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylim(0, None)
+
+
+def check_connect_to_svo():
+    """Perform a quick check that we can connect to the SVO service.
+
+    Returns
+    -------
+    bool
+        True if the connection to the SVO service is successful, False otherwise.
+    """
+    try:
+        _ = SvoFps.get_filter_list(facility="SkyMapper", instrument="SkyMapper")
+        return True
+    except Exception:
+        return False
