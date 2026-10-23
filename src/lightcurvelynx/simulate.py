@@ -127,6 +127,11 @@ class SimulationInfo:
             )
         self.graph_state = graph_state
 
+        # If we are not given a graph state, then make sure the model's node
+        # positions are set in the model.
+        if graph_state is None:
+            model.set_graph_positions()
+
         # If an output file path is provided, check that the directory exists.
         if output_file_path is not None:
             self.output_file_path = Path(output_file_path)
@@ -740,6 +745,7 @@ def simulate_lightcurves(
         If output_file_path is None, a NestedFrame with a row for each object. Otherwise
         the file(s) are saved and the function returns a list of Paths to the saved files.
     """
+    # Check the output file path.
     if output_file_path is not None:
         output_file_path = Path(output_file_path)
         output_file_path.parent.mkdir(parents=True, exist_ok=True)

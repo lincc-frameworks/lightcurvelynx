@@ -1539,17 +1539,16 @@ def test_simulate_drop_empty_rows(test_data_dir):
 
     # Create a constant SED model that is sometimes observed:
     # [seen, not seen, not seen, seen, seen, not seen]
-    all_ra = GivenValueList([0.0, 0.0, 90.0, 180.0, 180.1, 270.0])
-    all_dec = GivenValueList([10.0, -10.0, 0.0, -10.0, -9.9, -10.0])
+    all_ra = GivenValueList([0.0, 0.0, 90.0, 180.0, 180.1, 270.0], stateful=False)
+    all_dec = GivenValueList([10.0, -10.0, 0.0, -10.0, -9.9, -10.0], stateful=False)
     model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=all_ra, dec=all_dec, redshift=0.0)
 
     # Do the simulation with defaults. We should get 6 result rows.
     results = simulate_lightcurves(model, 6, [survey_info], progress_bar=False)
     assert len(results) == 6
 
-    # Reset the lists and do the simulation with drop_empty_rows=True.
-    all_ra.reset()
-    all_dec.reset()
+    # Do the simulation with drop_empty_rows=True. We don't need to reset
+    # the GivenValueList instances because they are not stateful.
     results = simulate_lightcurves(model, 6, [survey_info], drop_empty_rows=True, progress_bar=False)
     assert len(results) == 3
     assert results["id"].tolist() == [0, 3, 4]
