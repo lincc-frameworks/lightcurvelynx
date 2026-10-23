@@ -13,12 +13,13 @@ def test_bilby_priors_simple():
         c=bilby.Cosine(-2, 2, "c"),
     )
     prior_dict = bilby.PriorDict(priors)
-    node = BilbyPriorNode(prior=prior_dict, seed=100, node_label="sampler")
+    node = BilbyPriorNode(prior=prior_dict, node_label="sampler")
     assert "a" in node.outputs
     assert "b" in node.outputs
     assert "c" in node.outputs
 
-    params = node.sample_parameters(num_samples=10_000)
+    rng = np.random.default_rng(100)
+    params = node.sample_parameters(num_samples=10_000, rng_info=rng)
 
     # "a" should be 10,000 samples from a uniform distribution between 0 and 5.
     assert params["sampler"]["a"].shape == (10_000,)
@@ -51,9 +52,10 @@ def test_bilby_priors_single():
         c=bilby.Cosine(-2, 2, "c"),
     )
     # Pass the dictionary in directly to the BilbyPriorNode.
-    node = BilbyPriorNode(prior=priors, seed=100, node_label="sampler")
+    node = BilbyPriorNode(prior=priors, node_label="sampler")
 
-    params = node.sample_parameters(num_samples=1)
+    rng = np.random.default_rng(100)
+    params = node.sample_parameters(num_samples=1, rng_info=rng)
 
     # "a" should be a single sample from a uniform distribution between 0 and 5.
     assert np.isscalar(params["sampler"]["a"])
@@ -75,4 +77,4 @@ def test_bilby_priors_errors():
     """Test that BilbyPriorNode raises errors when given an empty prior model."""
     pytest.importorskip("bilby.core.prior")
     with pytest.raises(ValueError):
-        BilbyPriorNode(prior=dict(), seed=100, node_label="sampler")
+        BilbyPriorNode(prior=dict(), node_label="sampler")

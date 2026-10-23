@@ -506,10 +506,6 @@ class MultiSEDTemplateModel(SEDModel):
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
         a template at random. If None, all templates will be weighted equally.
-    seed : int, optional
-        The seed to set the node's default random number generator. If None, then a random seed is used.
-        This parameter is for testing and has no effect when a user-provided random number generator is
-        used during simulation. Default: None
     """
 
     def __init__(
@@ -517,7 +513,6 @@ class MultiSEDTemplateModel(SEDModel):
         templates,
         *,
         weights=None,
-        seed=None,
         **kwargs,
     ):
         # Validate the input templates.
@@ -529,7 +524,7 @@ class MultiSEDTemplateModel(SEDModel):
         super().__init__(**kwargs)
 
         all_inds = list(range(len(templates)))
-        self._sampler_node = GivenValueSampler(all_inds, weights=weights, seed=seed)
+        self._sampler_node = GivenValueSampler(all_inds, weights=weights)
         self.add_parameter(
             "selected_template",
             value=self._sampler_node,
@@ -676,15 +671,11 @@ class SIMSEDModel(MultiSEDTemplateModel):
     flux_scale : float, optional
         A scale factor to apply to all fluxes read from the SIMSED data files.
         Default: 1.0
-    seed : int, optional
-        The seed to set the node's default random number generator. If None, then a random seed is used.
-        This parameter is for testing and has no effect when a user-provided random number generator is
-        used during simulation. Default: None
     """
 
-    def __init__(self, templates, flux_scale=1.0, *, seed=None, **kwargs):
+    def __init__(self, templates, flux_scale=1.0, **kwargs):
         self.flux_scale = flux_scale
-        super().__init__(templates, seed=seed, **kwargs)
+        super().__init__(templates, **kwargs)
         if not self.has_valid_param("distance"):
             raise ValueError(
                 "SIMSEDModel requires a valid 'distance' parameter representing luminosity distance in pc. "
@@ -693,17 +684,13 @@ class SIMSEDModel(MultiSEDTemplateModel):
             )
 
     @classmethod
-    def from_dir(cls, simsed_dir, *, seed=None, **kwargs):
+    def from_dir(cls, simsed_dir, **kwargs):
         """Read SNANA-formatted data from a directory and create a SIMSEDModel.
 
         Parameters
         ----------
         simsed_dir : str or Path
             The directory containing the SIMSED-formatted data files.
-        seed : int, optional
-            The seed to set the node's default random number generator. If None, then a random seed is used.
-            This parameter is for testing and has no effect when a user-provided random number generator is
-            used during simulation. Default: None
         **kwargs : dict
             Additional keyword arguments to pass to the SIMSEDModel constructor.
 
@@ -734,7 +721,7 @@ class SIMSEDModel(MultiSEDTemplateModel):
             f"SIMSED data files from {simsed_dir}. Check the SED.INFO file for citation information.",
         )
 
-        return cls(templates, flux_scale=flux_scale, seed=seed, **kwargs)
+        return cls(templates, flux_scale=flux_scale, **kwargs)
 
     @staticmethod
     def _read_simsed_info_file(simsed_dir):

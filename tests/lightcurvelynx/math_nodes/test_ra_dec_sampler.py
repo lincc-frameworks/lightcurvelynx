@@ -31,7 +31,7 @@ from lightcurvelynx.utils.io_utils import write_results_as_hats
 
 def test_uniform_ra_dec():
     """Test that we can generate numbers from a uniform distribution on a sphere."""
-    sampler_node = UniformRADEC(seed=100, node_label="sampler")
+    sampler_node = UniformRADEC(node_label="sampler")
 
     # Test we can generate a single value.
     (ra, dec) = sampler_node.generate(num_samples=1)
@@ -70,8 +70,8 @@ def test_uniform_ra_dec():
     assert dec_bins[17] < 0.25 * dec_bins[10]
 
     # Check that we can generate uniform samples in radians.
-    sampler_node2 = UniformRADEC(seed=100, node_label="sampler2", use_degrees=False)
-    state2 = sampler_node2.sample_parameters(num_samples=num_samples)
+    sampler_node2 = UniformRADEC(node_label="sampler2", use_degrees=False)
+    state2 = sampler_node2.sample_parameters(num_samples=num_samples, rng_info=np.random.default_rng(100))
 
     all_ra = state2["sampler2"]["ra"]
     assert len(all_ra) == num_samples
@@ -112,8 +112,8 @@ def test_obstable_ra_dec_sampler():
     assert isinstance(state["sampler"]["time"], float)
 
     # Do randomized sampling (with no offset).
-    sampler_node2 = ObsTableRADECSampler(ops_data, radius=0.0, seed=100, node_label="sampler")
-    state = sampler_node2.sample_parameters(num_samples=5000)
+    sampler_node2 = ObsTableRADECSampler(ops_data, radius=0.0, node_label="sampler")
+    state = sampler_node2.sample_parameters(num_samples=5000, rng_info=np.random.default_rng(100))
 
     # Check that the samples are uniform and consistent.
     int_times = state["sampler"]["time"].astype(int)
@@ -127,8 +127,8 @@ def test_obstable_ra_dec_sampler():
     assert len(int_times[int_times == 4]) > 750
 
     # Do randomized sampling with offsets (using the default OpSim radius).
-    sampler_node3 = ObsTableRADECSampler(ops_data, seed=100, node_label="sampler")
-    state = sampler_node3.sample_parameters(num_samples=5000)
+    sampler_node3 = ObsTableRADECSampler(ops_data, node_label="sampler")
+    state = sampler_node3.sample_parameters(num_samples=5000, rng_info=np.random.default_rng(100))
 
     # Check that the samples are not all the centers (unique values > 500) but are within
     # the sampling radius of the corresponding pointing. We use int(time) to match the index
@@ -168,11 +168,11 @@ def test_obstable_ra_dec_sampler_seeded():
 
     # Create the first two samplers. We use a none zero radius to test that
     # we are using the same samples and offsets
-    sampler1 = ObsTableRADECSampler(ops_data, radius=0.1, seed=100, node_label="sampler1")
-    state1 = sampler1.sample_parameters(num_samples=5000)
+    sampler1 = ObsTableRADECSampler(ops_data, radius=0.1, node_label="sampler1")
+    state1 = sampler1.sample_parameters(num_samples=5000, rng_info=np.random.default_rng(100))
 
-    sampler2 = ObsTableRADECSampler(ops_data, radius=0.1, seed=100, node_label="sampler2")
-    state2 = sampler2.sample_parameters(num_samples=5000)
+    sampler2 = ObsTableRADECSampler(ops_data, radius=0.1, node_label="sampler2")
+    state2 = sampler2.sample_parameters(num_samples=5000, rng_info=np.random.default_rng(100))
 
     assert np.allclose(
         state1["sampler1"]["selected_table_index"],
@@ -182,8 +182,8 @@ def test_obstable_ra_dec_sampler_seeded():
     assert np.allclose(state1["sampler1"]["dec"], state2["sampler2"]["dec"])
 
     # We get different results with a different seed.
-    sampler3 = ObsTableRADECSampler(ops_data, radius=0.1, seed=101, node_label="sampler3")
-    state3 = sampler3.sample_parameters(num_samples=5000)
+    sampler3 = ObsTableRADECSampler(ops_data, radius=0.1, node_label="sampler3")
+    state3 = sampler3.sample_parameters(num_samples=5000, rng_info=np.random.default_rng(101))
 
     assert not np.allclose(
         state1["sampler1"]["selected_table_index"],
@@ -321,18 +321,20 @@ def test_opsim_uniform_ra_dec_sampler():
     assert len(ops_data) == 2
 
     # Use a very large radius so we do not reject too many samples.
-    sampler_node = ObsTableUniformRADECSampler(ops_data, radius=30.0, seed=100, node_label="sampler")
+    sampler_node = ObsTableUniformRADECSampler(ops_data, radius=30.0, node_label="sampler")
     assert sampler_node.radius == 30.0
 
+    rng = np.random.default_rng(100)
+
     # Test we can generate a single value.
-    ra, dec = sampler_node.generate(num_samples=1)
+    ra, dec = sampler_node.generate(num_samples=1, rng_info=rng)
     assert ops_data.is_observed(ra, dec, radius=30.0)
 
     # Test we can generate many observations
     num_samples = 10_000
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        ra, dec = sampler_node.generate(num_samples=num_samples)
+        ra, dec = sampler_node.generate(num_samples=num_samples, rng_info=rng)
     assert np.all(ops_data.is_observed(ra, dec, radius=30.0))
 
     # We should sample roughly uniformly from the two regions.
@@ -381,8 +383,8 @@ def test_opsim_uniform_ra_dec_sampler_footprint():
     num_samples = 200
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        sampler_node = ObsTableUniformRADECSampler(ops_data, radius=50.0, seed=100, node_label="sampler")
-        ra, dec = sampler_node.generate(num_samples=num_samples)
+        sampler_node = ObsTableUniformRADECSampler(ops_data, radius=50.0, node_label="sampler")
+        ra, dec = sampler_node.generate(num_samples=num_samples, rng_info=np.random.default_rng(100))
 
     # We should sample roughly uniformly from the two regions.
     northern_mask = dec > 0.0
@@ -493,8 +495,8 @@ def test_approximate_moc_sampler_from_obstable():
     # Create the MOC sampler and test that we can generate samples that are "near"
     # the given centers. We add a bit of extra radius to account for the approximate nature
     # of the MOC at depth=12.
-    moc_sampler = ApproximateMOCSampler.from_obstable(ops_data, depth=12, radius=1.75, seed=43)
-    ra, dec = moc_sampler.generate(num_samples=100)
+    moc_sampler = ApproximateMOCSampler.from_obstable(ops_data, depth=12, radius=1.75)
+    ra, dec = moc_sampler.generate(num_samples=100, rng_info=np.random.default_rng(43))
     assert np.all(ops_data.is_observed(ra, dec, radius=1.8))
 
 
@@ -518,11 +520,10 @@ def test_approximate_moc_sampler_from_union_obstable():
         ops_tables,
         depth=14,
         radii=[0.2, 0.2, 0.2, 0.2],
-        seed=43,
     )
 
     # Generate 1000 samples.
-    ra_arr, dec_arr = moc_sampler.generate(num_samples=1_000)
+    ra_arr, dec_arr = moc_sampler.generate(num_samples=1_000, rng_info=np.random.default_rng(43))
     sample_coords = SkyCoord(ra=ra_arr * u.deg, dec=dec_arr * u.deg)
 
     close_mask = np.zeros(len(ra_arr), dtype=bool)
@@ -545,11 +546,11 @@ def test_approximate_moc_sampler_from_union_obstable():
 
     # We fail if the list is empty.
     with pytest.raises(ValueError):
-        _ = ApproximateMOCSampler.from_obstable_union([], depth=10, radii=[], seed=45)
+        _ = ApproximateMOCSampler.from_obstable_union([], depth=10, radii=[])
 
     # We fail if the list lengths do not match.
     with pytest.raises(ValueError):
-        _ = ApproximateMOCSampler.from_obstable_union(ops_tables, depth=10, radii=[1.0], seed=45)
+        _ = ApproximateMOCSampler.from_obstable_union(ops_tables, depth=10, radii=[1.0])
 
 
 def test_approximate_moc_sampler_from_intersection_obstable():
@@ -574,11 +575,10 @@ def test_approximate_moc_sampler_from_intersection_obstable():
         ops_tables,
         depth=14,
         radii=[1.0, 1.0, 1.0],
-        seed=45,
     )
 
     # Generate 1000 samples.
-    ra_arr, dec_arr = moc_sampler.generate(num_samples=1_000)
+    ra_arr, dec_arr = moc_sampler.generate(num_samples=1_000, rng_info=np.random.default_rng(45))
     sample_coords = SkyCoord(ra=ra_arr * u.deg, dec=dec_arr * u.deg)
 
     # Check that all of the points are in to the overlapping region (within
@@ -594,11 +594,11 @@ def test_approximate_moc_sampler_from_intersection_obstable():
 
     # We fail if the list is empty.
     with pytest.raises(ValueError):
-        _ = ApproximateMOCSampler.from_obstable_intersection([], depth=10, radii=[], seed=45)
+        _ = ApproximateMOCSampler.from_obstable_intersection([], depth=10, radii=[])
 
     # We fail if the list lengths do not match.
     with pytest.raises(ValueError):
-        _ = ApproximateMOCSampler.from_obstable_intersection(ops_tables, depth=10, radii=[1.0], seed=45)
+        _ = ApproximateMOCSampler.from_obstable_intersection(ops_tables, depth=10, radii=[1.0])
 
 
 def test_approximate_moc_sampler_from_list():
@@ -608,13 +608,12 @@ def test_approximate_moc_sampler_from_list():
         ra_list=[15.0, 90.0, 110.0, 15.000001, 89.999999],
         dec_list=[-10.0, 0.0, -25.0, -9.999999, 0.000001],
         depth=10,
-        seed=100,
     )
     assert len(moc_sampler.healpix_list) == 3  # The last two points should be deduplicated.
 
     # Test we can generate many observations
     num_samples = 10_000
-    ra, dec = moc_sampler.generate(num_samples=num_samples)
+    ra, dec = moc_sampler.generate(num_samples=num_samples, rng_info=np.random.default_rng(100))
 
     # We should sample roughly uniformly from the three regions.
     is_first_pointing = (ra > 14.0) & (ra < 16.0) & (dec > -11.0) & (dec < -9.0)
@@ -732,9 +731,9 @@ def test_milky_way_ra_dec_sampler_single():
     """Test that MilkyWayCoordSampler returns a valid single (RA, dec) sample."""
     # Use a small grid for speed.
     model = MilkyWayDensityJuric2008(n_grid=64)
-    sampler = MilkyWayCoordSampler(density_model=model, seed=0, node_label="mw")
+    sampler = MilkyWayCoordSampler(density_model=model, node_label="mw")
 
-    (ra, dec, distance_pc) = sampler.generate(num_samples=1)
+    (ra, dec, distance_pc) = sampler.generate(num_samples=1, rng_info=np.random.default_rng(0))
 
     assert isinstance(ra, float)
     assert isinstance(dec, float)
@@ -747,10 +746,10 @@ def test_milky_way_ra_dec_sampler_single():
 def test_milky_way_ra_dec_sampler_many():
     """Test that MilkyWayCoordSampler returns valid arrays for many samples."""
     model = MilkyWayDensityJuric2008(n_grid=64)
-    sampler = MilkyWayCoordSampler(density_model=model, seed=42, node_label="mw")
+    sampler = MilkyWayCoordSampler(density_model=model, node_label="mw")
 
     num_samples = 500
-    state = sampler.sample_parameters(num_samples=num_samples)
+    state = sampler.sample_parameters(num_samples=num_samples, rng_info=np.random.default_rng(42))
     all_ra = state["mw"]["ra"]
     all_dec = state["mw"]["dec"]
     all_distance_pc = state["mw"]["distance_pc"]
@@ -767,10 +766,10 @@ def test_milky_way_ra_dec_sampler_many():
 
 def test_milky_way_ra_dec_sampler_default_model():
     """Test that MilkyWayCoordSampler uses a default model when none is provided."""
-    sampler = MilkyWayCoordSampler(seed=7, node_label="mw")
+    sampler = MilkyWayCoordSampler(node_label="mw")
     assert isinstance(sampler.density_model, MilkyWayDensityJuric2008)
 
-    (ra, dec, distance_pc) = sampler.generate(num_samples=1)
+    (ra, dec, distance_pc) = sampler.generate(num_samples=1, rng_info=np.random.default_rng(7))
     assert 0.0 <= ra <= 360.0
     assert -90.0 <= dec <= 90.0
     assert distance_pc >= 0.0
@@ -785,10 +784,10 @@ def test_milky_way_ra_dec_sampler_invalid_model():
 def test_milky_way_ra_dec_sampler_galactic_concentration():
     """Test that Milky Way samples are concentrated near the Galactic plane."""
     model = MilkyWayDensityJuric2008(n_grid=64)
-    sampler = MilkyWayCoordSampler(density_model=model, seed=123, node_label="mw")
+    sampler = MilkyWayCoordSampler(density_model=model, node_label="mw")
 
     num_samples = 1000
-    state = sampler.sample_parameters(num_samples=num_samples)
+    state = sampler.sample_parameters(num_samples=num_samples, rng_info=np.random.default_rng(123))
     all_ra = state["mw"]["ra"]
     all_dec = state["mw"]["dec"]
 
@@ -816,11 +815,12 @@ def test_milky_way_ra_dec_sampler_survey_footprint():
     # Create a sampler that uses the Milky Way density model and the survey footprint.
     model = MilkyWayDensityJuric2008(n_grid=64)
     sampler_node = MilkyWayCoordSampler(
-        density_model=model, survey_footprint=galaxy_survey_moc, seed=123, node_label="mw"
+        density_model=model, survey_footprint=galaxy_survey_moc, node_label="mw"
     )
 
     # We can return a single sample.
-    ra, dec, distance_pc = sampler_node.generate(num_samples=1)
+    rng = np.random.default_rng(123)
+    ra, dec, distance_pc = sampler_node.generate(num_samples=1, rng_info=rng)
     assert -180.0 <= ra <= 180.0
     assert -90.0 <= dec <= 90.0
     assert distance_pc >= 0.0
@@ -830,7 +830,8 @@ def test_milky_way_ra_dec_sampler_survey_footprint():
     num_samples = 10_000
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        ra, dec, distance_pc = sampler_node.generate(num_samples=num_samples)
+        rng = np.random.default_rng(123)
+        ra, dec, distance_pc = sampler_node.generate(num_samples=num_samples, rng_info=rng)
     seen_mask = galaxy_survey_moc.contains_lonlat(ra * u.deg, dec * u.deg)
     assert np.sum(seen_mask) > 0.9 * num_samples
 

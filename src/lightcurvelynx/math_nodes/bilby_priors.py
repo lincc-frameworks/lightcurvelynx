@@ -1,5 +1,6 @@
 """Wrapper classes for sampling from Bilby's prior module."""
 
+import numpy as np
 from citation_compass import CiteClass
 
 from lightcurvelynx.base_models import FunctionNode
@@ -17,17 +18,6 @@ class BilbyPriorNode(FunctionNode, CiteClass):
     ----------
     prior : dict or bilby.prior.PriorDict
         A dictionary mapping the names of the parameters to their prior distributions.
-    seed : int, optional
-        The seed to set the node's default random number generator. If None, then a random seed is used.
-        This parameter is for testing and has no effect when a user-provided random number generator is
-        used during simulation. Default: None
-
-    Note
-    ----
-    The BilbyPriorNode's `compute()` function does not use the random number generator passed to it.
-    Rather it uses Bilby's internal random number generator. You can set the seed for this using
-    the `seed` argument when initializing the node or by calling the `set_seed` method. However,
-    you cannot control the samples from this node via a simulation-wide random number generator.
 
     Citations
     ---------
@@ -48,10 +38,7 @@ class BilbyPriorNode(FunctionNode, CiteClass):
           }
     """
 
-    def __init__(self, prior, seed=None, **kwargs):
-        if seed is not None:
-            self.set_seed(seed)
-
+    def __init__(self, prior, **kwargs):
         # Set the prior. If the prior is provided as a dictionary, convert it to a Bilby
         # PriorDict object.
         if isinstance(prior, dict):
@@ -71,7 +58,7 @@ class BilbyPriorNode(FunctionNode, CiteClass):
         outputs = [param for param in prior]
         super().__init__(self._non_func, outputs=outputs, **kwargs)
 
-    def set_seed(self, new_seed):
+    def _set_seed(self, new_seed):
         """Update the random number generator's seed to a given value.
 
         Parameters
@@ -118,6 +105,11 @@ class BilbyPriorNode(FunctionNode, CiteClass):
         ValueError
             if func attribute is None.
         """
+        # Set the seed for Bilby's internal random number generator using the provided RNG.
+        if rng_info is None:
+            rng_info = np.random.default_rng()
+        self._set_seed(rng_info.integers(0, 2**32 - 1))
+
         # Sample from the Bilby prior model and extract the parameters from the dictionary.
         param_dict = self.prior.sample(graph_state.num_samples)
         results = []

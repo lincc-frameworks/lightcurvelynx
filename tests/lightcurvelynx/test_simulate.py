@@ -1947,9 +1947,10 @@ def test_simulate_save_nested_with_parameter_arrays():
 
     # Generate random array values uniformly between 0.01 and 100.0. Then
     # take the logarithm of those values.
-    np_node = NumpyRandomFunc("uniform", low=0.01, high=100.0, seed=100, size=5)
+    rng = np.random.default_rng(seed=100)
+    np_node = NumpyRandomFunc("uniform", low=0.01, high=100.0, size=5)
     math_node = BasicMathNode("log(x)", x=np_node, node_label="math")
-    sample_states = math_node.sample_parameters(num_samples=num_samples)
+    sample_states = math_node.sample_parameters(num_samples=num_samples, rng_info=rng)
 
     # Create a nest results frame including the array values.
     index = list(range(num_samples))
