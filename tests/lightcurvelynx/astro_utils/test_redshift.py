@@ -1,3 +1,6 @@
+import pickle
+from multiprocessing.reduction import ForkingPickler
+
 import numpy as np
 import pytest
 from astropy.cosmology import WMAP9, Planck18
@@ -97,3 +100,14 @@ def test_redshift_dist_func_node():
     state = node.sample_parameters(num_samples=10)
     assert np.all(node.get_param(state, "function_node_result") > 13.0 * 1e12)
     assert np.all(node.get_param(state, "function_node_result") < 16.0 * 1e12)
+
+
+def test_redshift_dist_func_node_multiprocessing():
+    """Test that the RedshiftDistFunc node can be used after the pickling used to
+    send objects to multiprocessing workers (e.g. ProcessPoolExecutor)."""
+    node = RedshiftDistFunc(redshift=1100, cosmology=Planck18)
+    worker_node = pickle.loads(ForkingPickler.dumps(node))
+
+    state = worker_node.sample_parameters()
+    assert str(worker_node) == "RedshiftDistFunc:redshift_to_distance_0"
+    assert 13.0 * 1e12 < worker_node.get_param(state, "function_node_result") < 16.0 * 1e12
