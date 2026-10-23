@@ -37,6 +37,7 @@ import hashlib
 import io
 import pickle
 import threading
+import warnings
 from typing import NamedTuple
 
 from lightcurvelynx.obstable.obs_table import ObsTable
@@ -571,3 +572,66 @@ def reset_preload_state():
         _known_digests.clear()
     with _slot_lock:
         _slot = None
+
+
+class WorkerPreloadWarning(UserWarning):
+    """Warning emitted when ``simulate_lightcurves`` sends full batches to an executor.
+
+    It is emitted whenever a parallel run cannot use data preloaded with
+    ``make_worker_initializer``, so each batch carries a full copy of the model and survey
+    data. It is a dedicated subclass so it can be filtered on its own.
+    """
+
+
+class PreloadMiss:
+    """Marker returned by a preloaded batch that reached a worker without its data.
+
+    The batch returns it before touching anything else, and the parent resends that batch
+    with the full model and survey data. It has no state, so it is cheap to pickle.
+    """
+
+
+# The part of every fallback warning that does not depend on the case.
+_FALLBACK_SUFFIX = (
+    "Each of these batches carries a full copy of the model and survey data. To send this data to "
+    "each worker once, pass initializer=make_worker_initializer(model, survey_info) to the executor "
+    "(see the parallel_runs notebook). Batches sent this way that run as threads in one process "
+    "share a single model object, which is not safe for models that keep per-call state "
+    "(e.g. SncosmoWrapperModel)."
+)
+
+# The sentence that says which fallback case happened, keyed by case name.
+_FALLBACK_CASES = {
+    "not_preloaded": "The executor's workers were not preloaded with make_worker_initializer().",
+    "unpicklable": (
+        "The model or survey data could not be pickled, so the workers cannot have been preloaded with it."
+    ),
+    "changed": (
+        "The model and survey data do not match any data preloaded with make_worker_initializer() "
+        "in this process. They may have changed after preloading, including internal state changed "
+        "by an earlier run; create the initializer after your last use of the model."
+    ),
+    "miss": (
+        "{num_missed} of {num_batches} batches reached workers that were not preloaded with this "
+        "model and survey data."
+    ),
+}
+
+
+def warn_preload_fallback(case, *, num_missed=0, num_batches=0):
+    """Emit a ``WorkerPreloadWarning`` saying why batches are sent with full data.
+
+    Parameters
+    ----------
+    case : str
+        Which fallback happened: "not_preloaded", "unpicklable", "changed" or "miss".
+    num_missed : int, optional
+        The number of batches that missed. Only used for the "miss" case.
+    num_batches : int, optional
+        The total number of batches in the run. Only used for the "miss" case.
+    """
+    sentence = _FALLBACK_CASES[case].format(num_missed=num_missed, num_batches=num_batches)
+    # Both callers sit one level below simulate_lightcurves (simulate_lightcurves ->
+    # _select_preload_digest or _simulate_lightcurves_parallel -> this function), so
+    # stacklevel=4 points the warning at the user's simulate_lightcurves call.
+    warnings.warn(f"{sentence} {_FALLBACK_SUFFIX}", WorkerPreloadWarning, stacklevel=4)

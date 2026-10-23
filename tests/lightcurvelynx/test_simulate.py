@@ -1,4 +1,7 @@
+import copy
+import pickle
 import tempfile
+import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
@@ -34,12 +37,19 @@ from lightcurvelynx.obstable.spectrograph_table import SpectrographObsTable
 from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
 from lightcurvelynx.simulate import (
     SimulationInfo,
+    WorkerPreloadWarning,
     compute_noise_free_lightcurves,
     compute_single_noise_free_lightcurve,
     get_time_windows,
+    make_worker_initializer,
     simulate_lightcurves,
 )
 from lightcurvelynx.survey_info import SurveyInfo
+from lightcurvelynx.utils.worker_preload import (
+    load_preloaded_data,
+    reset_preload_state,
+    serialize_simulation_data,
+)
 
 
 def test_get_time_windows():
@@ -609,14 +619,16 @@ def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatc
         redshift=0.0,
         node_label="source",
     )
-    _ = simulate_lightcurves(
-        source2,
-        5,
-        survey_info,
-        executor=FakeMapExecutor(),
-        batch_size=2,
-        progress_bar=True,  # Should only create one progress bar for the whole run.
-    )
+    # The executor was not preloaded, so the run falls back with a WorkerPreloadWarning.
+    with pytest.warns(WorkerPreloadWarning):
+        _ = simulate_lightcurves(
+            source2,
+            5,
+            survey_info,
+            executor=FakeMapExecutor(),
+            batch_size=2,
+            progress_bar=True,  # Should only create one progress bar for the whole run.
+        )
     assert len(DummyTqdm.instances) == 1
     assert DummyTqdm.instances[0].total == 5
     assert sum(DummyTqdm.instances[0].updates) == 5
@@ -861,17 +873,18 @@ def test_simulate_parallel_threads(test_data_dir):
     survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        results = simulate_lightcurves(
-            source,
-            100,
-            survey_info,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            executor=executor,
-            batch_size=10,
-            save_full_filter_names=True,
-            progress_bar=False,  # Disable progress bar for testing
-        )
+        with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+            results = simulate_lightcurves(
+                source,
+                100,
+                survey_info,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                executor=executor,
+                batch_size=10,
+                save_full_filter_names=True,
+                progress_bar=False,  # Disable progress bar for testing
+            )
     assert len(results) == 100
     assert np.all(results["nobs"].to_numpy() >= 1)
     assert np.all(results["ra"].to_numpy() >= ra0 - 0.5)
@@ -895,18 +908,19 @@ def test_simulate_parallel_threads(test_data_dir):
     # Extract the graph state, rerun and check that we get the same pre-noise results.
     state = GraphState.from_list(results["params"].to_numpy())
     with ThreadPoolExecutor(max_workers=2) as executor:
-        results2 = simulate_lightcurves(
-            source,
-            100,
-            survey_info,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            executor=executor,
-            batch_size=10,
-            save_full_filter_names=True,
-            progress_bar=False,  # Disable progress bar for testing
-            graph_state=state,
-        )
+        with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+            results2 = simulate_lightcurves(
+                source,
+                100,
+                survey_info,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                executor=executor,
+                batch_size=10,
+                save_full_filter_names=True,
+                progress_bar=False,  # Disable progress bar for testing
+                graph_state=state,
+            )
     assert np.allclose(results["ra"].to_numpy(), results2["ra"].to_numpy())
     assert np.allclose(results["dec"].to_numpy(), results2["dec"].to_numpy())
     assert np.allclose(
@@ -955,16 +969,17 @@ def test_simulate_parallel_processes(test_data_dir):
     )
 
     with ProcessPoolExecutor(max_workers=2) as executor:
-        results = simulate_lightcurves(
-            source,
-            500,
-            survey_info,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            executor=executor,
-            batch_size=10,
-            progress_bar=False,  # Disable progress bar for testing
-        )
+        with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+            results = simulate_lightcurves(
+                source,
+                500,
+                survey_info,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                executor=executor,
+                batch_size=10,
+                progress_bar=False,  # Disable progress bar for testing
+            )
     assert len(results) == 500
     assert np.all(results["nobs"].to_numpy() >= 1)
     assert np.all(results["ra"].to_numpy() >= ra0 - 0.5)
@@ -1974,3 +1989,282 @@ def test_simulate_save_nested_with_parameter_arrays():
         base_path = Path(tmpdir) / "test_array_df.parquet"
         results.to_parquet(base_path)
         assert base_path.exists()
+
+
+class PicklingMapExecutor:
+    """A fake executor whose ``map`` round-trips every item and result through pickle.
+
+    It runs in this process, so it sees this process's preload slot, but like a process
+    pool it never shares objects with the caller. ``sizes`` records the pickled size (in
+    bytes) of every item sent.
+    """
+
+    def __init__(self):
+        self.sizes = []
+
+    def map(self, fn, items):
+        """Apply ``fn`` to a pickled copy of each item and return pickled copies of the results."""
+        results = []
+        for item in items:
+            payload = pickle.dumps(item)
+            self.sizes.append(len(payload))
+            results.append(pickle.loads(pickle.dumps(fn(pickle.loads(payload)))))
+        return results
+
+
+class InProcessMapExecutor:
+    """A fake executor whose ``map`` calls ``fn`` on each item directly, without copying."""
+
+    def map(self, fn, items):
+        """Apply ``fn`` to each item in order and return the results."""
+        return [fn(item) for item in items]
+
+
+def _run(model, si, executor=None, **kw):
+    """Run ``simulate_lightcurves`` with the settings shared by the preload tests."""
+    kwargs = {
+        "num_samples": 60,
+        "batch_size": 10,
+        "rng": np.random.default_rng(100),
+        "obstable_save_cols": ["observationId", "zp_nJy"],
+        "param_cols": ["source.brightness"],
+        "progress_bar": False,
+    }
+    kwargs.update(kw)
+    return simulate_lightcurves(model, survey_info=si, executor=executor, **kwargs)
+
+
+def _stateful_model(si):
+    """Return a model inside the survey footprint whose stateful GivenValueList refuses pickling."""
+    return ConstantSEDModel(
+        brightness=GivenValueList(np.linspace(100.0, 500.0, 100)),
+        t0=0.0,
+        ra=si.obstable["ra"][0],
+        dec=si.obstable["dec"][0],
+        redshift=0.0,
+        node_label="source",
+    )
+
+
+def test_simulate_preloaded_matches_non_preloaded(preload_inputs, assert_identical_results):
+    """A preloaded run gives identical results to a non-preloaded one, with much smaller batches."""
+    model, si = preload_inputs
+    base_ex = PicklingMapExecutor()
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded") as record:
+        expected = _run(model, si, base_ex)
+    assert record[0].filename == __file__  # The warning points at the simulate_lightcurves call.
+
+    init = make_worker_initializer(model, si)
+    init()
+    ex = PicklingMapExecutor()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", WorkerPreloadWarning)
+        result = _run(model, si, ex)
+    assert_identical_results(expected, result)
+    assert len(ex.sizes) == 6
+    assert max(ex.sizes) * 10 < min(base_ex.sizes)
+
+
+def test_simulate_preloaded_thread_pool(preload_inputs, assert_identical_results):
+    """A preloaded ThreadPoolExecutor gives identical results without falling back."""
+    model, si = preload_inputs
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        expected = _run(model, si, PicklingMapExecutor())
+
+    with ThreadPoolExecutor(4, initializer=make_worker_initializer(model, si)) as executor:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", WorkerPreloadWarning)
+            result = _run(model, si, executor)
+    assert_identical_results(expected, result)
+
+
+def test_simulate_not_preloaded_skips_digest(preload_inputs, monkeypatch):
+    """With nothing preloaded in this process, the run falls back without computing a digest."""
+    # simulate.py imports compute_preload_digest by name, so patch it there.
+    monkeypatch.setattr(
+        simulate_module,
+        "compute_preload_digest",
+        lambda *args, **kwargs: pytest.fail("digest must not be computed"),
+    )
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        assert len(_run(*preload_inputs, PicklingMapExecutor())) == 60
+
+
+def test_simulate_preload_changed_model_falls_back(preload_inputs, assert_identical_results):
+    """A model changed after preloading falls back, and the results use the changed model."""
+    model, si = preload_inputs
+    init = make_worker_initializer(model, si)
+    init()
+    model.set_parameter("redshift", 0.05)
+    with pytest.warns(WorkerPreloadWarning, match="do not match"):
+        result = _run(model, si, PicklingMapExecutor())
+    assert np.all(result["z"].to_numpy() == 0.05)
+
+    reset_preload_state()
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        expected = _run(model, si, PicklingMapExecutor())
+    assert_identical_results(expected, result)
+
+
+def test_simulate_preload_changed_obstable_falls_back(preload_inputs, assert_identical_results):
+    """An ObsTable column changed in place after preloading falls back to the current data."""
+    model, si = preload_inputs
+    init = make_worker_initializer(model, si)
+    init()
+    # OpSim renames the raw "zp_nJy" column to the standard name "zp" on load.
+    si.obstable._table.loc[0, "zp"] *= 2.0
+    with pytest.warns(WorkerPreloadWarning, match="do not match"):
+        result = _run(model, si, PicklingMapExecutor())
+    # The changed observation is used, so stale data would change the results.
+    assert (result["lightcurve"].nest.to_flat()["obs_idx"] == 0).any()
+
+    reset_preload_state()
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        expected = _run(model, si, PicklingMapExecutor())
+    assert_identical_results(expected, result)
+
+
+def test_simulate_preload_miss_resends(preload_inputs, assert_identical_results):
+    """Batches that reach workers without this preload are resent with the full data.
+
+    InProcessMapExecutor does not copy the batches, so a light batch shares its rng with
+    the full batch that is resent: identical results show that a miss leaves it untouched.
+    """
+    model, si = preload_inputs
+    # An in-process run changes the model's internal state, so the baseline uses a copy.
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        expected = _run(copy.deepcopy(model), si, InProcessMapExecutor())
+
+    # Case 1: this data is registered in this process, but the executor was never preloaded.
+    make_worker_initializer(model, si)  # Not called, so this process's slot stays empty.
+    with pytest.warns(WorkerPreloadWarning, match="6 of 6 batches reached workers") as record:
+        result = _run(model, si, InProcessMapExecutor())
+    assert record[0].filename == __file__  # The warning points at the simulate_lightcurves call.
+    assert_identical_results(expected, result)
+
+    # Case 2: the executor was preloaded with different data. The in-process resend above
+    # changed the model's internal state (TableSampler._last_start_index), so register its
+    # current digest again before filling the slot with another model's data.
+    make_worker_initializer(model, si)
+    other_model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0)
+    make_worker_initializer(other_model, si)()
+    with pytest.warns(WorkerPreloadWarning, match="6 of 6 batches reached workers"):
+        result = _run(model, si, InProcessMapExecutor())
+    assert_identical_results(expected, result)
+
+
+def test_simulate_preload_unpicklable_falls_back(preload_inputs):
+    """Data that refuses pickling falls back on a thread pool, and refuses preloading."""
+    model, si = preload_inputs
+    make_worker_initializer(model, si)  # Make the registry non-empty.
+    stateful_model = _stateful_model(si)
+    with ThreadPoolExecutor(2) as executor:
+        with pytest.warns(WorkerPreloadWarning, match="could not be pickled"):
+            result = _run(stateful_model, si, executor, num_samples=10, batch_size=5)
+    assert len(result) == 10
+
+    with pytest.raises(RuntimeError, match="cannot be pickled"):
+        make_worker_initializer(stateful_model, si)
+
+
+def test_simulate_num_jobs_preloads(preload_inputs, assert_identical_results):
+    """num_jobs preloads its process pool, and data that refuses pickling still raises."""
+    model, si = preload_inputs
+    with ProcessPoolExecutor(2) as executor:
+        with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+            expected = _run(model, si, executor)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", WorkerPreloadWarning)
+        result = _run(model, si, num_jobs=2)
+    assert_identical_results(expected, result)
+
+    with pytest.raises(RuntimeError, match="cannot be pickled"):
+        _run(_stateful_model(si), si, num_jobs=2)
+
+
+def test_simulate_preload_graph_state_replay(preload_inputs, assert_identical_results):
+    """Replaying a GraphState through a preloaded executor matches the non-preloaded replay."""
+    model, si = preload_inputs
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        first = _run(model, si, PicklingMapExecutor())
+    state = GraphState.from_list(first["params"].to_numpy())
+
+    # Replay with a different rng, so only the replayed state can reproduce the parameters.
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        expected = _run(model, si, PicklingMapExecutor(), graph_state=state, rng=np.random.default_rng(7))
+    init = make_worker_initializer(model, si)
+    init()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", WorkerPreloadWarning)
+        result = _run(model, si, PicklingMapExecutor(), graph_state=state, rng=np.random.default_rng(7))
+    assert_identical_results(expected, result)
+    np.testing.assert_array_equal(
+        result["source_brightness"].to_numpy(), first["source_brightness"].to_numpy()
+    )
+
+
+def test_simulate_preload_batch_error_propagates(preload_inputs):
+    """An error raised inside a preloaded batch reaches the caller with the same type."""
+    _, si = preload_inputs
+    model = ConstantSEDModel(
+        brightness=100.0,
+        # Two columns, since a single-column TableSampler cannot sample several rows at once.
+        t0=TableSampler({"t0": np.arange(15.0), "row": np.arange(15)}, in_order=True).t0,
+        ra=si.obstable["ra"][0],
+        dec=si.obstable["dec"][0],
+        redshift=0.0,
+        node_label="source",
+    )
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        with pytest.raises(IndexError, match="ran out of entries"):
+            _run(model, si, PicklingMapExecutor())
+
+    init = make_worker_initializer(model, si)
+    init()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", WorkerPreloadWarning)
+        with pytest.raises(IndexError, match="ran out of entries"):
+            _run(model, si, PicklingMapExecutor())
+
+
+def test_simulate_preload_output_files(preload_inputs, tmp_path, assert_identical_results):
+    """Preloaded runs that write files use the same _partN names and write the same data."""
+    model, si = preload_inputs
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        expected = _run(model, si, PicklingMapExecutor(), output_file_path=tmp_path / "base" / "out.parquet")
+
+    init = make_worker_initializer(model, si)
+    init()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", WorkerPreloadWarning)
+        result = _run(model, si, PicklingMapExecutor(), output_file_path=tmp_path / "pre" / "out.parquet")
+
+    names = [f"out_part{idx}.parquet" for idx in range(6)]
+    assert [Path(path).name for path in expected] == names
+    assert [Path(path).name for path in result] == names
+    for expected_path, result_path in zip(expected, result, strict=True):
+        assert_identical_results(read_parquet(expected_path), read_parquet(result_path))
+
+
+def test_simulate_preload_leaves_surveys_untouched(preload_inputs):
+    """Serial and preloaded runs leave the survey data unchanged, including the preloaded
+    copy that every batch in a worker shares."""
+    model, si = preload_inputs
+
+    def shared_digest(survey_info):
+        return serialize_simulation_data(model, survey_info, keep_bytes=False).shared_digest
+
+    before = shared_digest([si])
+    _run(copy.deepcopy(model), si)  # A serial run, on a copy since it changes the model's state.
+    assert shared_digest([si]) == before
+
+    init = make_worker_initializer(model, si)
+    init()
+    _, preloaded_si = load_preloaded_data(init.digest)
+    preloaded_before = shared_digest(preloaded_si)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", WorkerPreloadWarning)
+        _run(model, si, PicklingMapExecutor())
+    assert shared_digest([si]) == before
+    assert load_preloaded_data(init.digest)[1] is preloaded_si  # The batches used this copy.
+    assert shared_digest(preloaded_si) == preloaded_before

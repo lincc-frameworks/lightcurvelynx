@@ -1,6 +1,7 @@
 """The core functions for running the LightCurveLynx simulation."""
 
 import concurrent.futures
+import copy
 import logging
 import warnings
 from pathlib import Path
@@ -14,6 +15,16 @@ from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
+from lightcurvelynx.utils.worker_preload import (
+    PreloadMiss,
+    compute_preload_digest,
+    has_known_preload_digests,
+    is_known_preload_digest,
+    load_preloaded_data,
+    make_worker_initializer,
+    warn_preload_fallback,
+)
+from lightcurvelynx.utils.worker_preload import WorkerPreloadWarning as WorkerPreloadWarning  # Re-export.
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +84,10 @@ class SimulationInfo:
     graph_state : GraphState, optional
         The predefined graph state to use to replay a previous simulation. If None,
         a new graph state is sampled.
+    preload_digest : str or None
+        The digest of the data preloaded on the workers (see ``make_worker_initializer``).
+        Only set on the "light" batches sent to preloaded workers, which carry no model or
+        survey info. None otherwise. It is not a constructor argument.
     kwargs : dict
         Additional keyword arguments to pass to the simulation function.
     """
@@ -114,6 +129,7 @@ class SimulationInfo:
         self.save_full_filter_names = save_full_filter_names
         self.progress_bar = progress_bar
         self.drop_empty_rows = drop_empty_rows
+        self.preload_digest = None
 
         if self.num_samples <= 0:
             raise ValueError("Number of samples must be a positive integer.")
@@ -591,7 +607,89 @@ def _simulate_lightcurves_batch(simulation_info):
     return results
 
 
-def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000):
+def _simulate_preloaded_batch(simulation_info):
+    """Simulate a "light" batch using the model and survey info preloaded on this worker.
+
+    Parameters
+    ----------
+    simulation_info : SimulationInfo
+        A batch with no model or survey info, whose ``preload_digest`` names the
+        preloaded data to use.
+
+    Returns
+    -------
+    lightcurves : nested_pandas.NestedFrame, Path or PreloadMiss
+        The batch's results, as returned by ``_simulate_lightcurves_batch``, or a
+        ``PreloadMiss`` marker if this worker does not hold the preloaded data.
+    """
+    # Load before touching anything else: on a miss the batch is resent with the full data,
+    # and with executors that do not copy their arguments, this batch shares its rng with
+    # the batch that is resent.
+    loaded = load_preloaded_data(simulation_info.preload_digest)
+    if loaded is None:
+        return PreloadMiss()
+
+    # The model was freshly unpickled for this batch, so it is private to it. If upstream's
+    # per-batch deepcopy of the model lands in _simulate_lightcurves_batch, it must be skipped
+    # for this path: the model is already private, and a deepcopy would also copy the shared,
+    # read-only ObsTables for every batch.
+    model, survey_info = loaded
+    batch_info = copy.copy(simulation_info)
+    batch_info.model = model
+    batch_info.survey_info = survey_info
+    return _simulate_lightcurves_batch(batch_info)
+
+
+def _select_preload_digest(simulation_info):
+    """Return the digest of the preloaded data to use, or None to send full batches.
+
+    Emits a ``WorkerPreloadWarning`` whenever it returns None.
+
+    Parameters
+    ----------
+    simulation_info : SimulationInfo
+        The information for the whole simulation, including the model and survey info.
+
+    Returns
+    -------
+    str or None
+        The digest of the model and survey info if ``make_worker_initializer`` created it
+        in this process, otherwise None.
+    """
+    # Skip the digest entirely (it pickles all the data) if nothing was ever preloaded.
+    if not has_known_preload_digests():
+        warn_preload_fallback("not_preloaded")
+        return None
+    try:
+        digest = compute_preload_digest(simulation_info.model, simulation_info.survey_info)
+    except Exception:
+        warn_preload_fallback("unpicklable")
+        return None
+    if not is_known_preload_digest(digest):
+        warn_preload_fallback("changed")
+        return None
+    return digest
+
+
+def _get_result(future_or_result):
+    """Return the result of a Future, or the value itself if it is a direct result.
+
+    Parameters
+    ----------
+    future_or_result : concurrent.futures.Future or any
+        One item returned by an executor's ``map`` function.
+
+    Returns
+    -------
+    any
+        The result.
+    """
+    if hasattr(future_or_result, "result") and callable(future_or_result.result):  # A Future
+        return future_or_result.result()
+    return future_or_result  # A direct result
+
+
+def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000, preload_digest=None):
     """Generate a number of simulations of the given model and information
     from one or more surveys.
 
@@ -604,6 +702,11 @@ def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000):
     batch_size : int, optional
         The number of samples to process in each batch when using multiprocessing.
         Default is 1000.
+    preload_digest : str, optional
+        The digest of the model and survey info preloaded on the executor's workers. If
+        given, the batches are sent without the model and survey info, and any batch that
+        reaches a worker without this data is resent with it (with a warning). If None,
+        every batch carries the model and survey info.
 
     Returns
     -------
@@ -623,13 +726,36 @@ def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000):
         unit="obj",
         disable=not simulation_info.progress_bar,
     ) as progress_bar:
-        futures_or_results = executor.map(_simulate_lightcurves_batch, batches)
-        for batch_idx, res in enumerate(futures_or_results):
-            if hasattr(res, "result") and callable(res.result):  # A Future
-                result_list[batch_idx] = res.result()
-            else:  # A direct result
-                result_list[batch_idx] = res
-            progress_bar.update(batches[batch_idx].num_samples)
+        if preload_digest is None:
+            missed = list(range(len(batches)))
+        else:
+            # Send "light" batches: everything except the model and survey info.
+            light_batches = []
+            for batch in batches:
+                light_batch = copy.copy(batch)
+                light_batch.model = None
+                light_batch.survey_info = None
+                light_batch.preload_digest = preload_digest
+                light_batches.append(light_batch)
+
+            missed = []
+            futures_or_results = executor.map(_simulate_preloaded_batch, light_batches)
+            for batch_idx, res in enumerate(futures_or_results):
+                res = _get_result(res)
+                if isinstance(res, PreloadMiss):
+                    missed.append(batch_idx)
+                else:
+                    result_list[batch_idx] = res
+                    progress_bar.update(batches[batch_idx].num_samples)
+            if missed:
+                warn_preload_fallback("miss", num_missed=len(missed), num_batches=len(batches))
+
+        # Send full batches: all of them without preloading, otherwise only the misses.
+        if missed:
+            futures_or_results = executor.map(_simulate_lightcurves_batch, [batches[i] for i in missed])
+            for batch_idx, res in zip(missed, futures_or_results, strict=True):
+                result_list[batch_idx] = _get_result(res)
+                progress_bar.update(batches[batch_idx].num_samples)
     return result_list
 
 
@@ -715,10 +841,17 @@ def simulate_lightcurves(
     executor : concurrent.futures.Executor, optional
         The executor object that to use for parallel processing. This can be any object that
         supports concurrent.futures's map() function, returning either Future objects or
-        direct results. If None, the function runs in serial.
+        direct results. If None, the function runs in serial. If the executor's workers were
+        preloaded with ``make_worker_initializer(model, survey_info)`` (for example via
+        ``ProcessPoolExecutor(initializer=...)``) and the model and survey data have not
+        changed since, each batch is sent without the model and survey data. Otherwise every
+        batch carries a full copy of them, and a ``WorkerPreloadWarning`` says why. See the
+        parallel_runs notebook.
     num_jobs : int, optional
         If provided (and no executor is provided) creates a process pool (ProcessPoolExecutor)
-        with the given number of workers to process the results.
+        with the given number of workers to process the results. The pool's workers are
+        preloaded with ``make_worker_initializer(model, survey_info)``, so the model and
+        survey data are sent to each worker once instead of with every batch.
     drop_empty_rows : bool, optional
         Whether to drop rows that have no observations. Default is False.
     batch_size : int, optional
@@ -819,12 +952,23 @@ def simulate_lightcurves(
     if executor is None and num_jobs is None:
         return _simulate_lightcurves_batch(simulation_info)
 
-    # If we have an executor, use that.
+    # If we have an executor, use that. Its batches skip the model and survey data only if
+    # its workers were preloaded with exactly this data.
     if executor is not None:
-        result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
+        preload_digest = _select_preload_digest(simulation_info)
+        result_list = _simulate_lightcurves_parallel(
+            simulation_info, executor, batch_size=batch_size, preload_digest=preload_digest
+        )
     else:
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs) as executor:
-            result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
+        # Preload the pool's workers. Create the initializer before the pool so that data
+        # which refuses pickling raises here, with its own exception.
+        initializer = make_worker_initializer(model, survey_info)
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=num_jobs, initializer=initializer
+        ) as executor:
+            result_list = _simulate_lightcurves_parallel(
+                simulation_info, executor, batch_size=batch_size, preload_digest=initializer.digest
+            )
 
     # If we returned the results directly, concatenate them into a single NestedFrame.
     # If we saved them to file, return the list of file paths.
