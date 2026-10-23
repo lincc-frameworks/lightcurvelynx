@@ -1,6 +1,7 @@
 """The core functions for running the LightCurveLynx simulation."""
 
 import concurrent.futures
+import copy
 import logging
 import warnings
 from pathlib import Path
@@ -195,9 +196,10 @@ class SimulationInfo:
                 batch_graph_state = None
 
             # Create a subset of the batch. Most information is the same (references to the
-            # same objects), except for the number of samples and the RNG.
+            # same objects), except for the model (which may not be thread-safe), the number of samples,
+            # and the RNG.
             batch_info = SimulationInfo(
-                model=self.model,
+                model=copy.deepcopy(self.model),
                 num_samples=batch_num_samples,
                 survey_info=self.survey_info,
                 obstable_save_cols=self.obstable_save_cols,

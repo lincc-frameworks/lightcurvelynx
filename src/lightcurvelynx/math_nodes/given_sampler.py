@@ -112,7 +112,8 @@ class GivenValueList(FunctionNode):
     def __getstate__(self):
         if self._stateful:
             raise RuntimeError(
-                "A stateful GivenValueList cannot be pickled. This node does not support parallel sampling."
+                "A stateful GivenValueList cannot be pickled or deep-copied. This node does "
+                "not support parallel sampling."
             )
         return super().__getstate__()
 
