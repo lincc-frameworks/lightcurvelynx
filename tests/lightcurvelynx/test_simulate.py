@@ -13,6 +13,7 @@ from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
+from lightcurvelynx.base_models import FunctionNode
 from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.given_sampler import (
@@ -1022,6 +1023,46 @@ def test_simulate_parallel_processes(test_data_dir):
 
             results_df = read_parquet(ind_paths[i])
             assert len(results_df) == 50
+
+
+def test_simulate_parallel_processes_fixed_params(test_data_dir):
+    """Test an end to end run of simulating the light curves in parallel with processes
+    when the model uses a FunctionNode with fixed_params."""
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    # Clip the sampled brightness to [100, 500] using fixed clipping bounds.
+    brightness = FunctionNode(
+        np.clip,
+        a=NumpyRandomFunc("uniform", low=0.0, high=1000.0),
+        fixed_params={"a_min": 100.0, "a_max": 500.0},
+    )
+    source = ConstantSEDModel(
+        brightness=brightness,
+        t0=0.0,
+        ra=opsim_db["ra"].to_numpy()[0],
+        dec=opsim_db["dec"].to_numpy()[0],
+        redshift=0.0,
+        node_label="source",
+    )
+
+    results = simulate_lightcurves(
+        source,
+        20,
+        survey_info,
+        param_cols=["source.brightness"],
+        batch_size=10,
+        num_jobs=2,
+        progress_bar=False,  # Disable progress bar for testing
+    )
+    assert len(results) == 20
+    assert np.all(results["source_brightness"].to_numpy() >= 100.0)
+    assert np.all(results["source_brightness"].to_numpy() <= 500.0)
 
 
 def test_simulate_single_lightcurve(test_data_dir):
