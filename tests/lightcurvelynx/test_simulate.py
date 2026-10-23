@@ -1,7 +1,9 @@
 import copy
+import gc
 import pickle
 import tempfile
 import warnings
+import weakref
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
@@ -2063,6 +2065,39 @@ def test_simulate_preloaded_matches_non_preloaded(preload_inputs, assert_identic
     assert_identical_results(expected, result)
     assert len(ex.sizes) == 6
     assert max(ex.sizes) * 10 < min(base_ex.sizes)
+
+
+def test_simulate_preloaded_batch_frees_its_model(preload_inputs, monkeypatch):
+    """Each preloaded batch frees its own copy of the model before it returns.
+
+    The model's nodes reference each other in cycles, so only the cyclic garbage collector
+    can free a copy. Automatic collection is disabled here, so any copy that is freed was
+    freed by the batch itself.
+    """
+    model, si = preload_inputs
+    loaded_models = []
+
+    def recording_load(digest):
+        loaded = load_preloaded_data(digest)
+        if loaded is not None:
+            loaded_models.append(weakref.ref(loaded[0]))
+        return loaded
+
+    # simulate.py imports load_preloaded_data by name, so patch it there.
+    monkeypatch.setattr(simulate_module, "load_preloaded_data", recording_load)
+    make_worker_initializer(model, si)()
+
+    gc.disable()
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", WorkerPreloadWarning)
+            result = _run(model, si, PicklingMapExecutor())
+        # Check before re-enabling automatic collection, which would free any leftover copies.
+        alive = [ref() is not None for ref in loaded_models]
+    finally:
+        gc.enable()
+    assert len(result) == 60
+    assert alive == [False] * 6
 
 
 def test_simulate_preloaded_thread_pool(preload_inputs, assert_identical_results):

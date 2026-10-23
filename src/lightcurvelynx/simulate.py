@@ -2,6 +2,7 @@
 
 import concurrent.futures
 import copy
+import gc
 import logging
 import warnings
 from pathlib import Path
@@ -637,7 +638,15 @@ def _simulate_preloaded_batch(simulation_info):
     batch_info = copy.copy(simulation_info)
     batch_info.model = model
     batch_info.survey_info = survey_info
-    return _simulate_lightcurves_batch(batch_info)
+    result = _simulate_lightcurves_batch(batch_info)
+
+    # Free this batch's copy of the model before the next batch starts. The model's nodes
+    # reference each other in cycles, so the copy is only freed by a full collection, which
+    # rarely triggers when the garbage is a few large objects: in-model data (such as a
+    # TableSampler's catalog) would otherwise accumulate with every batch.
+    del loaded, model, survey_info, batch_info
+    gc.collect()
+    return result
 
 
 def _select_preload_digest(simulation_info):
