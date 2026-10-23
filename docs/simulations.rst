@@ -247,8 +247,10 @@ Running in Parallel
 Simulations can be performed in parallel by providing a ``concurrent.futures.Executor`` object.
 This object can be a built-in parallelization method, such as `ThreadPoolExecutor` or
 `ProcessPoolExecutor`, or other libraries, such as `dask <https://docs.dask.org/en/latest/>`_ or
-`ray <https://docs.ray.io/en/latest/>`_. Note that each process will load a full version of all the data,
-so they may be memory intensive.
+`ray <https://docs.ray.io/en/latest/>`_. By default each batch sent to a worker carries its own
+copy of the model and survey data, which can be memory intensive for large surveys. Use
+``make_worker_initializer(model, survey_info)`` to preload that data onto each worker once
+instead, or pass ``num_jobs=`` to have ``simulate_lightcurves`` do this automatically.
 
 **NOTE**: Not all subpackages work with distributed computation yet. If you get an error about
 not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
