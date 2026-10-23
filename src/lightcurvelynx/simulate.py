@@ -1,6 +1,7 @@
 """The core functions for running the LightCurveLynx simulation."""
 
 import concurrent.futures
+import copy
 import logging
 import warnings
 from pathlib import Path
@@ -125,6 +126,11 @@ class SimulationInfo:
                 f"{self.num_samples} samples."
             )
         self.graph_state = graph_state
+
+        # If we are not given a graph state, then make sure the model's node
+        # positions are set in the model.
+        if graph_state is None:
+            model.set_graph_positions()
 
         # If an output file path is provided, check that the directory exists.
         if output_file_path is not None:
@@ -319,8 +325,9 @@ def _simulate_lightcurves_batch(simulation_info):
     logger.info(f"Starting batch at {sample_offset} with {simulation_info.num_samples} samples.")
 
     # Extract the parameters from the SimulationInfo that are used repeated
-    # (so we have shorter names).
-    model = simulation_info.model
+    # (so we have shorter names). We use a deep copy of the model to avoid any potential
+    # thread-safety issues during parallel simulations.
+    model = copy.deepcopy(simulation_info.model)
     requested_num_samples = simulation_info.num_samples
     obstable = [info.obstable for info in simulation_info.survey_info]
     passbands = [info.passbands for info in simulation_info.survey_info]
@@ -738,6 +745,7 @@ def simulate_lightcurves(
         If output_file_path is None, a NestedFrame with a row for each object. Otherwise
         the file(s) are saved and the function returns a list of Paths to the saved files.
     """
+    # Check the output file path.
     if output_file_path is not None:
         output_file_path = Path(output_file_path)
         output_file_path.parent.mkdir(parents=True, exist_ok=True)
