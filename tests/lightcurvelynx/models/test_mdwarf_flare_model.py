@@ -7,8 +7,8 @@ import pytest
 from astropy import units as u
 from astropy.cosmology import Planck18
 
+from lightcurvelynx.astro_utils.passbands import check_connect_to_svo
 from lightcurvelynx.models.mdwarf_flare_model import MDwarfFlareModel
-from lightcurvelynx.utils import check_connect_to_svo
 
 # The test values with known output. first, no sampling
 wavelengths = np.linspace(3000, 12000, 4000)
