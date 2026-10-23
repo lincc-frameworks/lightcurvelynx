@@ -386,10 +386,10 @@ def test_simulate_lightcurves(test_data_dir):
     # values that match the opsim.
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
+        brightness=GivenValueList(given_brightness, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -504,10 +504,10 @@ def test_replay_simulate_lightcurves(test_data_dir):
     # values that match the opsim.
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
+        brightness=GivenValueList(given_brightness, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -581,11 +581,12 @@ def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatc
 
     source1 = ConstantSEDModel(
         brightness=GivenValueList(
-            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
+            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0],
+            stateful=False,
         ),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -601,11 +602,12 @@ def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatc
 
     source2 = ConstantSEDModel(
         brightness=GivenValueList(
-            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
+            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0],
+            stateful=False,
         ),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -638,10 +640,10 @@ def test_simulate_lightcurves_to_file(test_data_dir):
     # values that match the opsim.
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
+        brightness=GivenValueList(given_brightness, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1082,10 +1084,10 @@ def test_simulate_single_lightcurve(test_data_dir):
     # values that match the opsim.
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
+        brightness=GivenValueList(given_brightness, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1140,7 +1142,7 @@ def test_simulate_with_time_window(test_data_dir):
     # values that match the opsim.
     source = ConstantSEDModel(
         brightness=1000.0,
-        t0=GivenValueList([20.0, 15.0, 20.0, 15.0, 20.0, 15.0, 20.0, 15.0]),
+        t0=GivenValueList([20.0, 15.0, 20.0, 15.0, 20.0, 15.0, 20.0, 15.0], stateful=False),
         ra=15.0,
         dec=10.0,
         redshift=1.5,
@@ -1601,8 +1603,8 @@ def test_compute_noise_free_lightcurves_multiple(test_data_dir):
     end_times = [30.0, 30.0, 40.0, 40.0]
     model = StepModel(
         brightness=100.0,
-        t0=GivenValueList(start_times),
-        t1=GivenValueList(end_times),
+        t0=GivenValueList(start_times, stateful=False),
+        t1=GivenValueList(end_times, stateful=False),
         ra=0.0,
         dec=0.0,
         redshift=0.0,
@@ -1711,8 +1713,8 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
     source = ConstantSEDModel(
         brightness=50_000.0,
         t0=0.0,
-        ra=GivenValueList(obs_table_values["ra"]),
-        dec=GivenValueList(obs_table_values["dec"]),
+        ra=GivenValueList(obs_table_values["ra"], stateful=False),
+        dec=GivenValueList(obs_table_values["dec"], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1751,8 +1753,8 @@ def test_simulate_with_default_saturation_mags_values(test_data_dir):
     source = ConstantSEDModel(
         brightness=(2.0e12),  # Sufficiently bright to ensure saturation
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1821,8 +1823,8 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
     source = ConstantSEDModel(
         brightness=5_000_000_000_000.0,  # Sufficiently bright to ensure saturation
         t0=0.0,
-        ra=GivenValueList(obs_table_values["ra"]),
-        dec=GivenValueList(obs_table_values["dec"]),
+        ra=GivenValueList(obs_table_values["ra"], stateful=False),
+        dec=GivenValueList(obs_table_values["dec"], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1899,11 +1901,11 @@ def test_simulate_expanded_state(test_data_dir):
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     given_repeats = [1, 2, 1, 3, 1]
     source = _DuplicatingConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
-        repeats=GivenValueList(given_repeats),
+        brightness=GivenValueList(given_brightness, stateful=False),
+        repeats=GivenValueList(given_repeats, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )

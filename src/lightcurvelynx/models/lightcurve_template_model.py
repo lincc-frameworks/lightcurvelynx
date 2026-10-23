@@ -832,7 +832,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
         super().__init__(passbands=passbands, filters=self.filters, **kwargs)
 
-        # Either choose from the indices (in order)
+        # Either choose from the indices (in order) or use a sampler.
         if indices is not None:
             if weights is not None:
                 raise ValueError("Cannot provide both 'weights' and 'indices' parameters.")
@@ -840,7 +840,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
                 indices = np.asarray(indices)
                 if np.any((indices < 0) | (indices >= len(lightcurves))):
                     raise ValueError("Indices must be between 0 and the number of light curves.")
-                indices_sampler = GivenValueList(indices)
+                indices_sampler = GivenValueList(indices, stateful=True)
             else:
                 # Assume it is already a parameter or sampler.
                 indices_sampler = indices

@@ -324,8 +324,8 @@ def test_numpy_random_uniform_diff_distributions():
     scipy_node = ScipyRandomDist(
         "uniform",
         seed=100,
-        loc=GivenValueList(low_val),
-        scale=GivenValueList(np.full_like(low_val, 5.0)),
+        loc=GivenValueList(low_val, stateful=False),
+        scale=GivenValueList(np.full_like(low_val, 5.0), stateful=False),
     )
     state = scipy_node.sample_parameters(num_samples=50)
     samples = scipy_node.get_param(state, "function_node_result")
