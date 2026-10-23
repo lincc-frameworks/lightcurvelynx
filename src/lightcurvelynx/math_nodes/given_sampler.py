@@ -108,8 +108,8 @@ class GivenValueList(FunctionNode):
 
         if stateful is None:
             warnings.warn(
-                "The default 'stateful' behavior for GivenValueList will change in the future. "
-                "Currently it defaults to True, but this will be deprecated.",
+                "In the future, no default value will be provided for 'stateful'. "
+                "Please explicitly set the 'stateful' argument to True or False.",
                 DeprecationWarning,
             )
             stateful = True

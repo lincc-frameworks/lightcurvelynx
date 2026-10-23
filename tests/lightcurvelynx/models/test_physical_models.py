@@ -76,7 +76,8 @@ def test_sed_model_evaluate_sed():
     """Test that we can evaluate a SEDModel."""
     times = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
     waves = np.array([4000.0, 5000.0])
-    brightness = GivenValueList([10.0, 20.0, 30.0], stateful=False)
+    # Use stateful = True so we can pick new values from the list.
+    brightness = GivenValueList([10.0, 20.0, 30.0], stateful=True)
     static_source = ConstantSEDModel(brightness=brightness)
 
     # Providing no state should give a single sample.
