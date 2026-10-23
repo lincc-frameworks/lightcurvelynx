@@ -68,3 +68,67 @@ def oversampled_observations(opsim_shorten):
 def passbands_dir(test_data_dir):
     """Return the file path for passbands directory."""
     return test_data_dir / "passbands"
+
+
+@pytest.fixture
+def preload_inputs(test_data_dir):
+    """Build a small model and SurveyInfo pair used by the worker-preload tests.
+
+    Returns
+    -------
+    tuple of (ConstantSEDModel, SurveyInfo)
+        A model with randomized brightness, t0, ra and dec, and a SurveyInfo built
+        from the small OpSim test data with the default LSST passbands and noise model.
+    """
+    import numpy as np
+
+    from lightcurvelynx.astro_utils.passbands import PassbandGroup
+    from lightcurvelynx.math_nodes.given_sampler import TableSampler
+    from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+    from lightcurvelynx.models.basic_models import ConstantSEDModel
+    from lightcurvelynx.obstable.opsim import OpSim
+    from lightcurvelynx.survey_info import SurveyInfo
+
+    opsim = OpSim.from_db(test_data_dir / "opsim_small.db")
+    passbands = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    survey_info = SurveyInfo(obstable=opsim, passbands=passbands)
+
+    ra0 = opsim["ra"][0]
+    dec0 = opsim["dec"][0]
+    model = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0, seed=11),
+        t0=TableSampler({"t0": np.arange(500.0)}, in_order=True, node_label="t0_table").t0,
+        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5, seed=12),
+        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5, seed=13),
+        redshift=0.0,
+        node_label="source",
+    )
+    return model, survey_info
+
+
+@pytest.fixture
+def assert_identical_results():
+    """Return a function that asserts two simulation result frames are identical.
+
+    Returns
+    -------
+    callable
+        A function ``compare(a, b)`` that raises an ``AssertionError`` if the two
+        ``NestedFrame`` results differ, checking both the flat columns and the
+        nested "lightcurve" column.
+    """
+    import pandas as pd
+
+    def compare(a, b):
+        pd.testing.assert_frame_equal(a, b, check_exact=True)
+        pd.testing.assert_frame_equal(
+            a["lightcurve"].nest.to_flat(),
+            b["lightcurve"].nest.to_flat(),
+            check_exact=True,
+        )
+
+    return compare
