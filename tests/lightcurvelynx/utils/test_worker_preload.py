@@ -1,5 +1,8 @@
 """Tests for the two-part serialization and content digest used by worker preloading."""
 
+import pickle
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
@@ -9,7 +12,11 @@ from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.worker_preload import (
     compute_preload_digest,
+    has_known_preload_digests,
+    is_known_preload_digest,
+    load_preloaded_data,
     load_serialized_data,
+    make_worker_initializer,
     serialize_simulation_data,
 )
 
@@ -98,3 +105,75 @@ def test_serialize_refusing_object_raises(preload_inputs):
     model = ConstantSEDModel(brightness=GivenValueList([1.0, 2.0]), t0=0.0, ra=0.0, dec=0.0, redshift=0.0)
     with pytest.raises(RuntimeError, match="cannot be pickled"):
         serialize_simulation_data(model, [si], keep_bytes=False)
+
+
+def test_initializer_round_trip(preload_inputs):
+    """``make_worker_initializer`` registers a digest, and the slot starts empty."""
+    model, si = preload_inputs
+    init = make_worker_initializer(model, si)  # a single SurveyInfo is accepted
+    assert is_known_preload_digest(init.digest) and has_known_preload_digests()
+    assert load_preloaded_data(init.digest) is None  # slot still empty
+    init()
+    m1, s1 = load_preloaded_data(init.digest)
+    m2, s2 = load_preloaded_data(init.digest)
+    assert m1 is not m2 and m1 is not model  # fresh model per call
+    assert s1 is s2 and s1[0].obstable is s2[0].obstable  # shared data loaded once
+    assert load_preloaded_data("0" * 32) is None
+
+
+def test_initializer_is_picklable_and_idempotent(preload_inputs):
+    """A pickled initializer still works, a second call is a no-op, and the slot holds one digest."""
+    model, si = preload_inputs
+    init = pickle.loads(pickle.dumps(make_worker_initializer(model, si)))
+    init()
+    init()  # second call is a no-op
+    other = make_worker_initializer(
+        ConstantSEDModel(brightness=1.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0), si
+    )
+    other()
+    assert load_preloaded_data(init.digest) is None  # one preload per process
+    assert load_preloaded_data(other.digest) is not None
+
+
+def test_initializer_repr_has_no_payload(preload_inputs):
+    """``repr`` shows the digest prefix and sizes, and stays short (no bytes dump)."""
+    init = make_worker_initializer(*preload_inputs)
+    assert init.digest[:8] in repr(init) and len(repr(init)) < 200
+
+
+def test_make_worker_initializer_rejects_obstable(preload_inputs):
+    """Passing a bare ObsTable instead of a SurveyInfo raises a clear TypeError."""
+    model, si = preload_inputs
+    with pytest.raises(TypeError, match="SurveyInfo"):
+        make_worker_initializer(model, si.obstable)
+
+
+def test_shared_objects_resolve_to_one_instance(preload_inputs):
+    """Shared objects reachable from more than one place still resolve to one instance."""
+    _, si = preload_inputs
+    si2 = SurveyInfo(obstable=si.obstable, passbands=si.passbands, noise_model=si.noise_model)
+    sampler = ObsTableUniformRADECSampler(si.obstable, radius=1.0, seed=3, node_label="pos")
+    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=sampler.ra, dec=sampler.dec, redshift=0.0)
+
+    init = make_worker_initializer(model, [si, si2])
+    init()
+    loaded_model, loaded_si = load_preloaded_data(init.digest)
+
+    assert loaded_si[0].obstable is loaded_si[1].obstable
+    loaded_sampler = loaded_model.setters["ra"].dependency
+    assert loaded_sampler.data is loaded_si[0].obstable
+
+
+def test_lazy_shared_load_is_thread_safe(preload_inputs):
+    """Concurrent loads from many threads share one shared-data load, but not the model."""
+    model, si = preload_inputs
+    init = make_worker_initializer(model, si)
+    init()
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(lambda _: load_preloaded_data(init.digest), range(8)))
+
+    models = [result[0] for result in results]
+    survey_lists = [result[1] for result in results]
+    assert all(survey_list is survey_lists[0] for survey_list in survey_lists)
+    assert len({id(m) for m in models}) == len(models)

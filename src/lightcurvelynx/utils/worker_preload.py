@@ -36,9 +36,11 @@ raise from a plain ``pickle.dumps`` call.
 import hashlib
 import io
 import pickle
+import threading
 from typing import NamedTuple
 
 from lightcurvelynx.obstable.obs_table import ObsTable
+from lightcurvelynx.survey_info import SurveyInfo
 
 try:
     import cloudpickle
@@ -275,3 +277,251 @@ def load_serialized_data(model_bytes, shared_bytes):
     survey_info, shared_objects = pickle.loads(shared_bytes)
     model = _ModelUnpickler(io.BytesIO(model_bytes), shared_objects).load()
     return model, survey_info, shared_objects
+
+
+class WorkerInitializer:
+    """A picklable, zero-argument callable that preloads simulation data on a worker.
+
+    An instance holds the serialized payload produced by ``make_worker_initializer``.
+    Calling it installs the payload into this process's module-level preload slot: the
+    first call in a process does the installing, and later calls with the same digest
+    are no-ops. Passing an instance as a ``ProcessPoolExecutor`` (or similar) initializer
+    runs it once per worker process; calling it directly in each thread of a
+    ``ThreadPoolExecutor`` is also safe, since a matching digest is a no-op.
+
+    Parameters
+    ----------
+    digest : str
+        The content digest identifying this payload, as computed by
+        ``compute_preload_digest``.
+    model_bytes : bytes
+        The pickled model part, as returned in ``SerializedData.model_bytes``.
+    shared_bytes : bytes
+        The pickled shared part, as returned in ``SerializedData.shared_bytes``.
+    """
+
+    def __init__(self, digest, model_bytes, shared_bytes):
+        self._digest = digest
+        self._model_bytes = model_bytes
+        self._shared_bytes = shared_bytes
+
+    @property
+    def digest(self):
+        """str: The content digest of the preloaded payload."""
+        return self._digest
+
+    def __call__(self):
+        """Install this payload into the process's preload slot.
+
+        Does nothing if the slot already holds this digest. Otherwise replaces the
+        slot. This method only stores the pickled bytes; nothing is unpickled here.
+        """
+        _install_slot(self._digest, self._model_bytes, self._shared_bytes)
+
+    def __repr__(self):
+        """Return a short repr with the digest prefix and payload sizes, never the bytes."""
+        model_mb = len(self._model_bytes) / 1e6
+        shared_mb = len(self._shared_bytes) / 1e6
+        return (
+            f"{type(self).__name__}(digest={self._digest[:8]}, "
+            f"model={model_mb:.2f}MB, shared={shared_mb:.2f}MB)"
+        )
+
+
+def _normalize_survey_info(survey_info):
+    """Normalize ``survey_info`` into a list of SurveyInfo, raising on anything else.
+
+    Parameters
+    ----------
+    survey_info : SurveyInfo or list of SurveyInfo
+        The survey information passed by the caller.
+
+    Returns
+    -------
+    list of SurveyInfo
+        ``survey_info`` as a list, if every element is a SurveyInfo.
+
+    Raises
+    ------
+    TypeError
+        If ``survey_info`` is neither a SurveyInfo nor a list (or tuple) of SurveyInfo.
+    """
+    if isinstance(survey_info, SurveyInfo):
+        return [survey_info]
+    if isinstance(survey_info, (list, tuple)):
+        for info in survey_info:
+            if not isinstance(info, SurveyInfo):
+                raise TypeError(
+                    "survey_info must be a SurveyInfo or a list of SurveyInfo instances, "
+                    f"found {type(info).__name__} in the list; wrap bare ObsTable objects "
+                    "in a SurveyInfo first."
+                )
+        return list(survey_info)
+    raise TypeError(
+        "survey_info must be a SurveyInfo or a list of SurveyInfo instances, "
+        f"got {type(survey_info).__name__}; wrap bare ObsTable objects in a SurveyInfo first."
+    )
+
+
+# Process-level registry of digests created by make_worker_initializer in this process.
+# Never pruned: it only ever holds a handful of small hex strings.
+_registry_lock = threading.Lock()
+_known_digests = set()
+
+
+def make_worker_initializer(model, survey_info):
+    """Serialize a model and its survey data and return a picklable worker initializer.
+
+    Parameters
+    ----------
+    model : ParameterizedNode
+        The model to preload on workers.
+    survey_info : SurveyInfo or list of SurveyInfo
+        The survey information to preload alongside the model.
+
+    Returns
+    -------
+    WorkerInitializer
+        A picklable, zero-argument callable that installs the serialized payload into
+        a worker's preload slot when called.
+
+    Raises
+    ------
+    TypeError
+        If ``survey_info`` is neither a SurveyInfo nor a list of SurveyInfo.
+    """
+    survey_info = _normalize_survey_info(survey_info)
+    data = serialize_simulation_data(model, survey_info, keep_bytes=True)
+    with _registry_lock:
+        _known_digests.add(data.digest)
+    return WorkerInitializer(data.digest, data.model_bytes, data.shared_bytes)
+
+
+def has_known_preload_digests():
+    """Return whether any digest has been registered in this process.
+
+    Returns
+    -------
+    bool
+        True if ``make_worker_initializer`` has been called at least once in this
+        process, False otherwise.
+    """
+    with _registry_lock:
+        return bool(_known_digests)
+
+
+def is_known_preload_digest(digest):
+    """Return whether ``digest`` was registered by ``make_worker_initializer``.
+
+    Parameters
+    ----------
+    digest : str
+        The digest to check.
+
+    Returns
+    -------
+    bool
+        True if ``digest`` is in the process-level registry, False otherwise.
+    """
+    with _registry_lock:
+        return digest in _known_digests
+
+
+class _PreloadSlot:
+    """A single process's preloaded payload, with the shared part loaded lazily once.
+
+    Parameters
+    ----------
+    digest : str
+        The content digest identifying this payload.
+    model_bytes : bytes
+        The pickled model part.
+    shared_bytes : bytes
+        The pickled shared part. Dropped after the first call to ``shared``.
+    """
+
+    def __init__(self, digest, model_bytes, shared_bytes):
+        self.digest = digest
+        self.model_bytes = model_bytes
+        self._shared_bytes = shared_bytes
+        self._shared_lock = threading.Lock()
+        self._shared = None
+
+    def shared(self):
+        """Return the cached ``(survey_info, shared_objects)``, loading it once if needed.
+
+        Returns
+        -------
+        tuple of (list of SurveyInfo, list)
+            The survey info list and the shared objects it (and the model) reference.
+        """
+        if self._shared is None:
+            with self._shared_lock:
+                if self._shared is None:
+                    self._shared = pickle.loads(self._shared_bytes)
+                    self._shared_bytes = None
+        return self._shared
+
+
+# The current process's preload slot, replaced wholesale under _slot_lock. There is at
+# most one preloaded payload per process: installing a new digest replaces the slot.
+_slot_lock = threading.Lock()
+_slot = None
+
+
+def _install_slot(digest, model_bytes, shared_bytes):
+    """Install a payload into the process's preload slot, unless it is already there.
+
+    Parameters
+    ----------
+    digest : str
+        The content digest identifying the payload.
+    model_bytes : bytes
+        The pickled model part.
+    shared_bytes : bytes
+        The pickled shared part.
+    """
+    global _slot
+    with _slot_lock:
+        if _slot is not None and _slot.digest == digest:
+            return
+        _slot = _PreloadSlot(digest, model_bytes, shared_bytes)
+
+
+def load_preloaded_data(digest):
+    """Return the preloaded model and survey info for ``digest``, or None if unavailable.
+
+    Loading the shared part (the survey info and any shared ``ObsTable`` instances) is
+    done at most once per slot, under the slot's lock; after that the shared bytes are
+    dropped and the loaded objects are reused. The model is freshly unpickled on every
+    call, so no two calls ever share a model object.
+
+    Parameters
+    ----------
+    digest : str
+        The digest of the payload to load, as returned by ``WorkerInitializer.digest``.
+
+    Returns
+    -------
+    tuple of (ParameterizedNode, list of SurveyInfo) or None
+        The freshly unpickled model and the (possibly shared, cached) survey info list,
+        or None if the process's preload slot is empty or holds a different digest.
+    """
+    slot = _slot
+    if slot is None or slot.digest != digest:
+        return None
+    survey_info, shared_objects = slot.shared()
+    model = _ModelUnpickler(io.BytesIO(slot.model_bytes), shared_objects).load()
+    return model, survey_info
+
+
+def reset_preload_state():
+    """Clear the process-level registry and the preload slot.
+
+    Intended for tests, so preload state from one test never leaks into another.
+    """
+    global _slot
+    with _registry_lock:
+        _known_digests.clear()
+    with _slot_lock:
+        _slot = None

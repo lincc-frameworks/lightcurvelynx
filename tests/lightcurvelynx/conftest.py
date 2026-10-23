@@ -70,6 +70,20 @@ def passbands_dir(test_data_dir):
     return test_data_dir / "passbands"
 
 
+@pytest.fixture(autouse=True)
+def _reset_worker_preload():
+    """Clear the worker-preload registry and slot before and after every test.
+
+    Autouse so preload state never leaks between tests, since the registry and slot
+    are module-level state in ``lightcurvelynx.utils.worker_preload``.
+    """
+    from lightcurvelynx.utils.worker_preload import reset_preload_state
+
+    reset_preload_state()
+    yield
+    reset_preload_state()
+
+
 @pytest.fixture
 def preload_inputs(test_data_dir):
     """Build a small model and SurveyInfo pair used by the worker-preload tests.
