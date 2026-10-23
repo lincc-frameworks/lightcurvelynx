@@ -840,7 +840,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
                 indices = np.asarray(indices)
                 if np.any((indices < 0) | (indices >= len(lightcurves))):
                     raise ValueError("Indices must be between 0 and the number of light curves.")
-                indices_sampler = GivenValueList(indices, stateful=False)
+                indices_sampler = GivenValueList(indices, stateful=True)
             else:
                 # Assume it is already a parameter or sampler.
                 indices_sampler = indices
