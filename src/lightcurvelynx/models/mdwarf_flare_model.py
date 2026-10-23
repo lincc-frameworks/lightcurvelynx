@@ -7,7 +7,6 @@ from astropy import units as u  # angstroms, nanojanskies for flux density
 from astropy.modeling.models import BlackBody
 from citation_compass import cite_function
 from scipy import special
-from scipy.stats import binned_statistic
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.astro_utils.passbands import Passband
@@ -160,8 +159,13 @@ class MDwarfFlareModel(SEDModel):
             self.set_parameter("ra", value=sampler.ra)
             self.set_parameter("dec", value=sampler.dec)
 
-        # downloading the passband once to use later
+        # Download the passband once to use later and extract the wavelengths.
         self._tess_band = Passband.from_svo("TESS/TESS.Red")
+        self._tess_wavelengths = self._tess_band.waves * u.AA
+
+        # The peak of the flare is the flare equation at time 0. Since it is
+        # independent of the parameters, we can evaluate it once and cache it.
+        self._peak_value = self._flare_eqn(np.array([0]))[0]
 
     @cite_function
     def _flare_eqn(self, time):
@@ -227,15 +231,16 @@ class MDwarfFlareModel(SEDModel):
         return eqn
 
     @cite_function
-    def _flare_model(self, time, tpeak, flare_fwhm, upsample=False, uptime=10):
+    def _flare_model(self, time, tpeak, flare_fwhm, *, normalize=True):
         """
-        The Continuous Flare Model evaluated for single-peak (classical) flare events.
-        Assumes Kepler bandpass; later modified to use parameters from TESS.
-        Reference: Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
-        Code adapted from https://github.com/lupitatovar/Llamaradas-Estelares under MIT License.
+        The (peak-normalized) Continuous Flare Model evaluated for single-peak (classical)
+        flare events. Assumes Kepler bandpass; later modified to use parameters from TESS.
+
+        Code adapted from https://github.com/lupitatovar/Llamaradas-Estelares under
+        the MIT License.
 
         References
-        --------------
+        ----------
         Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
         Davenport et al. (2014) http://arxiv.org/abs/1411.3723
         Jackman et al. (2018) https://arxiv.org/abs/1804.03377
@@ -249,10 +254,8 @@ class MDwarfFlareModel(SEDModel):
         flare_fwhm : float
             The Full Width at Half Maximum, timescale of the flare
             (scaling of the time array)
-        upsample: Bool
-            whether to upsample (we should not need to use this for lightcurvelynx)
-        uptime: float or int
-            how much to upsample by
+        normalize : bool, optional
+            Whether to normalize the flare to have a peak of 1.0 (default is True)
 
         Returns
         -------
@@ -263,54 +266,16 @@ class MDwarfFlareModel(SEDModel):
             the convolution of a Gaussian and double exponential
             and can be parameterized by three parameters: center time (tpeak), FWHM, and ampitude
         """
-
+        # Shift and scale the times relative to tpeak and clip, so we avoid numerical issues
+        # with extreme values
         t_new = (time - tpeak) / flare_fwhm
-        # clipping so we don't have errors with the function
         t_new = np.maximum(t_new, -200)
 
-        if upsample:
-            dt = np.nanmedian(np.diff(np.abs(t_new)))
-            timeup = np.linspace(min(t_new) - dt, max(t_new) + dt, t_new.size * uptime)
-
-            flareup = self._flare_eqn(timeup)
-
-            # and now downsample back to the original time...
-            downbins = np.concatenate((t_new - dt / 2.0, [max(t_new) + dt / 2.0]))
-            flare, _, _ = binned_statistic(timeup, flareup, statistic="mean", bins=np.sort(downbins))
-        else:
-            flare = self._flare_eqn(t_new)
-
+        # Compute the flare equation and normalize if needed.
+        flare = self._flare_eqn(t_new)
+        if normalize:
+            flare /= self._peak_value
         return flare
-
-    def _norm_flare_shape(self, time, tpeak, flare_fwhm, **kwargs):
-        """
-        Peak-normalized flare shape: exactly 1.0 at time == tpeak.
-
-        The Tovar Mendoza `amplitude` parameter is close to but not exactly
-        the peak flux (the peak of flare_model(..., amplitude=1) is ~0.95,
-        not 1.0), so we explicitly renormalize here rather than assume
-        amplitude == peak height. This allows us to use the TESS amplitude
-        distribution instead of what the parameter was originally meant for which was Kepler
-        ...hopefully :)
-
-        Parameters
-        ----------
-        time : 1-d numpy.ndarray
-            The time array to evaluate the flare over (days)
-        tpeak : float
-            The center time of the flare peak (days)
-        flare_fwhm : float
-            The Full Width at Half Maximum, timescale of the flare (days)
-        **kwargs
-            Optional, for upsampling in _flare_model
-
-        Returns
-        -------
-         normalized flare : 1-d numpy.ndarray
-            The flux of the flare model evaluated at each time
-        """
-        peak = self._flare_model(np.array([tpeak]), tpeak, flare_fwhm, **kwargs)[0]
-        return self._flare_model(time, tpeak, flare_fwhm, **kwargs) / peak
 
     def _build_spectrum_bb_with_balmer(self, wavelengths, for_tess, temp_low=9000, balmer_jump_ratio=2):
         """
@@ -443,9 +408,10 @@ class MDwarfFlareModel(SEDModel):
         # adding the units for radius
         constants = np.pi * params["star_radius"] ** 2 * u.sr * (u.cm**2)
 
-        norm_shape = (
-            self._norm_flare_shape(times, params["t0"], params["flare_fwhm"]) * params["flare_amplitude"]
-        )
+        # Compute the shape of the flare we are going to apply.
+        norm_shape = self._flare_model(times, params["t0"], params["flare_fwhm"])
+        norm_shape = norm_shape * params["flare_amplitude"]
+
         # if we want to upsample it we can add that here
         I_flare_for_tess = self._build_spectrum_bb_with_balmer(
             wavelengths=None, temp_low=params["flare_temp"], for_tess=True
