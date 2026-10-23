@@ -109,14 +109,6 @@ class GivenValueList(FunctionNode):
 
         super().__init__(self._non_func, **kwargs)
 
-    def __getstate__(self):
-        if self._stateful:
-            raise RuntimeError(
-                "A stateful GivenValueList cannot be pickled or deep-copied. This node does "
-                "not support parallel sampling."
-            )
-        return super().__getstate__()
-
     def reset(self):
         """Reset the next index to use."""
         self.next_ind = 0
@@ -281,7 +273,7 @@ class GivenValueSelector(FunctionNode):
         super().__init__(self._select, index=index, **kwargs)
         self.values = np.asarray(values)
         if len(values) == 0:
-            raise ValueError("No values provided for GivenValueList")
+            raise ValueError("No values provided for GivenValueSelector")
 
     def _select(self, index):
         """Select the value at the given index."""

@@ -196,10 +196,9 @@ class SimulationInfo:
                 batch_graph_state = None
 
             # Create a subset of the batch. Most information is the same (references to the
-            # same objects), except for the model (which may not be thread-safe), the number of samples,
-            # and the RNG.
+            # same objects), except for the number of samples and the RNG.
             batch_info = SimulationInfo(
-                model=copy.deepcopy(self.model),
+                model=self.model,
                 num_samples=batch_num_samples,
                 survey_info=self.survey_info,
                 obstable_save_cols=self.obstable_save_cols,
@@ -316,8 +315,9 @@ def _simulate_lightcurves_batch(simulation_info):
     logger.info(f"Starting batch at {sample_offset} with {simulation_info.num_samples} samples.")
 
     # Extract the parameters from the SimulationInfo that are used repeated
-    # (so we have shorter names).
-    model = simulation_info.model
+    # (so we have shorter names). We use a deep copy of the model to avoid any potential
+    # thread-safety issues during parallel simulations.
+    model = copy.deepcopy(simulation_info.model)
     requested_num_samples = simulation_info.num_samples
     obstable = [info.obstable for info in simulation_info.survey_info]
     passbands = [info.passbands for info in simulation_info.survey_info]
