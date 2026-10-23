@@ -141,11 +141,13 @@ def assert_identical_results():
     import pandas as pd
 
     def compare(a, b):
-        pd.testing.assert_frame_equal(a, b, check_exact=True)
+        # Compare the flattened light curves first: when they differ, comparing the whole
+        # NestedFrame raises an opaque KeyError from pandas instead of an AssertionError.
         pd.testing.assert_frame_equal(
             a["lightcurve"].nest.to_flat(),
             b["lightcurve"].nest.to_flat(),
             check_exact=True,
         )
+        pd.testing.assert_frame_equal(a, b, check_exact=True)
 
     return compare
