@@ -97,7 +97,6 @@ class GivenValueList(FunctionNode):
         Whether this node is stateful. If True, the node will keep track of the next
         index to return. If False, the node will always return the first N values in the list,
         where N is the number of samples requested.
-        Default: True
     """
 
     def __init__(self, values, *, stateful=None, **kwargs):

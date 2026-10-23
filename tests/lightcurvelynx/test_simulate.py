@@ -1515,6 +1515,46 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
         assert base_path.exists()
 
 
+def test_simulate_drop_empty_rows(test_data_dir):
+    """Test that we drop empty rows when configured to do so."""
+    # Set up a small survey with observations at two different regions of the sky.
+    obsdata1 = {
+        "time": [0.0, 1.0, 2.0, 3.0],
+        "ra": [0.0, 0.0, 180.0, 180.0],
+        "dec": [10.0, 10.0, -10.0, -10.0],
+        "filter": ["g", "r", "g", "r"],
+        "zp": [0.4, 0.5, 0.6, 0.7],
+        "seeing": [1.12, 1.12, 1.12, 1.12],
+        "skybrightness": [20.0, 20.0, 20.0, 20.0],
+        "exptime": [29.2, 29.2, 29.2, 29.2],
+        "nexposure": [2, 2, 2, 2],
+    }
+    obstable1 = OpSim(obsdata1)
+    passband_group1 = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r"],
+    )
+    survey_info = SurveyInfo(obstable=obstable1, passbands=passband_group1)
+
+    # Create a constant SED model that is sometimes observed:
+    # [seen, not seen, not seen, seen, seen, not seen]
+    all_ra = GivenValueList([0.0, 0.0, 90.0, 180.0, 180.1, 270.0])
+    all_dec = GivenValueList([10.0, -10.0, 0.0, -10.0, -9.9, -10.0])
+    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=all_ra, dec=all_dec, redshift=0.0)
+
+    # Do the simulation with defaults. We should get 6 result rows.
+    results = simulate_lightcurves(model, 6, [survey_info], progress_bar=False)
+    assert len(results) == 6
+
+    # Reset the lists and do the simulation with drop_empty_rows=True.
+    all_ra.reset()
+    all_dec.reset()
+    results = simulate_lightcurves(model, 6, [survey_info], drop_empty_rows=True, progress_bar=False)
+    assert len(results) == 3
+    assert results["id"].tolist() == [0, 3, 4]
+
+
 def test_compute_noise_free_lightcurves_single(test_data_dir):
     """Test computing noise-free light curves for a set of times and filters."""
     # Load the passband data for the griz filters only.

@@ -250,6 +250,34 @@ def test_results_drop_empty():
     assert len(filtered_results["lightcurve"][2]) == 1
     assert len(filtered_results["lightcurve"][3]) == 2
 
+    # Try a nested frame with only spectra (no light curves).
+    results2 = NestedFrame(data=source_data, index=[0, 1, 2, 3, 4])
+    spectra_frame = pd.DataFrame(
+        data={"mjd": [59000, 59001, 59001, 59002, 59005]},
+        index=[0, 0, 2, 2, 4],
+    )
+    results2 = results2.join_nested(spectra_frame, "spectra")
+    assert len(results2) == 5
+    assert results2["object_id"].tolist() == [0, 1, 2, 3, 4]
+
+    # Apply the drop_empty function to the spectra only results.
+    filtered_results2 = results_drop_empty(results2)
+    assert len(filtered_results2) == 3
+    assert filtered_results2["object_id"].tolist() == [0, 2, 4]
+
+    # Try a nested frame with both lightcurves (rows 0, 2, and 3) and
+    # spectra (rows 0, 2, and 4).
+    results3 = NestedFrame(data=source_data, index=[0, 1, 2, 3, 4])
+    results3 = results3.join_nested(nested_frame, "lightcurve")
+    results3 = results3.join_nested(spectra_frame, "spectra")
+    assert len(results3) == 5
+    assert results3["object_id"].tolist() == [0, 1, 2, 3, 4]
+
+    # Apply the drop_empty function to the spectra + light curve results.
+    filtered_results3 = results_drop_empty(results3)
+    assert len(filtered_results3) == 4
+    assert filtered_results3["object_id"].tolist() == [0, 2, 3, 4]
+
 
 def test_lightcurve_compute_snr():
     """Test the lightcurve_compute_snr function."""

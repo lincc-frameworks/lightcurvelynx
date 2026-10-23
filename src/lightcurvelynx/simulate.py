@@ -14,7 +14,7 @@ from tqdm import tqdm
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.survey_info import SurveyInfo
-from lightcurvelynx.utils.post_process_results import concat_results
+from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,8 @@ class SimulationInfo:
         Whether to save the full filter names in the results (including survey prefix).
     progress_bar : bool
         Whether to show a progress bar during the simulation.
+    drop_empty_rows : bool
+        Whether to drop rows that have no observations after applying the filters.
     graph_state : GraphState, optional
         The predefined graph state to use to replay a previous simulation. If None,
         a new graph state is sampled.
@@ -92,6 +94,7 @@ class SimulationInfo:
         output_file_path=None,
         save_full_filter_names=False,
         progress_bar=True,
+        drop_empty_rows=False,
         graph_state=None,
         **kwargs,
     ):
@@ -111,6 +114,7 @@ class SimulationInfo:
         self.output_file_path = None
         self.save_full_filter_names = save_full_filter_names
         self.progress_bar = progress_bar
+        self.drop_empty_rows = drop_empty_rows
 
         if self.num_samples <= 0:
             raise ValueError("Number of samples must be a positive integer.")
@@ -211,6 +215,7 @@ class SimulationInfo:
                 output_file_path=batch_output_file_path,
                 save_full_filter_names=self.save_full_filter_names,
                 progress_bar=False,  # Don't show per-batch progress bars.
+                drop_empty_rows=self.drop_empty_rows,
                 graph_state=batch_graph_state,
                 **self.kwargs,
             )
@@ -577,6 +582,11 @@ def _simulate_lightcurves_batch(simulation_info):
         spectra_frame = pd.DataFrame(data=spectra_dict, index=spectra_index)
         results = results.join_nested(spectra_frame, "spectra")
 
+    # Drop any rows that have neither lightcurve nor spectra data.
+    if simulation_info.drop_empty_rows:
+        results = results_drop_empty(results)
+
+    # If we are writing the subsets out to files, write this subset.
     if simulation_info.output_file_path is not None:
         results.to_parquet(simulation_info.output_file_path)
         return simulation_info.output_file_path
@@ -642,6 +652,7 @@ def simulate_lightcurves(
     num_jobs=None,
     batch_size=100_000,
     save_full_filter_names=False,
+    drop_empty_rows=False,
     progress_bar=True,
     graph_state=None,
 ):
@@ -710,6 +721,8 @@ def simulate_lightcurves(
     num_jobs : int, optional
         If provided (and no executor is provided) creates a process pool (ProcessPoolExecutor)
         with the given number of workers to process the results.
+    drop_empty_rows : bool, optional
+        Whether to drop rows that have no observations. Default is False.
     batch_size : int, optional
         The number of samples to process in each batch when using multiprocessing.
         Default is 100_000.
@@ -789,6 +802,7 @@ def simulate_lightcurves(
         param_cols=param_cols,
         output_file_path=output_file_path,
         save_full_filter_names=save_full_filter_names,
+        drop_empty_rows=drop_empty_rows,
         progress_bar=progress_bar,
         graph_state=graph_state,
     )

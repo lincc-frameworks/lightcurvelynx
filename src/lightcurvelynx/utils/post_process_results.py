@@ -45,14 +45,20 @@ def results_drop_empty(results):
     Parameters
     ----------
     results : nested_pandas.NestedFrame
-        The DataFrame containing lightcurve data.
+        The DataFrame containing light-curve and spectral data.
 
     Returns
     -------
     nested_pandas.NestedFrame
-        The DataFrame with empty lightcurves removed.
+        The DataFrame with rows containing empty light curves
+        and no spectra removed.
     """
-    return results.dropna(subset=["lightcurve"])
+    has_results = np.full(len(results), False, dtype=bool)
+    if "lightcurve" in results.columns:
+        has_results |= ~results["lightcurve"].isna()
+    if "spectra" in results.columns:
+        has_results |= ~results["spectra"].isna()
+    return results.loc[has_results]
 
 
 def results_append_param_as_col(results, param_name):
