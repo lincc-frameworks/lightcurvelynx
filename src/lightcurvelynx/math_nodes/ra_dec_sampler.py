@@ -898,7 +898,7 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
         # Set up the survey footprint information.
         self.max_iterations = max_iterations
         if isinstance(survey_footprint, ObsTable):
-            self.survey_footprint = survey_footprint.build_moc(max_depth=8)
+            self.survey_footprint = survey_footprint.build_moc(max_depth=10)
         else:
             self.survey_footprint = survey_footprint
 
