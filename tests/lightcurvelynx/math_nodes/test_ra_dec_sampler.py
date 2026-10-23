@@ -330,7 +330,9 @@ def test_opsim_uniform_ra_dec_sampler():
 
     # Test we can generate many observations
     num_samples = 10_000
-    ra, dec = sampler_node.generate(num_samples=num_samples)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ra, dec = sampler_node.generate(num_samples=num_samples)
     assert np.all(ops_data.is_observed(ra, dec, radius=30.0))
 
     # We should sample roughly uniformly from the two regions.
@@ -377,8 +379,10 @@ def test_opsim_uniform_ra_dec_sampler_footprint():
 
     # Test we can generate multiple observations
     num_samples = 200
-    sampler_node = ObsTableUniformRADECSampler(ops_data, radius=50.0, seed=100, node_label="sampler")
-    ra, dec = sampler_node.generate(num_samples=num_samples)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sampler_node = ObsTableUniformRADECSampler(ops_data, radius=50.0, seed=100, node_label="sampler")
+        ra, dec = sampler_node.generate(num_samples=num_samples)
 
     # We should sample roughly uniformly from the two regions.
     northern_mask = dec > 0.0
@@ -815,10 +819,18 @@ def test_milky_way_ra_dec_sampler_survey_footprint():
         density_model=model, survey_footprint=galaxy_survey_moc, seed=123, node_label="mw"
     )
 
+    # We can return a single sample.
+    ra, dec, distance_pc = sampler_node.generate(num_samples=1)
+    assert -180.0 <= ra <= 180.0
+    assert -90.0 <= dec <= 90.0
+    assert distance_pc >= 0.0
+
     # Test we can generate many observations and that MOST of them fall within the
     # footprint defined by the MOC.
     num_samples = 10_000
-    ra, dec, distance_pc = sampler_node.generate(num_samples=num_samples)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        ra, dec, distance_pc = sampler_node.generate(num_samples=num_samples)
     seen_mask = galaxy_survey_moc.contains_lonlat(ra * u.deg, dec * u.deg)
     assert np.sum(seen_mask) > 0.9 * num_samples
 

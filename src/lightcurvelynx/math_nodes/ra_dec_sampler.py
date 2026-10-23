@@ -1,6 +1,7 @@
 """Samplers used for generating (RA, dec) coordinates."""
 
 import logging
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -406,6 +407,12 @@ class ObsTableUniformRADECSampler(NumpyRandomFunc):
             mask[~mask] = self.data.is_observed(new_ra, new_dec, radius=self.radius)
             num_missing = np.sum(~mask)
             iter_num += 1
+
+        if num_missing > 0:
+            warnings.warn(
+                f"{num_missing} samples could not be placed within the survey footprint "
+                f"after {self.max_iterations} iterations."
+            )  # pragma: no cover
 
         # If we are generating a single sample, return floats.
         if graph_state.num_samples == 1:
@@ -822,7 +829,8 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
     supplied.  Spherical coordinates are returned in degrees, and the distance is in parsecs.
 
     This sampler can use a survey footprint to constrain the sampled positions via rejection sampling.
-    However this can be slow for very small survey footprints.
+    However, this can be slow for very small survey footprints and still lead to points outside
+    the footprint (if they aren't matched within `max_iterations` attempts).
 
     References
     ----------
@@ -975,6 +983,12 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
                 missing_mask[missing_mask] = ~self._check_seen(new_ra, new_dec)
                 num_missing = np.sum(missing_mask)
                 iter_num += 1
+
+            if num_missing > 0:
+                warnings.warn(
+                    f"{num_missing} samples could not be placed within the survey footprint "
+                    f"after {self.max_iterations} iterations."
+                )  # pragma: no cover
 
         # Return scalars for a single sample.
         if graph_state.num_samples == 1:
