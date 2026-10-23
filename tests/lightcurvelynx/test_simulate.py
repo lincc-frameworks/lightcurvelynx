@@ -2038,7 +2038,7 @@ def test_simulate_process_safety():
 
     # Simulate it with 1 process and batch size of 1. We need to keep the
     # random seed and batch size the same to ensure reproducibility.
-    num_samples = 100
+    num_samples = 1000
     with ProcessPoolExecutor(1) as ex:
         res_1 = simulate_lightcurves(
             model=model,
