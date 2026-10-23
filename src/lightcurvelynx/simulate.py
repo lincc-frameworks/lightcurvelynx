@@ -1,6 +1,7 @@
 """The core functions for running the LightCurveLynx simulation."""
 
 import concurrent.futures
+import copy
 import logging
 import warnings
 from pathlib import Path
@@ -314,8 +315,9 @@ def _simulate_lightcurves_batch(simulation_info):
     logger.info(f"Starting batch at {sample_offset} with {simulation_info.num_samples} samples.")
 
     # Extract the parameters from the SimulationInfo that are used repeated
-    # (so we have shorter names).
-    model = simulation_info.model
+    # (so we have shorter names). We use a deep copy of the model to avoid any potential
+    # thread-safety issues during parallel simulations.
+    model = copy.deepcopy(simulation_info.model)
     requested_num_samples = simulation_info.num_samples
     obstable = [info.obstable for info in simulation_info.survey_info]
     passbands = [info.passbands for info in simulation_info.survey_info]
