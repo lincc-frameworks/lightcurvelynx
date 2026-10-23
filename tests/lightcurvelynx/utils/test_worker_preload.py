@@ -10,6 +10,7 @@ from lightcurvelynx.math_nodes.ra_dec_sampler import ObsTableUniformRADECSampler
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.survey_info import SurveyInfo
+from lightcurvelynx.utils import worker_preload
 from lightcurvelynx.utils.worker_preload import (
     compute_preload_digest,
     has_known_preload_digests,
@@ -17,6 +18,7 @@ from lightcurvelynx.utils.worker_preload import (
     load_preloaded_data,
     load_serialized_data,
     make_worker_initializer,
+    reset_preload_state,
     serialize_simulation_data,
 )
 
@@ -177,3 +179,45 @@ def test_lazy_shared_load_is_thread_safe(preload_inputs):
     survey_lists = [result[1] for result in results]
     assert all(survey_list is survey_lists[0] for survey_list in survey_lists)
     assert len({id(m) for m in models}) == len(models)
+
+
+def test_unpickled_initializer_releases_bytes_after_first_call(preload_inputs):
+    """A pickled initializer drops its own bytes after being called and loaded once."""
+    model, si = preload_inputs
+    init = pickle.loads(pickle.dumps(make_worker_initializer(model, si)))
+    init()
+    load_preloaded_data(init.digest)
+    assert init._model_bytes is None
+    assert init._shared_bytes is None
+    # The slot itself must also have dropped the shared bytes after the first load.
+    assert worker_preload._slot._shared_bytes is None
+
+
+def test_never_pickled_initializer_keeps_bytes_and_can_reinstall(preload_inputs):
+    """An initializer that was never pickled keeps its bytes and can preload again."""
+    model, si = preload_inputs
+    init = make_worker_initializer(model, si)
+    init()
+    assert init._model_bytes is not None
+    assert init._shared_bytes is not None
+
+    reset_preload_state()
+    init()  # must still work: this instance never released its bytes
+    assert load_preloaded_data(init.digest) is not None
+
+
+def test_emptied_unpickled_initializer_call_is_a_safe_noop(preload_inputs):
+    """Calling an already-emptied, unpickled initializer never raises and never installs."""
+    model, si = preload_inputs
+    init = pickle.loads(pickle.dumps(make_worker_initializer(model, si)))
+    init()
+    load_preloaded_data(init.digest)  # releases init's own bytes
+    assert init._model_bytes is None
+
+    other = make_worker_initializer(
+        ConstantSEDModel(brightness=1.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0), si
+    )
+    other()  # the slot now holds a different digest
+
+    init()  # must not raise, and must not touch the slot
+    assert load_preloaded_data(init.digest) is None

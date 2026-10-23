@@ -289,6 +289,18 @@ class WorkerInitializer:
     runs it once per worker process; calling it directly in each thread of a
     ``ThreadPoolExecutor`` is also safe, since a matching digest is a no-op.
 
+    An instance that reaches a worker by being unpickled (the normal case for
+    ``spawn``/``forkserver``/``loky``/``ray`` worker pools) releases its own copy of the
+    bytes the first time it is called, since by then they have been handed to the
+    process's slot: keeping them around would roughly double the memory cost of the
+    largest preloaded object (typically an ``ObsTable``) for the worker's whole life. An
+    instance that was never pickled -- held directly by a user, called from every thread
+    of a ``ThreadPoolExecutor``, or inherited via ``fork`` -- keeps its bytes indefinitely,
+    since in those cases it may legitimately need to install them again (for example
+    after ``reset_preload_state`` in tests). Calling an instance that has already released
+    its bytes is a safe no-op: it never raises and never touches the slot, so
+    ``load_preloaded_data`` simply falls back to returning ``None`` for its digest.
+
     Parameters
     ----------
     digest : str
@@ -304,28 +316,62 @@ class WorkerInitializer:
         self._digest = digest
         self._model_bytes = model_bytes
         self._shared_bytes = shared_bytes
+        # True only for instances reconstructed by unpickling (see __setstate__), never
+        # for one built directly by make_worker_initializer or inherited via fork.
+        self._unpickled = False
 
     @property
     def digest(self):
         """str: The content digest of the preloaded payload."""
         return self._digest
 
+    def __getstate__(self):
+        """Return the pickled state, unchanged (the unpickled flag is set on load)."""
+        return self.__dict__.copy()
+
+    def __setstate__(self, state):
+        """Restore state from a pickle and mark this instance as having been unpickled."""
+        self.__dict__.update(state)
+        self._unpickled = True
+
     def __call__(self):
         """Install this payload into the process's preload slot.
 
         Does nothing if the slot already holds this digest. Otherwise replaces the
-        slot. This method only stores the pickled bytes; nothing is unpickled here.
+        slot. This method only stores the pickled bytes; nothing is unpickled here. If
+        this instance already released its bytes (see the class docstring), this is a
+        safe no-op regardless of what the slot currently holds.
         """
+        if self._model_bytes is None and self._shared_bytes is None:
+            return
         _install_slot(self._digest, self._model_bytes, self._shared_bytes)
+        if self._unpickled:
+            self._model_bytes = None
+            self._shared_bytes = None
 
     def __repr__(self):
         """Return a short repr with the digest prefix and payload sizes, never the bytes."""
-        model_mb = len(self._model_bytes) / 1e6
-        shared_mb = len(self._shared_bytes) / 1e6
         return (
             f"{type(self).__name__}(digest={self._digest[:8]}, "
-            f"model={model_mb:.2f}MB, shared={shared_mb:.2f}MB)"
+            f"model={_format_size_mb(self._model_bytes)}, "
+            f"shared={_format_size_mb(self._shared_bytes)})"
         )
+
+
+def _format_size_mb(data):
+    """Format bytes as a size in MB for ``repr``, or "released" once they are gone.
+
+    Parameters
+    ----------
+    data : bytes or None
+        The payload to measure, or None if it has already been released.
+
+    Returns
+    -------
+    str
+        A human-readable size, e.g. "1.23MB", or "released" if ``data`` is None.
+    """
+    return "released" if data is None else f"{len(data) / 1e6:.2f}MB"
 
 
 def _normalize_survey_info(survey_info):
