@@ -245,10 +245,12 @@ Running in Parallel
 -------------------------------------------------------------------------------
 
 Simulations can be performed in parallel by providing a ``concurrent.futures.Executor`` object.
-This object can be a built-in parallelization method, such as `ThreadPoolExecutor` or
+This object can be a built-in parallelization method, such as 
 `ProcessPoolExecutor`, or other libraries, such as `dask <https://docs.dask.org/en/latest/>`_ or
 `ray <https://docs.ray.io/en/latest/>`_. Note that each process will load a full version of all the data,
-so they may be memory intensive.
+so they may be memory intensive. 
+
+**WARNING**: Currently, `ThreadPoolExecutor` is not supported due to compatibility issues.
 
 **NOTE**: Not all subpackages work with distributed computation yet. If you get an error about
 not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
