@@ -795,3 +795,38 @@ def test_milky_way_ra_dec_sampler_galactic_concentration():
     fraction_near_plane = np.sum(np.abs(gal_b) < 30.0) / num_samples
     # At least 60 % of samples should be within |b| < 30 degrees.
     assert fraction_near_plane > 0.6
+
+
+def test_milky_way_ra_dec_sampler_survey_footprint():
+    """Test that we can sample from the Milky Way with a survey footprint."""
+    # Create a MOC with two points in different hemispheres. Use large
+    # radii, so we do not reject too many samples.
+    galaxy_survey_moc = MOC.from_cones(
+        lon=Longitude([15.0, 90.0], unit="deg"),
+        lat=Latitude([-20.0, 20.0], unit="deg"),
+        radius=30.0 * u.deg,
+        max_depth=6,
+        union_strategy="large_cones",
+    )
+
+    # Create a sampler that uses the Milky Way density model and the survey footprint.
+    model = MilkyWayDensityJuric2008(n_grid=64)
+    sampler_node = MilkyWayCoordSampler(
+        density_model=model, survey_footprint=galaxy_survey_moc, seed=123, node_label="mw"
+    )
+
+    # Test we can generate many observations and that MOST of them fall within the
+    # footprint defined by the MOC.
+    num_samples = 10_000
+    ra, dec, distance_pc = sampler_node.generate(num_samples=num_samples)
+    seen_mask = galaxy_survey_moc.contains_lonlat(ra * u.deg, dec * u.deg)
+    assert np.sum(seen_mask) > 0.9 * num_samples
+
+    # Some of the samples should be in the northern hemisphere and some in the southern hemisphere.
+    northern_mask = dec > 0.0
+    assert np.sum(northern_mask) > 0.1 * num_samples
+    assert np.sum(northern_mask) < 0.9 * num_samples
+
+    # All the distances should be positive and less than 50k parsecs.
+    assert np.all(distance_pc > 0.0)
+    assert np.all(distance_pc < 50_000.0)

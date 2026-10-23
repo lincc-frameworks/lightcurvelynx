@@ -924,7 +924,7 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
 
         lon = Longitude(ra, unit="deg")
         lat = Latitude(dec, unit="deg")
-        return self.survey_footprint.contains(lon, lat)
+        return self.survey_footprint.contains_lonlat(lon, lat)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Sample (RA, dec, distance_pc) positions from the Milky Way density model.
