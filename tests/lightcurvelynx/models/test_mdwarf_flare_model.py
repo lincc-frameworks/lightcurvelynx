@@ -8,6 +8,7 @@ from astropy import units as u
 from astropy.cosmology import Planck18
 
 from lightcurvelynx.models.mdwarf_flare_model import MDwarfFlareModel
+from lightcurvelynx.utils import check_connect_to_svo
 
 # The test values with known output. first, no sampling
 wavelengths = np.linspace(3000, 12000, 4000)
@@ -35,8 +36,8 @@ def test_mdwarf_flare_model_with_assigned_inputs():
     Using specific inputs and making sure the values are what we expect
     (Not sampling from parameter distributions)
     """
-    # if not check_connect_to_svo():
-    #    pytest.skip("Skipping test if we cannot connect to the SVO service.")
+    if not check_connect_to_svo():
+        pytest.skip("Skipping test if we cannot connect to the SVO service.")
 
     star_temp = 4000
     star_radius = 0.09 * u.R_sun.to(u.cm)
@@ -107,8 +108,8 @@ def test_mdwarf_flare_model_with_assigned_inputs():
 
 def test_mdwarf_flare_model_parameter_sampling():
     """Test the sampling from parameter distributions for MDwarfFlareModel objects."""
-    # if not check_connect_to_svo():
-    #    pytest.skip("Skipping test if we cannot connect to the SVO service.")
+    if not check_connect_to_svo():
+        pytest.skip("Skipping test if we cannot connect to the SVO service.")
 
     model = MDwarfFlareModel(t0=10, node_label="model")
     state = model.sample_parameters(num_samples=1)
@@ -131,8 +132,8 @@ def test_mdwarf_flare_model_warnings():
     """
     Test we get a warning if we do not provide distance but provide redshift and cosmology.
     """
-    # if not check_connect_to_svo():
-    #    pytest.skip("Skipping test if we cannot connect to the SVO service.")
+    if not check_connect_to_svo():
+        pytest.skip("Skipping test if we cannot connect to the SVO service.")
 
     with pytest.warns(UserWarning):
         _ = MDwarfFlareModel(
