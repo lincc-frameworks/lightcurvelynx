@@ -1,11 +1,12 @@
 """Samplers used for generating (RA, dec) coordinates."""
 
 import logging
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from astropy.coordinates import Angle, SkyCoord
+from astropy.coordinates import Angle, Latitude, Longitude, SkyCoord
 from cdshealpix.nested import healpix_to_skycoord
 from citation_compass import CiteClass, cite_inline
 from mocpy import MOC
@@ -406,6 +407,12 @@ class ObsTableUniformRADECSampler(NumpyRandomFunc):
             mask[~mask] = self.data.is_observed(new_ra, new_dec, radius=self.radius)
             num_missing = np.sum(~mask)
             iter_num += 1
+
+        if num_missing > 0:
+            warnings.warn(
+                f"{num_missing} samples could not be placed within the survey footprint "
+                f"after {self.max_iterations} iterations."
+            )  # pragma: no cover
 
         # If we are generating a single sample, return floats.
         if graph_state.num_samples == 1:
@@ -821,6 +828,10 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
     :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityBase` can be
     supplied.  Spherical coordinates are returned in degrees, and the distance is in parsecs.
 
+    This sampler can use a survey footprint to constrain the sampled positions via rejection sampling.
+    However, this can be slow for very small survey footprints and still lead to points outside
+    the footprint (if they aren't matched within `max_iterations` attempts).
+
     References
     ----------
     * Juric et al., 2008, ApJ, 673, 864
@@ -837,6 +848,14 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
         The Milky Way stellar density model to use for sampling.  If *None*
         a :class:`~lightcurvelynx.astro_utils.milky_way_density.MilkyWayDensityJuric2008`
         instance with default parameters is created.  Default: None
+    survey_footprint : object, optional
+        The survey footprint to constrain the sampled positions. If None, no footprint is applied.
+        Otherwise rejection sampling is used to ensure that sampled positions fall within the footprint.
+        Default: None
+    max_iterations : int, optional
+        The maximum number of iterations for rejection sampling when applying the survey footprint.
+        This value is not used when no survey footprint is provided.
+        Default: 1000
     seed : int, optional
         The seed to set the node's default random number generator. If None, then a random seed is used.
         This parameter is for testing and has no effect when a user-provided random number generator is
@@ -858,7 +877,15 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
     True
     """
 
-    def __init__(self, density_model=None, seed=None, **kwargs):
+    def __init__(
+        self,
+        density_model=None,
+        *,
+        survey_footprint=None,
+        max_iterations=1000,
+        seed=None,
+        **kwargs,
+    ):
         if density_model is None:
             density_model = MilkyWayDensityJuric2008()
         if not isinstance(density_model, MilkyWayDensityBase):
@@ -867,6 +894,13 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
                 f"got {type(density_model).__name__}."
             )
         self.density_model = density_model
+
+        # Set up the survey footprint information.
+        self.max_iterations = max_iterations
+        if isinstance(survey_footprint, ObsTable):
+            self.survey_footprint = survey_footprint.build_moc(max_depth=10)
+        else:
+            self.survey_footprint = survey_footprint
 
         # NumpyRandomFunc requires a func_name for initialisation and to register
         # outputs. The underlying numpy function is never called directly because
@@ -877,6 +911,28 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
             seed=seed,
             **kwargs,
         )
+
+    def _check_seen(self, ra, dec):
+        """Check if the given RA and Dec coordinates are within the survey footprint.
+
+        Parameters
+        ----------
+        ra : array_like
+            Right ascension coordinates in degrees.
+        dec : array_like
+            Declination coordinates in degrees.
+
+        Returns
+        -------
+        seen : array_like of bool
+            Boolean array indicating whether each coordinate is within the survey footprint.
+        """
+        if self.survey_footprint is None:
+            return np.full_like(ra, True, dtype=bool)
+
+        lon = Longitude(ra, unit="deg")
+        lat = Latitude(dec, unit="deg")
+        return self.survey_footprint.contains_lonlat(lon, lat)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Sample (RA, dec, distance_pc) positions from the Milky Way density model.
@@ -901,10 +957,39 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
         """
         rng = rng_info if rng_info is not None else self._rng
 
+        # Do an initial sampling.
         coords = self.density_model.sample_icrs(n_samples=graph_state.num_samples, rng=rng)
-        ra = coords.ra.deg
-        dec = coords.dec.deg
-        distance_pc = coords.distance.pc
+        ra = np.atleast_1d(coords.ra.deg)
+        dec = np.atleast_1d(coords.dec.deg)
+        distance_pc = np.atleast_1d(coords.distance.pc)
+
+        # Apply the survey footprint constraints (if provided) and resample.
+        # Rejection sampling to ensure the samples are within the survey footprint,
+        # but it may require multiple iterations if the footprint is small.
+        if self.survey_footprint is not None:
+            missing_mask = ~self._check_seen(ra, dec)
+            num_missing = np.sum(missing_mask)
+            iter_num = 1
+
+            while num_missing > 0 and iter_num <= self.max_iterations:
+                # Generate new samples for the missing ones.
+                coords = self.density_model.sample_icrs(n_samples=num_missing, rng=rng)
+                new_ra = np.atleast_1d(coords.ra.deg)
+                new_dec = np.atleast_1d(coords.dec.deg)
+                ra[missing_mask] = new_ra
+                dec[missing_mask] = new_dec
+                distance_pc[missing_mask] = np.atleast_1d(coords.distance.pc)
+
+                # Recheck the new points (old points are alread known).
+                missing_mask[missing_mask] = ~self._check_seen(new_ra, new_dec)
+                num_missing = np.sum(missing_mask)
+                iter_num += 1
+
+            if num_missing > 0:
+                warnings.warn(
+                    f"{num_missing} samples could not be placed within the survey footprint "
+                    f"after {self.max_iterations} iterations."
+                )  # pragma: no cover
 
         # Return scalars for a single sample.
         if graph_state.num_samples == 1:
