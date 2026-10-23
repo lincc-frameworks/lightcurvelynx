@@ -45,7 +45,7 @@ def results_drop_empty(results):
     Parameters
     ----------
     results : nested_pandas.NestedFrame
-        The DataFrame containing light curve and spectra data.
+        The DataFrame containing light-curve and spectral data.
 
     Returns
     -------
