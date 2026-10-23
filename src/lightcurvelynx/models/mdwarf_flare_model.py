@@ -275,7 +275,6 @@ class MDwarfFlareModel(SEDModel):
             flareup = self._flare_eqn(timeup)
 
             # and now downsample back to the original time...
-
             downbins = np.concatenate((t_new - dt / 2.0, [max(t_new) + dt / 2.0]))
             flare, _, _ = binned_statistic(timeup, flareup, statistic="mean", bins=np.sort(downbins))
         else:
