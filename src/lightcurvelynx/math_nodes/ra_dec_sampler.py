@@ -978,6 +978,7 @@ class MilkyWayCoordSampler(NumpyRandomFunc):
                 new_dec = np.atleast_1d(coords.dec.deg)
                 ra[missing_mask] = new_ra
                 dec[missing_mask] = new_dec
+                distance_pc[missing_mask] = np.atleast_1d(coords.distance.pc)
 
                 # Recheck the new points (old points are alread known).
                 missing_mask[missing_mask] = ~self._check_seen(new_ra, new_dec)
