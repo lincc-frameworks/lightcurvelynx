@@ -47,7 +47,7 @@ def test_binary_sampler():
 
 def test_given_value_list():
     """Test that we can retrieve numbers from a GivenValueList."""
-    given_node = GivenValueList([1.0, 1.5, 2.0, 2.5, 3.0, -1.0, 3.5])
+    given_node = GivenValueList([1.0, 1.5, 2.0, 2.5, 3.0, -1.0, 3.5], stateful=True)
 
     # Check that we generate the correct result and save it in the GraphState.
     state1 = GraphState(num_samples=2)
@@ -88,10 +88,14 @@ def test_given_value_list():
     with pytest.raises(RuntimeError):
         _ = pickle.dumps(given_node)
 
+    # If we do not provide a value for stateless, we get a warning.
+    with pytest.warns(DeprecationWarning):
+        _ = GivenValueList([1.0, 2.0, 3.0])
+
 
 def test_given_value_list_offset():
     """Test that we can retrieve numbers from a GivenValueList when using a sample offset."""
-    given_node = GivenValueList([1.0, 1.5, 2.0, 2.5, 3.0, -1.0, 3.5])
+    given_node = GivenValueList([1.0, 1.5, 2.0, 2.5, 3.0, -1.0, 3.5], stateful=True)
 
     # Check that we generate the correct result and save it in the GraphState.
     state1 = GraphState(num_samples=2, sample_offset=3)
@@ -113,7 +117,7 @@ def test_given_value_list_offset():
 def test_given_value_list_compound():
     """Test that we can use the GivenValueList as input into another node."""
     values = [1.0, 1.5, 2.0, 2.5, 3.0, -1.0, 3.5, 4.0, 10.0, -2.0]
-    given_node = GivenValueList(values)
+    given_node = GivenValueList(values, stateful=True)
 
     # Create a function node that takes the next value and adds 2.0.
     compound_node = FunctionNode(_test_func, value1=given_node, value2=2.0)
@@ -132,7 +136,11 @@ def test_given_value_list_compound():
 
 def test_given_value_list_of_list():
     """Test that we can retrieve lists from a GivenValueList."""
-    given_node = GivenValueList([[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]], node_label="node")
+    given_node = GivenValueList(
+        [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]],
+        stateful=True,
+        node_label="node",
+    )
 
     # Check that we generate the correct result and save it in the GraphState.
     state = given_node.sample_parameters(num_samples=3)
@@ -177,7 +185,7 @@ def test_given_value_list_stateless():
     with pytest.raises(IndexError):
         _ = given_node.compute(given_node.sample_parameters(num_samples=100))
 
-    # GivenValueList can be used in distributed computation.
+    # A stateless GivenValueList can be used in distributed computation.
     assert pickle.dumps(given_node) is not None
 
 
@@ -219,7 +227,7 @@ def test_given_value_sampler_int():
 
 def test_given_value_selector():
     """Test that we can retrieve numbers from a GivenValueSelector."""
-    index_node = GivenValueList([0, 1, 2, 3, 2, 3, 1, 2], node_label="index_node")
+    index_node = GivenValueList([0, 1, 2, 3, 2, 3, 1, 2], stateful=False, node_label="index_node")
     given_node = GivenValueSelector([10, 20, 30, 40], index_node, node_label="given_node")
 
     # Check that we have saampled from the given options based on index.
@@ -236,7 +244,7 @@ def test_given_value_selector():
 
     # We fail if the index is out of bounds.
     with pytest.raises(IndexError):
-        given_node2 = GivenValueSelector([10, 20, 30], GivenValueList([3]))
+        given_node2 = GivenValueSelector([10, 20, 30], GivenValueList([3], stateful=False))
         _ = given_node2.sample_parameters(num_samples=1)
 
 

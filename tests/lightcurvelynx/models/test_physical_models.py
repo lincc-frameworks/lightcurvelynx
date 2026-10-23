@@ -76,7 +76,7 @@ def test_sed_model_evaluate_sed():
     """Test that we can evaluate a SEDModel."""
     times = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
     waves = np.array([4000.0, 5000.0])
-    brightness = GivenValueList([10.0, 20.0, 30.0])
+    brightness = GivenValueList([10.0, 20.0, 30.0], stateful=False)
     static_source = ConstantSEDModel(brightness=brightness)
 
     # Providing no state should give a single sample.
@@ -161,7 +161,7 @@ def test_sed_model_evaluate_bandflux(passbands_dir):
     # If we use multiple samples, we should get a correctly sized array.
     n_samples = 21
     brightness_list = [1.5 * i for i in range(n_samples)]
-    static_source2 = ConstantSEDModel(brightness=GivenValueList(brightness_list))
+    static_source2 = ConstantSEDModel(brightness=GivenValueList(brightness_list, stateful=False))
     state2 = static_source2.sample_parameters(num_samples=n_samples)
     bandfluxes2 = static_source2.evaluate_bandfluxes(passbands, times, filters, state2)
     assert bandfluxes2.shape == (n_samples, n_passbands)
@@ -176,12 +176,12 @@ def test_sed_model_offset():
     model = SEDModel(ra=1.0, dec=2.0, redshift=0.0, t0=1.0, node_label="model")
     model.add_parameter_offset(
         "ra",
-        offset=GivenValueList([0.1, 0.2, 0.3]),
+        offset=GivenValueList([0.1, 0.2, 0.3], stateful=False),
         multiplicative=False,
     )
     model.add_parameter_offset(
         "t0",
-        offset=GivenValueList([1.0, 0.5, 2.0]),
+        offset=GivenValueList([1.0, 0.5, 2.0], stateful=False),
         multiplicative=True,
     )
 
@@ -208,7 +208,7 @@ def test_sed_model_offset_fail():
     """Test that we fail to create a parameter offset if there are dependencies."""
     # Everything is specified to start with, but we add an additive offset to RA
     # and a multiplicative offset to t0.
-    t0_list = GivenValueList([1.0, 2.0, 10.0])
+    t0_list = GivenValueList([1.0, 2.0, 10.0], stateful=False)
     model = SEDModel(ra=1.0, dec=2.0, redshift=0.01, t0=t0_list, node_label="model")
     model.add_parameter(
         "t0_minus_50",
@@ -224,12 +224,12 @@ def test_sed_model_offset_fail():
     # We can add a parameter offset to ra or redshift since nothing depends on them.
     model.add_parameter_offset(
         "ra",
-        offset=GivenValueList([0.1, 0.2, 0.3]),
+        offset=GivenValueList([0.1, 0.2, 0.3], stateful=False),
         multiplicative=False,
     )
     model.add_parameter_offset(
         "redshift",
-        offset=GivenValueList([0.01, 0.02, 0.03]),
+        offset=GivenValueList([0.01, 0.02, 0.03], stateful=False),
         multiplicative=False,
     )
     assert "base_ra" in model.list_params()
@@ -239,7 +239,7 @@ def test_sed_model_offset_fail():
     with pytest.raises(ValueError):
         model.add_parameter_offset(
             "t0",
-            offset=GivenValueList([1.0, 0.5, 2.0]),
+            offset=GivenValueList([1.0, 0.5, 2.0], stateful=False),
             multiplicative=True,
         )
 
@@ -248,6 +248,6 @@ def test_sed_model_offset_fail():
     with pytest.raises(ValueError):
         model2.add_parameter_offset(
             "redshift",
-            offset=GivenValueList([0.01, 0.02, 0.03]),
+            offset=GivenValueList([0.01, 0.02, 0.03], stateful=False),
             multiplicative=False,
         )

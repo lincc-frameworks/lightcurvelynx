@@ -100,11 +100,19 @@ class GivenValueList(FunctionNode):
         Default: True
     """
 
-    def __init__(self, values, *, stateful=True, **kwargs):
+    def __init__(self, values, *, stateful=None, **kwargs):
         self.values = np.asarray(values)
         if len(values) == 0:
             raise ValueError("No values provided for GivenValueList")
         self.next_ind = 0
+
+        if stateful is None:
+            warnings.warn(
+                "The default 'stateful' behavior for GivenValueList will change in the future. "
+                "Currently it defaults to True, but this will be deprecated.",
+                DeprecationWarning,
+            )
+            stateful = True
         self._stateful = stateful
 
         super().__init__(self._non_func, **kwargs)
@@ -208,7 +216,7 @@ class GivenValueSampler(NumpyRandomFunc):
 
         self._num_values = len(values)
         if self._num_values == 0:
-            raise ValueError("No values provided for NumpySamplerNode")
+            raise ValueError("No values provided for GivenValueSampler")
 
         # Compute the normalized weights for each value.
         if weights is not None:
@@ -280,7 +288,7 @@ class GivenValueSelector(FunctionNode):
         super().__init__(self._select, index=index, **kwargs)
         self.values = np.asarray(values)
         if len(values) == 0:
-            raise ValueError("No values provided for GivenValueList")
+            raise ValueError("No values provided for GivenValueSelector")
 
     def _select(self, index):
         """Select the value at the given index."""

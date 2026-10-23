@@ -885,7 +885,7 @@ def test_create_multilightcurve_template_model_indices() -> None:
     lc2_data = LightcurveBandData(lc2_lightcurves, lc_data_t0=0.0, periodic=True)
 
     # Create the MultiLightcurveTemplateModel with both light curves and predefined indices.
-    indices = GivenValueList([0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1])
+    indices = GivenValueList([0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1], stateful=False)
     model = MultiLightcurveTemplateModel(
         [lc1_data, lc2_data],
         pb_group,

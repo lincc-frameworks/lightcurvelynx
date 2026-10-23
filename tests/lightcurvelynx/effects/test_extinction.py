@@ -171,7 +171,7 @@ def test_constant_extinction(subtests):
     # Use given ebv values. Usually these would be computed from a dustmap,
     # based on (RA, dec).
     pytest.importorskip("dust_extinction")
-    ebv_node = GivenValueList([0.1, 0.2, 0.3, 0.1, 0.2, 0.3])
+    ebv_node = GivenValueList([0.1, 0.2, 0.3, 0.1, 0.2, 0.3], stateful=False)
     for backend, ext_name in zip(["dust_extinction", "extinction"], ["F99", "fm07"], strict=False):
         with subtests.test(backend=backend, model=ext_name):
             dust_effect = ExtinctionEffect(ext_name, r_v=3.1, frame="rest", ebv=ebv_node, backend=backend)
@@ -204,8 +204,8 @@ def test_dustmap_chain(subtests):
         with subtests.test(backend=backend, model=ext_name):
             model = ConstantSEDModel(
                 brightness=100.0,
-                ra=GivenValueList([45.0, 45.0, 45.0, 45.0, 45.0, 45.0]),
-                dec=GivenValueList([20.0, -20.0, 10.0, 20.0, -20.0, 10.0]),
+                ra=GivenValueList([45.0, 45.0, 45.0, 45.0, 45.0, 45.0], stateful=False),
+                dec=GivenValueList([20.0, -20.0, 10.0, 20.0, -20.0, 10.0], stateful=False),
                 redshift=0.0,
             )
 
