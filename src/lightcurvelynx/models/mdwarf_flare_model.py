@@ -161,7 +161,7 @@ class MDwarfFlareModel(SEDModel):
 
         # Download the passband once to use later and extract the wavelengths.
         self._tess_band = Passband.from_svo("TESS/TESS.Red")
-        self._tess_wavelengths = self._tess_band.waves * u.AA
+        self._tess_waves = self._tess_band.waves * u.AA
 
         # The peak of the flare is the flare equation at time 0. Since it is
         # independent of the parameters, we can evaluate it once and cache it.
@@ -277,7 +277,7 @@ class MDwarfFlareModel(SEDModel):
             flare /= self._peak_value
         return flare
 
-    def _build_spectrum_bb_with_balmer(self, wavelengths, for_tess, temp_low=9000, balmer_jump_ratio=2):
+    def _build_spectrum_bb_with_balmer(self, wavelengths, temp_low=9000, balmer_jump_ratio=2):
         """
         Makes a spectrum for the flare temperature:
         Blackbody at 9000 K (default) where below the balmer jump,
@@ -288,7 +288,7 @@ class MDwarfFlareModel(SEDModel):
         Parameters
         ----------
         wavelengths : np.ndarray or None
-            Wavelength values in angstroms. Must be None if for_tess==True
+            Wavelength values in angstroms.
         temp_low : float or int
             temperature for the blackbody spectrum in Kelvin.
             default: 9000
@@ -296,23 +296,12 @@ class MDwarfFlareModel(SEDModel):
             the multiplicative factor that the blackbody spectrum is multiplied by below
             the Balmer jump wavelength of 3645Å
             default: 2
-        for_tess : Bool
-            whether this is going to be used for the tess integrals.
-            If yes, tess's wavelength array is used and the wavelengths argument must be None.
 
         Returns
         -------
         Intensity : np.ndarray
             flare spectrum. units: erg / (Hz s sr cm**2 )
         """
-        if wavelengths is None and not for_tess:
-            raise ValueError("Must input wavelengths if for_tess is False")
-        elif wavelengths is not None and for_tess:
-            raise ValueError("Cannot input wavelengths if for_tess is True")
-
-        if for_tess:
-            wavelengths = self._tess_band.waves
-
         if not isinstance(wavelengths, u.Quantity):
             wavelengths = wavelengths * u.AA
 
@@ -342,7 +331,7 @@ class MDwarfFlareModel(SEDModel):
         """
         return self._tess_band.fluxes_to_bandflux(np.r_[[spectrum]]).item()
 
-    def _quiescent_flux_no_distance(self, temp_star, wavelengths, for_tess):
+    def _quiescent_flux_no_distance(self, temp_star, wavelengths):
         """
         Quiescent stellar spectral intensity. it's a blackbody
 
@@ -352,23 +341,12 @@ class MDwarfFlareModel(SEDModel):
             assumed Kelvin if plain float
         wavelengths : np.ndarray or None
             Wavelength values; shape matches spectrum's wave axis
-        for_tess : Bool
-            whether this is going to be used for the tess integrals.
-            If yes, tess's wavelength array is used and the wavelengths argument must be None.
 
         Returns
         -------
         Quantity, shape (n_wave,), units erg/(Hz s sr cm^2)
         it is now in terms of frequency and not wavelength
         """
-        if wavelengths is None and not for_tess:
-            raise ValueError("Must input wavelengths if for_tess is False")
-        elif wavelengths is not None and for_tess:
-            raise ValueError("Cannot input wavelengths if for_tess is True")
-
-        if for_tess:
-            wavelengths = self._tess_band.waves
-
         if not isinstance(wavelengths, u.Quantity):
             wavelengths = wavelengths * u.AA  # otherwise it assumes frequency
         if not isinstance(temp_star, u.Quantity):
@@ -412,21 +390,28 @@ class MDwarfFlareModel(SEDModel):
         norm_shape = self._flare_model(times, params["t0"], params["flare_fwhm"])
         norm_shape = norm_shape * params["flare_amplitude"]
 
-        # if we want to upsample it we can add that here
+        # Compute the flare spectrum in the TESS band and full wavelength range.
         I_flare_for_tess = self._build_spectrum_bb_with_balmer(
-            wavelengths=None, temp_low=params["flare_temp"], for_tess=True
+            wavelengths=self._tess_waves,
+            temp_low=params["flare_temp"],
         )
         I_flare_full = self._build_spectrum_bb_with_balmer(
-            wavelengths=wavelengths, temp_low=params["flare_temp"], for_tess=False
+            wavelengths=wavelengths,
+            temp_low=params["flare_temp"],
         )
         integral_flare = self._tess_band_integrate(I_flare_for_tess)
+
+        # Compute the quiescent stellar flux in the TESS band and full wavelength range.
         I_star_for_tess = self._quiescent_flux_no_distance(
-            params["star_temp"], wavelengths=None, for_tess=True
+            params["star_temp"],
+            wavelengths=self._tess_waves,
         )
         I_star_full = self._quiescent_flux_no_distance(
-            params["star_temp"], wavelengths=wavelengths, for_tess=False
+            params["star_temp"],
+            wavelengths=wavelengths,
         )
         integral_star = self._tess_band_integrate(I_star_for_tess)
+
         flux_flare_no_distance = (
             constants * (integral_star / integral_flare) * norm_shape[:, None] * I_flare_full[None, :]
         )

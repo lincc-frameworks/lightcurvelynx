@@ -54,25 +54,23 @@ def test_mdwarf_flare_model_with_assigned_inputs():
     )
 
     assert np.isclose(
-        model._quiescent_flux_no_distance(star_temp, wavelengths, for_tess=False)[0].value,
+        model._quiescent_flux_no_distance(star_temp, wavelengths)[0].value,
         9.133526742251799e-08,
     )
     assert np.isclose(
-        model._quiescent_flux_no_distance(star_temp, wavelengths=None, for_tess=True)[0].value,
+        model._quiescent_flux_no_distance(star_temp, model._tess_waves)[0].value,
         4.24870522231194e-06,
     )
 
+    assert np.isclose(model._build_spectrum_bb_with_balmer(wavelengths)[0].value, 0.00014342158215047032)
     assert np.isclose(
-        model._build_spectrum_bb_with_balmer(wavelengths, for_tess=False)[0].value, 0.00014342158215047032
-    )
-    assert np.isclose(
-        model._build_spectrum_bb_with_balmer(None, for_tess=True)[0].value, 0.00013805179319227408
+        model._build_spectrum_bb_with_balmer(model._tess_waves)[0].value, 0.00013805179319227408
     )
 
-    I_lam_star_for_tess = model._quiescent_flux_no_distance(star_temp, wavelengths=None, for_tess=True)
+    I_lam_star_for_tess = model._quiescent_flux_no_distance(star_temp, wavelengths=model._tess_waves)
     assert np.isclose(model._tess_band_integrate(I_lam_star_for_tess), 8.070721970058228e-06)
 
-    I_lam_flare_for_tess = model._build_spectrum_bb_with_balmer(None, temp_low=9000, for_tess=True)
+    I_lam_flare_for_tess = model._build_spectrum_bb_with_balmer(model._tess_waves, temp_low=9000)
     assert np.isclose(model._tess_band_integrate(I_lam_flare_for_tess), 0.0001229577732360932)
 
     sample = model.sample_parameters()
@@ -83,8 +81,8 @@ def test_mdwarf_flare_model_with_assigned_inputs():
 
     # check that the peak amp of the flare is the same as the amplitude that we put in
     norm_shape = model._flare_model(times, t0, flare_fwhm) * flare_amplitude
-    I_flare_full = model._build_spectrum_bb_with_balmer(wavelengths, for_tess=False)
-    I_star_full = model._quiescent_flux_no_distance(star_temp, wavelengths, for_tess=False)
+    I_flare_full = model._build_spectrum_bb_with_balmer(wavelengths)
+    I_star_full = model._quiescent_flux_no_distance(star_temp, wavelengths)
     integral_flare = model._tess_band_integrate(I_lam_flare_for_tess)
     integral_star = model._tess_band_integrate(I_lam_star_for_tess)
     constants = np.pi * star_radius**2 * u.sr * u.cm**2
