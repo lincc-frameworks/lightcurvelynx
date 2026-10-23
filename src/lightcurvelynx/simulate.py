@@ -581,7 +581,7 @@ def _simulate_lightcurves_batch(simulation_info):
         results = results.join_nested(spectra_frame, "spectra")
 
     # Drop any rows that have neither lightcurve nor spectra data.
-    if simulation_info.drop_empty:
+    if simulation_info.drop_empty_rows:
         results = results_drop_empty(results)
 
     # If we are writing the subsets out to files, write this subset.
@@ -650,6 +650,7 @@ def simulate_lightcurves(
     num_jobs=None,
     batch_size=100_000,
     save_full_filter_names=False,
+    drop_empty_rows=False,
     progress_bar=True,
     graph_state=None,
 ):
@@ -718,6 +719,8 @@ def simulate_lightcurves(
     num_jobs : int, optional
         If provided (and no executor is provided) creates a process pool (ProcessPoolExecutor)
         with the given number of workers to process the results.
+    drop_empty_rows : bool, optional
+        Whether to drop rows that have no observations. Default is False.
     batch_size : int, optional
         The number of samples to process in each batch when using multiprocessing.
         Default is 100_000.
@@ -797,6 +800,7 @@ def simulate_lightcurves(
         param_cols=param_cols,
         output_file_path=output_file_path,
         save_full_filter_names=save_full_filter_names,
+        drop_empty_rows=drop_empty_rows,
         progress_bar=progress_bar,
         graph_state=graph_state,
     )
