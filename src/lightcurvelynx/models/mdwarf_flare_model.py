@@ -154,8 +154,8 @@ class MDwarfFlareModel(SEDModel):
             self.set_parameter("distance", value=sampler.distance_pc)
             if self.has_valid_param("ra") or self.has_valid_param("dec"):
                 warnings.warn(
-                    "Overwriting RA and Dec to match our distance distribution - \
-                    \nto avoid this, input all three values"
+                    "Overwriting RA and Dec to match our distance distribution -\n"
+                    "to avoid this, input all three values"
                 )
             self.set_parameter("ra", value=sampler.ra)
             self.set_parameter("dec", value=sampler.dec)
@@ -164,7 +164,7 @@ class MDwarfFlareModel(SEDModel):
         self._tess_band = Passband.from_svo("TESS/TESS.Red")
 
     @cite_function
-    def _flare_eqn(self, time, tpeak):
+    def _flare_eqn(self, time):
         """
         The equation that defines the shape for the Continuous Flare Model.
         From Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
@@ -173,9 +173,7 @@ class MDwarfFlareModel(SEDModel):
         Parameters
         ----------
         time : 1-d numpy.ndarray
-            The time array to evaluate the flare over, days
-        tpeak : float
-            The center time of the flare peak in days
+            The time array to evaluate the flare over, in days relative to peak
 
         Returns
         -------
@@ -187,7 +185,6 @@ class MDwarfFlareModel(SEDModel):
         Tovar Mendoza et al. (2022) DOI 10.3847/1538-3881/ac6fe6
         """
         # Values were fit & calculated using MCMC 256 walkers and 30000 steps
-
         A, B, C, D1, D2, f1 = [
             0.9687734504375167,
             -0.251299705922117,
@@ -275,14 +272,14 @@ class MDwarfFlareModel(SEDModel):
             dt = np.nanmedian(np.diff(np.abs(t_new)))
             timeup = np.linspace(min(t_new) - dt, max(t_new) + dt, t_new.size * uptime)
 
-            flareup = self._flare_eqn(timeup, tpeak)
+            flareup = self._flare_eqn(timeup)
 
             # and now downsample back to the original time...
 
             downbins = np.concatenate((t_new - dt / 2.0, [max(t_new) + dt / 2.0]))
             flare, _, _ = binned_statistic(timeup, flareup, statistic="mean", bins=np.sort(downbins))
         else:
-            flare = self._flare_eqn(t_new, tpeak)
+            flare = self._flare_eqn(t_new)
 
         return flare
 
