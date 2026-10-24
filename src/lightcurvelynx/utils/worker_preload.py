@@ -38,6 +38,7 @@ raise from a plain ``pickle.dumps`` call.
 
 import hashlib
 import io
+import os
 import pickle
 import threading
 import warnings
@@ -673,6 +674,26 @@ def reset_preload_state():
         _known_digests.clear()
     with _slot_lock:
         _slot = None
+
+
+def _reinit_locks_after_fork():
+    """Give a forked child fresh, unlocked locks in place of the ones it inherited.
+
+    ``fork`` copies each lock in the state it was in. If another thread of the parent held one
+    at that moment (for example while loading the shared part), that thread does not exist in
+    the child, so the child's copy would stay locked forever and its first batch would hang.
+    Only the locks are replaced: the registry and the slot keep their contents.
+    """
+    global _registry_lock, _slot_lock
+    _registry_lock = threading.Lock()
+    _slot_lock = threading.Lock()
+    slot = _slot
+    if slot is not None:
+        slot._shared_lock = threading.Lock()
+
+
+if hasattr(os, "register_at_fork"):  # Only platforms that can fork have it.
+    os.register_at_fork(after_in_child=_reinit_locks_after_fork)
 
 
 class WorkerPreloadWarning(UserWarning):

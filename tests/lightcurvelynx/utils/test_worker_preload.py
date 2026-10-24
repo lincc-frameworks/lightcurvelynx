@@ -1,6 +1,8 @@
 """Tests for the two-part serialization and content digest used by worker preloading."""
 
+import os
 import pickle
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -221,3 +223,39 @@ def test_emptied_unpickled_initializer_call_is_a_safe_noop(preload_inputs):
 
     init()  # must not raise, and must not touch the slot
     assert load_preloaded_data(init.digest) is None
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="This platform cannot fork.")
+def test_forked_child_gets_fresh_locks(preload_inputs):
+    """A child forked while the module's locks are held gets fresh, unlocked locks.
+
+    The thread that holds a lock at fork time does not exist in the child, so a lock copied in
+    its locked state would never be released there, and the child's first batch would hang.
+    """
+    model, si = preload_inputs
+    make_worker_initializer(model, si)()
+
+    def module_locks():
+        return [worker_preload._registry_lock, worker_preload._slot_lock, worker_preload._slot._shared_lock]
+
+    held = module_locks()
+    for lock in held:
+        lock.acquire()
+    try:
+        with warnings.catch_warnings():
+            # Python warns that forking a multi-threaded process may deadlock the child.
+            warnings.simplefilter("ignore", DeprecationWarning)
+            pid = os.fork()
+        if pid == 0:
+            # In the child: exit with 0 only if every lock can be taken. os._exit skips the
+            # rest of the test session, which belongs to the parent.
+            exit_code = 1
+            try:
+                exit_code = 0 if all(lock.acquire(timeout=2) for lock in module_locks()) else 1
+            finally:
+                os._exit(exit_code)
+        _, status = os.waitpid(pid, 0)
+    finally:
+        for lock in held:
+            lock.release()
+    assert os.waitstatus_to_exitcode(status) == 0
