@@ -7,7 +7,14 @@ LightCurveLynx is designed to run statistically meaningful simulations, which me
 Default Behavior
 -------------------------------------------------------------------------------
 
-By default, LightCurveLynx uses per-node, per-simulation random number generators (RNGs) that are initialized with a random seed (via `urandom` or the default numpy behavior):
+By default, LightCurveLynx uses per-node, per-simulation random number generators (RNGs) that are initialized with a random seed (via the default numpy behavior or `urandom`), such as:
+
+.. code-block:: python
+    
+    from numpy.random import default_rng
+    rng = default_rng()
+
+or:
 
 .. code-block:: python
     
@@ -28,7 +35,13 @@ If users want to have reproducible simulations, they can provide a (seeded) glob
 **Passing a global RNG is the recommended way to control randomness for testing or reproducibility.**
 
 
+Per-Node Seeds
+-------------------------------------------------------------------------------
+
+In previous versions of LightCurveLynx, users could control randomness by providing per-node seeds. This behavior has been deprecated because it can lead to subtle bugs when combined with batching or parallel execution. Users should either provide a single global RNG to the simulation function or leave blank to create a new random number generator.
+
+
 Parallelism and Randomness
 -------------------------------------------------------------------------------
 
-If provided a global RNG in parallel mode, LightCurveLynx will create a unique RNG for each batch of samples. This is done to avoid correlations between the batches. **Note that this will always override the per-node seeds.** If you need to control randomness while running in parallel, you should provide a global RNG to the ``simulate_lightcurves()`` function.
+If provided a global RNG in parallel mode, LightCurveLynx will create a unique RNG for each batch of samples. This is done to avoid correlations between the batches. If you need to control randomness while running in parallel, you should provide a global RNG to the ``simulate_lightcurves()`` function.
