@@ -1,6 +1,7 @@
 import contextlib
 import copy
 import gc
+import inspect
 import pickle
 import sys
 import tempfile
@@ -53,6 +54,7 @@ from lightcurvelynx.simulate import (
     simulate_lightcurves,
 )
 from lightcurvelynx.survey_info import SurveyInfo
+from lightcurvelynx.utils import worker_preload
 from lightcurvelynx.utils.worker_preload import (
     has_known_preload_digests,
     load_preloaded_data,
@@ -2029,6 +2031,27 @@ class InProcessMapExecutor:
         return [fn(item) for item in items]
 
 
+class AlternatingMissExecutor(PicklingMapExecutor):
+    """A ``PicklingMapExecutor`` that runs every other item as if this process held no preload.
+
+    Items at odd positions in each ``map`` call run with this process's preload slot emptied,
+    so preloaded batches at those positions miss. The slot is restored after each item.
+    """
+
+    def map(self, fn, items):
+        """Apply ``fn`` to a pickled copy of each item, emptying the preload slot for odd items."""
+        results = []
+        for idx, item in enumerate(items):
+            saved_slot = worker_preload._slot
+            if idx % 2 == 1:
+                worker_preload._slot = None
+            try:
+                results.extend(super().map(fn, [item]))
+            finally:
+                worker_preload._slot = saved_slot
+        return results
+
+
 def _run(model, si, executor=None, **kw):
     """Run ``simulate_lightcurves`` with the settings shared by the preload tests."""
     kwargs = {
@@ -2259,6 +2282,51 @@ def test_simulate_preload_miss_resends(preload_inputs, assert_identical_results)
     assert_identical_results(expected, result)
 
 
+def test_simulate_preload_mixed_hits_and_misses(preload_inputs, assert_identical_results, monkeypatch):
+    """When only some batches miss, only those are resent, the results are unchanged, and the
+    progress bar counts every sample exactly once."""
+    model, si = preload_inputs
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        expected = _run(model, si, PicklingMapExecutor())
+
+    class DummyTqdm:
+        instances = []
+
+        def __init__(self, iterable=None, *args, **kwargs):
+            self._iterable = iterable
+            self.total = kwargs.get("total")
+            self.updates = []
+            if not kwargs.get("disable", False):
+                DummyTqdm.instances.append(self)
+
+        def __iter__(self):
+            return iter(self._iterable) if self._iterable is not None else iter([])
+
+        def update(self, n=1):
+            self.updates.append(n)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, exc_tb):
+            return False
+
+    monkeypatch.setattr(simulate_module, "tqdm", DummyTqdm)
+    make_worker_initializer(model, si)()
+    ex = AlternatingMissExecutor()
+    with pytest.warns(WorkerPreloadWarning) as record:
+        result = _run(model, si, ex, progress_bar=True)
+
+    assert_identical_results(expected, result)
+    messages = [str(w.message) for w in record if issubclass(w.category, WorkerPreloadWarning)]
+    assert len(messages) == 1
+    assert messages[0].startswith("3 of 6 batches reached workers that were not preloaded")
+    assert len(ex.sizes) == 6 + 3  # Six light batches, then the three that missed.
+    assert len(DummyTqdm.instances) == 1
+    assert DummyTqdm.instances[0].total == 60
+    assert sum(DummyTqdm.instances[0].updates) == 60
+
+
 def test_simulate_preload_unpicklable_falls_back(preload_inputs):
     """Data that refuses pickling falls back on a thread pool, and refuses preloading."""
     model, si = preload_inputs
@@ -2291,6 +2359,30 @@ def test_simulate_num_jobs_preloads(preload_inputs, assert_identical_results):
 
     with pytest.raises(RuntimeError, match="cannot be pickled"):
         _run(_stateful_model(si), si, num_jobs=2)
+
+
+def test_simulate_num_jobs_sends_light_batches(preload_inputs, monkeypatch):
+    """num_jobs hands its initializer's digest to the parallel run, so batches skip the data.
+
+    Without the digest, a num_jobs run would silently send full batches and still give
+    identical results, so only this test would notice.
+    """
+    model, si = preload_inputs
+    received_digests = []
+    real_parallel = simulate_module._simulate_lightcurves_parallel
+
+    def recording_parallel(*args, **kwargs):
+        arguments = inspect.signature(real_parallel).bind(*args, **kwargs).arguments
+        received_digests.append(arguments.get("preload_digest"))
+        return real_parallel(*args, **kwargs)
+
+    monkeypatch.setattr(simulate_module, "_simulate_lightcurves_parallel", recording_parallel)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", WorkerPreloadWarning)
+        result = _run(model, si, num_jobs=2)
+    assert len(result) == 60
+    assert len(received_digests) == 1
+    assert received_digests[0] is not None
 
 
 # A lock used by a model function, as a function in a script's __main__ might use one. Pickling
