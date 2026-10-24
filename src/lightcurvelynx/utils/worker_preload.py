@@ -26,9 +26,12 @@ and large; sharing it is what makes preloading worthwhile.
 Both parts are pickled into a writer that always updates a hash and only optionally keeps
 the bytes, so the digest computed in hash-only mode (used for a cheap freshness check) is
 identical to the digest computed when the bytes are kept (used to build the payload that is
-actually sent to workers). ``cloudpickle`` is used instead of the standard library
-``pickle`` when it is importable, so that classes defined in a notebook's ``__main__``
-module keep working with backends such as loky, dask and ray. An object that refuses
+actually sent to workers). ``make_worker_initializer`` uses ``cloudpickle`` instead of the
+standard library ``pickle`` when it is importable, so that classes defined in a notebook's
+``__main__`` module keep working with backends such as loky, dask and ray. The ``num_jobs``
+path of ``simulate_lightcurves`` uses the standard library ``pickle``, as a plain
+``ProcessPoolExecutor`` does, so it pickles exactly what it did before preloading existed
+(for example, functions from ``__main__`` by reference). An object that refuses
 pickling (for example a stateful ``GivenValueList``) raises the same exception it would
 raise from a plain ``pickle.dumps`` call.
 """
@@ -122,8 +125,12 @@ class _HashingWriter:
         return bytes(self._buffer) if self._buffer is not None else None
 
 
-class _ModelPickler(_BasePickler):
-    """Pickler for the model part that replaces shared objects with small references."""
+class _ModelPicklerMixin:
+    """Persistent-id hook for the model part, which replaces shared objects with small references.
+
+    Mixed into a concrete pickler class (see ``_MODEL_PICKLERS``), so that the model part can be
+    pickled with ``cloudpickle`` or with the standard library's ``pickle``.
+    """
 
     def __init__(self, file, id_to_index, shared_objects):
         super().__init__(file, protocol=_PICKLE_PROTOCOL)
@@ -142,6 +149,19 @@ class _ModelPickler(_BasePickler):
             self._id_to_index[obj_id] = index
             return index
         return None
+
+
+class _ModelPickler(_ModelPicklerMixin, _BasePickler):
+    """Pickler for the model part, built on ``cloudpickle`` when it is importable."""
+
+
+class _StdlibModelPickler(_ModelPicklerMixin, pickle.Pickler):
+    """Pickler for the model part, built on the standard library's ``pickle``."""
+
+
+# The model-part pickler that goes with each supported base pickler. Without cloudpickle,
+# _BasePickler is pickle.Pickler, and both entries are equivalent standard library picklers.
+_MODEL_PICKLERS = {pickle.Pickler: _StdlibModelPickler, _BasePickler: _ModelPickler}
 
 
 class _ModelUnpickler(pickle.Unpickler):
@@ -211,16 +231,43 @@ def serialize_simulation_data(model, survey_info, *, keep_bytes):
         Propagates unchanged whatever pickling the model or the shared part raises,
         for example the ``RuntimeError`` raised by a stateful ``GivenValueList``.
     """
+    return _serialize_simulation_data(model, survey_info, keep_bytes=keep_bytes, base_pickler=_BasePickler)
+
+
+def _serialize_simulation_data(model, survey_info, *, keep_bytes, base_pickler):
+    """Serialize a model and its survey data with a chosen base pickler.
+
+    The digest depends on the pickler, so a digest is only comparable with digests made with
+    the same base pickler.
+
+    Parameters
+    ----------
+    model : ParameterizedNode
+        The model to serialize.
+    survey_info : list of SurveyInfo
+        The survey information to serialize alongside the model.
+    keep_bytes : bool
+        If True, the pickled bytes for both parts are kept in the returned ``SerializedData``.
+        If False, only the digests are computed.
+    base_pickler : type
+        The pickler class to build on: ``_BasePickler`` (cloudpickle when importable) or
+        ``pickle.Pickler``. Must be a key of ``_MODEL_PICKLERS``.
+
+    Returns
+    -------
+    SerializedData
+        The digests and (optionally) the pickled bytes for both parts.
+    """
     shared_objects, id_to_index = _collect_shared_objects(survey_info)
 
     # Pickle the model part first: this is what may discover and append extra
     # ObsTable instances (e.g. one held by a sampler) to shared_objects.
     model_writer = _HashingWriter(keep_bytes=keep_bytes)
-    _ModelPickler(model_writer, id_to_index, shared_objects).dump(model)
+    _MODEL_PICKLERS[base_pickler](model_writer, id_to_index, shared_objects).dump(model)
 
     # Now pickle the shared part, including any ObsTable instances appended above.
     shared_writer = _HashingWriter(keep_bytes=keep_bytes)
-    _BasePickler(shared_writer, protocol=_PICKLE_PROTOCOL).dump((survey_info, shared_objects))
+    base_pickler(shared_writer, protocol=_PICKLE_PROTOCOL).dump((survey_info, shared_objects))
 
     digest = hashlib.blake2b(
         model_writer.digest() + shared_writer.digest(), digest_size=_DIGEST_SIZE
@@ -437,10 +484,45 @@ def make_worker_initializer(model, survey_info):
     TypeError
         If ``survey_info`` is neither a SurveyInfo nor a list of SurveyInfo.
     """
+    return _build_worker_initializer(model, survey_info, base_pickler=_BasePickler, register=True)
+
+
+def _build_worker_initializer(model, survey_info, *, base_pickler, register):
+    """Serialize a model and its survey data with a chosen pickler and return an initializer.
+
+    ``make_worker_initializer`` uses cloudpickle (when importable) and registers the digest,
+    so that later ``simulate_lightcurves`` calls in this process recognize the preload. The
+    ``num_jobs`` path of ``simulate_lightcurves`` uses the standard library's ``pickle``, as
+    a plain ``ProcessPoolExecutor`` does, and does not register: it passes the digest straight
+    to its batches, and its pool is gone after the call.
+
+    Parameters
+    ----------
+    model : ParameterizedNode
+        The model to preload on workers.
+    survey_info : SurveyInfo or list of SurveyInfo
+        The survey information to preload alongside the model.
+    base_pickler : type
+        The pickler class to build on: ``_BasePickler`` or ``pickle.Pickler``.
+    register : bool
+        Whether to add the digest to this process's registry of preloaded digests.
+
+    Returns
+    -------
+    WorkerInitializer
+        A picklable, zero-argument callable that installs the serialized payload into
+        a worker's preload slot when called.
+
+    Raises
+    ------
+    TypeError
+        If ``survey_info`` is neither a SurveyInfo nor a list of SurveyInfo.
+    """
     survey_info = _normalize_survey_info(survey_info)
-    data = serialize_simulation_data(model, survey_info, keep_bytes=True)
-    with _registry_lock:
-        _known_digests.add(data.digest)
+    data = _serialize_simulation_data(model, survey_info, keep_bytes=True, base_pickler=base_pickler)
+    if register:
+        with _registry_lock:
+            _known_digests.add(data.digest)
     return WorkerInitializer(data.digest, data.model_bytes, data.shared_bytes)
 
 

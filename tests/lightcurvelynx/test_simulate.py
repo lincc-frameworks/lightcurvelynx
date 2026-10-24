@@ -1,7 +1,10 @@
+import contextlib
 import copy
 import gc
 import pickle
+import sys
 import tempfile
+import threading
 import warnings
 import weakref
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -49,6 +52,7 @@ from lightcurvelynx.simulate import (
 )
 from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.worker_preload import (
+    has_known_preload_digests,
     load_preloaded_data,
     reset_preload_state,
     serialize_simulation_data,
@@ -2236,9 +2240,55 @@ def test_simulate_num_jobs_preloads(preload_inputs, assert_identical_results):
         warnings.simplefilter("error", WorkerPreloadWarning)
         result = _run(model, si, num_jobs=2)
     assert_identical_results(expected, result)
+    # num_jobs's pool is gone after the call, so it registers nothing in this process.
+    assert not has_known_preload_digests()
 
     with pytest.raises(RuntimeError, match="cannot be pickled"):
         _run(_stateful_model(si), si, num_jobs=2)
+
+
+# A lock used by a model function, as a function in a script's __main__ might use one. Pickling
+# the lock raises TypeError, so _locked_brightness only reaches workers if it is pickled by
+# reference, which is what the standard library's pickle (and so ProcessPoolExecutor) does.
+_BRIGHTNESS_LOCK = threading.Lock()
+
+
+def _locked_brightness(brightness):
+    """Return ``brightness`` unchanged, after taking a module-level lock."""
+    with _BRIGHTNESS_LOCK:
+        return brightness
+
+
+def test_simulate_num_jobs_pickles_like_process_pool(preload_inputs, assert_identical_results):
+    """num_jobs preloads with the standard library's pickle, as a ProcessPoolExecutor pickles its
+    batches, so a __main__ function that uses an unpicklable global keeps working."""
+    _, si = preload_inputs
+    brightness = NumpyRandomFunc("uniform", low=100.0, high=500.0, seed=11)
+    model = ConstantSEDModel(
+        brightness=FunctionNode(_locked_brightness, brightness=brightness),
+        t0=0.0,
+        ra=si.obstable["ra"][0],
+        dec=si.obstable["dec"][0],
+        redshift=0.0,
+        node_label="source",
+    )
+    with ProcessPoolExecutor(2) as executor:
+        with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+            expected = _run(model, si, executor)
+
+    with contextlib.ExitStack() as stack:
+        # cloudpickle pickles functions from __main__ by value, globals included. Have it treat
+        # this module the same way, so that this run would fail if num_jobs used cloudpickle.
+        with contextlib.suppress(ImportError):
+            import cloudpickle
+
+            cloudpickle.register_pickle_by_value(sys.modules[__name__])
+            stack.callback(cloudpickle.unregister_pickle_by_value, sys.modules[__name__])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", WorkerPreloadWarning)
+            result = _run(model, si, num_jobs=2)
+    assert_identical_results(expected, result)
+    assert not has_known_preload_digests()
 
 
 def test_simulate_preload_graph_state_replay(preload_inputs, assert_identical_results):

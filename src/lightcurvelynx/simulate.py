@@ -4,6 +4,7 @@ import concurrent.futures
 import copy
 import gc
 import logging
+import pickle
 import warnings
 from pathlib import Path
 
@@ -18,14 +19,17 @@ from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
 from lightcurvelynx.utils.worker_preload import (
     PreloadMiss,
+    _build_worker_initializer,
     _load_preloaded_data_and_size,
     compute_preload_digest,
     has_known_preload_digests,
     is_known_preload_digest,
-    make_worker_initializer,
     warn_preload_fallback,
 )
-from lightcurvelynx.utils.worker_preload import WorkerPreloadWarning as WorkerPreloadWarning  # Re-export.
+
+# Re-exported, so that users can import them from this module.
+from lightcurvelynx.utils.worker_preload import WorkerPreloadWarning as WorkerPreloadWarning
+from lightcurvelynx.utils.worker_preload import make_worker_initializer as make_worker_initializer
 
 logger = logging.getLogger(__name__)
 
@@ -893,8 +897,10 @@ def simulate_lightcurves(
     num_jobs : int, optional
         If provided (and no executor is provided) creates a process pool (ProcessPoolExecutor)
         with the given number of workers to process the results. The pool's workers are
-        preloaded with ``make_worker_initializer(model, survey_info)``, so the model and
-        survey data are sent to each worker once instead of with every batch.
+        preloaded as ``make_worker_initializer(model, survey_info)`` would do it, so the model
+        and survey data are sent to each worker once instead of with every batch. Unlike
+        ``make_worker_initializer``, this uses the standard library's ``pickle`` (as a plain
+        ``ProcessPoolExecutor`` does) and registers nothing in this process.
     drop_empty_rows : bool, optional
         Whether to drop rows that have no observations. Default is False.
     batch_size : int, optional
@@ -1003,9 +1009,15 @@ def simulate_lightcurves(
             simulation_info, executor, batch_size=batch_size, preload_digest=preload_digest
         )
     else:
-        # Preload the pool's workers. Create the initializer before the pool so that data
+        # Preload the pool's workers. Pickle with the standard library's pickle, as a plain
+        # ProcessPoolExecutor pickles its batches, so num_jobs pickles exactly what it did
+        # before preloading: functions and classes from __main__ go by reference, never with
+        # their globals. The digest is passed straight to the batches and not registered, since
+        # the pool is gone after this call. Create the initializer before the pool so that data
         # which refuses pickling raises here, with its own exception.
-        initializer = make_worker_initializer(model, survey_info)
+        initializer = _build_worker_initializer(
+            model, survey_info, base_pickler=pickle.Pickler, register=False
+        )
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=num_jobs, initializer=initializer
         ) as executor:
