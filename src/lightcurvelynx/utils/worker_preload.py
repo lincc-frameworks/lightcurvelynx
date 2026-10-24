@@ -98,18 +98,18 @@ class _HashingWriter:
 
     def __init__(self, *, keep_bytes):
         self._hasher = hashlib.blake2b(digest_size=_DIGEST_SIZE)
-        self._buffer = bytearray() if keep_bytes else None
+        self._buffer = io.BytesIO() if keep_bytes else None
 
     def write(self, data):
-        """Hash (and optionally store) a chunk of bytes written by the pickler."""
-        # Protocol 5 may write a pickle.PickleBuffer for objects that support the
-        # buffer protocol (e.g. numpy arrays). It has no __len__, so normalize to
-        # bytes first; hashlib and bytearray.extend both accept the result either way.
-        if not isinstance(data, (bytes, bytearray)):
-            data = bytes(data)
+        """Hash (and optionally store) a chunk of bytes written by the pickler, without copying it."""
+        # Protocol 5 writes large buffers (e.g. numpy arrays) straight to the file as a
+        # pickle.PickleBuffer, which has no len(). Its raw() view is the flat memory that pickle
+        # writes, without a copy. hashlib and BytesIO accept it, as they do bytes and bytearray.
+        if isinstance(data, pickle.PickleBuffer):
+            data = data.raw()
         self._hasher.update(data)
         if self._buffer is not None:
-            self._buffer.extend(data)
+            self._buffer.write(data)
         return len(data)
 
     def digest(self):
@@ -122,7 +122,7 @@ class _HashingWriter:
 
     def getvalue(self):
         """Return the bytes written so far, or None if they were not kept."""
-        return bytes(self._buffer) if self._buffer is not None else None
+        return self._buffer.getvalue() if self._buffer is not None else None
 
 
 class _ModelPicklerMixin:
