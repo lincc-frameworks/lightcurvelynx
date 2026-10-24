@@ -341,6 +341,13 @@ def _simulate_lightcurves_batch(simulation_info):
 
     # Extract the parameters from the SimulationInfo that are used repeated
     # (so we have shorter names).
+    #
+    # Preloaded batches (those with a preload_digest, from _simulate_preloaded_batch) arrive
+    # with a private model whose ObsTables are shared with the worker's preload slot, so they
+    # must not be deep-copied. If upstream's per-batch deepcopy of the model replaces the line
+    # below, skip it for preloaded batches: their model is already private, and a deepcopy would
+    # copy every shared ObsTable for every batch. test_simulate_preloaded_obstable_in_model
+    # fails if a preloaded batch deep-copies an ObsTable.
     model = simulation_info.model
     requested_num_samples = simulation_info.num_samples
     obstable = [info.obstable for info in simulation_info.survey_info]
@@ -671,8 +678,7 @@ def _simulate_preloaded_batch(simulation_info):
 
     # The model was freshly unpickled for this batch, so it is private to it. If upstream's
     # per-batch deepcopy of the model lands in _simulate_lightcurves_batch, it must be skipped
-    # for this path: the model is already private, and a deepcopy would also copy the shared,
-    # read-only ObsTables for every batch.
+    # for this path (see the comment where that function reads simulation_info.model).
     model, survey_info, model_nbytes = loaded
     batch_info = copy.copy(simulation_info)
     batch_info.model = model

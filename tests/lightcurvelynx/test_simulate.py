@@ -31,6 +31,7 @@ from lightcurvelynx.math_nodes.given_sampler import (
     TableSampler,
 )
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.math_nodes.ra_dec_sampler import ObsTableUniformRADECSampler
 from lightcurvelynx.math_nodes.state_expansion_node import StateExpansionNode
 from lightcurvelynx.models.basic_models import ConstantSEDModel, SinWaveModel, StepModel
 from lightcurvelynx.models.physical_model import SEDModel
@@ -38,6 +39,7 @@ from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
 from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel
 from lightcurvelynx.noise_models.spectrograph_noise_models import ConstantSpectrographNoiseModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
+from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.obstable.spectrograph_table import SpectrographObsTable
 from lightcurvelynx.obstable.ztf_obstable import ZTFObsTable, create_random_ztf_obs_data
@@ -2063,6 +2065,47 @@ def test_simulate_preloaded_matches_non_preloaded(preload_inputs, assert_identic
 
     init = make_worker_initializer(model, si)
     init()
+    ex = PicklingMapExecutor()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", WorkerPreloadWarning)
+        result = _run(model, si, ex)
+    assert_identical_results(expected, result)
+    assert len(ex.sizes) == 6
+    assert max(ex.sizes) * 10 < min(base_ex.sizes)
+
+
+@pytest.mark.parametrize("in_survey_info", [True, False])
+def test_simulate_preloaded_obstable_in_model(
+    in_survey_info, preload_inputs, test_data_dir, assert_identical_results, monkeypatch
+):
+    """A model that holds an ObsTable, either its survey's own or one outside survey_info,
+    gives identical results when preloaded, with small batches.
+
+    The preloaded run also refuses to deep-copy any ObsTable. Preloaded batches share their
+    ObsTables with the worker's preload slot, so a per-batch deepcopy of the model (as
+    upstream adds to _simulate_lightcurves_batch) must skip them.
+    """
+    _, si = preload_inputs
+    obstable = si.obstable if in_survey_info else OpSim.from_db(test_data_dir / "opsim_small.db")
+    positions = ObsTableUniformRADECSampler(obstable, radius=1.75, seed=3, node_label="positions")
+    model = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0, seed=11),
+        t0=0.0,
+        ra=positions.ra,
+        dec=positions.dec,
+        redshift=0.0,
+        node_label="source",
+    )
+    base_ex = PicklingMapExecutor()
+    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
+        expected = _run(model, si, base_ex)
+    assert (expected["nobs"] > 0).all()  # Every position is inside the survey footprint.
+
+    def refuse_deepcopy(self, memo):
+        raise AssertionError("ObsTable deep-copied during a preloaded batch")
+
+    make_worker_initializer(model, si)()
+    monkeypatch.setattr(ObsTable, "__deepcopy__", refuse_deepcopy, raising=False)
     ex = PicklingMapExecutor()
     with warnings.catch_warnings():
         warnings.simplefilter("error", WorkerPreloadWarning)
