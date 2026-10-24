@@ -705,7 +705,8 @@ _FALLBACK_SUFFIX = (
 _FALLBACK_CASES = {
     "not_preloaded": "The executor's workers were not preloaded with make_worker_initializer().",
     "unpicklable": (
-        "The model or survey data could not be pickled, so the workers cannot have been preloaded with it."
+        "The model or survey data could not be pickled, so the workers cannot have been preloaded "
+        "with it{cause}."
     ),
     "changed": (
         "The model and survey data do not match any data preloaded with make_worker_initializer() "
@@ -719,7 +720,7 @@ _FALLBACK_CASES = {
 }
 
 
-def warn_preload_fallback(case, *, num_missed=0, num_batches=0):
+def warn_preload_fallback(case, *, num_missed=0, num_batches=0, cause=None):
     """Emit a ``WorkerPreloadWarning`` saying why batches are sent with full data.
 
     Parameters
@@ -730,8 +731,12 @@ def warn_preload_fallback(case, *, num_missed=0, num_batches=0):
         The number of batches that missed. Only used for the "miss" case.
     num_batches : int, optional
         The total number of batches in the run. Only used for the "miss" case.
+    cause : Exception, optional
+        The exception that pickling raised. Only used for the "unpicklable" case, whose
+        sentence then ends with its type and message.
     """
-    sentence = _FALLBACK_CASES[case].format(num_missed=num_missed, num_batches=num_batches)
+    cause_text = "" if cause is None else f" ({type(cause).__name__}: {cause})"
+    sentence = _FALLBACK_CASES[case].format(num_missed=num_missed, num_batches=num_batches, cause=cause_text)
     # Both callers sit one level below simulate_lightcurves (simulate_lightcurves ->
     # _select_preload_digest or _simulate_lightcurves_parallel -> this function), so
     # stacklevel=4 points the warning at the user's simulate_lightcurves call.

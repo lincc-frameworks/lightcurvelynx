@@ -2265,9 +2265,12 @@ def test_simulate_preload_unpicklable_falls_back(preload_inputs):
     make_worker_initializer(model, si)  # Make the registry non-empty.
     stateful_model = _stateful_model(si)
     with ThreadPoolExecutor(2) as executor:
-        with pytest.warns(WorkerPreloadWarning, match="could not be pickled"):
+        with pytest.warns(WorkerPreloadWarning, match="could not be pickled") as record:
             result = _run(stateful_model, si, executor, num_samples=10, batch_size=5)
     assert len(result) == 10
+    # The warning names the pickling error, and points at the simulate_lightcurves call.
+    assert "(RuntimeError: A stateful GivenValueList cannot be pickled" in str(record[0].message)
+    assert record[0].filename == __file__
 
     with pytest.raises(RuntimeError, match="cannot be pickled"):
         make_worker_initializer(stateful_model, si)

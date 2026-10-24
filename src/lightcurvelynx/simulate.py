@@ -715,8 +715,8 @@ def _select_preload_digest(simulation_info):
         return None
     try:
         digest = compute_preload_digest(simulation_info.model, simulation_info.survey_info)
-    except Exception:
-        warn_preload_fallback("unpicklable")
+    except Exception as exc:
+        warn_preload_fallback("unpicklable", cause=exc)
         return None
     if not is_known_preload_digest(digest):
         warn_preload_fallback("changed")
