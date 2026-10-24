@@ -18,10 +18,10 @@ from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
 from lightcurvelynx.utils.worker_preload import (
     PreloadMiss,
+    _load_preloaded_data_and_size,
     compute_preload_digest,
     has_known_preload_digests,
     is_known_preload_digest,
-    load_preloaded_data,
     make_worker_initializer,
     warn_preload_fallback,
 )
@@ -608,6 +608,41 @@ def _simulate_lightcurves_batch(simulation_info):
     return results
 
 
+# Preloaded batches free their model copies with a full garbage collection, but only once the
+# batches in this process have loaded at least this many model bytes since the last one. A full
+# collection costs tens of milliseconds even in a fresh process, which would dominate a run of
+# many small batches, while the copies of a small model cost little memory to keep for a while.
+_PRELOAD_GC_THRESHOLD_BYTES = 64 * 1024**2
+
+# The model bytes loaded by preloaded batches in this process since the last full collection.
+# Threads in one process update it without a lock, accepting benign races: a lost update only
+# delays a collection, and two threads may both collect once. Neither changes any results, and
+# no lock means nothing for a forked child to inherit in a locked state.
+_preload_bytes_since_gc = 0
+
+
+def _free_preloaded_models(model_nbytes):
+    """Count a finished preloaded batch's model bytes, and free the model copies if needed.
+
+    The model's nodes reference each other in cycles, so each batch's copy of the model is only
+    freed by a full collection, which rarely triggers on its own when the garbage is a few large
+    objects: in-model data (such as a TableSampler's catalog) would otherwise accumulate with
+    every batch. This function runs a full collection once the model bytes loaded since the
+    last one reach ``_PRELOAD_GC_THRESHOLD_BYTES``, which bounds that garbage without slowing
+    down runs of a small model.
+
+    Parameters
+    ----------
+    model_nbytes : int
+        The size in bytes of the pickled model that the finished batch loaded.
+    """
+    global _preload_bytes_since_gc
+    _preload_bytes_since_gc += model_nbytes
+    if _preload_bytes_since_gc >= _PRELOAD_GC_THRESHOLD_BYTES:
+        _preload_bytes_since_gc = 0
+        gc.collect()
+
+
 def _simulate_preloaded_batch(simulation_info):
     """Simulate a "light" batch using the model and survey info preloaded on this worker.
 
@@ -626,7 +661,7 @@ def _simulate_preloaded_batch(simulation_info):
     # Load before touching anything else: on a miss the batch is resent with the full data,
     # and with executors that do not copy their arguments, this batch shares its rng with
     # the batch that is resent.
-    loaded = load_preloaded_data(simulation_info.preload_digest)
+    loaded = _load_preloaded_data_and_size(simulation_info.preload_digest)
     if loaded is None:
         return PreloadMiss()
 
@@ -634,18 +669,17 @@ def _simulate_preloaded_batch(simulation_info):
     # per-batch deepcopy of the model lands in _simulate_lightcurves_batch, it must be skipped
     # for this path: the model is already private, and a deepcopy would also copy the shared,
     # read-only ObsTables for every batch.
-    model, survey_info = loaded
+    model, survey_info, model_nbytes = loaded
     batch_info = copy.copy(simulation_info)
     batch_info.model = model
     batch_info.survey_info = survey_info
     result = _simulate_lightcurves_batch(batch_info)
 
-    # Free this batch's copy of the model before the next batch starts. The model's nodes
-    # reference each other in cycles, so the copy is only freed by a full collection, which
-    # rarely triggers when the garbage is a few large objects: in-model data (such as a
-    # TableSampler's catalog) would otherwise accumulate with every batch.
+    # Drop this batch's copy of the model before the next batch starts. Its nodes reference
+    # each other in cycles, so only a full collection frees it; _free_preloaded_models runs one
+    # once enough model bytes have been loaded.
     del loaded, model, survey_info, batch_info
-    gc.collect()
+    _free_preloaded_models(model_nbytes)
     return result
 
 

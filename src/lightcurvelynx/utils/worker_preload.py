@@ -554,12 +554,31 @@ def load_preloaded_data(digest):
         The freshly unpickled model and the (possibly shared, cached) survey info list,
         or None if the process's preload slot is empty or holds a different digest.
     """
+    loaded = _load_preloaded_data_and_size(digest)
+    return None if loaded is None else loaded[:2]
+
+
+def _load_preloaded_data_and_size(digest):
+    """Like ``load_preloaded_data``, but also return the size of the model bytes it unpickled.
+
+    Parameters
+    ----------
+    digest : str
+        The digest of the payload to load, as returned by ``WorkerInitializer.digest``.
+
+    Returns
+    -------
+    tuple of (ParameterizedNode, list of SurveyInfo, int) or None
+        The freshly unpickled model, the (possibly shared, cached) survey info list and the
+        size in bytes of the pickled model it was loaded from, or None if the process's
+        preload slot is empty or holds a different digest.
+    """
     slot = _slot
     if slot is None or slot.digest != digest:
         return None
     survey_info, shared_objects = slot.shared()
     model = _ModelUnpickler(io.BytesIO(slot.model_bytes), shared_objects).load()
-    return model, survey_info
+    return model, survey_info, len(slot.model_bytes)
 
 
 def reset_preload_state():

@@ -6,6 +6,7 @@ import warnings
 import weakref
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -2068,7 +2069,8 @@ def test_simulate_preloaded_matches_non_preloaded(preload_inputs, assert_identic
 
 
 def test_simulate_preloaded_batch_frees_its_model(preload_inputs, monkeypatch):
-    """Each preloaded batch frees its own copy of the model before it returns.
+    """Each preloaded batch frees its own copy of the model before it returns, once the model
+    bytes loaded since the last collection reach the threshold (set to 0 here, so every batch).
 
     The model's nodes reference each other in cycles, so only the cyclic garbage collector
     can free a copy. Automatic collection is disabled here, so any copy that is freed was
@@ -2076,15 +2078,17 @@ def test_simulate_preloaded_batch_frees_its_model(preload_inputs, monkeypatch):
     """
     model, si = preload_inputs
     loaded_models = []
+    real_load = simulate_module._load_preloaded_data_and_size
 
     def recording_load(digest):
-        loaded = load_preloaded_data(digest)
+        loaded = real_load(digest)
         if loaded is not None:
             loaded_models.append(weakref.ref(loaded[0]))
         return loaded
 
-    # simulate.py imports load_preloaded_data by name, so patch it there.
-    monkeypatch.setattr(simulate_module, "load_preloaded_data", recording_load)
+    # simulate.py imports _load_preloaded_data_and_size by name, so patch it there.
+    monkeypatch.setattr(simulate_module, "_load_preloaded_data_and_size", recording_load)
+    monkeypatch.setattr(simulate_module, "_PRELOAD_GC_THRESHOLD_BYTES", 0)
     make_worker_initializer(model, si)()
 
     gc.disable()
@@ -2098,6 +2102,26 @@ def test_simulate_preloaded_batch_frees_its_model(preload_inputs, monkeypatch):
         gc.enable()
     assert len(result) == 60
     assert alive == [False] * 6
+
+
+def test_simulate_preloaded_small_model_skips_gc(preload_inputs, monkeypatch):
+    """Preloaded batches of a small model never run a full garbage collection, which is slow
+    even when there is little to free."""
+    model, si = preload_inputs
+    collect_calls = []
+    # simulate.py calls gc.collect through its own gc name, so replace that name.
+    monkeypatch.setattr(
+        simulate_module, "gc", SimpleNamespace(collect=lambda *args: collect_calls.append(args))
+    )
+    # Count from zero, whatever model bytes earlier tests in this process have loaded.
+    monkeypatch.setattr(simulate_module, "_preload_bytes_since_gc", 0)
+    make_worker_initializer(model, si)()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", WorkerPreloadWarning)
+        result = _run(model, si, PicklingMapExecutor())
+    assert len(result) == 60
+    assert collect_calls == []
 
 
 def test_simulate_preloaded_thread_pool(preload_inputs, assert_identical_results):
