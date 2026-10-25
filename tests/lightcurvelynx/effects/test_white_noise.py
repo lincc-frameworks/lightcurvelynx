@@ -100,8 +100,8 @@ def test_constant_sed_model_white_noise() -> None:
     assert np.all(np.abs(values - 10.0) < 3.0)
 
     # Test that if we pass in an rng, we control the randomness.
-    values1 = model.evaluate_sed(times, wavelengths, state, rng_info=np.random.default_rng(100))
-    values2 = model.evaluate_sed(times, wavelengths, state, rng_info=np.random.default_rng(100))
+    values1 = model.evaluate_sed(times, wavelengths, state, rng_info=np.random.default_rng(4321))
+    values2 = model.evaluate_sed(times, wavelengths, state, rng_info=np.random.default_rng(4321))
     assert not np.any(values1 == 10.0)
     assert np.all(values1 == values2)
 

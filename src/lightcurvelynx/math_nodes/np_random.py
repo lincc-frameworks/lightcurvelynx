@@ -47,6 +47,22 @@ class NumpyRandomFunc(FunctionNode):
     def __init__(self, func_name, size=1, **kwargs):
         self.func_name = func_name
 
+        # Check for unsupported keyword arguments.
+        if "seed" in kwargs:
+            # We no longer support setting the seed during construction.
+            raise ValueError(
+                "Directly setting the seed during construction is no longer supported. "
+                "Users can control the randomness by passing a random number generator "
+                "into compute() via the rng_info argument."
+            )
+        if "fixed_params" in kwargs:
+            # We can't support fixed parameters because, we use the method from
+            # the given random number generator.
+            raise ValueError(
+                "You cannot set fixed parameters for a NumpyRandomFunc node. "
+                "Users can instead pass constants."
+            )
+
         # The node does not support the 'choice' function since it cannot take a list of different
         # lists to use for each sampling run (sample 1 chooses a value from list 1, sample 2 from
         # list 2, etc.).
@@ -122,7 +138,7 @@ class NumpyRandomFunc(FunctionNode):
                     arg_value_expanded = arg_value.reshape(expanded_shape)
                     args[key] = np.broadcast_to(arg_value_expanded, target_size)
 
-        # If a random number generator is given use that. Otherwise use the default one.
+        # If a random number generator is given use that. Otherwise create a new random one.
         if rng_info is None:
             rng_info = np.random.default_rng()
         func = getattr(rng_info, self.func_name)
@@ -172,6 +188,22 @@ class NumpyMultivariateNormalFunc(FunctionNode):
     """
 
     def __init__(self, mean, cov, **kwargs):
+        # Check for unsupported keyword arguments.
+        if "seed" in kwargs:
+            # We no longer support setting the seed during construction.
+            raise ValueError(
+                "Directly setting the seed during construction is no longer supported. "
+                "Users can control the randomness by passing a random number generator "
+                "into compute() via the rng_info argument."
+            )
+        if "fixed_params" in kwargs:
+            # We can't support fixed parameters because, we use the method from
+            # the given random number generator.
+            raise ValueError(
+                "You cannot set fixed parameters for a NumpyRandomFunc node. "
+                "Users can instead pass constants."
+            )
+
         self.dims = len(mean)
         if self.dims == 0:  # pragma: no cover
             raise ValueError(f"Mean must be a non-empty array. Received {mean}.")

@@ -41,6 +41,17 @@ def test_binary_sampler():
     assert len(many_states["test"]["function_node_result"]) == 10_000
     assert 7000 < np.count_nonzero(many_states["test"]["function_node_result"]) < 8000
 
+    # Using the same RNG seed should produce the same results.
+    rng = np.random.default_rng(100)
+    binary_node2 = BinarySampler(0.75, node_label="test2")
+    single_state2 = binary_node2.sample_parameters(num_samples=1, rng_info=rng)
+    assert single_state["test"]["function_node_result"] == single_state2["test2"]["function_node_result"]
+    many_states2 = binary_node2.sample_parameters(num_samples=10_000, rng_info=rng)
+    assert np.allclose(
+        many_states["test"]["function_node_result"],
+        many_states2["test2"]["function_node_result"],
+    )
+
     # We fail if we use an invalid probability.
     with pytest.raises(ValueError):
         _ = BinarySampler(1.5)
@@ -192,7 +203,7 @@ def test_given_value_list_stateless():
 
 def test_given_value_sampler():
     """Test that we can retrieve numbers from a GivenValueSampler."""
-    given_node = GivenValueSampler([1, 3, 5, 7])
+    given_node = GivenValueSampler([1, 3, 5, 7], node_label="node")
 
     # Check that we have sampled uniformly from the given options.
     state = GraphState(num_samples=5_000)
@@ -203,6 +214,26 @@ def test_given_value_sampler():
     assert len(results[results == 3]) > 1000
     assert len(results[results == 5]) > 1000
     assert len(results[results == 7]) > 1000
+
+    # A random resampling should produce a different sequence.
+    state_repeat = GraphState(num_samples=5_000)
+    results_random = given_node.compute(state_repeat)
+    assert not np.array_equal(results, results_random)
+
+    # If we fix the random number generator, we fix the sequence of sampled values.
+    rng1 = np.random.default_rng(100)
+    state1 = given_node.sample_parameters(num_samples=5_000, rng_info=rng1)
+    results_fixed = state1["node"]["function_node_result"]
+    rng2 = np.random.default_rng(100)
+    state2 = given_node.sample_parameters(num_samples=5_000, rng_info=rng2)
+    results_fixed2 = state2["node"]["function_node_result"]
+    assert np.array_equal(results_fixed, results_fixed2)
+
+    # If we change the seed, we should get a different sequence of sampled values.
+    rng3 = np.random.default_rng(101)
+    state3 = given_node.sample_parameters(num_samples=5_000, rng_info=rng3)
+    results_diff = state3["node"]["function_node_result"]
+    assert not np.array_equal(results_fixed, results_diff)
 
     # We fail if we try to create a GivenValueSampler with an empty list.
     with pytest.raises(ValueError):
@@ -215,7 +246,7 @@ def test_given_value_sampler():
 
 def test_given_value_sampler_int():
     """Test that we can retrieve numbers from a GivenValueSampler representing a range."""
-    given_node = GivenValueSampler(5)
+    given_node = GivenValueSampler(5, node_label="node")
 
     # Check that we have sampled uniformly from the given options.
     state = GraphState(num_samples=5_000)
@@ -224,6 +255,35 @@ def test_given_value_sampler_int():
     assert np.all((results >= 0) & (results < 5))
     for i in range(5):
         assert len(results[results == i]) > 500
+
+    # We should still get the same sequence given the same RNGs.
+    rng1 = np.random.default_rng(100)
+    state1 = given_node.sample_parameters(num_samples=5_000, rng_info=rng1)
+    results_fixed = state1["node"]["function_node_result"]
+    rng2 = np.random.default_rng(100)
+    state2 = given_node.sample_parameters(num_samples=5_000, rng_info=rng2)
+    results_fixed2 = state2["node"]["function_node_result"]
+    assert np.array_equal(results_fixed, results_fixed2)
+
+
+def test_given_value_sampler_non_number():
+    """Test that we can retrieve non-number values from a GivenValueSampler."""
+    given_node = GivenValueSampler(["a", "b", "c", "d"])
+
+    # Check that we have sampled uniformly from the given options.
+    state = GraphState(num_samples=5_000)
+    results = given_node.compute(state)
+    assert len(results) == 5_000
+    assert np.all((results == "a") | (results == "b") | (results == "c") | (results == "d"))
+    assert len(results[results == "a"]) > 1000
+    assert len(results[results == "b"]) > 1000
+    assert len(results[results == "c"]) > 1000
+    assert len(results[results == "d"]) > 1000
+
+    # A random resampling should produce a different sequence.
+    states2 = GraphState(num_samples=5_000)
+    results2 = given_node.compute(states2)
+    assert not np.array_equal(results, results2)
 
 
 def test_given_value_selector():

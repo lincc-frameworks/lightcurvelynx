@@ -39,6 +39,13 @@ class BilbyPriorNode(FunctionNode, CiteClass):
     """
 
     def __init__(self, prior, **kwargs):
+        if "seed" in kwargs:
+            raise ValueError(
+                "Directly setting the seed during construction is no longer supported. "
+                "Users can control the randomness by passing a random number generator "
+                "into compute() via the rng_info argument."
+            )
+
         # Set the prior. If the prior is provided as a dictionary, convert it to a Bilby
         # PriorDict object.
         if isinstance(prior, dict):
@@ -88,9 +95,8 @@ class BilbyPriorNode(FunctionNode, CiteClass):
             An object mapping graph parameters to their values. This object is modified
             in place as it is sampled.
         rng_info : numpy.random._generator.Generator, optional
-            This random number generator is not used by this node. Instead, Bilby's internal
-            random number generator is used. You can set the seed for this using the `seed`
-            argument when initializing the node or by calling the `set_seed()` method.
+            If provided, this random number generator is used to create a (random) seed for
+            Bilby's internal random number generator.
         **kwargs : dict, optional
             Additional function arguments.
 
