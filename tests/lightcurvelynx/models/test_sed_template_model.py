@@ -550,9 +550,10 @@ def test_simsed_model_compute_sed(test_data_dir) -> None:
     assert model.flux_scale == 2.0
 
     # Compute the SLSN SED at a specific time and wavelength.
+    rng1 = np.random.default_rng(54321)
     times = np.array([0.0, 1.0, 2.0])
     wavelengths = np.array([4500.0, 5000.0])
-    sed_values = model.evaluate_sed(times, wavelengths)
+    sed_values = model.evaluate_sed(times, wavelengths, rng_info=rng1)
     assert sed_values.shape == (3, 2)
     assert np.all(sed_values > 0.0)
 
@@ -563,7 +564,8 @@ def test_simsed_model_compute_sed(test_data_dir) -> None:
         distance=10.0,
         node_label="model",
     )
-    sed_values2 = model2.evaluate_sed(times, wavelengths)
+    rng2 = np.random.default_rng(54321)
+    sed_values2 = model2.evaluate_sed(times, wavelengths, rng_info=rng2)
     assert np.allclose(sed_values, sed_values2)
 
     # Confirm that we have noted the data in the citations registry.

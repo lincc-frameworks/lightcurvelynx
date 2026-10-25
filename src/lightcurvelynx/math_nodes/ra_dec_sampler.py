@@ -250,14 +250,15 @@ class ObsTableRADECSampler(TableSampler):
             The result of the computation. This return value is provided so that testing
             functions can easily access the results.
         """
+        # Use the given random number generator if there is one, otherwise fallback
+        # to the node's random number generator.
+        rng = rng_info if rng_info is not None else np.random.default_rng()
+
         # Sample the center RA, dec, and times without the radius. Results is a vector
         # of arrays, one per output column. The first two are guaranteed to be RA and dec.
-        results = super().compute(graph_state, rng_info=rng_info, **kwargs)
+        results = super().compute(graph_state, rng_info=rng, **kwargs)
 
         if self.radius > 0.0:
-            # Use the given random number generator if there is one, otherwise fallback
-            # to the node's random number generator.
-            rng = rng_info if rng_info is not None else np.random.default_rng()
             center = SkyCoord(ra=results[0], dec=results[1], unit="deg")
 
             # Add an offset from the center of the pointing defined by an offset angle (phi)

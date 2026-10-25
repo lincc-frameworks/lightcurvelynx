@@ -84,6 +84,28 @@ def test_uniform_ra_dec():
     assert np.all(all_dec <= np.pi)
 
 
+def test_uniform_ra_dec_seeded():
+    """Test that we can generate numbers from a uniform distribution
+    on a sphere with seeded random number generators.
+    """
+    sampler_node = UniformRADEC(node_label="sampler")
+
+    rng1 = np.random.default_rng(1001)
+    states1 = sampler_node.sample_parameters(num_samples=1_000, rng_info=rng1)
+
+    # Check that the results are the same for the same seed.
+    rng2 = np.random.default_rng(1001)
+    states2 = sampler_node.sample_parameters(num_samples=1_000, rng_info=rng2)
+    assert np.allclose(states1["sampler"]["ra"], states2["sampler"]["ra"])
+    assert np.allclose(states1["sampler"]["dec"], states2["sampler"]["dec"])
+
+    # Check that different seeds produce different results.
+    rng3 = np.random.default_rng(1002)
+    states3 = sampler_node.sample_parameters(num_samples=1_000, rng_info=rng3)
+    assert not np.allclose(states1["sampler"]["ra"], states3["sampler"]["ra"])
+    assert not np.allclose(states1["sampler"]["dec"], states3["sampler"]["dec"])
+
+
 def test_obstable_ra_dec_sampler():
     """Test that we can sample from an OpSim object."""
     values = {
@@ -174,7 +196,7 @@ def test_obstable_ra_dec_sampler_seeded():
     sampler2 = ObsTableRADECSampler(ops_data, radius=0.1, node_label="sampler2")
     state2 = sampler2.sample_parameters(num_samples=5000, rng_info=np.random.default_rng(100))
 
-    assert np.allclose(
+    assert np.array_equal(
         state1["sampler1"]["selected_table_index"],
         state2["sampler2"]["selected_table_index"],
     )
@@ -185,7 +207,7 @@ def test_obstable_ra_dec_sampler_seeded():
     sampler3 = ObsTableRADECSampler(ops_data, radius=0.1, node_label="sampler3")
     state3 = sampler3.sample_parameters(num_samples=5000, rng_info=np.random.default_rng(101))
 
-    assert not np.allclose(
+    assert not np.array_equal(
         state1["sampler1"]["selected_table_index"],
         state3["sampler3"]["selected_table_index"],
     )
@@ -436,6 +458,35 @@ def test_approximate_moc_sampler():
         ApproximateMOCSampler(moc, depth=2000)
 
 
+def test_approximate_moc_sampler_seeded():
+    """Test that we can create and sample from an ApproximateMOCSampler
+    with a seeded random number generator."""
+    longitudes = Longitude([15.0, 90.0], unit="deg")
+    latitudes = Latitude([-20.0, 20.0], unit="deg")
+    moc = MOC.from_cones(
+        lon=longitudes,
+        lat=latitudes,
+        radius=1.0 * u.deg,
+        max_depth=8,  # Can be lower precision for testing purposes.
+        union_strategy="large_cones",
+    )
+    moc_sampler = ApproximateMOCSampler(moc, depth=8)
+
+    # Using the same seed for the RNG produces the same results.
+    rng1 = np.random.default_rng(42)
+    ra1, dec1 = moc_sampler.generate(num_samples=10_000, rng_info=rng1)
+    rng2 = np.random.default_rng(42)
+    ra2, dec2 = moc_sampler.generate(num_samples=10_000, rng_info=rng2)
+    assert np.allclose(ra1, ra2)
+    assert np.allclose(dec1, dec2)
+
+    # Using a different seed for the RNG produces different results.
+    rng3 = np.random.default_rng(43)
+    ra3, dec3 = moc_sampler.generate(num_samples=10_000, rng_info=rng3)
+    assert not np.allclose(ra1, ra3)
+    assert not np.allclose(dec1, dec3)
+
+
 def test_approximate_moc_sampler_plot():
     """Test that we can plot the footprint of an ApproximateMOCSampler."""
     longitudes = Longitude([15.0, 90.0], unit="deg")
@@ -444,14 +495,14 @@ def test_approximate_moc_sampler_plot():
         lon=longitudes,
         lat=latitudes,
         radius=1.0 * u.deg,
-        max_depth=12,
+        max_depth=8,  # Can be lower precision for testing purposes.
         union_strategy="large_cones",
     )
-    moc_sampler = ApproximateMOCSampler(moc)
+    moc_sampler = ApproximateMOCSampler(moc, depth=8)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        moc_sampler.plot_footprint(depth=12)
+        moc_sampler.plot_footprint(depth=8)
         matplotlib.pyplot.close("all")
 
 
@@ -463,7 +514,7 @@ def test_approximate_moc_sampler_from_file():
         lon=longitudes,
         lat=latitudes,
         radius=1.0 * u.deg,
-        max_depth=8,
+        max_depth=8,  # Can be lower precision for testing purposes.
         union_strategy="large_cones",
     )
 
@@ -573,7 +624,7 @@ def test_approximate_moc_sampler_from_intersection_obstable():
     # Build a single sampler from the union of the ObsTables.
     moc_sampler = ApproximateMOCSampler.from_obstable_intersection(
         ops_tables,
-        depth=14,
+        depth=14,  # Need to be higher precision for the intersection region.
         radii=[1.0, 1.0, 1.0],
     )
 
@@ -762,6 +813,27 @@ def test_milky_way_ra_dec_sampler_many():
     assert np.all(all_dec <= 90.0)
     assert len(all_distance_pc) == num_samples
     assert np.all(all_distance_pc >= 0.0)
+
+
+def test_milky_way_ra_dec_sampler_seeded_rng():
+    """Test that MilkyWayCoordSampler respects the seeded random number generator."""
+    model = MilkyWayDensityJuric2008(n_grid=64)
+    sampler = MilkyWayCoordSampler(density_model=model, node_label="mw")
+
+    rng1 = np.random.default_rng(42)
+    state1 = sampler.sample_parameters(num_samples=1_000, rng_info=rng1)
+    rng2 = np.random.default_rng(42)
+    state2 = sampler.sample_parameters(num_samples=1_000, rng_info=rng2)
+    assert np.allclose(state1["mw"]["ra"], state2["mw"]["ra"])
+    assert np.allclose(state1["mw"]["dec"], state2["mw"]["dec"])
+    assert np.allclose(state1["mw"]["distance_pc"], state2["mw"]["distance_pc"])
+
+    # A different seed should produce different results.
+    rng3 = np.random.default_rng(43)
+    state3 = sampler.sample_parameters(num_samples=1_000, rng_info=rng3)
+    assert not np.allclose(state1["mw"]["ra"], state3["mw"]["ra"])
+    assert not np.allclose(state1["mw"]["dec"], state3["mw"]["dec"])
+    assert not np.allclose(state1["mw"]["distance_pc"], state3["mw"]["distance_pc"])
 
 
 def test_milky_way_ra_dec_sampler_default_model():
