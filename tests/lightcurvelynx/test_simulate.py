@@ -2117,7 +2117,7 @@ def test_simulate_lightcurves_single_thread_batched(test_data_dir):
     assert len(results) == 100
 
     # Extract the graph state and make sure that we are generating different
-    # parameters in each batch.  Allow for a very small number of (coincidentental) matches.
+    # parameters in each batch.  Allow for a very small number of (coincidental) matches.
     state = GraphState.from_list(results["params"].to_numpy())
     assert np.unique(state["source.brightness"]).size > 95
     assert np.unique(state["source.ra"]).size > 95
