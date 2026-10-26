@@ -2074,3 +2074,51 @@ def test_simulate_process_safety():
     # counts but the same random seed.
     assert params_1 == params_4
     assert not np.any(np.abs(flux_1 - flux_4) > 1e-8)
+
+
+def test_simulate_lightcurves_single_thread_batched(test_data_dir):
+    """Test simulating light curves with a single thread and batched execution."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    ra0 = opsim_db["ra"].to_numpy()[0]
+    dec0 = opsim_db["dec"].to_numpy()[0]
+    source = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
+        t0=0.0,
+        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
+        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
+        redshift=0.0,
+        node_label="source",
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    # Do a simulation with 20 batches of size 5. Note that we cannot compare
+    # against the single batch, because the order of sampling and noise
+    # generation will be different.
+    results = simulate_lightcurves(
+        source,
+        100,
+        survey_info,
+        executor=None,
+        batch_size=5,
+        progress_bar=False,  # Disable progress bar for testing
+        rng=np.random.default_rng(42),
+    )
+    assert len(results) == 100
+
+    # Extract the graph state and make sure that we are generating different
+    # parameters in each batch.  Allow for a very small number of (coincidental) matches.
+    state = GraphState.from_list(results["params"].to_numpy())
+    assert np.unique(state["source.brightness"]).size > 95
+    assert np.unique(state["source.ra"]).size > 95
+    assert np.unique(state["source.dec"]).size > 95
