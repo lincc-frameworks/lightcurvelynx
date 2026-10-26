@@ -153,3 +153,9 @@ def test_snana_spectrograph_noise_model(test_data_dir):
     assert_allclose(flux2, flux1)
     assert_allclose(err2, err1)
     assert not np.allclose(flux3, flux1, atol=0.0)
+
+    # An SED sampled on the unsmeared (unpadded) grid gives the same errors.
+    assert len(model.spectrograph_true.query_waves) < len(model.spectrograph.query_waves)
+    sed_unpadded = np.full((len(indices), len(model.spectrograph_true.query_waves)), flux_density)
+    err4 = model.compute_flux_error(measurements, sed=sed_unpadded, obs_table=obs_table, indices=indices)
+    assert_allclose(err4, err1)

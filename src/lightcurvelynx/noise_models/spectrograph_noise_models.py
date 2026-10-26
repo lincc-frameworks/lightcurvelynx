@@ -340,7 +340,8 @@ class SNANANoiseModel(SpectrographNoiseModel):
             The smeared flux, shape (T_obs, W) --
             `spectrograph(compute_smear=True).evaluate(seds)`.
         sed : array_like of float
-            The SED used to generate the measurements, shape (T_obs, len(query_waves))
+            The SED used to generate the measurements, shape (T_obs, len(query_waves)), sampled
+            on either the smeared (padded) or the unsmeared spectrograph's query wavelengths.
         obs_table : ObsTable
             Must have an `exptime` column (`_required_values`).
         indices : array_like of int, optional
@@ -357,6 +358,11 @@ class SNANANoiseModel(SpectrographNoiseModel):
         """
         measurements = np.asarray(measurements, dtype=float)
 
+        # The SED may be sampled on the smeared spectrograph's padded grid. The SNANA spectrographs
+        # use one query point per bin, so we can drop the padding to get the unpadded grid.
+        sed = np.asarray(sed)
+        if sed.shape[-1] == len(self.spectrograph.query_waves):
+            sed = sed[..., ~self.spectrograph.is_padding]
         true_flux = self.spectrograph_true.evaluate(sed)
         exptime = np.asarray(obs_table.get_value_per_row("exptime", indices=indices), dtype=float)
 

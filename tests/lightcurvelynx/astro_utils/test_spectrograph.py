@@ -471,9 +471,9 @@ def test_create_spectrograph_max_wave_step():
     assert np.allclose(results3, expected3)
     assert results3.shape == (2, 2, spgraph.num_bins)
 
-    # check padding introduced by wavelength_resolution.
+    # check padding introduced by wavelength_resolution when smearing is enabled.
     resolution = np.full(5, 30.0)
-    spgraph_padded = Spectrograph(wave_min, wave_max, wavelength_resolution=resolution)
+    spgraph_padded = Spectrograph(wave_min, wave_max, wavelength_resolution=resolution, compute_smear=True)
     assert spgraph_padded.num_padded_bins > spgraph_padded.num_bins
     assert len(spgraph_padded.query_waves) == spgraph_padded.num_padded_bins
     assert np.allclose(
@@ -565,11 +565,11 @@ def test_create_spectrograph_max_wave_step_aggregates_subbins():
 
 def test_create_spectrograph_with_wavelength_resolution():
     """Test that a Spectrograph with per-bin wavelength resolution pads its bins
-    on both sides to support smearing, and that no resolution means no padding."""
+    on both sides to support smearing, and that no resolution or no smearing means no padding."""
     waves_min = np.array([4000.0, 4020.0, 4040.0])
     waves_max = np.array([4020.0, 4040.0, 4060.0])
     resolution = np.full(3, 10.0)
-    spgraph = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution)
+    spgraph = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution, compute_smear=True)
 
     assert spgraph.num_padded_bins > spgraph.num_bins
     assert np.sum(spgraph.is_padding) == spgraph.num_padded_bins - spgraph.num_bins
@@ -582,6 +582,12 @@ def test_create_spectrograph_with_wavelength_resolution():
     spgraph_no_res = Spectrograph(waves_min, waves_max)
     assert spgraph_no_res.num_padded_bins == spgraph_no_res.num_bins
     assert not np.any(spgraph_no_res.is_padding)
+
+    # With a resolution but no smearing, there is no padding and we only query the bin centers.
+    spgraph_no_smear = Spectrograph(waves_min, waves_max, wavelength_resolution=resolution)
+    assert spgraph_no_smear.num_padded_bins == spgraph_no_smear.num_bins
+    assert not np.any(spgraph_no_smear.is_padding)
+    assert np.allclose(spgraph_no_smear.query_waves, spgraph_no_smear.bin_centers)
 
 
 def test_spectrograph_smear_matrix_values():
@@ -623,17 +629,20 @@ def test_spectrograph_evaluate_with_smearing():
     # A flat flux density should stay (approximately) flat after smearing, since
     # padding supplies the flux that would otherwise be lost at the edges.
     flux_density = 3.7
-    flat_input = np.full(spgraph.query_waves.shape, flux_density)
-    unsmeared = spgraph_unsmeared.evaluate(flat_input)
-    smeared = spgraph.evaluate(flat_input)
+    unsmeared = spgraph_unsmeared.evaluate(np.full(spgraph_unsmeared.query_waves.shape, flux_density))
+    smeared = spgraph.evaluate(np.full(spgraph.query_waves.shape, flux_density))
     assert smeared.shape == (spgraph.num_bins,)
     assert np.allclose(smeared, unsmeared, rtol=5e-3)
 
     # A single narrow spike of flux should spread into neighboring bins when smeared,
     # while approximately conserving total flux.
+    # The two spectrographs have different query wavelengths (only the smeared one is padded),
+    # so we place the spike at the same wavelength in each.
     spike_input = np.zeros_like(spgraph.query_waves)
     spike_input[len(spike_input) // 2] = 100.0
+    spike_wave = spgraph.query_waves[len(spike_input) // 2]
+    spike_input_unsmeared = np.where(spgraph_unsmeared.query_waves == spike_wave, 100.0, 0.0)
     spiked = spgraph.evaluate(spike_input)
-    not_spiked = spgraph_unsmeared.evaluate(spike_input)
+    not_spiked = spgraph_unsmeared.evaluate(spike_input_unsmeared)
     assert np.sum(spiked > 0) > np.sum(not_spiked > 0)
     assert np.sum(spiked) == pytest.approx(np.sum(not_spiked), rel=0.05)

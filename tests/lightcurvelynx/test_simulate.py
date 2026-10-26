@@ -1539,6 +1539,29 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
         assert base_path.exists()
 
 
+def test_simulate_spectra_waves_match_bins():
+    """Test that the spectra waves match the bins (not the query wavelengths) when
+    the spectrograph has padding bins and multiple samples per bin."""
+    obstable = SpectrographObsTable({"time": [0.0, 1.0], "ra": [0.0, 0.0], "dec": [10.0, 10.0]})
+    spectrograph = Spectrograph.from_regular_grid(
+        3000.0, 9000.0, 100.0, wavelength_resolution=50.0, max_wave_step=40.0, compute_smear=True
+    )
+    assert len(spectrograph.query_waves) != spectrograph.num_bins
+
+    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=10.0, redshift=0.0, node_label="source")
+    results = simulate_lightcurves(
+        model,
+        1,
+        SurveyInfo(obstable=obstable, passbands=spectrograph),
+        progress_bar=False,
+    )
+
+    spectra = results.iloc[0]["spectra"]
+    for idx in range(len(spectra)):
+        assert np.allclose(spectra.iloc[idx]["waves"], spectrograph.bin_centers)
+        assert len(spectra.iloc[idx]["measured_flux"]) == spectrograph.num_bins
+
+
 def test_simulate_drop_empty_rows(test_data_dir):
     """Test that we drop empty rows when configured to do so."""
     # Set up a small survey with observations at two different regions of the sky.
