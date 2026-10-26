@@ -828,7 +828,8 @@ def simulate_lightcurves(
         batches_list = simulation_info.split(batch_size=batch_size)
         result_list = [_simulate_lightcurves_batch(batch) for batch in batches_list]
     else:
-        # We want to run in parallel, so we create a process pool executor with the specified number of jobs.
+        # We want to run in parallel, but did not provide and executor. We create a
+        # process pool executor with the specified number of jobs.
         with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs) as executor:
             result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
 
