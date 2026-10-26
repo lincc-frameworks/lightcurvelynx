@@ -60,6 +60,15 @@ the  flux densities, applies the transformation to them, and outputs the transfo
 
 For examples see the :doc:`Adding New Effect Types <notebooks/adding_effects>` notebook.
 
+
+Internal Data
+-------------------------------------------------------------------------------
+
+Both model and effect objects should not retain any persistent state that needs to be tracked from sample to sample, because this state might not be consistently updated across parallel runs. Instead all state should be tracked through the ``GraphState`` object.
+
+The objects can store internal data, such as preloaded data files. In addition, some model classes (e.g. ``SncosmoWrapperModel`` and ``RedbackWrapperModel``) will maintain cached information to speed up computation within a single sample. Care must be taken when using such cached information, as it needs to be refreshed between samples and the resulting objects are not thread safe.
+
+
 Handling Randomness
 -------------------------------------------------------------------------------
 
@@ -94,3 +103,5 @@ This ensures that different (non-fixed) the simulations are indeed different.
 A similar approach can be used for effects that depend on randomness, such as the ``WhiteNoise`` effect.
 This effect uses the ``white_noise_seed`` parameter when to create a random number generator that is
 deterministic given the seed. Unless a seed is manually specified, that parameter is random chosen.
+
+Models **should not** maintain their own persistent random number generator objects internally. This can cause non-random behavior when models are pickled/copied for batched (parallel) execution. Each simulation should create a new random number generator using the seed stored in the ``GraphState`` as described above.
