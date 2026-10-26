@@ -78,7 +78,6 @@ def test_constant_sed_model_white_noise() -> None:
     model = ConstantSEDModel(
         brightness=10.0,
         node_label="my_constant_sed_model",
-        seed=100,
     )
     assert len(model.rest_frame_effects) == 0
     assert len(model.obs_frame_effects) == 0
@@ -89,7 +88,8 @@ def test_constant_sed_model_white_noise() -> None:
     assert len(model.rest_frame_effects) == 1
     assert len(model.obs_frame_effects) == 0
 
-    state = model.sample_parameters()
+    rng = np.random.default_rng(100)
+    state = model.sample_parameters(rng_info=rng)
     times = np.array([1, 2, 3, 4, 5, 10])
     wavelengths = np.array([100.0, 200.0, 300.0])
     values = model.evaluate_sed(times, wavelengths, state)
@@ -100,14 +100,14 @@ def test_constant_sed_model_white_noise() -> None:
     assert np.all(np.abs(values - 10.0) < 3.0)
 
     # Test that if we pass in an rng, we control the randomness.
-    values1 = model.evaluate_sed(times, wavelengths, state, rng_info=np.random.default_rng(100))
-    values2 = model.evaluate_sed(times, wavelengths, state, rng_info=np.random.default_rng(100))
+    values1 = model.evaluate_sed(times, wavelengths, state, rng_info=np.random.default_rng(4321))
+    values2 = model.evaluate_sed(times, wavelengths, state, rng_info=np.random.default_rng(4321))
     assert not np.any(values1 == 10.0)
     assert np.all(values1 == values2)
 
     # If we sample the parameters multiple times, we should get the same sigma but
     # different seeds for each model.
-    mult_states = model.sample_parameters(num_samples=1_000)
+    mult_states = model.sample_parameters(num_samples=1_000, rng_info=rng)
     assert np.all(mult_states["my_constant_sed_model"]["white_noise_sigma"] == 0.1)
     assert len(np.unique(mult_states["my_constant_sed_model"]["white_noise_seed"])) >= 950
 
@@ -119,7 +119,6 @@ def test_constant_sed_model_white_noise_obs_frame() -> None:
     model = ConstantSEDModel(
         brightness=10.0,
         node_label="my_constant_sed_model",
-        seed=100,
     )
     assert len(model.rest_frame_effects) == 0
     assert len(model.obs_frame_effects) == 0
@@ -129,10 +128,11 @@ def test_constant_sed_model_white_noise_obs_frame() -> None:
     assert len(model.rest_frame_effects) == 0
     assert len(model.obs_frame_effects) == 1
 
-    state = model.sample_parameters()
+    rng = np.random.default_rng(100)
+    state = model.sample_parameters(rng_info=rng)
     times = np.array([1, 2, 3, 4, 5, 10])
     wavelengths = np.array([100.0, 200.0, 300.0])
-    values = model.evaluate_sed(times, wavelengths, state)
+    values = model.evaluate_sed(times, wavelengths, state, rng_info=rng)
     assert values.shape == (6, 3)
 
     # We get noisy values around 10.0.

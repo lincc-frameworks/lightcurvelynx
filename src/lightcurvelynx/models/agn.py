@@ -100,10 +100,6 @@ class AGN(SEDModel):
     node_label : str, optional
         The label for the node in the model graph.
         Default: None
-    seed : int, optional
-        The seed to set the node's default random number generator. If None, then a random seed is used.
-        This parameter is for testing and has no effect when a user-provided random number generator is
-        used during simulation. Default: None
     **kwargs : dict
         Additional keyword arguments.
     """
@@ -116,7 +112,6 @@ class AGN(SEDModel):
         *,
         inclination_rad=None,
         node_label=None,
-        seed=None,
         **kwargs,
     ):
         # We manually specify "node_label" as a parameter so it does not get
@@ -228,17 +223,10 @@ class AGN(SEDModel):
         # Instead of generating all the white noise values and storing them in the
         # graph state (which would be huge), we create a per model seed so we can
         # deterministically recreate the same noise values when needed.
-        if seed is not None:
-            self.add_parameter(
-                "agn_seed",
-                seed,
-                description="The seed for the AGN random number generator.",
-            )
-        else:
-            seed_generator = NumpyRandomFunc("integers", low=0, high=2**32 - 1)
-            self.add_parameter(
-                "agn_seed", seed_generator, description="The seed for the AGN random number generator."
-            )
+        seed_generator = NumpyRandomFunc("integers", low=0, high=2**32 - 1)
+        self.add_parameter(
+            "agn_seed", seed_generator, description="The seed for the AGN random number generator."
+        )
 
     # ------------------------------------------------------------------------
     # --- Static helper methods for computing the derived parameters. --------

@@ -805,10 +805,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         If provided, the model will use these indices to select the light curves instead
         of sampling randomly.
         Default: None
-    seed : int, optional
-        The seed to set the node's default random number generator. If None, then a random seed is used.
-        This parameter is for testing and has no effect when a user-provided random number generator is
-        used during simulation. Default: None
     """
 
     def __init__(
@@ -818,7 +814,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         *,
         weights=None,
         indices=None,
-        seed=None,
         **kwargs,
     ):
         # Validate the light curve input and create a union of all filters used.
@@ -846,7 +841,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
                 indices_sampler = indices
         else:
             all_inds = np.arange(len(lightcurves))
-            indices_sampler = GivenValueSampler(all_inds, weights=weights, seed=seed)
+            indices_sampler = GivenValueSampler(all_inds, weights=weights)
 
         self.add_parameter(
             "selected_lightcurve",

@@ -84,18 +84,21 @@ def test_random_choice_node_weighted():
 
 def test_random_choice_node_seeded():
     """Test that we can set the seed for a RandomChoiceNode."""
-    random_node1 = RandomChoiceNode([1, 3, 5, 7], seed=1234, node_label="random_node1")
-    state1 = random_node1.sample_parameters(num_samples=5_000)
+    random_node1 = RandomChoiceNode([1, 3, 5, 7], node_label="random_node1")
+    rng1 = np.random.default_rng(1234)
+    state1 = random_node1.sample_parameters(num_samples=5_000, rng_info=rng1)
     samples1 = state1["random_node1"]["function_node_result"]
 
-    random_node2 = RandomChoiceNode([1, 3, 5, 7], seed=1234, node_label="random_node2")
-    state2 = random_node2.sample_parameters(num_samples=5_000)
+    random_node2 = RandomChoiceNode([1, 3, 5, 7], node_label="random_node2")
+    rng2 = np.random.default_rng(1234)
+    state2 = random_node2.sample_parameters(num_samples=5_000, rng_info=rng2)
     samples2 = state2["random_node2"]["function_node_result"]
 
     assert np.allclose(samples1, samples2)
 
-    random_node3 = RandomChoiceNode([1, 3, 5, 7], seed=5678, node_label="random_node3")
-    state3 = random_node3.sample_parameters(num_samples=5_000)
+    random_node3 = RandomChoiceNode([1, 3, 5, 7], node_label="random_node3")
+    rng3 = np.random.default_rng(5678)
+    state3 = random_node3.sample_parameters(num_samples=5_000, rng_info=rng3)
     samples3 = state3["random_node3"]["function_node_result"]
 
     assert not np.allclose(samples1, samples3)
@@ -103,8 +106,9 @@ def test_random_choice_node_seeded():
 
 def test_random_choice_node_single_sample():
     """Test RandomChoiceNode when requesting a single sample."""
-    random_node = RandomChoiceNode([10, 20, 30], seed=123, node_label="random_node")
-    state = random_node.sample_parameters(num_samples=1)
+    random_node = RandomChoiceNode([10, 20, 30], node_label="random_node")
+    rng = np.random.default_rng(123)
+    state = random_node.sample_parameters(num_samples=1, rng_info=rng)
 
     selected_index = state["random_node"]["selected_index"]
     result = state["random_node"]["function_node_result"]
@@ -117,7 +121,8 @@ def test_random_choice_node_single_sample():
 def test_random_choice_node_one_value():
     """Test that a single-value RandomChoiceNode always returns that value."""
     random_node = RandomChoiceNode([42], node_label="random_node")
-    state = random_node.sample_parameters(num_samples=1_000)
+    rng = np.random.default_rng(123)
+    state = random_node.sample_parameters(num_samples=1_000, rng_info=rng)
 
     selected_indices = state["random_node"]["selected_index"]
     results = state["random_node"]["function_node_result"]
@@ -135,8 +140,8 @@ def test_random_choice_node_invalid_weights(bad_weights):
 
 def test_random_choice_node_uses_external_rng():
     """Test that an external RNG controls sampling regardless of node seed."""
-    node1 = RandomChoiceNode([1, 3, 5, 7], seed=111, node_label="node1")
-    node2 = RandomChoiceNode([1, 3, 5, 7], seed=999, node_label="node2")
+    node1 = RandomChoiceNode([1, 3, 5, 7], node_label="node1")
+    node2 = RandomChoiceNode([1, 3, 5, 7], node_label="node2")
 
     rng1 = np.random.default_rng(seed=2024)
     rng2 = np.random.default_rng(seed=2024)

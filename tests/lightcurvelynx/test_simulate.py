@@ -1,4 +1,5 @@
 import tempfile
+import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.state_expansion_node import StateExpansionNode
 from lightcurvelynx.models.basic_models import ConstantSEDModel, SinWaveModel, StepModel
 from lightcurvelynx.models.physical_model import SEDModel
+from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
 from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel
 from lightcurvelynx.noise_models.spectrograph_noise_models import ConstantSpectrographNoiseModel
@@ -40,6 +42,7 @@ from lightcurvelynx.simulate import (
     simulate_lightcurves,
 )
 from lightcurvelynx.survey_info import SurveyInfo
+from lightcurvelynx.utils.extrapolate import LinearDecay
 
 
 def test_get_time_windows():
@@ -862,6 +865,24 @@ def test_simulate_parallel_threads(test_data_dir):
 
     survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
+    # Check that we throw an error for using ThreadPoolExecutor.
+    with pytest.raises(ValueError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            _ = simulate_lightcurves(
+                source,
+                100,
+                survey_info,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                executor=executor,
+                batch_size=10,
+                save_full_filter_names=True,
+                progress_bar=False,  # Disable progress bar for testing
+            )
+
+    # Old code for using ThreadPoolExecutor directly is commented out below.
+    # TODO: Restore once ThreadPoolExecutor compatibility is resolved.
+    """
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = simulate_lightcurves(
             source,
@@ -919,6 +940,11 @@ def test_simulate_parallel_threads(test_data_dir):
     assert not np.allclose(
         results["lightcurve.flux"].to_numpy(),
         results2["lightcurve.flux"].to_numpy(),
+    )
+    """
+    warnings.warn(
+        "The full test_simulate_parallel_threads is disabled until "
+        "ThreadPoolExecutor compatibility is resolved."
     )
 
 
@@ -1537,8 +1563,8 @@ def test_simulate_drop_empty_rows(test_data_dir):
 
     # Create a constant SED model that is sometimes observed:
     # [seen, not seen, not seen, seen, seen, not seen]
-    all_ra = GivenValueList([0.0, 0.0, 90.0, 180.0, 180.1, 270.0])
-    all_dec = GivenValueList([10.0, -10.0, 0.0, -10.0, -9.9, -10.0])
+    all_ra = GivenValueList([0.0, 0.0, 90.0, 180.0, 180.1, 270.0], stateful=False)
+    all_dec = GivenValueList([10.0, -10.0, 0.0, -10.0, -9.9, -10.0], stateful=False)
     model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=all_ra, dec=all_dec, redshift=0.0)
 
     # Do the simulation with defaults. We should get 6 result rows.
@@ -1546,8 +1572,6 @@ def test_simulate_drop_empty_rows(test_data_dir):
     assert len(results) == 6
 
     # Reset the lists and do the simulation with drop_empty_rows=True.
-    all_ra.reset()
-    all_dec.reset()
     results = simulate_lightcurves(model, 6, [survey_info], drop_empty_rows=True, progress_bar=False)
     assert len(results) == 3
     assert results["id"].tolist() == [0, 3, 4]
@@ -1947,9 +1971,10 @@ def test_simulate_save_nested_with_parameter_arrays():
 
     # Generate random array values uniformly between 0.01 and 100.0. Then
     # take the logarithm of those values.
-    np_node = NumpyRandomFunc("uniform", low=0.01, high=100.0, seed=100, size=5)
+    rng = np.random.default_rng(seed=100)
+    np_node = NumpyRandomFunc("uniform", low=0.01, high=100.0, size=5)
     math_node = BasicMathNode("log(x)", x=np_node, node_label="math")
-    sample_states = math_node.sample_parameters(num_samples=num_samples)
+    sample_states = math_node.sample_parameters(num_samples=num_samples, rng_info=rng)
 
     # Create a nest results frame including the array values.
     index = list(range(num_samples))
@@ -1976,3 +2001,76 @@ def test_simulate_save_nested_with_parameter_arrays():
         base_path = Path(tmpdir) / "test_array_df.parquet"
         results.to_parquet(base_path)
         assert base_path.exists()
+
+
+def test_simulate_process_safety():
+    """Test that the simulate_lightcurves function is safe when using
+    multiple processes by comparing."""
+    # Create a basic OpSim observation table and survey info for the test.
+    num_obs = 300
+    opsim = OpSim(
+        {
+            "time": np.arange(num_obs) * 0.5,
+            "ra": np.zeros(num_obs),
+            "dec": np.zeros(num_obs),
+            "filter": np.tile(["g", "r", "i"], num_obs // 3),
+            "zp": np.full(num_obs, 30.0),
+            "seeing": np.full(num_obs, 1.12),
+            "skybrightness": np.full(num_obs, 20.0),
+            "exptime": np.full(num_obs, 29.2),
+            "nexposure": np.full(num_obs, 2),
+        }
+    )
+    survey = SurveyInfo(obstable=opsim, survey_name="LSST")
+
+    # Create a basic sncosmo model which is not thread-safe.
+    model = SncosmoWrapperModel(
+        "salt3",
+        t0=NumpyRandomFunc("uniform", low=20, high=120),
+        x0=NumpyRandomFunc("uniform", low=1e-5, high=1e-3),
+        x1=NumpyRandomFunc("uniform", low=-2, high=2),
+        c=NumpyRandomFunc("uniform", low=-0.2, high=0.3),
+        ra=0.0,
+        dec=0.0,
+        redshift=NumpyRandomFunc("uniform", low=0.05, high=0.3),
+        node_label="salt3",
+        time_extrapolation=LinearDecay(50.0),
+    )
+
+    # Simulate it with 1 process and batch size of 1. We need to keep the
+    # random seed and batch size the same to ensure reproducibility.
+    num_samples = 1000
+    with ProcessPoolExecutor(1) as ex:
+        res_1 = simulate_lightcurves(
+            model=model,
+            num_samples=num_samples,
+            survey_info=survey,
+            rest_time_window_offset=(-50.0, 100.0),
+            batch_size=1,
+            executor=ex,
+            rng=np.random.default_rng(7),
+            progress_bar=False,
+        )
+    flux_1 = res_1["lightcurve.flux_perfect"].to_numpy()
+    params_1 = GraphState.from_list(res_1["params"])
+
+    # Re-simulate it with 10 processes and batch size of 1. We need to keep
+    # the random seed and batch size the same to ensure reproducibility.
+    with ProcessPoolExecutor(10) as ex:
+        res_10 = simulate_lightcurves(
+            model=model,
+            num_samples=num_samples,
+            survey_info=survey,
+            rest_time_window_offset=(-50.0, 100.0),
+            batch_size=1,
+            executor=ex,
+            rng=np.random.default_rng(7),
+            progress_bar=False,
+        )
+    flux_10 = res_10["lightcurve.flux_perfect"].to_numpy()
+    params_10 = GraphState.from_list(res_10["params"])
+
+    # Check that we get the same parameters and flux for different thread
+    # counts but the same random seed.
+    assert params_1 == params_10
+    assert not np.any(np.abs(flux_1 - flux_10) > 1e-8)
