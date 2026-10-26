@@ -94,3 +94,5 @@ This ensures that different (non-fixed) the simulations are indeed different.
 A similar approach can be used for effects that depend on randomness, such as the ``WhiteNoise`` effect.
 This effect uses the ``white_noise_seed`` parameter when to create a random number generator that is
 deterministic given the seed. Unless a seed is manually specified, that parameter is random chosen.
+
+Users **should not** create models that maintain their own persistent random number generator objects internally. This can cause non-random behavior when models are pickled/copied for batched (parallel) execution. Each simulation should create a new random number generator using the seed stored in the ``GraphState`` as described above.

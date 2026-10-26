@@ -42,6 +42,8 @@ Per-Node Seeds
 
 In previous versions of LightCurveLynx, users could control randomness by providing per-node seeds. This behavior has been deprecated because it can lead to subtle bugs when combined with batching or parallel execution. Users should either provide a single global RNG to the simulation function or leave blank to create a new random number generator.
 
+In particular models should never maintain their own persistent random number generators internally. If the model needs randomness, it should create a new random number generator for each simulation (potentially using a seed saved in the ``GraphState``, see the :doc:`Custom Models <custom_models>` documentation for more details).
+
 
 Parallelism and Randomness
 -------------------------------------------------------------------------------
