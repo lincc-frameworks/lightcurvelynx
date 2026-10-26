@@ -14,9 +14,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import numpy as np
 import pytest
 
-from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
-from lightcurvelynx.models.basic_models import ConstantSEDModel
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.obstable.opsim import OpSim
 from lightcurvelynx.simulate import WorkerPreloadWarning, make_worker_initializer, simulate_lightcurves
@@ -32,33 +30,6 @@ BACKENDS = [
     "dask_threads",
     "ray_pool",
 ]
-
-
-def _run(model, si, executor):
-    """Run ``simulate_lightcurves`` with the settings shared by the preload tests."""
-    return simulate_lightcurves(
-        model,
-        num_samples=60,
-        survey_info=si,
-        executor=executor,
-        batch_size=10,
-        rng=np.random.default_rng(100),
-        obstable_save_cols=["observationId", "zp_nJy"],
-        param_cols=["source.brightness"],
-        progress_bar=False,
-    )
-
-
-def _stateful_model(si):
-    """Return a model inside the survey footprint whose stateful GivenValueList refuses pickling."""
-    return ConstantSEDModel(
-        brightness=GivenValueList(np.linspace(100.0, 500.0, 100)),
-        t0=0.0,
-        ra=si.obstable["ra"][0],
-        dec=si.obstable["dec"][0],
-        redshift=0.0,
-        node_label="source",
-    )
 
 
 def _pool_factory(backend):
@@ -135,23 +106,23 @@ def backend_context(backend):
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
-def test_preloaded_backend_matches(backend, preload_inputs, assert_identical_results):
+def test_preloaded_backend_matches(backend, preload_inputs, assert_identical_results, run_preload_sim):
     """A preloaded run on each backend matches the non-preloaded run, without falling back."""
     model, si = preload_inputs
     with backend_context(backend) as (baseline, make_preloaded):
         with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
-            expected = _run(model, si, baseline)
+            expected = run_preload_sim(model, si, baseline)
         init = make_worker_initializer(model, si)
         with make_preloaded(init) as ex, warnings.catch_warnings():
             warnings.simplefilter("error", WorkerPreloadWarning)
-            result = _run(model, si, ex)
+            result = run_preload_sim(model, si, ex)
     assert_identical_results(expected, result)
 
 
-def test_fork_pool_refuses_unpicklable(preload_inputs):
+def test_fork_pool_refuses_unpicklable(preload_inputs, run_preload_sim, make_stateful_model):
     """Data that refuses pickling raises before a fork pool exists, and on a non-preloaded one."""
     model, si = preload_inputs
-    stateful_model = _stateful_model(si)
+    stateful_model = make_stateful_model(si)
     fork = multiprocessing.get_context("fork")
     with pytest.raises(RuntimeError, match="cannot be pickled"):
         with ProcessPoolExecutor(2, mp_context=fork, initializer=make_worker_initializer(stateful_model, si)):
@@ -162,7 +133,7 @@ def test_fork_pool_refuses_unpicklable(preload_inputs):
     with ProcessPoolExecutor(2, mp_context=fork) as executor:
         with pytest.warns(WorkerPreloadWarning, match="could not be pickled"):
             with pytest.raises(RuntimeError, match="cannot be pickled"):
-                _run(stateful_model, si, executor)
+                run_preload_sim(stateful_model, si, executor)
 
 
 # A script that defines its model class in __main__, as a notebook does. Everything sits

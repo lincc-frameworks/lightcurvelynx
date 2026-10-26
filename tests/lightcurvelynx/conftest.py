@@ -91,8 +91,9 @@ def preload_inputs(test_data_dir):
     Returns
     -------
     tuple of (ConstantSEDModel, SurveyInfo)
-        A model with randomized brightness, t0, ra and dec, and a SurveyInfo built
-        from the small OpSim test data with the default LSST passbands and noise model.
+        A model with randomized brightness, ra and dec, an in-order t0 from a TableSampler,
+        and a SurveyInfo built from the small OpSim test data with the default LSST
+        passbands and noise model.
     """
     import numpy as np
 
@@ -151,3 +152,62 @@ def assert_identical_results():
         pd.testing.assert_frame_equal(a, b, check_exact=True)
 
     return compare
+
+
+@pytest.fixture
+def run_preload_sim():
+    """Return a function that runs ``simulate_lightcurves`` with the preload tests' shared settings.
+
+    Returns
+    -------
+    callable
+        A function ``fn(model, si, executor=None, **kw)`` that calls ``simulate_lightcurves``
+        with ``num_samples=60``, ``batch_size=10``, ``rng=np.random.default_rng(100)``,
+        ``obstable_save_cols=["observationId", "zp_nJy"]`` and ``param_cols=["source.brightness"]``,
+        with ``progress_bar=False`` unless overridden by a key in ``kw``.
+    """
+    import numpy as np
+
+    from lightcurvelynx.simulate import simulate_lightcurves
+
+    def run(model, si, executor=None, **kw):
+        kwargs = {
+            "num_samples": 60,
+            "batch_size": 10,
+            "rng": np.random.default_rng(100),
+            "obstable_save_cols": ["observationId", "zp_nJy"],
+            "param_cols": ["source.brightness"],
+            "progress_bar": False,
+        }
+        kwargs.update(kw)
+        return simulate_lightcurves(model, survey_info=si, executor=executor, **kwargs)
+
+    return run
+
+
+@pytest.fixture
+def make_stateful_model():
+    """Return a function that builds a model whose stateful parameter refuses pickling.
+
+    Returns
+    -------
+    callable
+        A function ``fn(si)`` that returns a ``ConstantSEDModel`` positioned at the survey's
+        first pointing, with ``brightness`` sampled from a stateful ``GivenValueList``.
+    """
+    import numpy as np
+
+    from lightcurvelynx.math_nodes.given_sampler import GivenValueList
+    from lightcurvelynx.models.basic_models import ConstantSEDModel
+
+    def make(si):
+        return ConstantSEDModel(
+            brightness=GivenValueList(np.linspace(100.0, 500.0, 100)),
+            t0=0.0,
+            ra=si.obstable["ra"][0],
+            dec=si.obstable["dec"][0],
+            redshift=0.0,
+            node_label="source",
+        )
+
+    return make

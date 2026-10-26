@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.ra_dec_sampler import ObsTableUniformRADECSampler
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 from lightcurvelynx.obstable.opsim import OpSim
@@ -32,19 +31,6 @@ def test_serialize_is_deterministic_and_modes_agree(preload_inputs):
     assert kept.digest == hashed.digest == compute_preload_digest(model, [si])
     assert hashed.model_bytes is None and hashed.shared_bytes is None
     assert serialize_simulation_data(model, [si], keep_bytes=True).model_bytes == kept.model_bytes
-
-
-def test_digest_changes_with_model_or_obstable(preload_inputs):
-    """The digest must change if either the model or an ObsTable column changes."""
-    model, si = preload_inputs
-    before = compute_preload_digest(model, [si])
-    model.set_parameter("redshift", 0.1)
-    after_model = compute_preload_digest(model, [si])
-    # NOTE: the raw sqlite column is "zp_nJy", but ObsTable's default OpSim colmap renames it
-    # to the standard name "zp" on load, so the in-memory table column is "zp".
-    si.obstable._table.loc[0, "zp"] *= 2.0
-    after_table = compute_preload_digest(model, [si])
-    assert len({before, after_model, after_table}) == 3
 
 
 def test_extra_obstable_in_model_is_appended(preload_inputs, test_data_dir):
@@ -91,14 +77,6 @@ def test_serialize_none_components(test_data_dir):
     assert loaded_si[0].passbands is None
 
 
-def test_serialize_refusing_object_raises(preload_inputs):
-    """An object that refuses pickling must raise the same exception unchanged."""
-    _, si = preload_inputs
-    model = ConstantSEDModel(brightness=GivenValueList([1.0, 2.0]), t0=0.0, ra=0.0, dec=0.0, redshift=0.0)
-    with pytest.raises(RuntimeError, match="cannot be pickled"):
-        serialize_simulation_data(model, [si], keep_bytes=False)
-
-
 def test_initializer_round_trip(preload_inputs):
     """``make_worker_initializer`` registers a digest, and the slot starts empty."""
     model, si = preload_inputs
@@ -114,11 +92,11 @@ def test_initializer_round_trip(preload_inputs):
 
 
 def test_initializer_is_picklable_and_idempotent(preload_inputs):
-    """A pickled initializer still works, a second call is a no-op, and the slot holds one digest."""
+    """A pickled initializer still works, and the slot holds one digest per process."""
     model, si = preload_inputs
     init = pickle.loads(pickle.dumps(make_worker_initializer(model, si)))
     init()
-    init()  # second call is a no-op
+    init()
     other = make_worker_initializer(
         ConstantSEDModel(brightness=1.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0), si
     )
@@ -171,18 +149,6 @@ def test_lazy_shared_load_is_thread_safe(preload_inputs):
     assert len({id(m) for m in models}) == len(models)
 
 
-def test_unpickled_initializer_releases_bytes_after_first_call(preload_inputs):
-    """A pickled initializer drops its own bytes after being called and loaded once."""
-    model, si = preload_inputs
-    init = pickle.loads(pickle.dumps(make_worker_initializer(model, si)))
-    init()
-    load_preloaded_data(init.digest)
-    assert init._model_bytes is None
-    assert init._shared_bytes is None
-    # The slot itself must also have dropped the shared bytes after the first load.
-    assert worker_preload._slot._shared_bytes is None
-
-
 def test_never_pickled_initializer_keeps_bytes_and_can_reinstall(preload_inputs):
     """An initializer that was never pickled keeps its bytes and can preload again."""
     model, si = preload_inputs
@@ -200,9 +166,12 @@ def test_emptied_unpickled_initializer_call_is_a_safe_noop(preload_inputs):
     """Calling an already-emptied, unpickled initializer never raises and never installs."""
     model, si = preload_inputs
     init = pickle.loads(pickle.dumps(make_worker_initializer(model, si)))
-    init()
-    load_preloaded_data(init.digest)  # releases init's own bytes
+    init()  # releases init's own model and shared bytes, since it was unpickled
+    load_preloaded_data(init.digest)  # releases the slot's own shared bytes
     assert init._model_bytes is None
+    assert init._shared_bytes is None
+    # The slot itself must also have dropped the shared bytes after the first load.
+    assert worker_preload._slot._shared_bytes is None
 
     other = make_worker_initializer(
         ConstantSEDModel(brightness=1.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0), si
@@ -211,6 +180,19 @@ def test_emptied_unpickled_initializer_call_is_a_safe_noop(preload_inputs):
 
     init()  # must not raise, and must not touch the slot
     assert load_preloaded_data(init.digest) is None
+
+
+def test_initializer_same_digest_call_keeps_slot(preload_inputs):
+    """Calling an initializer a second time with the same digest leaves the slot untouched.
+
+    This is what stops ``ThreadPoolExecutor``'s per-thread initializer calls from unpickling
+    the shared data again.
+    """
+    init = make_worker_initializer(*preload_inputs)  # never pickled: keeps its bytes
+    init()
+    slot_before = worker_preload._slot
+    init()
+    assert worker_preload._slot is slot_before
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="This platform cannot fork.")
