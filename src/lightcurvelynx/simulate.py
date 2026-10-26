@@ -4,7 +4,6 @@ import concurrent.futures
 import copy
 import gc
 import logging
-import pickle
 import warnings
 from pathlib import Path
 
@@ -18,12 +17,13 @@ from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
 from lightcurvelynx.utils.worker_preload import (
+    _STDLIB_PICKLERS,
     PreloadMiss,
     _build_worker_initializer,
-    _load_preloaded_data_and_size,
     compute_preload_digest,
     has_known_preload_digests,
     is_known_preload_digest,
+    load_preloaded_data,
     warn_preload_fallback,
 )
 
@@ -672,7 +672,7 @@ def _simulate_preloaded_batch(simulation_info):
     # Load before touching anything else: on a miss the batch is resent with the full data,
     # and with executors that do not copy their arguments, this batch shares its rng with
     # the batch that is resent.
-    loaded = _load_preloaded_data_and_size(simulation_info.preload_digest)
+    loaded = load_preloaded_data(simulation_info.preload_digest)
     if loaded is None:
         return PreloadMiss()
 
@@ -1021,9 +1021,7 @@ def simulate_lightcurves(
         # their globals. The digest is passed straight to the batches and not registered, since
         # the pool is gone after this call. Create the initializer before the pool so that data
         # which refuses pickling raises here, with its own exception.
-        initializer = _build_worker_initializer(
-            model, survey_info, base_pickler=pickle.Pickler, register=False
-        )
+        initializer = _build_worker_initializer(model, survey_info, _STDLIB_PICKLERS)
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=num_jobs, initializer=initializer
         ) as executor:

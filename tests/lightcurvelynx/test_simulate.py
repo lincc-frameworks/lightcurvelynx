@@ -2148,7 +2148,7 @@ def test_simulate_preloaded_batch_frees_its_model(preload_inputs, monkeypatch):
     """
     model, si = preload_inputs
     loaded_models = []
-    real_load = simulate_module._load_preloaded_data_and_size
+    real_load = simulate_module.load_preloaded_data
 
     def recording_load(digest):
         loaded = real_load(digest)
@@ -2156,8 +2156,8 @@ def test_simulate_preloaded_batch_frees_its_model(preload_inputs, monkeypatch):
             loaded_models.append(weakref.ref(loaded[0]))
         return loaded
 
-    # simulate.py imports _load_preloaded_data_and_size by name, so patch it there.
-    monkeypatch.setattr(simulate_module, "_load_preloaded_data_and_size", recording_load)
+    # simulate.py imports load_preloaded_data by name, so patch it there.
+    monkeypatch.setattr(simulate_module, "load_preloaded_data", recording_load)
     monkeypatch.setattr(simulate_module, "_PRELOAD_GC_THRESHOLD_BYTES", 0)
     make_worker_initializer(model, si)()
 
@@ -2507,7 +2507,7 @@ def test_simulate_preload_leaves_surveys_untouched(preload_inputs):
 
     init = make_worker_initializer(model, si)
     init()
-    _, preloaded_si = load_preloaded_data(init.digest)
+    _, preloaded_si, _ = load_preloaded_data(init.digest)
     preloaded_before = shared_digest(preloaded_si)
     with warnings.catch_warnings():
         warnings.simplefilter("error", WorkerPreloadWarning)

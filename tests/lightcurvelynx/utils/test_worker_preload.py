@@ -118,8 +118,8 @@ def test_initializer_round_trip(preload_inputs):
     assert is_known_preload_digest(init.digest) and has_known_preload_digests()
     assert load_preloaded_data(init.digest) is None  # slot still empty
     init()
-    m1, s1 = load_preloaded_data(init.digest)
-    m2, s2 = load_preloaded_data(init.digest)
+    m1, s1, _ = load_preloaded_data(init.digest)
+    m2, s2, _ = load_preloaded_data(init.digest)
     assert m1 is not m2 and m1 is not model  # fresh model per call
     assert s1 is s2 and s1[0].obstable is s2[0].obstable  # shared data loaded once
     assert load_preloaded_data("0" * 32) is None
@@ -161,7 +161,7 @@ def test_shared_objects_resolve_to_one_instance(preload_inputs):
 
     init = make_worker_initializer(model, [si, si2])
     init()
-    loaded_model, loaded_si = load_preloaded_data(init.digest)
+    loaded_model, loaded_si, _ = load_preloaded_data(init.digest)
 
     assert loaded_si[0].obstable is loaded_si[1].obstable
     loaded_sampler = loaded_model.setters["ra"].dependency
@@ -236,7 +236,7 @@ def test_forked_child_gets_fresh_locks(preload_inputs):
     make_worker_initializer(model, si)()
 
     def module_locks():
-        return [worker_preload._registry_lock, worker_preload._slot_lock, worker_preload._slot._shared_lock]
+        return [worker_preload._slot_lock, worker_preload._slot._shared_lock]
 
     held = module_locks()
     for lock in held:
