@@ -345,27 +345,15 @@ class WorkerInitializer:
 
     def __repr__(self):
         """Return a short repr with the digest prefix and payload sizes, never the bytes."""
+
+        def size_mb(data):
+            return "released" if data is None else f"{len(data) / 1e6:.2f}MB"
+
         return (
             f"{type(self).__name__}(digest={self._digest[:8]}, "
-            f"model={_format_size_mb(self._model_bytes)}, "
-            f"shared={_format_size_mb(self._shared_bytes)})"
+            f"model={size_mb(self._model_bytes)}, "
+            f"shared={size_mb(self._shared_bytes)})"
         )
-
-
-def _format_size_mb(data):
-    """Format bytes as a size in MB for ``repr``, or "released" once they are gone.
-
-    Parameters
-    ----------
-    data : bytes or None
-        The payload to measure, or None if it has already been released.
-
-    Returns
-    -------
-    str
-        A human-readable size, e.g. "1.23MB", or "released" if ``data`` is None.
-    """
-    return "released" if data is None else f"{len(data) / 1e6:.2f}MB"
 
 
 def _normalize_survey_info(survey_info):
@@ -384,22 +372,15 @@ def _normalize_survey_info(survey_info):
     Raises
     ------
     TypeError
-        If ``survey_info`` is neither a SurveyInfo nor a list (or tuple) of SurveyInfo.
+        If ``survey_info`` is neither a SurveyInfo nor a list of SurveyInfo.
     """
     if isinstance(survey_info, SurveyInfo):
         return [survey_info]
-    if isinstance(survey_info, (list, tuple)):
-        for info in survey_info:
-            if not isinstance(info, SurveyInfo):
-                raise TypeError(
-                    "survey_info must be a SurveyInfo or a list of SurveyInfo instances, "
-                    f"found {type(info).__name__} in the list; wrap bare ObsTable objects "
-                    "in a SurveyInfo first."
-                )
+    if isinstance(survey_info, list) and all(isinstance(info, SurveyInfo) for info in survey_info):
         return list(survey_info)
     raise TypeError(
-        "survey_info must be a SurveyInfo or a list of SurveyInfo instances, "
-        f"got {type(survey_info).__name__}; wrap bare ObsTable objects in a SurveyInfo first."
+        "survey_info must be a SurveyInfo or a list of SurveyInfo instances; "
+        "wrap bare ObsTable objects in a SurveyInfo first."
     )
 
 
@@ -634,42 +615,17 @@ _FALLBACK_SUFFIX = (
     "(e.g. SncosmoWrapperModel)."
 )
 
-# The sentence that says which fallback case happened, keyed by case name.
-_FALLBACK_CASES = {
-    "not_preloaded": "The executor's workers were not preloaded with make_worker_initializer().",
-    "unpicklable": (
-        "The model or survey data could not be pickled, so the workers cannot have been preloaded "
-        "with it{cause}."
-    ),
-    "changed": (
-        "The model and survey data do not match any data preloaded with make_worker_initializer() "
-        "in this process. They may have changed after preloading, including internal state changed "
-        "by an earlier run; create the initializer after your last use of the model."
-    ),
-    "miss": (
-        "{num_missed} of {num_batches} batches reached workers that were not preloaded with this "
-        "model and survey data."
-    ),
-}
 
-
-def warn_preload_fallback(case, *, num_missed=0, num_batches=0, cause=None):
+def warn_preload_fallback(sentence):
     """Emit a ``WorkerPreloadWarning`` saying why batches are sent with full data.
 
     Parameters
     ----------
-    case : str
-        Which fallback happened: "not_preloaded", "unpicklable", "changed" or "miss".
-    num_missed : int, optional
-        The number of batches that missed. Only used for the "miss" case.
-    num_batches : int, optional
-        The total number of batches in the run. Only used for the "miss" case.
-    cause : Exception, optional
-        The exception that pickling raised. Only used for the "unpicklable" case, whose
-        sentence then ends with its type and message.
+    sentence : str
+        The sentence describing which fallback happened. The caller builds this,
+        including any case-specific detail (for example the miss count or the
+        exception that pickling raised).
     """
-    cause_text = "" if cause is None else f" ({type(cause).__name__}: {cause})"
-    sentence = _FALLBACK_CASES[case].format(num_missed=num_missed, num_batches=num_batches, cause=cause_text)
     # Both callers sit one level below simulate_lightcurves (simulate_lightcurves ->
     # _select_preload_digest or _simulate_lightcurves_parallel -> this function), so
     # stacklevel=4 points the warning at the user's simulate_lightcurves call.

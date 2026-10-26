@@ -2287,6 +2287,75 @@ def test_simulate_preload_mixed_hits_and_misses(
     assert sum(DummyTqdm.instances[0].updates) == 60
 
 
+def test_fallback_warning_texts_unchanged(preload_inputs, run_preload_sim, make_stateful_model):
+    """Pin the exact text of every preload fallback warning.
+
+    The sentences below are deliberately hardcoded literals, copied from the warning
+    module's current case table and suffix, rather than read from that module. That way
+    refactoring how the warnings are built cannot silently change what a user sees.
+    """
+    suffix = (
+        "Each of these batches carries a full copy of the model and survey data. To send this data to "
+        "each worker once, pass initializer=make_worker_initializer(model, survey_info) to the executor "
+        "(see the parallel_runs notebook). Batches sent this way that run as threads in one process "
+        "share a single model object, which is not safe for models that keep per-call state "
+        "(e.g. SncosmoWrapperModel)."
+    )
+    model, si = preload_inputs
+
+    # Case 1: not preloaded -- the registry is empty.
+    with pytest.warns(WorkerPreloadWarning) as record:
+        run_preload_sim(model, si, PicklingMapExecutor())
+    assert str(record[0].message) == (
+        "The executor's workers were not preloaded with make_worker_initializer(). " + suffix
+    )
+    assert record[0].filename == run_preload_sim.__code__.co_filename
+
+    reset_preload_state()
+
+    # Case 2: unpicklable, with the cause.
+    make_worker_initializer(model, si)  # Make the registry non-empty.
+    stateful_model = make_stateful_model(si)
+    with ThreadPoolExecutor(2) as executor:
+        with pytest.warns(WorkerPreloadWarning) as record:
+            run_preload_sim(stateful_model, si, executor, num_samples=10, batch_size=5)
+    assert str(record[0].message) == (
+        "The model or survey data could not be pickled, so the workers cannot have been preloaded "
+        "with it (RuntimeError: A stateful GivenValueList cannot be pickled. This node does not "
+        "support parallel sampling.). " + suffix
+    )
+    assert record[0].filename == run_preload_sim.__code__.co_filename
+
+    reset_preload_state()
+
+    # Case 3: changed -- preload, then change the model.
+    init = make_worker_initializer(model, si)
+    init()
+    model.set_parameter("redshift", 0.05)
+    with pytest.warns(WorkerPreloadWarning) as record:
+        run_preload_sim(model, si, PicklingMapExecutor())
+    assert str(record[0].message) == (
+        "The model and survey data do not match any data preloaded with make_worker_initializer() "
+        "in this process. They may have changed after preloading, including internal state changed "
+        "by an earlier run; create the initializer after your last use of the model. " + suffix
+    )
+    assert record[0].filename == run_preload_sim.__code__.co_filename
+    model.set_parameter("redshift", 0.0)
+
+    reset_preload_state()
+
+    # Case 4: a "3 of 6" miss, using AlternatingMissExecutor.
+    make_worker_initializer(model, si)()
+    ex = AlternatingMissExecutor()
+    with pytest.warns(WorkerPreloadWarning) as record:
+        run_preload_sim(model, si, ex)
+    messages = [str(w.message) for w in record if issubclass(w.category, WorkerPreloadWarning)]
+    assert len(messages) == 1
+    assert messages[0] == (
+        "3 of 6 batches reached workers that were not preloaded with this model and survey data. " + suffix
+    )
+
+
 def test_simulate_preload_unpicklable_falls_back(preload_inputs, run_preload_sim, make_stateful_model):
     """Data that refuses pickling falls back on a thread pool, and refuses preloading."""
     model, si = preload_inputs

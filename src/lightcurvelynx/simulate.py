@@ -632,28 +632,6 @@ _PRELOAD_GC_THRESHOLD_BYTES = 64 * 1024**2
 _preload_bytes_since_gc = 0
 
 
-def _free_preloaded_models(model_nbytes):
-    """Count a finished preloaded batch's model bytes, and free the model copies if needed.
-
-    The model's nodes reference each other in cycles, so each batch's copy of the model is only
-    freed by a full collection, which rarely triggers on its own when the garbage is a few large
-    objects: in-model data (such as a TableSampler's catalog) would otherwise accumulate with
-    every batch. This function runs a full collection once the model bytes loaded since the
-    last one reach ``_PRELOAD_GC_THRESHOLD_BYTES``, which bounds that garbage without slowing
-    down runs of a small model.
-
-    Parameters
-    ----------
-    model_nbytes : int
-        The size in bytes of the pickled model that the finished batch loaded.
-    """
-    global _preload_bytes_since_gc
-    _preload_bytes_since_gc += model_nbytes
-    if _preload_bytes_since_gc >= _PRELOAD_GC_THRESHOLD_BYTES:
-        _preload_bytes_since_gc = 0
-        gc.collect()
-
-
 def _simulate_preloaded_batch(simulation_info):
     """Simulate a "light" batch using the model and survey info preloaded on this worker.
 
@@ -686,10 +664,14 @@ def _simulate_preloaded_batch(simulation_info):
     result = _simulate_lightcurves_batch(batch_info)
 
     # Drop this batch's copy of the model before the next batch starts. Its nodes reference
-    # each other in cycles, so only a full collection frees it; _free_preloaded_models runs one
-    # once enough model bytes have been loaded.
+    # each other in cycles, so only a full collection frees it, which we run once enough model
+    # bytes have been loaded since the last one.
     del loaded, model, survey_info, batch_info
-    _free_preloaded_models(model_nbytes)
+    global _preload_bytes_since_gc
+    _preload_bytes_since_gc += model_nbytes
+    if _preload_bytes_since_gc >= _PRELOAD_GC_THRESHOLD_BYTES:
+        _preload_bytes_since_gc = 0
+        gc.collect()
     return result
 
 
@@ -711,15 +693,23 @@ def _select_preload_digest(simulation_info):
     """
     # Skip the digest entirely (it pickles all the data) if nothing was ever preloaded.
     if not has_known_preload_digests():
-        warn_preload_fallback("not_preloaded")
+        warn_preload_fallback("The executor's workers were not preloaded with make_worker_initializer().")
         return None
     try:
         digest = compute_preload_digest(simulation_info.model, simulation_info.survey_info)
     except Exception as exc:
-        warn_preload_fallback("unpicklable", cause=exc)
+        warn_preload_fallback(
+            "The model or survey data could not be pickled, so the workers cannot have been "
+            f"preloaded with it ({type(exc).__name__}: {exc})."
+        )
         return None
     if not is_known_preload_digest(digest):
-        warn_preload_fallback("changed")
+        warn_preload_fallback(
+            "The model and survey data do not match any data preloaded with "
+            "make_worker_initializer() in this process. They may have changed after preloading, "
+            "including internal state changed by an earlier run; create the initializer after "
+            "your last use of the model."
+        )
         return None
     return digest
 
@@ -780,7 +770,7 @@ def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000, 
         disable=not simulation_info.progress_bar,
     ) as progress_bar:
         if preload_digest is None:
-            missed = list(range(len(batches)))
+            to_send = list(range(len(batches)))
         else:
             # Send "light" batches: everything except the model and survey info.
             light_batches = []
@@ -791,22 +781,25 @@ def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000, 
                 light_batch.preload_digest = preload_digest
                 light_batches.append(light_batch)
 
-            missed = []
+            to_send = []
             futures_or_results = executor.map(_simulate_preloaded_batch, light_batches)
             for batch_idx, res in enumerate(futures_or_results):
                 res = _get_result(res)
                 if isinstance(res, PreloadMiss):
-                    missed.append(batch_idx)
+                    to_send.append(batch_idx)
                 else:
                     result_list[batch_idx] = res
                     progress_bar.update(batches[batch_idx].num_samples)
-            if missed:
-                warn_preload_fallback("miss", num_missed=len(missed), num_batches=len(batches))
+            if to_send:
+                warn_preload_fallback(
+                    f"{len(to_send)} of {len(batches)} batches reached workers that were not "
+                    "preloaded with this model and survey data."
+                )
 
         # Send full batches: all of them without preloading, otherwise only the misses.
-        if missed:
-            futures_or_results = executor.map(_simulate_lightcurves_batch, [batches[i] for i in missed])
-            for batch_idx, res in zip(missed, futures_or_results, strict=True):
+        if to_send:
+            futures_or_results = executor.map(_simulate_lightcurves_batch, [batches[i] for i in to_send])
+            for batch_idx, res in zip(to_send, futures_or_results, strict=True):
                 result_list[batch_idx] = _get_result(res)
                 progress_bar.update(batches[batch_idx].num_samples)
     return result_list
