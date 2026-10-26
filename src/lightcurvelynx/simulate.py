@@ -649,6 +649,8 @@ def _simulate_preloaded_batch(simulation_info):
         The batch's results, as returned by ``_simulate_lightcurves_batch``, or a
         ``PreloadMiss`` marker if this worker does not hold the preloaded data.
     """
+    global _preload_bytes_since_gc
+
     # Load before touching anything else: on a miss the batch is resent with the full data,
     # and with executors that do not copy their arguments, this batch shares its rng with
     # the batch that is resent.
@@ -667,7 +669,6 @@ def _simulate_preloaded_batch(simulation_info):
     # Drop this batch's copy of the model before the next batch starts (see the comment above
     # _PRELOAD_GC_THRESHOLD_BYTES for why this needs a full collection).
     del loaded, model, survey_info, batch_info
-    global _preload_bytes_since_gc
     _preload_bytes_since_gc += model_nbytes
     if _preload_bytes_since_gc >= _PRELOAD_GC_THRESHOLD_BYTES:
         _preload_bytes_since_gc = 0

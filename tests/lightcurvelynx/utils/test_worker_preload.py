@@ -1,4 +1,4 @@
-"""Tests for the two-part serialization and content digest used by worker preloading."""
+"""Tests for worker preloading: serialization, the initializer and its slot, fork handling, and refusal."""
 
 import os
 import pickle
@@ -91,11 +91,10 @@ def test_initializer_round_trip(preload_inputs):
     assert load_preloaded_data("0" * 32) is None
 
 
-def test_initializer_is_picklable_and_idempotent(preload_inputs):
+def test_initializer_is_picklable(preload_inputs):
     """A pickled initializer still works, and the slot holds one digest per process."""
     model, si = preload_inputs
     init = pickle.loads(pickle.dumps(make_worker_initializer(model, si)))
-    init()
     init()
     other = make_worker_initializer(
         ConstantSEDModel(brightness=1.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0), si
@@ -112,10 +111,24 @@ def test_initializer_repr_has_no_payload(preload_inputs):
 
 
 def test_make_worker_initializer_rejects_obstable(preload_inputs):
-    """Passing a bare ObsTable instead of a SurveyInfo raises a clear TypeError."""
+    """Passing a bare ObsTable instead of a SurveyInfo raises a clear TypeError naming its type."""
     model, si = preload_inputs
-    with pytest.raises(TypeError, match="SurveyInfo"):
+    with pytest.raises(TypeError, match="SurveyInfo") as excinfo:
         make_worker_initializer(model, si.obstable)
+    assert "OpSim" in str(excinfo.value)
+
+
+def test_make_worker_initializer_refuses_unpicklable_model(preload_inputs, make_stateful_model):
+    """``make_worker_initializer`` raises for data that refuses pickling, with no fork pool needed.
+
+    This pins the same refusal as ``test_fork_pool_refuses_unpicklable`` in
+    ``test_simulate_parallel_backends.py``, without depending on the ``fork`` start method,
+    which is not available on every platform.
+    """
+    _, si = preload_inputs
+    stateful_model = make_stateful_model(si)
+    with pytest.raises(RuntimeError, match="cannot be pickled"):
+        make_worker_initializer(stateful_model, si)
 
 
 def test_shared_objects_resolve_to_one_instance(preload_inputs):

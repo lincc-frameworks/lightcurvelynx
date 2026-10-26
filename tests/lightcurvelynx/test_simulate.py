@@ -2290,9 +2290,10 @@ def test_simulate_preload_mixed_hits_and_misses(
 def test_fallback_warning_texts_unchanged(preload_inputs, run_preload_sim, make_stateful_model):
     """Pin the exact text of every preload fallback warning.
 
-    The sentences below are deliberately hardcoded literals, copied from the warning
-    module's current case table and suffix, rather than read from that module. That way
-    refactoring how the warnings are built cannot silently change what a user sees.
+    The sentences below are deliberately hardcoded literals, reproducing the warning text
+    at commit ``ca988a0e`` (the former ``_FALLBACK_CASES`` and ``_FALLBACK_SUFFIX``),
+    rather than read from that module. That way refactoring how the warnings are built
+    cannot silently change what a user sees.
     """
     suffix = (
         "Each of these batches carries a full copy of the model and survey data. To send this data to "

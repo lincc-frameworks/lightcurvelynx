@@ -307,8 +307,8 @@ class WorkerInitializer:
     of a ``ThreadPoolExecutor``, or inherited via ``fork`` -- keeps its bytes indefinitely,
     since in those cases it may legitimately need to install them again (for example
     after ``reset_preload_state`` in tests). Calling an instance that has already released
-    its bytes is a safe no-op: it never raises and never touches the slot, since the slot
-    already holds this payload from the call that released them.
+    its bytes is a safe no-op: it never raises and never touches the slot, whatever the
+    slot now holds.
 
     Parameters
     ----------
@@ -389,9 +389,13 @@ def _normalize_survey_info(survey_info):
         return [survey_info]
     if isinstance(survey_info, list) and all(isinstance(info, SurveyInfo) for info in survey_info):
         return list(survey_info)
+    if isinstance(survey_info, list):
+        bad_type = next(type(info).__name__ for info in survey_info if not isinstance(info, SurveyInfo))
+    else:
+        bad_type = type(survey_info).__name__
     raise TypeError(
         "survey_info must be a SurveyInfo or a list of SurveyInfo instances; "
-        "wrap bare ObsTable objects in a SurveyInfo first."
+        f"wrap bare ObsTable objects in a SurveyInfo first. Got {bad_type}."
     )
 
 
