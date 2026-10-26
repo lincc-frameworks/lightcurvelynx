@@ -729,7 +729,8 @@ def simulate_lightcurves(
     drop_empty_rows : bool, optional
         Whether to drop rows that have no observations. Default is False.
     batch_size : int, optional
-        The number of samples to process in each batch when using multiprocessing.
+        The number of samples to process in each batch. This applies both to serial and parallel
+        execution so that users can apply in-place filtering and file checkpoints during processing.
         Default is 100_000.
     save_full_filter_names : bool
         Whether to save the full filter names in the results (including survey prefix).
@@ -813,33 +814,41 @@ def simulate_lightcurves(
         graph_state=graph_state,
     )
 
-    # If we are given a number of jobs, make sure the batch size is not larger than
-    # the number of samples per job.
-    if num_jobs is not None:
-        if num_jobs <= 0:  # pragma: no cover
-            raise ValueError("num_jobs must be a positive integer.")
-        if num_jobs > num_samples:  # pragma: no cover
-            num_jobs = num_samples
-        batch_size = np.min([batch_size, np.ceil(num_samples / num_jobs).astype(int)])
-        logger.info(f"Using num_jobs={num_jobs} and batch_size={batch_size} for parallel processing.")
+    # Compute the number of batches that will be needed, based on the batch size
+    # and number of samples.
+    if num_jobs is None:
+        num_jobs = 1  # Do this in serial.
+    elif num_jobs <= 0:  # pragma: no cover
+        raise ValueError("num_jobs must be a positive integer.")
+    elif executor is not None:  # pragma: no cover
+        warnings.warn("An executor is provided, so the num_jobs argument will be ignored.")
+    batch_size = np.min([batch_size, np.ceil(num_samples / num_jobs).astype(int)])
+    num_batches = np.ceil(num_samples / batch_size).astype(int)
+    logger.info(f"Using num_jobs={num_jobs} and batch_size={batch_size} a total of {num_batches} batches.")
 
-    # If we do not have any parallelization information, perform in serial.
-    if executor is None and num_jobs is None:
-        return _simulate_lightcurves_batch(simulation_info)
-
-    # If we have an executor, use that.
     if executor is not None:
+        # If we have an executor, use that regardless of the other settings.
         result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
+    elif num_batches == 1:
+        # We only have a single batch, so we can run it in serial.
+        result_list = [_simulate_lightcurves_batch(simulation_info)]
+    elif num_jobs == 1:
+        # We have multiple batches, but only one job, so we run them serially. This can be done
+        # when we want to minimize the memory used by spilling to disk after each batch.
+        batches_list = simulation_info.split(batch_size=batch_size)
+        result_list = [_simulate_lightcurves_batch(batch) for batch in batches_list]
     else:
+        # We want to run in parallel, but did not provide and executor. We create a
+        # process pool executor with the specified number of jobs.
         with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs) as executor:
             result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
 
     # If we returned the results directly, concatenate them into a single NestedFrame.
     # If we saved them to file, return the list of file paths.
     if output_file_path is None:
-        results = concat_results(result_list)
+        results = concat_results(result_list) if len(result_list) > 1 else result_list[0]
     else:
-        results = result_list
+        results = result_list if len(result_list) > 1 else result_list[0]
     return results
 
 

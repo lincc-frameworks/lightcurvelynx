@@ -34,6 +34,8 @@ If users want to have reproducible simulations, they can provide a (seeded) glob
 
 **Passing a global RNG is the recommended way to control randomness for testing or reproducibility.**
 
+Note that even when passing a (seeded) global random number generator, the results may vary if the runs use different batch sizes. This is due to the fact that each batch samples the parameters serially. If the number of parameters sampled in the batch changes, the sequence of random numbers used will also change, leading to different results.
+
 
 Per-Node Seeds
 -------------------------------------------------------------------------------
@@ -44,4 +46,4 @@ In previous versions of LightCurveLynx, users could control randomness by provid
 Parallelism and Randomness
 -------------------------------------------------------------------------------
 
-If provided a global RNG in parallel mode, LightCurveLynx will create a unique RNG for each batch of samples. This is done to avoid correlations between the batches. If you need to control randomness while running in parallel, you should provide a global RNG to the ``simulate_lightcurves()`` function.
+If provided a global RNG in parallel mode, LightCurveLynx will create a unique RNG for each batch of samples. This is done to avoid correlations between the batches. If you need to control randomness while running in parallel, you should provide a global RNG to the ``simulate_lightcurves()`` function. As noted above, the results may still vary if the batch size changes, because the sequence of random numbers used will differ.

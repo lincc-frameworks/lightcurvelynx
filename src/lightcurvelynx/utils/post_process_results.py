@@ -26,6 +26,14 @@ def concat_results(results_list):
     nested_pandas.NestedFrame
         The concatenated DataFrame.
     """
+    # If the list is empty, throw an error.
+    if not results_list:
+        raise ValueError("The results list is empty.")
+
+    # If there is only one result, return it directly.
+    if len(results_list) == 1:
+        return results_list[0]
+
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore", category=FutureWarning, message=".*DataFrame concatenation with empty.*"

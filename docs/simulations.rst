@@ -245,18 +245,19 @@ Running in Parallel
 -------------------------------------------------------------------------------
 
 Simulations can be performed in parallel by providing a ``concurrent.futures.Executor`` object.
-This object can be a built-in parallelization method, such as 
+This object can be a built-in parallelization method, such as `ThreadPoolExecutor`,
 `ProcessPoolExecutor`, or other libraries, such as `dask <https://docs.dask.org/en/latest/>`_ or
 `ray <https://docs.ray.io/en/latest/>`_. Note that each process will load a full version of all the data,
-so they may be memory intensive. 
+so they may be memory intensive.
 
-**WARNING**: Currently, `ThreadPoolExecutor` is not supported due to compatibility issues.
-
-**NOTE**: Not all subpackages work with distributed computation yet. If you get an error about
+**WARNING**: Not all subpackages work with distributed computation yet. If you get an error about
 not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
 
 The :doc:`parallelization notebook <notebooks/parallel_runs>` provides an example of how to use
 LightCurveLynx to run simulations in parallel including using dask and ray.
+
+**NOTE**: Note that random number generation will be different when the batch size changes. If given a random number generator, each batch uses it to first sample parameters and then generate the observations. If the batch size changes, it changes how many numbers are sampled for each parameter. So using the same random number generator and different batch sizes will produce different results. In contrast, changing the number of jobs should not impact the results (given a seeded random number generator).
+
 
 
 Results and Output
