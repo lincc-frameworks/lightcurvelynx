@@ -250,7 +250,7 @@ This object can be a built-in parallelization method, such as
 `ray <https://docs.ray.io/en/latest/>`_. Note that each process will load a full version of all the data,
 so they may be memory intensive. 
 
-**WARNING:** Because we cannot guarantee that all libraries and modules we use are thread safe (and some of our own models are **not** thread safe), we do not support `ThreadPoolExecutor` or other single-process, multi-threaded approaches such as `dask.distributed.Client(threads_per_worker>1)`. We are looking at fixes, but do not have an ETA.
+**WARNING:** Because we cannot guarantee that all libraries and modules we use are thread safe (and some of our own models are **not** thread safe), we do not support `ThreadPoolExecutor` or other multi-threaded approaches such as `dask.distributed.Client(threads_per_worker>1)`. Please use single threaded executors such as `concurrent.futures.ProcessPoolExecutor` (with a context of spawn) or a `dask.distributed.Client` with `threads_per_worker=1`. For more information see the :doc:`parallelization notebook <notebooks/parallel_runs>`.
 
 **NOTE**: Not all subpackages work with distributed computation yet. If you get an error about
 not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
@@ -259,6 +259,7 @@ The :doc:`parallelization notebook <notebooks/parallel_runs>` provides an exampl
 LightCurveLynx to run simulations in parallel including using dask and ray.
 
 Note that random number generation will be different when the batch size changes. If given a random number generator, each batch uses it to first sample parameters and then generate the observations. If the batch size changes, it changes how many numbers are sampled for each parameter. So using the same random number generator and different batch sizes will produce different results. In contrast, changing the number of jobs should not impact the results (given a seeded random number generator).
+
 
 Results and Output
 -------------------------------------------------------------------------------

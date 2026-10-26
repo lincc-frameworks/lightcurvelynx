@@ -2,6 +2,7 @@
 
 import concurrent.futures
 import logging
+import multiprocessing
 import warnings
 from pathlib import Path
 
@@ -818,11 +819,18 @@ def simulate_lightcurves(
 
     # Run the simulations.
     if executor is not None:
+        # Make sure we are not using a multi-threaded executor.
         if isinstance(executor, concurrent.futures.ThreadPoolExecutor):
             raise ValueError(
                 "Some of the models have been found to be incompatible with ThreadPoolExecutor. "
                 "We are working on a patch. Please use a different executor in the meantime."
             )
+        # Check for a dask client with multiple threads per worker.
+        if hasattr(executor, "nthreads") and np.any(list(np.array(executor.nthreads().values())) > 1):
+            raise ValueError(
+                "Some of the models have been found to be incompatible with multi-threaded executors. "
+                "Please create your client with threads_per_worker=1."
+            )  # pragma: no cover
 
         # If we have an executor, use that regardless of the other settings.
         result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
@@ -836,7 +844,8 @@ def simulate_lightcurves(
     else:
         # We want to run in parallel, but did not provide and executor. We create a
         # process pool executor with the specified number of jobs.
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs) as executor:
+        ctx = multiprocessing.get_context("spawn")  # Needed for older Python versions
+        with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs, mp_context=ctx) as executor:
             result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
 
     # If we returned the results directly, concatenate them into a single NestedFrame.
