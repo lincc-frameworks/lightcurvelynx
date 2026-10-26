@@ -1,13 +1,29 @@
-"""Two-part serialization and content digest for preloading simulation data on workers.
+"""Preloading simulation data on worker processes.
 
 Running ``simulate_lightcurves`` in parallel pickles the model and the list of
 ``SurveyInfo`` objects into every batch sent to a worker. For a survey the size of the
-full LSST OpSim, each ``ObsTable`` alone is close to a gigabyte, so that cost is paid
-once per batch instead of once per worker. This module provides the building block that
-lets the data be sent to each worker once: it serializes ``(model, survey_info)`` into
-two parts and computes a content digest that changes whenever either part changes.
+full LSST OpSim, each ``ObsTable`` alone is close to a gigabyte, so sending that data once
+per worker instead of once per batch is worth a dedicated code path. This module provides
+that path, in layers:
 
-The two parts are:
+* **Serialization** (``serialize_simulation_data``, ``compute_preload_digest``): splits
+  ``(model, survey_info)`` into a shared part and a model part and computes a content
+  digest that changes whenever either part changes.
+* **The initializer** (``make_worker_initializer``, ``WorkerInitializer``): wraps the
+  serialized payload in a picklable, zero-argument callable that a worker runs once to
+  install it.
+* **The registry and the slot** (``_known_digests``, ``_PreloadSlot``,
+  ``_install_slot``/``load_preloaded_data``): the process-level set of digests that
+  ``make_worker_initializer`` has produced, and the single process-level slot that holds
+  whatever payload was last installed there.
+* **Fork handling** (``_reinit_locks_after_fork``): gives a forked child fresh, unlocked
+  copies of this module's locks, since a lock inherited mid-hold by ``fork`` would stay
+  locked forever.
+* **The fallback warning and the miss marker** (``WorkerPreloadWarning``,
+  ``warn_preload_fallback``, ``PreloadMiss``): cover the cases where a batch cannot use
+  the preload and falls back to carrying its own copy of the data.
+
+The two serialized parts are:
 
 * **The shared part**: every ``SurveyInfo`` together with its ``obstable``, ``passbands``
   and ``noise_model``, plus every ``ObsTable`` reachable from the model (for example one
@@ -19,21 +35,14 @@ The two parts are:
   already part of a ``SurveyInfo``: this is what keeps the model part small when a sampler
   stores a whole ``ObsTable``, such as ``ObsTableUniformRADECSampler``.
 
-Every ``ObsTable`` is shared (not just the ones already attached to a ``SurveyInfo``)
-because an ``ObsTable`` is the one kind of object in a typical model that is both common
-and large; sharing it is what makes preloading worthwhile.
-
 Both parts are pickled into a writer that always updates a hash and only optionally keeps
 the bytes, so the digest computed in hash-only mode (used for a cheap freshness check) is
 identical to the digest computed when the bytes are kept (used to build the payload that is
 actually sent to workers). ``make_worker_initializer`` uses ``cloudpickle`` instead of the
 standard library ``pickle`` when it is importable, so that classes defined in a notebook's
-``__main__`` module keep working with backends such as loky, dask and ray. The ``num_jobs``
-path of ``simulate_lightcurves`` uses the standard library ``pickle``, as a plain
-``ProcessPoolExecutor`` does, so it pickles exactly what it did before preloading existed
-(for example, functions from ``__main__`` by reference). An object that refuses
-pickling (for example a stateful ``GivenValueList``) raises the same exception it would
-raise from a plain ``pickle.dumps`` call.
+``__main__`` module keep working with backends such as loky, dask and ray. An object that
+refuses pickling (for example a stateful ``GivenValueList``) raises the same exception it
+would raise from a plain ``pickle.dumps`` call.
 """
 
 import hashlib
@@ -54,8 +63,10 @@ try:
 except ImportError:  # pragma: no cover - exercised only when cloudpickle is not installed.
     _BasePickler = pickle.Pickler
 
-# Pickle protocol used for both parts. Protocol 5 is available on all supported Python
-# versions and is required for out-of-band buffers, which cloudpickle may use.
+# Pickle protocol used for both parts. Protocol 5 lets _HashingWriter.write receive a large
+# buffer (e.g. a numpy array) as a pickle.PickleBuffer instead of a copied bytes object; the
+# stdlib default is still protocol 4 on Python 3.11-3.13. No buffer_callback is used, so these
+# buffers are written inline rather than collected out-of-band.
 _PICKLE_PROTOCOL = 5
 
 # Digest size (in bytes) for the blake2b hashes used throughout this module. 16 bytes
@@ -296,14 +307,14 @@ class WorkerInitializer:
     of a ``ThreadPoolExecutor``, or inherited via ``fork`` -- keeps its bytes indefinitely,
     since in those cases it may legitimately need to install them again (for example
     after ``reset_preload_state`` in tests). Calling an instance that has already released
-    its bytes is a safe no-op: it never raises and never touches the slot, so
-    ``load_preloaded_data`` simply falls back to returning ``None`` for its digest.
+    its bytes is a safe no-op: it never raises and never touches the slot, since the slot
+    already holds this payload from the call that released them.
 
     Parameters
     ----------
     digest : str
-        The content digest identifying this payload, as computed by
-        ``compute_preload_digest``.
+        The content digest identifying this payload, as returned in
+        ``SerializedData.digest``.
     model_bytes : bytes
         The pickled model part, as returned in ``SerializedData.model_bytes``.
     shared_bytes : bytes

@@ -619,10 +619,12 @@ def _simulate_lightcurves_batch(simulation_info):
     return results
 
 
-# Preloaded batches free their model copies with a full garbage collection, but only once the
-# batches in this process have loaded at least this many model bytes since the last one. A full
-# collection costs tens of milliseconds even in a fresh process, which would dominate a run of
-# many small batches, while the copies of a small model cost little memory to keep for a while.
+# Preloaded batches free their model copies with a full garbage collection rather than relying on
+# refcounting alone, because model nodes form reference cycles that only a full collection frees.
+# This runs once the batches in this process have loaded at least this many model bytes since the
+# last collection: a full collection costs tens of milliseconds even in a fresh process, which
+# would dominate a run of many small batches, while the copies of a small model cost little memory
+# to keep for a while.
 _PRELOAD_GC_THRESHOLD_BYTES = 64 * 1024**2
 
 # The model bytes loaded by preloaded batches in this process since the last full collection.
@@ -654,18 +656,16 @@ def _simulate_preloaded_batch(simulation_info):
     if loaded is None:
         return PreloadMiss()
 
-    # The model was freshly unpickled for this batch, so it is private to it. If upstream's
-    # per-batch deepcopy of the model lands in _simulate_lightcurves_batch, it must be skipped
-    # for this path (see the comment where that function reads simulation_info.model).
+    # The model was freshly unpickled for this batch, so it is already private (see the
+    # deepcopy-skip note in _simulate_lightcurves_batch).
     model, survey_info, model_nbytes = loaded
     batch_info = copy.copy(simulation_info)
     batch_info.model = model
     batch_info.survey_info = survey_info
     result = _simulate_lightcurves_batch(batch_info)
 
-    # Drop this batch's copy of the model before the next batch starts. Its nodes reference
-    # each other in cycles, so only a full collection frees it, which we run once enough model
-    # bytes have been loaded since the last one.
+    # Drop this batch's copy of the model before the next batch starts (see the comment above
+    # _PRELOAD_GC_THRESHOLD_BYTES for why this needs a full collection).
     del loaded, model, survey_info, batch_info
     global _preload_bytes_since_gc
     _preload_bytes_since_gc += model_nbytes
@@ -1008,12 +1008,8 @@ def simulate_lightcurves(
             simulation_info, executor, batch_size=batch_size, preload_digest=preload_digest
         )
     else:
-        # Preload the pool's workers. Pickle with the standard library's pickle, as a plain
-        # ProcessPoolExecutor pickles its batches, so num_jobs pickles exactly what it did
-        # before preloading: functions and classes from __main__ go by reference, never with
-        # their globals. The digest is passed straight to the batches and not registered, since
-        # the pool is gone after this call. Create the initializer before the pool so that data
-        # which refuses pickling raises here, with its own exception.
+        # Pickle with the stdlib pickler, as described in the num_jobs docstring above. Build the
+        # initializer before the pool so a model or survey that refuses pickling raises here.
         initializer = _build_worker_initializer(model, survey_info, _STDLIB_PICKLERS)
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=num_jobs, initializer=initializer
