@@ -164,11 +164,11 @@ def test_multiple_static_seds() -> None:
         wavelengths=np.array([100.0, 200.0, 300.0, 400.0]),
         fluxes=np.array([20.0, 40.0, 40.0, 20.0]),
     )
-    model = StaticSEDModel([sed0, sed1], weights=[0.25, 0.75], seed=42, node_label="test")
+    model = StaticSEDModel([sed0, sed1], weights=[0.25, 0.75], node_label="test")
     assert len(model) == 2
 
     # Check that all of the indices are 0 or 1 and the split is approximately 25/75
-    params = model.sample_parameters(num_samples=10_000)
+    params = model.sample_parameters(num_samples=10_000, rng_info=np.random.default_rng(42))
     inds_0 = params["test"]["selected_idx"] == 0
     inds_1 = params["test"]["selected_idx"] == 1
     assert np.all(inds_0 | inds_1)
@@ -202,8 +202,8 @@ def test_multiple_static_seds() -> None:
     assert count == 2
 
     # If we reuse the same seed, we should get the same results.
-    model2 = StaticSEDModel([sed0, sed1], weights=[0.25, 0.75], seed=42, node_label="test")
-    params2 = model2.sample_parameters(num_samples=10_000)
+    model2 = StaticSEDModel([sed0, sed1], weights=[0.25, 0.75], node_label="test")
+    params2 = model2.sample_parameters(num_samples=10_000, rng_info=np.random.default_rng(42))
     assert np.all(params["test"]["selected_idx"] == params2["test"]["selected_idx"])
 
 

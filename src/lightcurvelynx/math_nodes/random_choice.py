@@ -21,13 +21,9 @@ class RandomChoiceNode(FunctionNode):
         The weights corresponding to each value. If not provided, all values
         are equally likely.
         Default: None
-    seed : int, optional
-        The seed to set the node's default random number generator. If None, then a random seed is used.
-        This parameter is for testing and has no effect when a user-provided random number generator is
-        used during simulation. Default: None
     """
 
-    def __init__(self, values, *, weights=None, seed=None, **kwargs):
+    def __init__(self, values, *, weights=None, **kwargs):
         super().__init__(self._non_func, **kwargs)
 
         self._num_values = len(values)
@@ -44,7 +40,7 @@ class RandomChoiceNode(FunctionNode):
         # Create a parameter for the chosen index (to save the state on which input was selected).
         self.add_parameter(
             "selected_index",
-            GivenValueSampler(self._num_values, weights=weights, seed=seed),
+            GivenValueSampler(self._num_values, weights=weights),
         )
 
     def compute(self, graph_state, rng_info=None, **kwargs):

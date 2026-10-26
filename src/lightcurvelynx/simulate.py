@@ -829,6 +829,11 @@ def simulate_lightcurves(
 
     # If we have an executor, use that.
     if executor is not None:
+        if isinstance(executor, concurrent.futures.ThreadPoolExecutor):
+            raise ValueError(
+                "Some of the models have been found to be incompatible with ThreadPoolExecutor. "
+                "We are working on a patch. Please use a different executor in the meantime."
+            )
         result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
     else:
         with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs) as executor:

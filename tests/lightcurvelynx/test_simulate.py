@@ -1,4 +1,5 @@
 import tempfile
+import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
@@ -864,6 +865,24 @@ def test_simulate_parallel_threads(test_data_dir):
 
     survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
+    # Check that we throw an error for using ThreadPoolExecutor.
+    with pytest.raises(ValueError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            _ = simulate_lightcurves(
+                source,
+                100,
+                survey_info,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                executor=executor,
+                batch_size=10,
+                save_full_filter_names=True,
+                progress_bar=False,  # Disable progress bar for testing
+            )
+
+    # Old code for using ThreadPoolExecutor directly is commented out below.
+    # TODO: Restore once ThreadPoolExecutor compatibility is resolved.
+    """
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = simulate_lightcurves(
             source,
@@ -921,6 +940,11 @@ def test_simulate_parallel_threads(test_data_dir):
     assert not np.allclose(
         results["lightcurve.flux"].to_numpy(),
         results2["lightcurve.flux"].to_numpy(),
+    )
+    """
+    warnings.warn(
+        "The full test_simulate_parallel_threads is disabled until "
+        "ThreadPoolExecutor compatibility is resolved."
     )
 
 
@@ -1948,9 +1972,10 @@ def test_simulate_save_nested_with_parameter_arrays():
 
     # Generate random array values uniformly between 0.01 and 100.0. Then
     # take the logarithm of those values.
-    np_node = NumpyRandomFunc("uniform", low=0.01, high=100.0, seed=100, size=5)
+    rng = np.random.default_rng(seed=100)
+    np_node = NumpyRandomFunc("uniform", low=0.01, high=100.0, size=5)
     math_node = BasicMathNode("log(x)", x=np_node, node_label="math")
-    sample_states = math_node.sample_parameters(num_samples=num_samples)
+    sample_states = math_node.sample_parameters(num_samples=num_samples, rng_info=rng)
 
     # Create a nest results frame including the array values.
     index = list(range(num_samples))
@@ -1979,11 +2004,9 @@ def test_simulate_save_nested_with_parameter_arrays():
         assert base_path.exists()
 
 
-def test_simulate_thread_safety():
-    """Test that the simulate_lightcurves function is thread-safe by comparing
-    the results obtained with a single-threaded executor to those obtained
-    with a multi-threaded executor.
-    """
+def test_simulate_process_safety():
+    """Test that the simulate_lightcurves function is safe when using
+    multiple processes by comparing."""
     # Create a basic OpSim observation table and survey info for the test.
     num_obs = 300
     opsim = OpSim(
@@ -2015,10 +2038,10 @@ def test_simulate_thread_safety():
         time_extrapolation=LinearDecay(50.0),
     )
 
-    # Simulate it with 1 thread and batch size of 1. We need to keep the random
-    # seed and batch size the same to ensure reproducibility.
-    num_samples = 100
-    with ThreadPoolExecutor(1) as ex:
+    # Simulate it with 1 process and batch size of 1. We need to keep the
+    # random seed and batch size the same to ensure reproducibility.
+    num_samples = 1000
+    with ProcessPoolExecutor(1) as ex:
         res_1 = simulate_lightcurves(
             model=model,
             num_samples=num_samples,
@@ -2032,9 +2055,9 @@ def test_simulate_thread_safety():
     flux_1 = res_1["lightcurve.flux_perfect"].to_numpy()
     params_1 = GraphState.from_list(res_1["params"])
 
-    # Re-simulate it with 1 thread and batch size of 1. We need to keep the random
-    # seed and batch size the same to ensure reproducibility.
-    with ThreadPoolExecutor(10) as ex:
+    # Re-simulate it with 10 processes and batch size of 1. We need to keep
+    # the random seed and batch size the same to ensure reproducibility.
+    with ProcessPoolExecutor(10) as ex:
         res_10 = simulate_lightcurves(
             model=model,
             num_samples=num_samples,

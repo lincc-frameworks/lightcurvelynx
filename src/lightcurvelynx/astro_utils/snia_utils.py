@@ -231,7 +231,7 @@ class HostmassX1Func(NumericalInversePolynomialFunc):
             in place as it is sampled.
         rng_info : numpy.random._generator.Generator or None, optional
             A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
+            provided, the function uses a new random number generator.
         **kwargs : dict, optional
             Additional function arguments.
 
@@ -241,7 +241,7 @@ class HostmassX1Func(NumericalInversePolynomialFunc):
             The result of the computation. This return value is provided so that testing
             functions can easily access the results.
         """
-        rng = rng_info if rng_info is not None else self._rng
+        rng = rng_info if rng_info is not None else np.random.default_rng()
         hostmass = self.get_param(graph_state, "hostmass")
 
         if graph_state.num_samples == 1:

@@ -31,14 +31,26 @@ def _test_func(value1, value2):
 
 def test_binary_sampler():
     """Test that we can retrieve results from a BinarySampler."""
-    binary_node = BinarySampler(0.75, node_label="test", seed=55)
+    binary_node = BinarySampler(0.75, node_label="test")
 
-    single_state = binary_node.sample_parameters(num_samples=1)
+    rng = np.random.default_rng(100)
+    single_state = binary_node.sample_parameters(num_samples=1, rng_info=rng)
     assert isinstance(single_state["test"]["function_node_result"], bool)
 
-    many_states = binary_node.sample_parameters(num_samples=10_000)
+    many_states = binary_node.sample_parameters(num_samples=10_000, rng_info=rng)
     assert len(many_states["test"]["function_node_result"]) == 10_000
     assert 7000 < np.count_nonzero(many_states["test"]["function_node_result"]) < 8000
+
+    # Using the same RNG seed should produce the same results.
+    rng = np.random.default_rng(100)
+    binary_node2 = BinarySampler(0.75, node_label="test2")
+    single_state2 = binary_node2.sample_parameters(num_samples=1, rng_info=rng)
+    assert single_state["test"]["function_node_result"] == single_state2["test2"]["function_node_result"]
+    many_states2 = binary_node2.sample_parameters(num_samples=10_000, rng_info=rng)
+    assert np.allclose(
+        many_states["test"]["function_node_result"],
+        many_states2["test2"]["function_node_result"],
+    )
 
     # We fail if we use an invalid probability.
     with pytest.raises(ValueError):
@@ -191,7 +203,7 @@ def test_given_value_list_stateless():
 
 def test_given_value_sampler():
     """Test that we can retrieve numbers from a GivenValueSampler."""
-    given_node = GivenValueSampler([1, 3, 5, 7])
+    given_node = GivenValueSampler([1, 3, 5, 7], node_label="node")
 
     # Check that we have sampled uniformly from the given options.
     state = GraphState(num_samples=5_000)
@@ -202,6 +214,26 @@ def test_given_value_sampler():
     assert len(results[results == 3]) > 1000
     assert len(results[results == 5]) > 1000
     assert len(results[results == 7]) > 1000
+
+    # A random resampling should produce a different sequence.
+    state_repeat = GraphState(num_samples=5_000)
+    results_random = given_node.compute(state_repeat)
+    assert not np.array_equal(results, results_random)
+
+    # If we fix the random number generator, we fix the sequence of sampled values.
+    rng1 = np.random.default_rng(100)
+    state1 = given_node.sample_parameters(num_samples=5_000, rng_info=rng1)
+    results_fixed = state1["node"]["function_node_result"]
+    rng2 = np.random.default_rng(100)
+    state2 = given_node.sample_parameters(num_samples=5_000, rng_info=rng2)
+    results_fixed2 = state2["node"]["function_node_result"]
+    assert np.array_equal(results_fixed, results_fixed2)
+
+    # If we change the seed, we should get a different sequence of sampled values.
+    rng3 = np.random.default_rng(101)
+    state3 = given_node.sample_parameters(num_samples=5_000, rng_info=rng3)
+    results_diff = state3["node"]["function_node_result"]
+    assert not np.array_equal(results_fixed, results_diff)
 
     # We fail if we try to create a GivenValueSampler with an empty list.
     with pytest.raises(ValueError):
@@ -214,7 +246,7 @@ def test_given_value_sampler():
 
 def test_given_value_sampler_int():
     """Test that we can retrieve numbers from a GivenValueSampler representing a range."""
-    given_node = GivenValueSampler(5)
+    given_node = GivenValueSampler(5, node_label="node")
 
     # Check that we have sampled uniformly from the given options.
     state = GraphState(num_samples=5_000)
@@ -223,6 +255,35 @@ def test_given_value_sampler_int():
     assert np.all((results >= 0) & (results < 5))
     for i in range(5):
         assert len(results[results == i]) > 500
+
+    # We should still get the same sequence given the same RNGs.
+    rng1 = np.random.default_rng(100)
+    state1 = given_node.sample_parameters(num_samples=5_000, rng_info=rng1)
+    results_fixed = state1["node"]["function_node_result"]
+    rng2 = np.random.default_rng(100)
+    state2 = given_node.sample_parameters(num_samples=5_000, rng_info=rng2)
+    results_fixed2 = state2["node"]["function_node_result"]
+    assert np.array_equal(results_fixed, results_fixed2)
+
+
+def test_given_value_sampler_non_number():
+    """Test that we can retrieve non-number values from a GivenValueSampler."""
+    given_node = GivenValueSampler(["a", "b", "c", "d"])
+
+    # Check that we have sampled uniformly from the given options.
+    state = GraphState(num_samples=5_000)
+    results = given_node.compute(state)
+    assert len(results) == 5_000
+    assert np.all((results == "a") | (results == "b") | (results == "c") | (results == "d"))
+    assert len(results[results == "a"]) > 1000
+    assert len(results[results == "b"]) > 1000
+    assert len(results[results == "c"]) > 1000
+    assert len(results[results == "d"]) > 1000
+
+    # A random resampling should produce a different sequence.
+    states2 = GraphState(num_samples=5_000)
+    results2 = given_node.compute(states2)
+    assert not np.array_equal(results, results2)
 
 
 def test_given_value_selector():
@@ -269,33 +330,20 @@ def test_given_value_sampler_weighted_seeded():
     """Test that we can retrieve numbers from a GivenValueSampler
     with a weighted distribution."""
     # Same seed should produce the same results.
-    given_node1 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=123)
+    given_node1 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1])
     state1 = GraphState(num_samples=10_000)
-    results1 = given_node1.compute(state1)
+    results1 = given_node1.compute(state1, rng_info=np.random.default_rng(123))
 
-    given_node2 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=123)
+    given_node2 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1])
     state2 = GraphState(num_samples=10_000)
-    results2 = given_node2.compute(state2)
+    results2 = given_node2.compute(state2, rng_info=np.random.default_rng(123))
     assert np.array_equal(results1, results2)
 
     # Different seeds should produce different results.
-    given_node3 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=124)
+    given_node3 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1])
     state3 = GraphState(num_samples=10_000)
-    results3 = given_node3.compute(state3)
+    results3 = given_node3.compute(state3, rng_info=np.random.default_rng(124))
     assert not np.array_equal(results1, results3)
-
-    # We can override the seed with a given random number generator. Different
-    # seeds do not matter if we provide the same random number generator to the compute() method.
-    rng1 = np.random.default_rng(seed=456)
-    given_node4 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=123)
-    state4 = GraphState(num_samples=10_000)
-    results4 = given_node4.compute(state4, rng_info=rng1)
-
-    rng2 = np.random.default_rng(seed=456)
-    given_node5 = GivenValueSampler([1, 3, 5, 7], [0.1, 0.5, 0.3, 0.1], seed=124)
-    state5 = GraphState(num_samples=10_000)
-    results5 = given_node5.compute(state5, rng_info=rng2)
-    assert np.allclose(results4, results5)
 
 
 @pytest.mark.parametrize("bad_weights", [[-0.1, 0.6, 0.5], [0.2, -0.2, 1.0]])
@@ -383,17 +431,6 @@ def test_table_sampler_fail():
         _ = TableSampler({"a": [], "b": []})
 
 
-def test_table_sampler_warn():
-    """Test that we give a warning if seed is provided with in_order."""
-    raw_data_dict = {
-        "A": [1, 2, 3, 4, 5, 6, 7, 8],
-        "B": [1, 1, 1, 1, 1, 1, 1, 1],
-        "C": [3, 4, 5, 6, 7, 8, 9, 10],
-    }
-    with pytest.warns(UserWarning):
-        _ = TableSampler(raw_data_dict, in_order=True, seed=100, node_label="node")
-
-
 def test_table_sampler_offset():
     """Test that we can retrieve numbers from a TableSampler with an offset."""
     data = {
@@ -423,11 +460,12 @@ def test_table_sampler_randomized():
     }
 
     # Create the table sampler from the data.
-    table_node = TableSampler(raw_data_dict, seed=3, node_label="node")
-    state = table_node.sample_parameters(num_samples=2000)
+    table_node = TableSampler(raw_data_dict, node_label="node")
+    rng = np.random.default_rng(100)
+    state = table_node.sample_parameters(num_samples=2000, rng_info=rng)
 
     # Check that we can sample a single point.
-    single_state = table_node.sample_parameters(num_samples=1)
+    single_state = table_node.sample_parameters(num_samples=1, rng_info=rng)
     idx = single_state["node"]["selected_table_index"]
     assert single_state["node"]["A"] == raw_data_dict["A"][idx]
     assert single_state["node"]["B"] == raw_data_dict["B"][idx]
@@ -457,13 +495,15 @@ def test_table_sampler_randomized():
     assert np.all(b_vals - a_vals == 1)
 
     # If we reuse the seed, we get the same samples.
-    table_node2 = TableSampler(raw_data_dict, seed=3, node_label="node")
-    state2 = table_node2.sample_parameters(num_samples=2000)
+    rng2 = np.random.default_rng(100)
+    table_node2 = TableSampler(raw_data_dict, node_label="node")
+    state2 = table_node2.sample_parameters(num_samples=2000, rng_info=rng2)
     assert np.allclose(state["node"]["A"], state2["node"]["A"])
     assert np.allclose(state["node"]["B"], state2["node"]["B"])
 
     # If we use a different seed, we get different samples.
-    table_node3 = TableSampler(raw_data_dict, seed=4, node_label="node")
-    state3 = table_node3.sample_parameters(num_samples=2000)
+    rng3 = np.random.default_rng(101)
+    table_node3 = TableSampler(raw_data_dict, node_label="node")
+    state3 = table_node3.sample_parameters(num_samples=2000, rng_info=rng3)
     assert not np.allclose(state["node"]["A"], state3["node"]["A"])
     assert not np.allclose(state["node"]["B"], state3["node"]["B"])
