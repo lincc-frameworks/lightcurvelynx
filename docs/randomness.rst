@@ -34,7 +34,7 @@ If users want to have reproducible simulations, they can provide a (seeded) glob
 
 **Passing a global RNG is the recommended way to control randomness for testing or reproducibility.**
 
-Note that even when passing a (seeded) global random number generator, the results may vary if the runs use different batch sizes. This is due to the fact that each batch samples the parameters serially. If the number of parameters sampled in the batch changes, the sequence of random numbers used will also change, leading to different results.
+Note that even when passing a (seeded) global random number generator, the results may vary between runs if those runs use different batch sizes. When the number of samples per batch changes, the sequence of random numbers used to generate the parameters will also change, leading to different results.
 
 
 Per-Node Seeds
