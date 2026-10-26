@@ -2054,10 +2054,10 @@ def test_simulate_process_safety():
     flux_1 = res_1["lightcurve.flux_perfect"].to_numpy()
     params_1 = GraphState.from_list(res_1["params"])
 
-    # Re-simulate it with 10 processes and batch size of 1. We need to keep
+    # Re-simulate it with 4 processes and batch size of 1. We need to keep
     # the random seed and batch size the same to ensure reproducibility.
-    with ProcessPoolExecutor(10) as ex:
-        res_10 = simulate_lightcurves(
+    with ProcessPoolExecutor(4) as ex:
+        res_4 = simulate_lightcurves(
             model=model,
             num_samples=num_samples,
             survey_info=survey,
@@ -2067,13 +2067,13 @@ def test_simulate_process_safety():
             rng=np.random.default_rng(7),
             progress_bar=False,
         )
-    flux_10 = res_10["lightcurve.flux_perfect"].to_numpy()
-    params_10 = GraphState.from_list(res_10["params"])
+    flux_4 = res_4["lightcurve.flux_perfect"].to_numpy()
+    params_4 = GraphState.from_list(res_4["params"])
 
     # Check that we get the same parameters and flux for different thread
     # counts but the same random seed.
-    assert params_1 == params_10
-    assert not np.any(np.abs(flux_1 - flux_10) > 1e-8)
+    assert params_1 == params_4
+    assert not np.any(np.abs(flux_1 - flux_4) > 1e-8)
 
 
 def test_simulate_lightcurves_single_thread_batched(test_data_dir):
