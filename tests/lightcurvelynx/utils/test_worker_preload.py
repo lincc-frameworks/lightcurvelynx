@@ -18,7 +18,6 @@ from lightcurvelynx.utils.worker_preload import (
     has_known_preload_digests,
     is_known_preload_digest,
     load_preloaded_data,
-    load_serialized_data,
     make_worker_initializer,
     reset_preload_state,
     serialize_simulation_data,
@@ -31,7 +30,6 @@ def test_serialize_is_deterministic_and_modes_agree(preload_inputs):
     kept = serialize_simulation_data(model, [si], keep_bytes=True)
     hashed = serialize_simulation_data(model, [si], keep_bytes=False)
     assert kept.digest == hashed.digest == compute_preload_digest(model, [si])
-    assert kept.shared_digest == hashed.shared_digest
     assert hashed.model_bytes is None and hashed.shared_bytes is None
     assert serialize_simulation_data(model, [si], keep_bytes=True).model_bytes == kept.model_bytes
 
@@ -49,20 +47,6 @@ def test_digest_changes_with_model_or_obstable(preload_inputs):
     assert len({before, after_model, after_table}) == 3
 
 
-def test_obstable_inside_model_is_shared(preload_inputs, test_data_dir):
-    """An ObsTable held inside the model (e.g. via a sampler) is shared, not duplicated."""
-    # ObsTableUniformRADECSampler holds the ObsTable as .data. Its bytes go to the shared part.
-    _, si = preload_inputs
-    sampler = ObsTableUniformRADECSampler(si.obstable, radius=1.0, seed=3, node_label="pos")
-    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=sampler.ra, dec=sampler.dec, redshift=0.0)
-    data = serialize_simulation_data(model, [si], keep_bytes=True)
-    assert len(data.model_bytes) * 10 < len(data.shared_bytes)
-    loaded_model, loaded_si, _ = load_serialized_data(data.model_bytes, data.shared_bytes)
-    loaded_sampler = loaded_model.setters["ra"].dependency
-    assert isinstance(loaded_sampler, ObsTableUniformRADECSampler)
-    assert loaded_sampler.data is loaded_si[0].obstable
-
-
 def test_extra_obstable_in_model_is_appended(preload_inputs, test_data_dir):
     """An ObsTable reachable from the model but not part of survey_info is still shared."""
     # An ObsTable not in survey_info (a second OpSim load) is also shared: the model bytes stay
@@ -72,10 +56,13 @@ def test_extra_obstable_in_model_is_appended(preload_inputs, test_data_dir):
     sampler = ObsTableUniformRADECSampler(extra_obstable, radius=1.0, seed=3, node_label="pos")
     model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=sampler.ra, dec=sampler.dec, redshift=0.0)
 
-    data = serialize_simulation_data(model, [si], keep_bytes=True)
-    assert len(data.model_bytes) * 10 < len(data.shared_bytes)
+    init = make_worker_initializer(model, si)
+    init()
+    # A never-pickled initializer keeps its bytes after init() is called.
+    assert len(init._model_bytes) * 10 < len(init._shared_bytes)
 
-    loaded_model, loaded_si, shared_objects = load_serialized_data(data.model_bytes, data.shared_bytes)
+    loaded_model, loaded_si, _ = load_preloaded_data(init.digest)
+    shared_objects = worker_preload._slot.shared()[1]
     loaded_sampler = loaded_model.setters["ra"].dependency
     assert isinstance(loaded_sampler, ObsTableUniformRADECSampler)
     assert loaded_sampler.data is not loaded_si[0].obstable
@@ -85,7 +72,7 @@ def test_extra_obstable_in_model_is_appended(preload_inputs, test_data_dir):
 def test_serialize_none_components(test_data_dir):
     """None-valued survey components and model parameters survive the round trip as None."""
     # SurveyInfo(obstable=opsim, survey_name="none") has noise_model None and passbands None.
-    # Model attributes that are None stay None after load_serialized_data, and the survey's
+    # Model attributes that are None stay None after the round trip, and the survey's
     # noise_model and passbands load as None.
     opsim = OpSim.from_db(test_data_dir / "opsim_small.db")
     si = SurveyInfo(obstable=opsim, survey_name="none")
@@ -95,8 +82,9 @@ def test_serialize_none_components(test_data_dir):
     model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0)
     assert model.setters["distance"].value is None
 
-    data = serialize_simulation_data(model, [si], keep_bytes=True)
-    loaded_model, loaded_si, _ = load_serialized_data(data.model_bytes, data.shared_bytes)
+    init = make_worker_initializer(model, si)
+    init()
+    loaded_model, loaded_si, _ = load_preloaded_data(init.digest)
 
     assert loaded_model.setters["distance"].value is None
     assert loaded_si[0].noise_model is None

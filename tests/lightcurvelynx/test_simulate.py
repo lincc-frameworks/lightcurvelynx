@@ -59,7 +59,6 @@ from lightcurvelynx.utils.worker_preload import (
     has_known_preload_digests,
     load_preloaded_data,
     reset_preload_state,
-    serialize_simulation_data,
 )
 
 
@@ -2498,20 +2497,17 @@ def test_simulate_preload_leaves_surveys_untouched(preload_inputs):
     copy that every batch in a worker shares."""
     model, si = preload_inputs
 
-    def shared_digest(survey_info):
-        return serialize_simulation_data(model, survey_info, keep_bytes=False).shared_digest
-
-    before = shared_digest([si])
+    before = pickle.dumps(si, protocol=5)
     _run(copy.deepcopy(model), si)  # A serial run, on a copy since it changes the model's state.
-    assert shared_digest([si]) == before
+    assert pickle.dumps(si, protocol=5) == before
 
     init = make_worker_initializer(model, si)
     init()
     _, preloaded_si, _ = load_preloaded_data(init.digest)
-    preloaded_before = shared_digest(preloaded_si)
+    preloaded_before = pickle.dumps(preloaded_si, protocol=5)
     with warnings.catch_warnings():
         warnings.simplefilter("error", WorkerPreloadWarning)
         _run(model, si, PicklingMapExecutor())
-    assert shared_digest([si]) == before
+    assert pickle.dumps(si, protocol=5) == before
     assert load_preloaded_data(init.digest)[1] is preloaded_si  # The batches used this copy.
-    assert shared_digest(preloaded_si) == preloaded_before
+    assert pickle.dumps(preloaded_si, protocol=5) == preloaded_before

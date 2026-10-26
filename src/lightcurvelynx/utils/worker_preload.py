@@ -72,9 +72,6 @@ class SerializedData(NamedTuple):
     digest : str
         A hex digest computed over both the model part and the shared part. Changes
         whenever either part changes.
-    shared_digest : str
-        A hex digest computed over the shared part alone (the survey data and any
-        ``ObsTable`` reachable from the model).
     model_bytes : bytes or None
         The pickled model part, with shared objects replaced by references. ``None``
         when the data was serialized with ``keep_bytes=False``.
@@ -84,7 +81,6 @@ class SerializedData(NamedTuple):
     """
 
     digest: str
-    shared_digest: str
     model_bytes: bytes | None
     shared_bytes: bytes | None
 
@@ -116,10 +112,6 @@ class _HashingWriter:
     def digest(self):
         """Return the raw digest bytes of everything written so far."""
         return self._hasher.digest()
-
-    def hexdigest(self):
-        """Return the hex digest of everything written so far."""
-        return self._hasher.hexdigest()
 
     def getvalue(self):
         """Return the bytes written so far, or None if they were not kept."""
@@ -259,7 +251,6 @@ def serialize_simulation_data(model, survey_info, *, keep_bytes, picklers=_DEFAU
 
     return SerializedData(
         digest=digest,
-        shared_digest=shared_writer.hexdigest(),
         model_bytes=model_writer.getvalue(),
         shared_bytes=shared_writer.getvalue(),
     )
@@ -284,31 +275,6 @@ def compute_preload_digest(model, survey_info):
         The hex digest covering both the model and the shared survey data.
     """
     return serialize_simulation_data(model, survey_info, keep_bytes=False).digest
-
-
-def load_serialized_data(model_bytes, shared_bytes):
-    """Reconstruct a model and survey data from bytes produced by ``serialize_simulation_data``.
-
-    Parameters
-    ----------
-    model_bytes : bytes
-        The pickled model part, as returned in ``SerializedData.model_bytes``.
-    shared_bytes : bytes
-        The pickled shared part, as returned in ``SerializedData.shared_bytes``.
-
-    Returns
-    -------
-    model : ParameterizedNode
-        A freshly unpickled model, with references into ``shared_objects`` resolved.
-    survey_info : list of SurveyInfo
-        A freshly unpickled list of SurveyInfo objects.
-    shared_objects : list
-        The shared objects (SurveyInfo components and any extra ObsTable instances)
-        that ``model`` and ``survey_info`` reference.
-    """
-    survey_info, shared_objects = pickle.loads(shared_bytes)
-    model = _ModelUnpickler(io.BytesIO(model_bytes), shared_objects).load()
-    return model, survey_info, shared_objects
 
 
 class WorkerInitializer:
