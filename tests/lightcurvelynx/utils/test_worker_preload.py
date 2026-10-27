@@ -86,10 +86,15 @@ def test_initializer_repr_has_no_payload(preload_inputs):
 
 
 def test_make_worker_initializer_rejects_obstable(preload_inputs):
-    """Passing a bare ObsTable instead of a SurveyInfo raises a clear TypeError naming its type."""
+    """A bare ObsTable, alone or in a list, raises a clear TypeError naming its type."""
     model, si = preload_inputs
     with pytest.raises(TypeError, match="SurveyInfo") as excinfo:
         make_worker_initializer(model, si.obstable)
+    assert "OpSim" in str(excinfo.value)
+
+    # In a list, the error names the offending element's type rather than "list".
+    with pytest.raises(TypeError, match="SurveyInfo") as excinfo:
+        make_worker_initializer(model, [si, si.obstable])
     assert "OpSim" in str(excinfo.value)
 
 
