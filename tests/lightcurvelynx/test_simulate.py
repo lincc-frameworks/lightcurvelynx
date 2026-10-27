@@ -880,6 +880,54 @@ def test_simulate_parallel_threads(test_data_dir):
             )
 
 
+def test_simulate_parallel_dask(test_data_dir):
+    """Runs with a dask client work when each worker process runs one thread, and fail otherwise.
+
+    The counting of threads per process is tested on its own in test_dask_helpers.py.
+    """
+    distributed = pytest.importorskip("dask.distributed")
+
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    source = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
+        t0=0.0,
+        ra=opsim_db["ra"].to_numpy()[0],
+        dec=opsim_db["dec"].to_numpy()[0],
+        redshift=0.0,
+        node_label="source",
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    def run(client):
+        return simulate_lightcurves(
+            source,
+            20,
+            survey_info,
+            executor=client,
+            batch_size=10,
+            progress_bar=False,  # Disable progress bar for testing
+        )
+
+    # A client whose workers each run one thread in their own process runs the simulation.
+    with distributed.Client(
+        n_workers=2, threads_per_worker=1, processes=True, dashboard_address=None
+    ) as client:
+        assert len(run(client)) == 20
+
+    # A client with several single-thread workers in one process is refused, since their threads
+    # share that process.
+    with distributed.Client(
+        n_workers=2, threads_per_worker=1, processes=False, dashboard_address=None
+    ) as client:
+        with pytest.raises(ValueError, match="processes=False"):
+            run(client)
+
+
 def test_simulate_parallel_processes(test_data_dir):
     """Test an end to end run of simulating the light curves paralle with processes."""
     # Load the OpSim data.
