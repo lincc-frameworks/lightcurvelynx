@@ -67,7 +67,7 @@ def backend_context(backend):
     """
     with contextlib.ExitStack() as stack:
         if backend == "dask_processes":
-            distributed = pytest.importorskip("distributed")
+            distributed = pytest.importorskip("dask.distributed")
             cluster = stack.enter_context(
                 distributed.LocalCluster(
                     n_workers=2, threads_per_worker=1, processes=True, dashboard_address=None
@@ -173,7 +173,7 @@ if __name__ == "__main__":
         with loky.get_reusable_executor(max_workers=2, initializer=init) as executor:
             result = run(executor)
     elif backend == "dask":
-        from distributed import Client, LocalCluster
+        from dask.distributed import Client, LocalCluster
 
         cluster_args = {"n_workers": 2, "threads_per_worker": 1, "processes": True, "dashboard_address": None}
         with LocalCluster(**cluster_args) as cluster, Client(cluster) as client:
@@ -196,7 +196,7 @@ if __name__ == "__main__":
 @pytest.mark.parametrize("backend", ["loky", "dask", "ray"])
 def test_notebook_defined_class(backend, tmp_path, test_data_dir):
     """A model class defined in __main__ runs on preloaded loky, dask and ray workers."""
-    pytest.importorskip({"loky": "loky", "dask": "distributed", "ray": "ray"}[backend])
+    pytest.importorskip({"loky": "loky", "dask": "dask.distributed", "ray": "ray"}[backend])
     script = tmp_path / "notebook_model.py"
     script.write_text(_NOTEBOOK_SCRIPT)
     proc = subprocess.run(
