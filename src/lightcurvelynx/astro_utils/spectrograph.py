@@ -135,7 +135,13 @@ class Spectrograph:
         # we will add multiple points per bin (evenly space
         # throughout the bin) until the maximum gap is LESS than max_wave_step.
         self._wave_to_bin_map = None
-        padded_min, padded_max, padded_resolution, is_padding = self._compute_padded_bins(compute_smear)
+        if compute_smear:
+            padded_min, padded_max, padded_resolution, is_padding = self._compute_padded_bins()
+        else:
+            padded_min = self.waves_min
+            padded_max = self.waves_max
+            padded_resolution = self.wavelength_resolution
+            is_padding = np.full(self.num_bins, False)
         self.padded_min = padded_min
         self.padded_max = padded_max
         self.padded_widths = padded_max - padded_min
@@ -271,16 +277,9 @@ class Spectrograph:
             compute_smear=compute_smear,
         )
 
-    def _compute_padded_bins(self, add_padding=True):
+    def _compute_padded_bins(self):
         """Compute the parameters for padded bins on either side of the main spectrograph bins. This allows
         for flux beyond the edges of the spectrograph to be possibly smeared into the main bins.
-
-        Parameters
-        ----------
-        add_padding : bool, optional
-            Whether to add the padding bins. If False, the returned arrays contain only the
-            original spectrograph bins (padding is only needed for smearing).
-            Default: True
 
         Returns
         -------
@@ -302,14 +301,14 @@ class Spectrograph:
         # otherwise, at least 1 bin will be added on a given side
         sigma_blue = self.wavelength_resolution[0]
         width_blue = self.bin_widths[0]
-        num_pad_blue = int(2.5 * sigma_blue / width_blue) + 1 if add_padding and sigma_blue > 0 else 0
+        num_pad_blue = int(2.5 * sigma_blue / width_blue) + 1 if sigma_blue > 0 else 0
         pad_blue_min = self.waves_min[0] - width_blue * np.arange(num_pad_blue, 0, -1)
         pad_blue_max = pad_blue_min + width_blue
 
         red_edge_idx = -2 if self.num_bins >= 2 else -1  # snana takes the 2nd to last bin
         sigma_red = self.wavelength_resolution[red_edge_idx]
         width_red = self.bin_widths[red_edge_idx]
-        num_pad_red = int(2.5 * sigma_red / width_red) + 1 if add_padding and sigma_red > 0 else 0
+        num_pad_red = int(2.5 * sigma_red / width_red) + 1 if sigma_red > 0 else 0
         pad_red_min = self.waves_max[-1] + width_red * np.arange(num_pad_red)
         pad_red_max = pad_red_min + width_red
 
