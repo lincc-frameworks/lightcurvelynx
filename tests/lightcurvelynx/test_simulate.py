@@ -881,8 +881,11 @@ def test_simulate_parallel_threads(test_data_dir):
 
 
 def test_simulate_parallel_dask(test_data_dir):
-    """Runs with a dask client work when each worker process runs one thread, and fail otherwise."""
-    distributed = pytest.importorskip("distributed")
+    """Runs with a dask client work when each worker process runs one thread, and fail otherwise.
+
+    The counting of threads per process is tested on its own in test_dask_helpers.py.
+    """
+    distributed = pytest.importorskip("dask.distributed")
 
     opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
     passband_group = PassbandGroup.from_preset(
@@ -910,25 +913,13 @@ def test_simulate_parallel_dask(test_data_dir):
             progress_bar=False,  # Disable progress bar for testing
         )
 
-    # A client with one thread per worker runs the simulation, whether its single worker runs in
-    # this process or its workers each run in their own process.
-    with distributed.Client(
-        n_workers=1, threads_per_worker=1, processes=False, dashboard_address=None
-    ) as client:
-        assert len(run(client)) == 20
+    # A client whose workers each run one thread in their own process runs the simulation.
     with distributed.Client(
         n_workers=2, threads_per_worker=1, processes=True, dashboard_address=None
     ) as client:
         assert len(run(client)) == 20
 
-    # A client with more than one thread per worker is refused.
-    with distributed.Client(
-        n_workers=1, threads_per_worker=2, processes=False, dashboard_address=None
-    ) as client:
-        with pytest.raises(ValueError, match="threads_per_worker=1"):
-            run(client)
-
-    # So is a client with several single-thread workers in one process, since their threads
+    # A client with several single-thread workers in one process is refused, since their threads
     # share that process.
     with distributed.Client(
         n_workers=2, threads_per_worker=1, processes=False, dashboard_address=None
