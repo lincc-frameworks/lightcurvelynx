@@ -4,6 +4,8 @@ import concurrent.futures
 import copy
 import gc
 import logging
+import multiprocessing
+import sys
 import warnings
 from pathlib import Path
 
@@ -1000,11 +1002,18 @@ def simulate_lightcurves(
 
     # Run the simulations.
     if executor is not None:
+        # Make sure we are not using a multi-threaded executor.
         if isinstance(executor, concurrent.futures.ThreadPoolExecutor):
             raise ValueError(
                 "Some of the models have been found to be incompatible with ThreadPoolExecutor. "
                 "We are working on a patch. Please use a different executor in the meantime."
             )
+        # Check for a dask client with multiple threads per worker.
+        if hasattr(executor, "nthreads") and np.any(list(np.array(executor.nthreads().values())) > 1):
+            raise ValueError(
+                "Some of the models have been found to be incompatible with multi-threaded executors. "
+                "Please create your client with threads_per_worker=1."
+            )  # pragma: no cover
 
         # If we have an executor, use that regardless of the other settings. Its batches skip
         # the model and survey data only if its workers were preloaded with exactly this data.
@@ -1025,8 +1034,15 @@ def simulate_lightcurves(
         # pickler as described in the num_jobs docstring above. Build the initializer before
         # the pool so a model or survey that refuses pickling raises here.
         initializer = _build_worker_initializer(model, survey_info, _STDLIB_PICKLERS)
+        if sys.version_info < (3, 14):
+            # Older Python versions may default to "fork", so we create a context
+            # with "spawn" explicitly.
+            ctx = multiprocessing.get_context("spawn")
+        else:
+            # Newer python versions can use the default.
+            ctx = None
         with concurrent.futures.ProcessPoolExecutor(
-            max_workers=num_jobs, initializer=initializer
+            max_workers=num_jobs, mp_context=ctx, initializer=initializer
         ) as executor:
             result_list = _simulate_lightcurves_parallel(
                 simulation_info, executor, batch_size=batch_size, preload_digest=initializer.digest
