@@ -822,18 +822,13 @@ def restore_torch_threads():
     torch.set_num_threads(before)
 
 
-def test_worker_process_defaults_to_one_thread(restore_torch_threads):
-    """Test that a node running outside its construction process uses one torch thread by default."""
-    system = _make_system()
-    system._owner_pid = -1  # Pretend we are in a worker process.
-    system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
-    assert torch.get_num_threads() == 1
-
-
-def test_building_process_samples_on_one_thread_and_restores_its_count(monkeypatch, restore_torch_threads):
-    """Test that by default the building process samples on one torch thread, then gets its count back."""
+@pytest.mark.parametrize("torch_num_threads, expected", [(None, 1), (3, 3)])
+def test_sampling_uses_torch_num_threads_and_restores_the_count(
+    monkeypatch, restore_torch_threads, torch_num_threads, expected
+):
+    """Test that sampling runs torch on torch_num_threads threads (1 by default), then restores its count."""
     torch.set_num_threads(2)
-    system = _make_system()
+    system = _make_system(torch_num_threads=torch_num_threads)
     seen = []
     solve_system = system._solve_system
 
@@ -843,13 +838,7 @@ def test_building_process_samples_on_one_thread_and_restores_its_count(monkeypat
 
     monkeypatch.setattr(system, "_solve_system", recording_solve_system)
     system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(11))
-    assert seen == [1, 1]
-    assert torch.get_num_threads() == 2
-
-
-def test_explicit_thread_count_is_applied(restore_torch_threads):
-    """Test that torch_num_threads is applied in compute."""
-    _make_system(torch_num_threads=2).sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
+    assert seen == [expected, expected]
     assert torch.get_num_threads() == 2
 
 

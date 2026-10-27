@@ -9,10 +9,8 @@ import, from the ``CASKADE_BACKEND`` environment variable (default ``torch``).
 import contextlib
 import copy
 import numbers
-import os
 import pickle
 import sys
-import threading
 import uuid
 import warnings
 from itertools import pairwise
@@ -26,15 +24,10 @@ from lightcurvelynx.base_models import FunctionNode
 # a hole curve hit its sample cap (holes.py). Some are emitted with stacklevel=3, which hides the
 # emitting module, so all are recognized by text.
 _FAILURE_MESSAGES = ("extension(s), at fov=", "is depth-limited", "before every chord fell below")
-# Serializes the caustics work of every CausticsStrongLensSystem across threads: every call fills the
-# parameters of a node's working lens, which its threads share; under torch, torch.func.jacfwd, used by
-# caustics' builds, raytraces and Jacobians, keeps process-global forward-AD state; and the warning
-# capture around each build (catch_warnings) mutates process-global state.
-_CAUSTICS_LOCK = threading.Lock()
 # This process's working lenses and their jitted observables, keyed by (node token, backend, device):
 # every copy of one node (e.g. one unpickled per executor batch) shares one, so caustics' compiled
-# programs, cached per lens object, are reused. Process-local, never pickled, kept for the life of
-# the process, and used only under _CAUSTICS_LOCK.
+# programs, cached per lens object, are reused. Process-local, never pickled, and kept for the life
+# of the process.
 _WORKING_LENSES = {}
 
 
@@ -314,41 +307,27 @@ class CausticsStrongLensSystem(FunctionNode):
     to ``max_images`` (by repeating the first image), so their input shape never changes.
     Neither the working lens nor the wrappers are pickled.
 
-    All of a system's caustics work (mesh build, source sampling, raytracing,
-    observables) runs under one module-level lock, because every call fills the parameters
-    of the shared working lens, and under torch ``torch.func.jacfwd``, which caustics uses
-    internally, keeps process-global forward-AD state and is not thread-safe.
-    ``simulate_lightcurves`` does not support multi-threaded executors (a
-    ``ThreadPoolExecutor``, or a Dask client with more than one thread per worker), so run
-    in parallel with processes: ``num_jobs``, a ``ProcessPoolExecutor`` with a spawn
-    context, a Dask client with ``threads_per_worker=1``, loky or Ray.
+    The node is not thread-safe: every call fills the parameters of the shared working
+    lens, and under torch ``torch.func.jacfwd``, which caustics uses internally, keeps
+    process-global forward-AD state. Like the rest of LightCurveLynx, run it in parallel
+    with single-threaded worker processes that are not forked: ``num_jobs``, a
+    ``ProcessPoolExecutor`` with a spawn context, or a Dask client with
+    ``threads_per_worker=1``. A forked worker cannot use CUDA, since ``import caustics``
+    probes it, and is unsafe under jax, which is multithreaded.
 
     Pickling this node (e.g. for ``num_jobs``) requires ``cloudpickle``, and
     unpickling it in a worker does too, because the pickled state holds the stored lens
     serialized by ``cloudpickle.dumps``; install ``cloudpickle`` on every worker.
 
-    If ``torch_num_threads`` is an int, it is applied with ``torch.set_num_threads``
-    at the start of sampling, a process-wide side effect, under either backend. If it is
-    left as ``None`` (the default), sampling uses 1 thread: in the process that built the
-    node only while it samples, after which torch's thread count is restored, and for good in
-    any other process (a worker process), which avoids a fork deadlock after multi-threaded
-    torch use in the parent and avoids oversubscription under many workers. Pass an explicit
-    int for a cluster worker that owns many cores. ``device`` defaults to ``"cpu"``. The node
-    moves its working lens to ``device`` only inside sampling, never in the process that
-    builds it. Caustics runs its mesh bookkeeping on torch's default device, which the node
-    leaves unchanged: the CPU, unless the caller has changed it.
-    ``import caustics`` itself probes CUDA, though, so a forked worker cannot use CUDA
-    ("Cannot re-initialize CUDA in forked subprocess"). ``num_jobs`` never forks (it uses
-    a spawn context, or from Python 3.14 the platform default), but a ``ProcessPoolExecutor``
-    made without a context forks on Linux with Python 3.13 or earlier. For ``device="cuda"``
-    with your own process-based executor, give it a spawn or forkserver context, e.g.
-    ``ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn"))``, or use Dask,
-    loky or Ray, or set ``PYTORCH_NVML_BASED_CUDA_CHECK=1`` before importing torch. Under
-    jax, ``"cpu"`` is jax's CPU device and ``"cuda"``, ``"cuda:N"`` or ``"gpu"`` its first
-    (or N-th) GPU, made jax's default device during sampling. Forked workers are unsafe
-    under jax on any device, since jax is multithreaded: use ``num_jobs``, an executor with
-    a spawn or forkserver context, as above, or Dask, loky or Ray. GPU speedup is
-    unmeasured, since caustics handles one system per call.
+    While it samples, the node runs torch on ``torch_num_threads`` threads, under either
+    backend, and then restores torch's process-wide thread count. The default of 1 thread
+    avoids oversubscription when many worker processes share a machine; pass an explicit
+    int for a cluster worker that owns many cores. ``device`` defaults to ``"cpu"``. The
+    node moves its working lens to ``device`` only inside sampling, never in the process
+    that builds it. Caustics runs its mesh bookkeeping on torch's default device, which the
+    node leaves unchanged: the CPU, unless the caller has changed it. Under jax, ``"cpu"``
+    is jax's CPU device and ``"cuda"``, ``"cuda:N"`` or ``"gpu"`` its first (or N-th) GPU.
+    GPU speedup is unmeasured, since caustics handles one system per call.
 
     Example wiring this node into ``ResolvedStrongLensModel``:
 
@@ -415,10 +394,8 @@ class CausticsStrongLensSystem(FunctionNode):
         The device for caustics calls: a torch device under torch, and ``"cpu"``, ``"cuda"``,
         ``"cuda:N"`` or ``"gpu"`` under jax. Default: "cpu".
     torch_num_threads : int, optional
-        If given, ``torch.set_num_threads`` is called with this value at the start of
-        ``compute``, under either backend. Default: None, which uses 1 thread: for good in a
-        worker process (any process other than the one that built the node), and in the
-        building process only while ``compute`` runs, restoring its thread count afterwards.
+        The number of threads torch uses while ``compute`` runs, under either backend; torch's
+        thread count is restored afterwards. Default: None, which uses 1 thread.
     node_label : str, optional
         The label for this node.
     """
@@ -564,7 +541,6 @@ class CausticsStrongLensSystem(FunctionNode):
         self._device = device
         self._backend = caustics.backend.backend
         self._torch_num_threads = torch_num_threads
-        self._owner_pid = os.getpid()
         # Copies of this node, pickled with it, share this token and so one working lens per process.
         self._lens_key = uuid.uuid4().hex
         self._working = None
@@ -640,8 +616,7 @@ class CausticsStrongLensSystem(FunctionNode):
 
         The working lens and its observables, wrapped by ``caustics.jit_forward``, are made once per
         process for every copy of this node and kept in ``_WORKING_LENSES``; this copy holds them in
-        ``_working`` and ``_observables``. ``compute`` calls this under the module lock. The stored
-        lens is never modified.
+        ``_working`` and ``_observables``. The stored lens is never modified.
 
         Parameters
         ----------
@@ -669,36 +644,30 @@ class CausticsStrongLensSystem(FunctionNode):
 
     @contextlib.contextmanager
     def _torch_threads(self, torch):
-        """Apply ``torch_num_threads``, or by default 1 thread, while a ``compute`` runs.
+        """Run torch on ``torch_num_threads`` threads, or by default 1, while a ``compute`` runs.
 
-        By default the process that built the node gets its thread count back afterwards, and any
-        other process keeps 1 thread: in a forked worker, the first parallel torch op can deadlock
-        if the parent already ran multi-threaded torch work. ``compute`` enters this under the
-        module lock, so threads sampling concurrently cannot interleave their sets and restores.
+        Torch's thread count from before is restored afterwards.
 
         Parameters
         ----------
         torch : module
             The ``torch`` module.
         """
-        num_threads, restore = self._torch_num_threads, None
-        if num_threads is None:
-            num_threads = 1
-            if os.getpid() == self._owner_pid:
-                restore = torch.get_num_threads()
-        if torch.get_num_threads() != num_threads:
+        num_threads = 1 if self._torch_num_threads is None else self._torch_num_threads
+        restore = torch.get_num_threads()
+        if restore != num_threads:
             torch.set_num_threads(num_threads)
         try:
             yield
         finally:
-            if restore is not None and torch.get_num_threads() != restore:
+            if torch.get_num_threads() != restore:
                 torch.set_num_threads(restore)
 
     def _build(self, lens, values, params, device, system_index, mu_min, mu_max):
         """Build one system's closed lens mesh, raising on caustics' failure warnings.
 
-        The build runs with its warnings recorded (``compute`` holds the module lock around it).
-        Failure warnings are raised as one error; every other warning is re-emitted unchanged.
+        The build runs with its warnings recorded. Failure warnings are raised as one error; every
+        other warning is re-emitted unchanged.
 
         Parameters
         ----------
@@ -1015,7 +984,7 @@ class CausticsStrongLensSystem(FunctionNode):
             device = self._device
         sample_offset = graph_state.sample_offset or 0
         rows = []
-        with _CAUSTICS_LOCK, self._torch_threads(torch):
+        with self._torch_threads(torch):
             lens = self._working_lens(device)
             for i, sub_seed in enumerate(sub_seeds):
                 values = {name: value if num_samples == 1 else value[i] for name, value in args.items()}
