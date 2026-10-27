@@ -805,10 +805,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         If provided, the model will use these indices to select the light curves instead
         of sampling randomly.
         Default: None
-    seed : int, optional
-        The seed to set the node's default random number generator. If None, then a random seed is used.
-        This parameter is for testing and has no effect when a user-provided random number generator is
-        used during simulation. Default: None
     """
 
     def __init__(
@@ -818,7 +814,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         *,
         weights=None,
         indices=None,
-        seed=None,
         **kwargs,
     ):
         # Validate the light curve input and create a union of all filters used.
@@ -832,7 +827,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
         super().__init__(passbands=passbands, filters=self.filters, **kwargs)
 
-        # Either choose from the indices (in order)
+        # Either choose from the indices (in order) or use a sampler.
         if indices is not None:
             if weights is not None:
                 raise ValueError("Cannot provide both 'weights' and 'indices' parameters.")
@@ -840,13 +835,13 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
                 indices = np.asarray(indices)
                 if np.any((indices < 0) | (indices >= len(lightcurves))):
                     raise ValueError("Indices must be between 0 and the number of light curves.")
-                indices_sampler = GivenValueList(indices)
+                indices_sampler = GivenValueList(indices, stateful=True)
             else:
                 # Assume it is already a parameter or sampler.
                 indices_sampler = indices
         else:
             all_inds = np.arange(len(lightcurves))
-            indices_sampler = GivenValueSampler(all_inds, weights=weights, seed=seed)
+            indices_sampler = GivenValueSampler(all_inds, weights=weights)
 
         self.add_parameter(
             "selected_lightcurve",

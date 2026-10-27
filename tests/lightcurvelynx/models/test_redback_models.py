@@ -275,7 +275,7 @@ def test_redback_models_chained_toy() -> None:
     """Test that we can create and evaluate a model with chained parameters."""
     t0 = 64350.0
     parameters = {
-        "height": GivenValueList([500.0, 1000.0, 1500.0]),
+        "height": GivenValueList([500.0, 1000.0, 1500.0], stateful=False),
         "width": 10.0,
     }
 

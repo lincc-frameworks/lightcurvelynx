@@ -780,14 +780,14 @@ def test_create_multilightcurve_template_model() -> None:
         pb_group,
         weights=[0.25, 0.75],
         t0=0.0,
-        seed=101010,
         node_label="source",
     )
     assert len(model.lightcurves) == 2
     assert set(model.filters) == {"u", "g", "r"}
 
     # Check that we sample the light curves correctly.
-    graph_state = model.sample_parameters(num_samples=1_000)
+    rng = np.random.default_rng(101010)
+    graph_state = model.sample_parameters(num_samples=1_000, rng_info=rng)
     lc_used = graph_state["source"]["selected_lightcurve"]
     assert np.all((lc_used == 0) | (lc_used == 1))
     assert np.sum(lc_used == 0) >= 200  # approximately 25% of the samples should be from lc1
@@ -844,10 +844,10 @@ def test_create_multilightcurve_template_model() -> None:
         pb_group,
         weights=[0.25, 0.75],
         t0=0.0,
-        seed=101010,
         node_label="source",
     )
-    graph_state2 = model2.sample_parameters(num_samples=1_000)
+    rng2 = np.random.default_rng(101010)
+    graph_state2 = model2.sample_parameters(num_samples=1_000, rng_info=rng2)
     assert np.all(lc_used == graph_state2["source"]["selected_lightcurve"])
 
     # If we use a different the seed, we get the different templates.
@@ -856,10 +856,10 @@ def test_create_multilightcurve_template_model() -> None:
         pb_group,
         weights=[0.25, 0.75],
         t0=0.0,
-        seed=101011,
         node_label="source",
     )
-    graph_state3 = model3.sample_parameters(num_samples=1_000)
+    rng3 = np.random.default_rng(101011)
+    graph_state3 = model3.sample_parameters(num_samples=1_000, rng_info=rng3)
     assert not np.all(lc_used == graph_state3["source"]["selected_lightcurve"])
 
 
@@ -885,7 +885,7 @@ def test_create_multilightcurve_template_model_indices() -> None:
     lc2_data = LightcurveBandData(lc2_lightcurves, lc_data_t0=0.0, periodic=True)
 
     # Create the MultiLightcurveTemplateModel with both light curves and predefined indices.
-    indices = GivenValueList([0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1])
+    indices = GivenValueList([0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1], stateful=False)
     model = MultiLightcurveTemplateModel(
         [lc1_data, lc2_data],
         pb_group,

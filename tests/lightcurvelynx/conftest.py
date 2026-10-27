@@ -118,10 +118,10 @@ def preload_inputs(test_data_dir):
     # more than one sample at a time (its one output is saved as a length-1 list).
     table = {"t0": np.arange(500.0), "row": np.arange(500)}
     model = ConstantSEDModel(
-        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0, seed=11),
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
         t0=TableSampler(table, in_order=True, node_label="t0_table").t0,
-        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5, seed=12),
-        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5, seed=13),
+        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
+        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
         redshift=0.0,
         node_label="source",
     )

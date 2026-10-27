@@ -128,11 +128,14 @@ def test_mag2fluxnode():
 
 def test_flux2magnode_chained():
     """Test chaining Flux2MagNode and Mag2FluxNode."""
-    flux_node = NumpyRandomFunc("uniform", low=100.0, high=1e6, seed=101, node_label="node1")
+    flux_node = NumpyRandomFunc("uniform", low=100.0, high=1e6, node_label="node1")
     mag_node = Flux2MagNode(flux_njy=flux_node, node_label="node2")
 
     num_samples = 10
-    state_flux = mag_node.sample_parameters(num_samples=num_samples)
+    state_flux = mag_node.sample_parameters(
+        num_samples=num_samples,
+        rng_info=np.random.default_rng(101),
+    )
     assert np.allclose(
         state_flux["node2"]["function_node_result"],
         flux2mag(state_flux["node1"]["function_node_result"]),

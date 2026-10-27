@@ -99,9 +99,9 @@ class _DuplicatingObservationEffect(EffectModel):
 def test_duplicate_object_effects():
     """Test that we can use the StateExpansionNode in an effect to duplicate the observations."""
     basic_model = ConstantSEDModel(
-        brightness=GivenValueList([10.0, 20.0, 30.0]),
-        ra=GivenValueList([0.0, 45.0, 90.0]),
-        dec=GivenValueList([0.0, -10.0, 10.0]),
+        brightness=GivenValueList([10.0, 20.0, 30.0], stateful=False),
+        ra=GivenValueList([0.0, 45.0, 90.0], stateful=False),
+        dec=GivenValueList([0.0, -10.0, 10.0], stateful=False),
         node_label="basic_model",
     )
     state = basic_model.sample_parameters(num_samples=3)
@@ -113,12 +113,12 @@ def test_duplicate_object_effects():
     # We can add a duplicating effect to the model that will create
     # duplicates of the observations.
     basic_model2 = ConstantSEDModel(
-        brightness=GivenValueList([10.0, 20.0, 30.0]),
-        ra=GivenValueList([0.0, 45.0, 90.0]),
-        dec=GivenValueList([0.0, -10.0, 10.0]),
+        brightness=GivenValueList([10.0, 20.0, 30.0], stateful=False),
+        ra=GivenValueList([0.0, 45.0, 90.0], stateful=False),
+        dec=GivenValueList([0.0, -10.0, 10.0], stateful=False),
         node_label="basic_model",
     )
-    effect = _DuplicatingObservationEffect(repeats=GivenValueList([2, 0, 3]))
+    effect = _DuplicatingObservationEffect(repeats=GivenValueList([2, 0, 3], stateful=False))
     basic_model2.add_effect(effect)
 
     state2 = basic_model2.sample_parameters(num_samples=3)
@@ -133,11 +133,11 @@ def test_fake_lensing_effect():
     add_parameter_offset method to create a fake lensing effect.
     """
     basic_model = StepModel(
-        brightness=GivenValueList([10.0, 20.0, 30.0]),
-        ra=GivenValueList([0.0, 45.0, 90.0]),
-        dec=GivenValueList([0.0, -10.0, 10.0]),
-        t0=GivenValueList([100.0, 110.0, 120.0]),
-        t1=GivenValueList([200.0, 210.0, 220.0]),
+        brightness=GivenValueList([10.0, 20.0, 30.0], stateful=False),
+        ra=GivenValueList([0.0, 45.0, 90.0], stateful=False),
+        dec=GivenValueList([0.0, -10.0, 10.0], stateful=False),
+        t0=GivenValueList([100.0, 110.0, 120.0], stateful=False),
+        t1=GivenValueList([200.0, 210.0, 220.0], stateful=False),
         node_label="basic_model",
     )
 
@@ -152,6 +152,7 @@ def test_fake_lensing_effect():
                 {"magnification": [0.5, 0.8, 0.1], "time_delay": [5.0, 8.0, 100.0]},
                 {"magnification": [1.0], "time_delay": [20.0]},
             ],
+            stateful=False,
         ),
     )
     basic_model.add_parameter_offset("t0", lensing_data.time_delay)

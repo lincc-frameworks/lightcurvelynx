@@ -39,7 +39,7 @@ def test_extra_obstable_in_model_is_appended(preload_inputs, test_data_dir):
     # small and the loaded sampler's .data is one of the shared objects but not loaded_si[0].obstable.
     _, si = preload_inputs
     extra_obstable = OpSim.from_db(test_data_dir / "opsim_small.db")
-    sampler = ObsTableUniformRADECSampler(extra_obstable, radius=1.0, seed=3, node_label="pos")
+    sampler = ObsTableUniformRADECSampler(extra_obstable, radius=1.0, node_label="pos")
     model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=sampler.ra, dec=sampler.dec, redshift=0.0)
 
     init = make_worker_initializer(model, si)
@@ -135,7 +135,7 @@ def test_shared_objects_resolve_to_one_instance(preload_inputs):
     """Shared objects reachable from more than one place still resolve to one instance."""
     _, si = preload_inputs
     si2 = SurveyInfo(obstable=si.obstable, passbands=si.passbands, noise_model=si.noise_model)
-    sampler = ObsTableUniformRADECSampler(si.obstable, radius=1.0, seed=3, node_label="pos")
+    sampler = ObsTableUniformRADECSampler(si.obstable, radius=1.0, node_label="pos")
     model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=sampler.ra, dec=sampler.dec, redshift=0.0)
 
     init = make_worker_initializer(model, [si, si2])

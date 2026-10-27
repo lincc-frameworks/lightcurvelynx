@@ -81,6 +81,39 @@ def test_concat_results():
     assert np.allclose(results["lightcurve"][4]["flux"], [22.0, 21.0])
 
 
+def test_concat_results_empty():
+    """Test the concat_results function on an empty list."""
+    with pytest.raises(ValueError, match="The results list is empty."):
+        concat_results([])
+
+
+def test_concat_results_single():
+    """Test the concat_results function on list with one element."""
+    # Create one NestedFrame to test single element concatenation.
+    outer_dict_1 = {
+        "id": [0, 1, 2],
+        "ra": [10.0, 20.0, 30.0],
+        "dec": [-10.0, 0.0, 10.0],
+        "nobs": [3, 2, 1],
+        "z": [0.1, 0.2, 0.3],
+    }
+    inner_dict_1 = {
+        "mjd": [59000, 59001, 59002, 59000, 59001, 59000],
+        "flux": [10.0, 12.0, 11.0, 15.0, 14.0, 13.0],
+        "fluxerr": [1.0, 1.0, 1.0, 1.5, 1.5, 1.0],
+        "filter": ["g", "r", "i", "g", "r", "i"],
+    }
+    nested_inds_1 = [0, 0, 0, 1, 1, 2]
+    res1 = NestedFrame(data=outer_dict_1, index=[0, 1, 2])
+    nested_1 = pd.DataFrame(data=inner_dict_1, index=nested_inds_1)
+    res1 = res1.join_nested(nested_1, "lightcurve")
+
+    # Concatenate the results.
+    results = concat_results([res1])
+    assert len(results) == 3
+    assert results.columns.tolist() == ["id", "ra", "dec", "nobs", "z", "lightcurve"]
+
+
 def test_results_append_param_as_col():
     """Test the results_append_param_as_col function."""
     # Create two NestedFrames to concatenate.

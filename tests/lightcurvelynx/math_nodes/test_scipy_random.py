@@ -56,7 +56,8 @@ class FlatDist:
 def test_numerical_inverse_polynomial_func_object():
     """Test that we can generate numbers from a uniform distribution."""
     dist = FlatDist(min_val=0.25, max_val=0.75)
-    scipy_node = NumericalInversePolynomialFunc(dist, seed=100)
+    scipy_node = NumericalInversePolynomialFunc(dist)
+    rng1 = np.random.default_rng(100)
 
     # Test that we get a uniform distribution.
     num_bins = 10
@@ -64,7 +65,7 @@ def test_numerical_inverse_polynomial_func_object():
     counts = [0] * num_bins
     all_values = [0] * num_samples
     for i in range(10_000):
-        value = scipy_node.generate()
+        value = scipy_node.generate(rng_info=rng1)
         assert 0.25 <= value <= 0.75
 
         all_values[i] = value
@@ -76,22 +77,24 @@ def test_numerical_inverse_polynomial_func_object():
 
     # If we reuse the same seed, we get the same values.
     dist2 = FlatDist(min_val=0.25, max_val=0.75)
-    scipy_node2 = NumericalInversePolynomialFunc(dist2, seed=100)
+    scipy_node2 = NumericalInversePolynomialFunc(dist2)
+    rng2 = np.random.default_rng(100)
     all_values2 = [0] * num_samples
     for i in range(10_000):
-        all_values2[i] = scipy_node2.generate()
+        all_values2[i] = scipy_node2.generate(rng_info=rng2)
     assert np.allclose(all_values, all_values2)
 
     # If we use a different seed, we get different values.
     dist3 = FlatDist(min_val=0.25, max_val=0.75)
-    scipy_node3 = NumericalInversePolynomialFunc(dist3, seed=101)
+    scipy_node3 = NumericalInversePolynomialFunc(dist3)
+    rng3 = np.random.default_rng(101)
     all_values3 = [0] * num_samples
     for i in range(10_000):
-        all_values3[i] = scipy_node3.generate()
+        all_values3[i] = scipy_node3.generate(rng_info=rng3)
     assert not np.allclose(all_values, all_values3)
 
     # We can batch generate results.
-    state = scipy_node.sample_parameters(num_samples=500)
+    state = scipy_node.sample_parameters(num_samples=500, rng_info=np.random.default_rng(102))
     samples = scipy_node.get_param(state, "function_node_result")
     assert len(samples) == 500
     assert len(np.unique(samples)) > 50
@@ -123,11 +126,11 @@ def test_numerical_inverse_polynomial_func_object_seed():
 def test_numerical_inverse_polynomial_func_object_domain():
     """Test that we can specify a domain for the distribution."""
     dist = FlatDist(min_val=0.0, max_val=1.0)
-    scipy_node = NumericalInversePolynomialFunc(dist, domain=(0.25, 0.75), seed=100)
+    scipy_node = NumericalInversePolynomialFunc(dist, domain=(0.25, 0.75))
 
     # Test that the values are within the specified domain.
     num_samples = 1000
-    states = scipy_node.sample_parameters(num_samples=num_samples)
+    states = scipy_node.sample_parameters(num_samples=num_samples, rng_info=np.random.default_rng(100))
     samples = scipy_node.get_param(states, "function_node_result")
     assert len(samples) == num_samples
     assert np.all(samples >= 0.25)
@@ -138,14 +141,13 @@ def test_numerical_inverse_polynomial_func_class():
     """Test that we can generate numbers from a uniform distribution."""
     scipy_node = NumericalInversePolynomialFunc(
         FlatDist,
-        min_val=NumpyRandomFunc("uniform", low=0.0, high=0.4, seed=101),
-        max_val=NumpyRandomFunc("uniform", low=0.6, high=1.0, seed=102),
-        seed=100,
+        min_val=NumpyRandomFunc("uniform", low=0.0, high=0.4),
+        max_val=NumpyRandomFunc("uniform", low=0.6, high=1.0),
     )
 
     # Check that when we sample both the values and the distribution's parameters.
     num_samples = 1000
-    states = scipy_node.sample_parameters(num_samples=num_samples)
+    states = scipy_node.sample_parameters(num_samples=num_samples, rng_info=np.random.default_rng(100))
     values = scipy_node.get_param(states, "function_node_result")
     min_vals = scipy_node.get_param(states, "min_val")
     max_vals = scipy_node.get_param(states, "max_val")
@@ -168,13 +170,14 @@ def test_numerical_sample_pdf():
             return 0.0
         return 1.0 - 0.5 * x
 
-    scipy_node = SamplePDF(_triangle_pdf, seed=100)
+    scipy_node = SamplePDF(_triangle_pdf)
+    rng = np.random.default_rng(100)
 
     # Test that we get distribution that ramps down as x increases.
     num_samples = 50_000
     counts = np.zeros(10)
     for _ in range(num_samples):
-        value = scipy_node.generate()
+        value = scipy_node.generate(rng_info=rng)
         assert 0.0 <= value <= 2.0
 
         bin = int(10 * value / 2.0)
@@ -195,8 +198,8 @@ def test_numerical_sample_pdf_interp():
 
     # Sample the distribution.
     num_samples = 50_000
-    scipy_node = SamplePDF(pdf, seed=100, node_label="test_node")
-    state = scipy_node.sample_parameters(num_samples=num_samples)
+    scipy_node = SamplePDF(pdf, node_label="test_node")
+    state = scipy_node.sample_parameters(num_samples=num_samples, rng_info=np.random.default_rng(100))
     samples = scipy_node.get_param(state, "function_node_result")
 
     # Approximately half the samples should be between 0.0 and 3.0 (with a plateau
@@ -238,11 +241,11 @@ def test_numerical_sample_pdf_with_domain():
     # We fail if we try to create a SamplePDF node without specifying the domain,
     # because the sampling distribution can't find a valid domain to sample from.
     with pytest.raises(ValueError, match="Error creating the NumericalInversePolynomial object"):
-        _ = SamplePDF(zpdf, seed=100, node_label="zpdf_sampler_no_domain")
+        _ = SamplePDF(zpdf, node_label="zpdf_sampler_no_domain")
 
     # Check that we sample correctly given the domain of the distribution.
-    scipy_node = SamplePDF(zpdf, seed=100, domain=(0.2, 0.3), node_label="zpdf_sampler")
-    state = scipy_node.sample_parameters(num_samples=10_000)
+    scipy_node = SamplePDF(zpdf, domain=(0.2, 0.3), node_label="zpdf_sampler")
+    state = scipy_node.sample_parameters(num_samples=10_000, rng_info=np.random.default_rng(100))
     samples = scipy_node.get_param(state, "function_node_result")
     assert len(samples) == 10_000
     assert np.all(samples <= 0.3)
@@ -266,13 +269,14 @@ def test_numerical_sample_logpdf():
             return -np.inf
         return np.log(1.0 - 0.5 * x)
 
-    scipy_node = SampleLogPDF(_triangle_logpdf, seed=100)
+    scipy_node = SampleLogPDF(_triangle_logpdf)
+    rng = np.random.default_rng(100)
 
     # Test that we get distribution that ramps down as x increases.
     num_samples = 50_000
     counts = np.zeros(10)
     for _ in range(num_samples):
-        value = scipy_node.generate()
+        value = scipy_node.generate(rng_info=rng)
         assert 0.0 <= value <= 2.0
 
         bin = int(10 * value / 2.0)
@@ -286,9 +290,10 @@ def test_numerical_sample_logpdf():
 
 def test_scipy_random_dist():
     """Test that we can generate numbers from a uniform distribution."""
-    scipy_node = ScipyRandomDist("uniform", seed=100, node_label="uniform1")
+    scipy_node = ScipyRandomDist("uniform", node_label="uniform1")
 
-    samples = scipy_node.sample_parameters(num_samples=10_000)
+    rng1 = np.random.default_rng(100)
+    samples = scipy_node.sample_parameters(num_samples=10_000, rng_info=rng1)
     values = scipy_node.get_param(samples, "function_node_result")
     assert len(values) == 10_000
     assert len(np.unique(values)) > 10
@@ -297,22 +302,18 @@ def test_scipy_random_dist():
     assert np.abs(np.mean(values) - 0.5) < 0.01
 
     # If we reuse the seed, we get the same numbers.
-    scipy_node2 = ScipyRandomDist("uniform", seed=100)
-    samples2 = scipy_node2.sample_parameters(num_samples=10_000)
+    rng2 = np.random.default_rng(100)
+    scipy_node2 = ScipyRandomDist("uniform")
+    samples2 = scipy_node2.sample_parameters(num_samples=10_000, rng_info=rng2)
     values2 = scipy_node2.get_param(samples2, "function_node_result")
     assert np.allclose(values, values2)
 
     # If we use a different seed, we get different numbers
-    scipy_node2 = ScipyRandomDist("uniform", seed=101)
-    samples2 = scipy_node2.sample_parameters(num_samples=10_000)
+    rng2 = np.random.default_rng(101)
+    scipy_node2 = ScipyRandomDist("uniform")
+    samples2 = scipy_node2.sample_parameters(num_samples=10_000, rng_info=rng2)
     values2 = scipy_node2.get_param(samples2, "function_node_result")
     assert not np.allclose(values, values2)
-
-    # But we can override the seed and get the same results again.
-    scipy_node2.set_seed(100)
-    samples2 = scipy_node2.sample_parameters(num_samples=10_000)
-    values2 = scipy_node2.get_param(samples2, "function_node_result")
-    assert np.allclose(values, values2)
 
 
 def test_numpy_random_uniform_diff_distributions():
@@ -323,11 +324,11 @@ def test_numpy_random_uniform_diff_distributions():
     low_val = np.arange(0, 5000, 10)
     scipy_node = ScipyRandomDist(
         "uniform",
-        seed=100,
-        loc=GivenValueList(low_val),
-        scale=GivenValueList(np.full_like(low_val, 5.0)),
+        loc=GivenValueList(low_val, stateful=False),
+        scale=GivenValueList(np.full_like(low_val, 5.0), stateful=False),
     )
-    state = scipy_node.sample_parameters(num_samples=50)
+    rng = np.random.default_rng(100)
+    state = scipy_node.sample_parameters(num_samples=50, rng_info=rng)
     samples = scipy_node.get_param(state, "function_node_result")
     assert len(samples) == 50
     for i in range(50):

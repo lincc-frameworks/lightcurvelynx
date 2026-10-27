@@ -35,6 +35,7 @@ from lightcurvelynx.math_nodes.ra_dec_sampler import ObsTableUniformRADECSampler
 from lightcurvelynx.math_nodes.state_expansion_node import StateExpansionNode
 from lightcurvelynx.models.basic_models import ConstantSEDModel, SinWaveModel, StepModel
 from lightcurvelynx.models.physical_model import SEDModel
+from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
 from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
 from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel
 from lightcurvelynx.noise_models.spectrograph_noise_models import ConstantSpectrographNoiseModel
@@ -54,6 +55,7 @@ from lightcurvelynx.simulate import (
 )
 from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils import worker_preload
+from lightcurvelynx.utils.extrapolate import LinearDecay
 from lightcurvelynx.utils.worker_preload import (
     has_known_preload_digests,
     load_preloaded_data,
@@ -405,10 +407,10 @@ def test_simulate_lightcurves(test_data_dir):
     # values that match the opsim.
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
+        brightness=GivenValueList(given_brightness, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -523,10 +525,10 @@ def test_replay_simulate_lightcurves(test_data_dir):
     # values that match the opsim.
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
+        brightness=GivenValueList(given_brightness, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -578,11 +580,12 @@ def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatc
 
     source1 = ConstantSEDModel(
         brightness=GivenValueList(
-            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
+            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0],
+            stateful=False,
         ),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -594,11 +597,12 @@ def test_simulate_lightcurves_uses_single_progress_bar(test_data_dir, monkeypatc
 
     source2 = ConstantSEDModel(
         brightness=GivenValueList(
-            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0]
+            [1000.0, 2000.0, 5000.0, 1000.0, 100.0, 1200.0, 1500.0, 1800.0, 2100.0, 2400.0],
+            stateful=False,
         ),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:10], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:10], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -633,10 +637,10 @@ def test_simulate_lightcurves_to_file(test_data_dir):
     # values that match the opsim.
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
+        brightness=GivenValueList(given_brightness, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -855,6 +859,24 @@ def test_simulate_parallel_threads(test_data_dir):
 
     survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
+    # Check that we throw an error for using ThreadPoolExecutor.
+    with pytest.raises(ValueError):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            _ = simulate_lightcurves(
+                source,
+                100,
+                survey_info,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                executor=executor,
+                batch_size=10,
+                save_full_filter_names=True,
+                progress_bar=False,  # Disable progress bar for testing
+            )
+
+    # Old code for using ThreadPoolExecutor directly is commented out below.
+    # TODO: Restore once ThreadPoolExecutor compatibility is resolved.
+    """
     with ThreadPoolExecutor(max_workers=2) as executor:
         with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
             results = simulate_lightcurves(
@@ -914,6 +936,11 @@ def test_simulate_parallel_threads(test_data_dir):
     assert not np.allclose(
         results["lightcurve.flux"].to_numpy(),
         results2["lightcurve.flux"].to_numpy(),
+    )
+    """
+    warnings.warn(
+        "The full test_simulate_parallel_threads is disabled until "
+        "ThreadPoolExecutor compatibility is resolved."
     )
 
 
@@ -1080,10 +1107,10 @@ def test_simulate_single_lightcurve(test_data_dir):
     # values that match the opsim.
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     source = ConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
+        brightness=GivenValueList(given_brightness, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1138,7 +1165,7 @@ def test_simulate_with_time_window(test_data_dir):
     # values that match the opsim.
     source = ConstantSEDModel(
         brightness=1000.0,
-        t0=GivenValueList([20.0, 15.0, 20.0, 15.0, 20.0, 15.0, 20.0, 15.0]),
+        t0=GivenValueList([20.0, 15.0, 20.0, 15.0, 20.0, 15.0, 20.0, 15.0], stateful=False),
         ra=15.0,
         dec=10.0,
         redshift=1.5,
@@ -1533,8 +1560,8 @@ def test_simulate_drop_empty_rows(test_data_dir):
 
     # Create a constant SED model that is sometimes observed:
     # [seen, not seen, not seen, seen, seen, not seen]
-    all_ra = GivenValueList([0.0, 0.0, 90.0, 180.0, 180.1, 270.0])
-    all_dec = GivenValueList([10.0, -10.0, 0.0, -10.0, -9.9, -10.0])
+    all_ra = GivenValueList([0.0, 0.0, 90.0, 180.0, 180.1, 270.0], stateful=False)
+    all_dec = GivenValueList([10.0, -10.0, 0.0, -10.0, -9.9, -10.0], stateful=False)
     model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=all_ra, dec=all_dec, redshift=0.0)
 
     # Do the simulation with defaults. We should get 6 result rows.
@@ -1542,8 +1569,6 @@ def test_simulate_drop_empty_rows(test_data_dir):
     assert len(results) == 6
 
     # Reset the lists and do the simulation with drop_empty_rows=True.
-    all_ra.reset()
-    all_dec.reset()
     results = simulate_lightcurves(model, 6, [survey_info], drop_empty_rows=True, progress_bar=False)
     assert len(results) == 3
     assert results["id"].tolist() == [0, 3, 4]
@@ -1599,8 +1624,8 @@ def test_compute_noise_free_lightcurves_multiple(test_data_dir):
     end_times = [30.0, 30.0, 40.0, 40.0]
     model = StepModel(
         brightness=100.0,
-        t0=GivenValueList(start_times),
-        t1=GivenValueList(end_times),
+        t0=GivenValueList(start_times, stateful=False),
+        t1=GivenValueList(end_times, stateful=False),
         ra=0.0,
         dec=0.0,
         redshift=0.0,
@@ -1709,8 +1734,8 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
     source = ConstantSEDModel(
         brightness=50_000.0,
         t0=0.0,
-        ra=GivenValueList(obs_table_values["ra"]),
-        dec=GivenValueList(obs_table_values["dec"]),
+        ra=GivenValueList(obs_table_values["ra"], stateful=False),
+        dec=GivenValueList(obs_table_values["dec"], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1749,8 +1774,8 @@ def test_simulate_with_default_saturation_mags_values(test_data_dir):
     source = ConstantSEDModel(
         brightness=(2.0e12),  # Sufficiently bright to ensure saturation
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1819,8 +1844,8 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
     source = ConstantSEDModel(
         brightness=5_000_000_000_000.0,  # Sufficiently bright to ensure saturation
         t0=0.0,
-        ra=GivenValueList(obs_table_values["ra"]),
-        dec=GivenValueList(obs_table_values["dec"]),
+        ra=GivenValueList(obs_table_values["ra"], stateful=False),
+        dec=GivenValueList(obs_table_values["dec"], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1897,11 +1922,11 @@ def test_simulate_expanded_state(test_data_dir):
     given_brightness = [1000.0, 2000.0, 5000.0, 1000.0, 100.0]
     given_repeats = [1, 2, 1, 3, 1]
     source = _DuplicatingConstantSEDModel(
-        brightness=GivenValueList(given_brightness),
-        repeats=GivenValueList(given_repeats),
+        brightness=GivenValueList(given_brightness, stateful=False),
+        repeats=GivenValueList(given_repeats, stateful=False),
         t0=0.0,
-        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5]),
-        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5]),
+        ra=GivenValueList(opsim_db["ra"].to_numpy()[0:5], stateful=False),
+        dec=GivenValueList(opsim_db["dec"].to_numpy()[0:5], stateful=False),
         redshift=0.0,
         node_label="source",
     )
@@ -1943,9 +1968,10 @@ def test_simulate_save_nested_with_parameter_arrays():
 
     # Generate random array values uniformly between 0.01 and 100.0. Then
     # take the logarithm of those values.
-    np_node = NumpyRandomFunc("uniform", low=0.01, high=100.0, seed=100, size=5)
+    rng = np.random.default_rng(seed=100)
+    np_node = NumpyRandomFunc("uniform", low=0.01, high=100.0, size=5)
     math_node = BasicMathNode("log(x)", x=np_node, node_label="math")
-    sample_states = math_node.sample_parameters(num_samples=num_samples)
+    sample_states = math_node.sample_parameters(num_samples=num_samples, rng_info=rng)
 
     # Create a nest results frame including the array values.
     index = list(range(num_samples))
@@ -2088,9 +2114,9 @@ def test_simulate_preloaded_obstable_in_model(
     """
     _, si = preload_inputs
     obstable = si.obstable if in_survey_info else OpSim.from_db(test_data_dir / "opsim_small.db")
-    positions = ObsTableUniformRADECSampler(obstable, radius=1.75, seed=3, node_label="positions")
+    positions = ObsTableUniformRADECSampler(obstable, radius=1.75, node_label="positions")
     model = ConstantSEDModel(
-        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0, seed=11),
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
         t0=0.0,
         ra=positions.ra,
         dec=positions.dec,
@@ -2425,7 +2451,7 @@ def test_simulate_num_jobs_pickles_like_process_pool(
     """num_jobs preloads with the standard library's pickle, as a ProcessPoolExecutor pickles its
     batches, so a __main__ function that uses an unpicklable global keeps working."""
     _, si = preload_inputs
-    brightness = NumpyRandomFunc("uniform", low=100.0, high=500.0, seed=11)
+    brightness = NumpyRandomFunc("uniform", low=100.0, high=500.0)
     model = ConstantSEDModel(
         brightness=FunctionNode(_locked_brightness, brightness=brightness),
         t0=0.0,
@@ -2543,3 +2569,124 @@ def test_simulate_preload_leaves_surveys_untouched(preload_inputs, run_preload_s
     assert pickle.dumps(si, protocol=5) == before
     assert load_preloaded_data(init.digest)[1] is preloaded_si  # The batches used this copy.
     assert pickle.dumps(preloaded_si, protocol=5) == preloaded_before
+
+
+def test_simulate_process_safety():
+    """Test that the simulate_lightcurves function is safe when using
+    multiple processes by comparing."""
+    # Create a basic OpSim observation table and survey info for the test.
+    num_obs = 300
+    opsim = OpSim(
+        {
+            "time": np.arange(num_obs) * 0.5,
+            "ra": np.zeros(num_obs),
+            "dec": np.zeros(num_obs),
+            "filter": np.tile(["g", "r", "i"], num_obs // 3),
+            "zp": np.full(num_obs, 30.0),
+            "seeing": np.full(num_obs, 1.12),
+            "skybrightness": np.full(num_obs, 20.0),
+            "exptime": np.full(num_obs, 29.2),
+            "nexposure": np.full(num_obs, 2),
+        }
+    )
+    survey = SurveyInfo(obstable=opsim, survey_name="LSST")
+
+    # Create a basic sncosmo model which is not thread-safe.
+    model = SncosmoWrapperModel(
+        "salt3",
+        t0=NumpyRandomFunc("uniform", low=20, high=120),
+        x0=NumpyRandomFunc("uniform", low=1e-5, high=1e-3),
+        x1=NumpyRandomFunc("uniform", low=-2, high=2),
+        c=NumpyRandomFunc("uniform", low=-0.2, high=0.3),
+        ra=0.0,
+        dec=0.0,
+        redshift=NumpyRandomFunc("uniform", low=0.05, high=0.3),
+        node_label="salt3",
+        time_extrapolation=LinearDecay(50.0),
+    )
+
+    # Simulate it with 1 process and batch size of 1. We need to keep the
+    # random seed and batch size the same to ensure reproducibility.
+    num_samples = 1000
+    with ProcessPoolExecutor(1) as ex:
+        res_1 = simulate_lightcurves(
+            model=model,
+            num_samples=num_samples,
+            survey_info=survey,
+            rest_time_window_offset=(-50.0, 100.0),
+            batch_size=1,
+            executor=ex,
+            rng=np.random.default_rng(7),
+            progress_bar=False,
+        )
+    flux_1 = res_1["lightcurve.flux_perfect"].to_numpy()
+    params_1 = GraphState.from_list(res_1["params"])
+
+    # Re-simulate it with 4 processes and batch size of 1. We need to keep
+    # the random seed and batch size the same to ensure reproducibility.
+    with ProcessPoolExecutor(4) as ex:
+        res_4 = simulate_lightcurves(
+            model=model,
+            num_samples=num_samples,
+            survey_info=survey,
+            rest_time_window_offset=(-50.0, 100.0),
+            batch_size=1,
+            executor=ex,
+            rng=np.random.default_rng(7),
+            progress_bar=False,
+        )
+    flux_4 = res_4["lightcurve.flux_perfect"].to_numpy()
+    params_4 = GraphState.from_list(res_4["params"])
+
+    # Check that we get the same parameters and flux for different thread
+    # counts but the same random seed.
+    assert params_1 == params_4
+    assert not np.any(np.abs(flux_1 - flux_4) > 1e-8)
+
+
+def test_simulate_lightcurves_single_thread_batched(test_data_dir):
+    """Test simulating light curves with a single thread and batched execution."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    ra0 = opsim_db["ra"].to_numpy()[0]
+    dec0 = opsim_db["dec"].to_numpy()[0]
+    source = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
+        t0=0.0,
+        ra=NumpyRandomFunc("uniform", low=ra0 - 0.5, high=ra0 + 0.5),
+        dec=NumpyRandomFunc("uniform", low=dec0 - 0.5, high=dec0 + 0.5),
+        redshift=0.0,
+        node_label="source",
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    # Do a simulation with 20 batches of size 5. Note that we cannot compare
+    # against the single batch, because the order of sampling and noise
+    # generation will be different.
+    results = simulate_lightcurves(
+        source,
+        100,
+        survey_info,
+        executor=None,
+        batch_size=5,
+        progress_bar=False,  # Disable progress bar for testing
+        rng=np.random.default_rng(42),
+    )
+    assert len(results) == 100
+
+    # Extract the graph state and make sure that we are generating different
+    # parameters in each batch.  Allow for a very small number of (coincidental) matches.
+    state = GraphState.from_list(results["params"].to_numpy())
+    assert np.unique(state["source.brightness"]).size > 95
+    assert np.unique(state["source.ra"]).size > 95
+    assert np.unique(state["source.dec"]).size > 95

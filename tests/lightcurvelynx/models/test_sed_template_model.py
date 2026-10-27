@@ -437,7 +437,6 @@ def test_create_multi_sed_template_model() -> None:
         [lc1, lc2],
         weights=[0.25, 0.75],
         t0=0.0,
-        seed=12345,
         node_label="model",
     )
     assert len(model) == 2
@@ -446,7 +445,8 @@ def test_create_multi_sed_template_model() -> None:
     eval_times = np.array([0.5])
     eval_waves = np.array([1000.0])
 
-    state = model.sample_parameters(num_samples=10_000)
+    rng = np.random.default_rng(12345)
+    state = model.sample_parameters(num_samples=10_000, rng_info=rng)
     sed_values = model.evaluate_sed(eval_times, eval_waves, graph_state=state)
     chose_first = state["model"]["selected_template"] == 0
     assert 0.15 < np.count_nonzero(chose_first) / 10000.0 < 0.35  # Check weights are roughly correct.
@@ -458,10 +458,10 @@ def test_create_multi_sed_template_model() -> None:
         [lc1, lc2],
         weights=[0.25, 0.75],
         t0=0.0,
-        seed=12345,
         node_label="model2",
     )
-    state2 = model2.sample_parameters(num_samples=10_000)
+    rng2 = np.random.default_rng(12345)
+    state2 = model2.sample_parameters(num_samples=10_000, rng_info=rng2)
     assert np.all(state["model"]["selected_template"] == state2["model2"]["selected_template"])
 
     # If we use a different seed, we select different templates.
@@ -469,10 +469,10 @@ def test_create_multi_sed_template_model() -> None:
         [lc1, lc2],
         weights=[0.25, 0.75],
         t0=0.0,
-        seed=123456,
         node_label="model3",
     )
-    state3 = model3.sample_parameters(num_samples=10_000)
+    rng3 = np.random.default_rng(123456)
+    state3 = model3.sample_parameters(num_samples=10_000, rng_info=rng3)
     assert not np.all(state["model"]["selected_template"] == state3["model3"]["selected_template"])
 
 
@@ -544,16 +544,16 @@ def test_simsed_model_compute_sed(test_data_dir) -> None:
         test_data_dir / "fake_simsed",
         t0=0.0,
         distance=10.0,
-        seed=54321,
         node_label="model",
     )
     assert len(model) == 2
     assert model.flux_scale == 2.0
 
     # Compute the SLSN SED at a specific time and wavelength.
+    rng1 = np.random.default_rng(54321)
     times = np.array([0.0, 1.0, 2.0])
     wavelengths = np.array([4500.0, 5000.0])
-    sed_values = model.evaluate_sed(times, wavelengths)
+    sed_values = model.evaluate_sed(times, wavelengths, rng_info=rng1)
     assert sed_values.shape == (3, 2)
     assert np.all(sed_values > 0.0)
 
@@ -562,10 +562,10 @@ def test_simsed_model_compute_sed(test_data_dir) -> None:
         test_data_dir / "fake_simsed",
         t0=0.0,
         distance=10.0,
-        seed=54321,
         node_label="model",
     )
-    sed_values2 = model2.evaluate_sed(times, wavelengths)
+    rng2 = np.random.default_rng(54321)
+    sed_values2 = model2.evaluate_sed(times, wavelengths, rng_info=rng2)
     assert np.allclose(sed_values, sed_values2)
 
     # Confirm that we have noted the data in the citations registry.

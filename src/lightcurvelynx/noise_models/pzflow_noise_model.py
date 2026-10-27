@@ -307,7 +307,7 @@ class PZFlowNoiseModel(FluxNoiseModel, CiteClass):
         # Sample from the flow to get the noise parameters.
         if rng is None:  # pragma: no cover
             rng = np.random.default_rng()
-        pzflow_seed = rng.integers(0, 1e9)
+        pzflow_seed = rng.integers(0, 2**32 - 1)
         samples = self._flow.sample(nsamples=1, conditions=input_df, seed=pzflow_seed)
         flux_err = np.clip(samples[self._output_column].to_numpy(), a_min=0, a_max=None)
 
