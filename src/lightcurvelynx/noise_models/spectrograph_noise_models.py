@@ -210,9 +210,8 @@ class SNANANoiseModel(SpectrographNoiseModel):
     Attributes
     ----------
     spectrograph : Spectrograph
-        The spectrograph object containing the instrument parameters.
-    spectrograph_true : Spectrograph
-        The same spectrograph object with no gaussian smearing
+        The spectrograph object containing the instrument parameters. The survey's spectrograph
+        must have the same bins and smearing setting, so the SEDs have the same query wavelengths.
     magref : np.array
         The two reference magnitudes from the SNANA spectrograph file
     texpose_grid : np.array
@@ -225,7 +224,7 @@ class SNANANoiseModel(SpectrographNoiseModel):
 
     _required_values = ["exptime"]
 
-    def __init__(self, snana_file):
+    def __init__(self, snana_file, compute_smear=True):
         """Create an SNANANoiseModel from an SNANA spectrograph file. It creates it's own spectrograph
         object from the file.
 
@@ -233,23 +232,20 @@ class SNANANoiseModel(SpectrographNoiseModel):
         ----------
         snana_file : str
             The path to the SNANA spectrograph file.
+        compute_smear : bool, optional
+            Whether the spectrograph smears flux between bins. This must match the survey's
+            spectrograph, e.g. `Spectrograph.from_snana_file(snana_file, compute_smear=True)`.
+            Default: True
         """
         data = read_snana_spectrograph_data(snana_file)
 
-        # create the spectrographs from the SNANA file data
+        # create the spectrograph from the SNANA file data
         spectrograph = Spectrograph(
             waves_min=data["waves_min"],
             waves_max=data["waves_max"],
             wavelength_resolution=data["waves_sigma"],
             instrument=data.get("instrument", "Spectrograph"),
-            compute_smear=True,
-        )
-        self.spectrograph_true = Spectrograph(
-            waves_min=data["waves_min"],
-            waves_max=data["waves_max"],
-            wavelength_resolution=data["waves_sigma"],
-            instrument=data.get("instrument", "Spectrograph"),
-            compute_smear=False,
+            compute_smear=compute_smear,
         )
 
         super().__init__(spectrograph=spectrograph)
@@ -332,16 +328,14 @@ class SNANANoiseModel(SpectrographNoiseModel):
         return zp, sqsigsky
 
     def compute_flux_error(self, measurements, *, sed, obs_table, indices=None, **kwargs):
-        """Compute the flux error for the smeared measurements.
+        """Compute the flux error for the measurements.
 
         Parameters
         ----------
         measurements : array_like of float
-            The smeared flux, shape (T_obs, W) --
-            `spectrograph(compute_smear=True).evaluate(seds)`.
+            The measured flux, shape (T_obs, W) -- `spectrograph.evaluate(sed)`.
         sed : array_like of float
-            The SED used to generate the measurements, shape (T_obs, len(query_waves)), sampled
-            on either the smeared (padded) or the unsmeared spectrograph's query wavelengths.
+            The SED used to generate the measurements, shape (T_obs, len(self.spectrograph.query_waves)).
         obs_table : ObsTable
             Must have an `exptime` column (`_required_values`).
         indices : array_like of int, optional
@@ -358,12 +352,18 @@ class SNANANoiseModel(SpectrographNoiseModel):
         """
         measurements = np.asarray(measurements, dtype=float)
 
-        # The SED may be sampled on the smeared spectrograph's padded grid. The SNANA spectrographs
-        # use one query point per bin, so we can drop the padding to get the unpadded grid.
+        # The SED must be sampled on this spectrograph's query wavelengths, so the survey's
+        # spectrograph must match this one (same bins and smearing setting).
         sed = np.asarray(sed)
-        if sed.shape[-1] == len(self.spectrograph.query_waves):
-            sed = sed[..., ~self.spectrograph.is_padding]
-        true_flux = self.spectrograph_true.evaluate(sed)
+        if sed.shape[-1] != len(self.spectrograph.query_waves):
+            raise ValueError(
+                f"SED has {sed.shape[-1]} wavelengths, but the noise model's spectrograph has "
+                f"{len(self.spectrograph.query_waves)} query wavelengths. Check that the survey's "
+                "spectrograph matches the noise model (same SNANA file and compute_smear setting)."
+            )
+
+        # The SNR is computed from the true (unsmeared) flux, as in SNANA.
+        true_flux = self.spectrograph.evaluate(sed, apply_smear=False)
         exptime = np.asarray(obs_table.get_value_per_row("exptime", indices=indices), dtype=float)
 
         # get interpolated ZP and SQSIGSKY for the given exposure times.

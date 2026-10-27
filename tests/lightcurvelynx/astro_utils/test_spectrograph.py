@@ -646,3 +646,6 @@ def test_spectrograph_evaluate_with_smearing():
     not_spiked = spgraph_unsmeared.evaluate(spike_input_unsmeared)
     assert np.sum(spiked > 0) > np.sum(not_spiked > 0)
     assert np.sum(spiked) == pytest.approx(np.sum(not_spiked), rel=0.05)
+
+    # Turning off smearing at evaluation time gives the unsmeared fluxes.
+    assert np.allclose(spgraph.evaluate(spike_input, apply_smear=False), not_spiked)

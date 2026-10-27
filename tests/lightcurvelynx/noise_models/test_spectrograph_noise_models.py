@@ -154,8 +154,16 @@ def test_snana_spectrograph_noise_model(test_data_dir):
     assert_allclose(err2, err1)
     assert not np.allclose(flux3, flux1, atol=0.0)
 
-    # An SED sampled on the unsmeared (unpadded) grid gives the same errors.
-    assert len(model.spectrograph_true.query_waves) < len(model.spectrograph.query_waves)
-    sed_unpadded = np.full((len(indices), len(model.spectrograph_true.query_waves)), flux_density)
-    err4 = model.compute_flux_error(measurements, sed=sed_unpadded, obs_table=obs_table, indices=indices)
+    # An unsmeared noise model uses the unpadded grid, but computes the same SNR (from the
+    # unsmeared flux), so it gives the same errors for the same measurements.
+    model_no_smear = SNANANoiseModel(snana_file, compute_smear=False)
+    assert len(model_no_smear.spectrograph.query_waves) < len(model.spectrograph.query_waves)
+    sed_unpadded = np.full((len(indices), len(model_no_smear.spectrograph.query_waves)), flux_density)
+    err4 = model_no_smear.compute_flux_error(
+        measurements, sed=sed_unpadded, obs_table=obs_table, indices=indices
+    )
     assert_allclose(err4, err1)
+
+    # An SED sampled on a different grid than the noise model's spectrograph fails.
+    with pytest.raises(ValueError, match="query wavelengths"):
+        model.compute_flux_error(measurements, sed=sed_unpadded, obs_table=obs_table, indices=indices)
