@@ -203,13 +203,24 @@ def test_create_spectrograph_from_bad_bins():
 
 def test_spectrograph_from_snana_file(test_data_dir):
     """Test creating a Spectrograph object from a SNANA file."""
+    # This file has gaps between bins, so smearing must be turned off.
     spec_file = test_data_dir / "fake_snana_spectrograph.dat"
-    spgraph = Spectrograph.from_snana_file(str(spec_file))
+    spgraph = Spectrograph.from_snana_file(str(spec_file), compute_smear=False)
     assert spgraph.instrument == "FAKE_SPECTRO"
     assert spgraph.num_bins == 8
     assert np.allclose(spgraph.waves_min, [4000.0, 4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 5500.0, 7000.0])
     assert np.allclose(spgraph.waves_max, [4200.0, 4400.0, 4600.0, 4800.0, 5000.0, 5200.0, 6000.0, 7100.0])
     assert np.allclose(spgraph.wavelength_resolution, [0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38])
+    assert spgraph.smear_matrix is None
+
+    # By default (smearing on), a file with gaps fails with a hint to turn off smearing.
+    with pytest.raises(ValueError, match="compute_smear=False"):
+        Spectrograph.from_snana_file(str(spec_file))
+
+    # By default, a gapless file is smeared (as in SNANA) and padded.
+    spgraph_gapless = Spectrograph.from_snana_file(str(test_data_dir / "fake_snana_spectrograph_gapless.dat"))
+    assert spgraph_gapless.smear_matrix is not None
+    assert spgraph_gapless.num_padded_bins > spgraph_gapless.num_bins
 
 
 def test_spectrograph_equals():

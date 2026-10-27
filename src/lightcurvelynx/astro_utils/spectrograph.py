@@ -249,7 +249,7 @@ class Spectrograph:
         return True
 
     @classmethod
-    def from_snana_file(cls, file_name: str, *, compute_smear: bool = False):
+    def from_snana_file(cls, file_name: str, *, compute_smear: bool = True):
         """Load a Spectrograph object from a SNANA file.
 
         Parameters
@@ -258,8 +258,9 @@ class Spectrograph:
             The path to the SNANA file containing the spectrograph data.
         compute_smear : bool, optional
             Flag to enable smearing of flux between bins based on the wavelength resolution.
-            If true, fluxes from Spectrograph.evaluate() will be smeared.
-            Default: False
+            If true, fluxes from Spectrograph.evaluate() will be smeared (as in SNANA).
+            Smearing requires the bins to have no gaps, so use False for files with gaps.
+            Default: True
         """
         file_data = read_snana_spectrograph_data(file_name)
         return cls(
@@ -346,7 +347,10 @@ class Spectrograph:
         """
 
         if np.any(np.abs(self.padded_max[:-1] - self.padded_min[1:]) > 1e-8):
-            raise ValueError("The spectrograph bins cannot have gaps when using smearing.")
+            raise ValueError(
+                "The spectrograph bins cannot have gaps when using smearing. "
+                "Use compute_smear=False for spectrographs with gaps between bins."
+            )
 
         smear_matrix = np.zeros((self.num_padded_bins, self.num_padded_bins))
         for i in range(self.num_padded_bins):
