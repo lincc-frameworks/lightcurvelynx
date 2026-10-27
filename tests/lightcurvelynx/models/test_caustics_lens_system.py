@@ -485,13 +485,15 @@ def test_sample_source_takes_first_hit_and_estimates_area_from_every_candidate()
     assert rng.random() == reference.random()  # Exactly 1000 candidates were drawn.
 
 
-def test_mc_area_is_nan_unless_estimated_and_does_not_change_the_draw():
+@pytest.mark.parametrize("mu_min", [None, 10.0])
+def test_mc_area_is_nan_unless_estimated_and_does_not_change_the_draw(mu_min):
     """Test that mc_area is NaN by default, and estimating it leaves every other output unchanged."""
-    rng = np.random.default_rng
-    off, on = (
-        _make_system(estimate_mc_area=flag).sample_parameters(num_samples=2, rng_info=rng(6))["system"]
-        for flag in (False, True)
-    )
+
+    def sample(estimate_mc_area):
+        system = _make_system(mu_min=mu_min, estimate_mc_area=estimate_mc_area)
+        return system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(6))["system"]
+
+    off, on = sample(False), sample(True)
     assert np.all(np.isnan(off["mc_area"])) and np.all(np.isfinite(on["mc_area"]))
     for name in set(CausticsStrongLensSystem.OUTPUTS) - {"mc_area"}:
         assert_array_equal(on[name], off[name], err_msg=name)
@@ -509,6 +511,22 @@ def test_mc_area_cross_checks_area(mu_min):
     # With the default 16384 candidates the statistical error is a few percent at most.
     assert out["mc_area"] == pytest.approx(out["area"], rel=0.05)
     assert 1 <= out["n_draws"] <= 16384
+
+
+def test_mc_area_tests_mu_region_candidates_in_one_chunked_call(monkeypatch):
+    """Test that a mu-region MC estimate makes one total_magnification call, chunked by the batch size."""
+    # Each call converts the whole mesh to caustics' mesh backend and rebuilds its leaf tables.
+    calls = []
+    total_magnification = adaptive.total_magnification
+
+    def recording_total_magnification(bx, by, mesh, *, batch_size=None):
+        calls.append((backend.to_numpy(bx).size, batch_size))
+        return total_magnification(bx, by, mesh, batch_size=batch_size)
+
+    monkeypatch.setattr(adaptive, "total_magnification", recording_total_magnification)
+    system = _make_system(mu_min=10.0, estimate_mc_area=True, max_candidates=2048, candidate_batch_size=512)
+    system.sample_parameters(num_samples=1)
+    assert calls == [(2048, 512)]
 
 
 @pytest.mark.parametrize(
@@ -805,6 +823,23 @@ def test_worker_process_defaults_to_one_thread(restore_torch_threads):
     system._owner_pid = -1  # Pretend we are in a worker process.
     system.sample_parameters(num_samples=1)
     assert torch.get_num_threads() == 1
+
+
+def test_building_process_samples_on_one_thread_and_restores_its_count(monkeypatch, restore_torch_threads):
+    """Test that by default the building process samples on one torch thread, then gets its count back."""
+    torch.set_num_threads(2)
+    system = _make_system()
+    seen = []
+    solve_system = system._solve_system
+
+    def recording_solve_system(*args, **kwargs):
+        seen.append(torch.get_num_threads())
+        return solve_system(*args, **kwargs)
+
+    monkeypatch.setattr(system, "_solve_system", recording_solve_system)
+    system.sample_parameters(num_samples=2)
+    assert seen == [1, 1]
+    assert torch.get_num_threads() == 2
 
 
 def test_explicit_thread_count_is_applied(restore_torch_threads):

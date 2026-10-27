@@ -6,6 +6,7 @@ The node runs on caustics' active backend, torch or jax, which caustics picks on
 import, from the ``CASKADE_BACKEND`` environment variable (default ``torch``).
 """
 
+import contextlib
 import copy
 import numbers
 import os
@@ -120,12 +121,13 @@ def _lens_param_index(lens):
     return index
 
 
-def _inside_caustics(curves, points):
+def _inside_caustics(curves, points, batch_size=None):
     """Test which source-plane points lie inside the caustics or pseudo-caustics.
 
     A point is inside when its winding number about at least one curve's source polyline is
     nonzero. This is the rule ``caustic_area`` uses for the area of the multiply imaged region.
-    Each winding-number call holds a few (B, curve points) temporaries, so B bounds the memory.
+    Each winding-number call holds a few (chunk, curve points) temporaries, so ``batch_size``
+    bounds the memory; the result does not depend on it.
 
     Parameters
     ----------
@@ -134,6 +136,8 @@ def _inside_caustics(curves, points):
     points : array
         A (B, 2) float64 array of caustics' active backend: source-plane positions in
         arcseconds, on the device of ``curves.source``.
+    batch_size : int, optional
+        The most points tested in one winding-number call. Default: None, all B at once.
 
     Returns
     -------
@@ -148,8 +152,12 @@ def _inside_caustics(curves, points):
     inside = mesh_backend.zeros(
         (points.shape[0],), dtype=mesh_backend.bool, device=mesh_backend.device(points)
     )
-    for first, stop in pairwise(offsets.tolist()):
-        inside |= winding_number(source[first:stop], points) != 0
+    # Chunked here, on the mesh backend: slicing jax arrays would compile a program per chunk.
+    step = max(1, points.shape[0] if batch_size is None else batch_size)
+    bounds = list(pairwise(offsets.tolist()))
+    for lo in range(0, points.shape[0], step):
+        for first, stop in bounds:
+            inside[lo : lo + step] |= winding_number(source[first:stop], points[lo : lo + step]) != 0
     return mesh_backend.to_numpy(inside)
 
 
@@ -235,7 +243,7 @@ class CausticsStrongLensSystem(FunctionNode):
     region's contour, ``candidate_batch_size`` at a time, and the first one inside (in draw
     order) is accepted; ``n_draws`` counts the candidates drawn up to and including it, and
     ``bb_area`` is the box's area. At most ``max_candidates`` are drawn. For a system whose
-    ``estimate_mc_area`` is true, all ``max_candidates`` are drawn and tested, and
+    ``estimate_mc_area`` is true, all ``max_candidates`` are drawn and tested at once, and
     ``mc_area = bb_area * accepted / max_candidates`` estimates the sampled region's area,
     with standard error ``sqrt(mc_area * (bb_area - mc_area) / max_candidates)``, as a
     cross-check of ``area`` (above all in μ-region mode). It sees only the part of the region
@@ -318,15 +326,16 @@ class CausticsStrongLensSystem(FunctionNode):
     unpickling it in a worker does too, because the pickled state holds the stored lens
     serialized by ``cloudpickle.dumps``; install ``cloudpickle`` on every worker.
 
-    If ``torch_num_threads`` is an int, it is applied with ``torch.set_num_threads`` 
-    at the start of sampling, a process-wide side effect, under either backend. If it is 
-    left as ``None`` (the default), sampling leaves torch's thread count alone in the 
-    process that built the node, but uses 1 thread in any other process (a worker process), 
-    which avoids a fork deadlock after multi-threaded torch use in the parent and avoids 
-    oversubscription under many workers; pass an explicit int for a cluster worker that 
-    owns many cores. ``device`` defaults to ``"cpu"``. The node moves its working lens 
-    to ``device`` only inside sampling, never in the process that builds it. Under torch, 
-    caustics' mesh bookkeeping follows ``device`` through a ``torch.device`` context. 
+    If ``torch_num_threads`` is an int, it is applied with ``torch.set_num_threads``
+    at the start of sampling, a process-wide side effect, under either backend. If it is
+    left as ``None`` (the default), sampling uses 1 thread: in the process that built the
+    node only while it samples, after which torch's thread count is restored, and for good in
+    any other process (a worker process), which avoids a fork deadlock after multi-threaded
+    torch use in the parent and avoids oversubscription under many workers. Pass an explicit
+    int for a cluster worker that owns many cores. ``device`` defaults to ``"cpu"``. The node
+    moves its working lens to ``device`` only inside sampling, never in the process that
+    builds it. Caustics runs its mesh bookkeeping on torch's default device, which the node
+    leaves unchanged: the CPU, unless the caller has changed it.
     ``import caustics`` itself probes CUDA, though, so a forked worker cannot use CUDA 
     ("Cannot re-initialize CUDA in forked subprocess"); ``num_jobs`` and a default 
     ``ProcessPoolExecutor`` fork on Linux with Python 3.13 or earlier. For ``device="cuda"`` 
@@ -383,9 +392,11 @@ class CausticsStrongLensSystem(FunctionNode):
         The most candidate sources drawn per system before sampling gives up, and the number
         drawn when ``estimate_mc_area`` is set. Must be at least 1. Default: 16384.
     candidate_batch_size : int, optional
-        The number of candidate sources drawn, and tested in one call, at a time. In caustic
-        mode each call holds a few (candidate_batch_size, caustic polyline points) float64
-        temporaries, so this bounds the memory. Must be at least 1. Default: 1024.
+        The number of candidate sources drawn, and tested in one call, at a time; where
+        ``estimate_mc_area`` is set, all ``max_candidates`` are drawn at once and tested in
+        chunks of this size. In caustic mode each chunk holds a few (candidate_batch_size,
+        caustic polyline points) float64 temporaries, so this bounds the memory. Must be at
+        least 1. Default: 1024.
     estimate_mc_area : parameter, optional
         Whether a system draws and tests all ``max_candidates`` candidates and reports
         ``mc_area``; where false, sampling stops at the batch holding the first accepted
@@ -403,9 +414,9 @@ class CausticsStrongLensSystem(FunctionNode):
         ``"cuda:N"`` or ``"gpu"`` under jax. Default: "cpu".
     torch_num_threads : int, optional
         If given, ``torch.set_num_threads`` is called with this value at the start of
-        ``compute``, under either backend. Default: None, which uses 1 thread in a worker
-        process (any process other than the one that built the node) and leaves torch's
-        thread count alone in the building process.
+        ``compute``, under either backend. Default: None, which uses 1 thread: for good in a
+        worker process (any process other than the one that built the node), and in the
+        building process only while ``compute`` runs, restoring its thread count afterwards.
     seed : int, optional
         The seed for this node's random number generator. Default: None (OS entropy).
     node_label : str, optional
@@ -660,24 +671,32 @@ class CausticsStrongLensSystem(FunctionNode):
             self._working, self._observables = _WORKING_LENSES[key]
         return self._working
 
-    def _set_torch_threads(self, torch):
-        """Apply ``torch_num_threads``, or 1 thread in a process other than the one that built the node.
+    @contextlib.contextmanager
+    def _torch_threads(self, torch):
+        """Apply ``torch_num_threads``, or by default 1 thread, while a ``compute`` runs.
 
-        In a forked worker, the first parallel torch op can deadlock if the parent already ran
-        multi-threaded torch work; one thread avoids it.
+        By default the process that built the node gets its thread count back afterwards, and any
+        other process keeps 1 thread: in a forked worker, the first parallel torch op can deadlock
+        if the parent already ran multi-threaded torch work. ``compute`` enters this under the
+        module lock, so threads sampling concurrently cannot interleave their sets and restores.
 
         Parameters
         ----------
         torch : module
             The ``torch`` module.
         """
-        num_threads = self._torch_num_threads
+        num_threads, restore = self._torch_num_threads, None
         if num_threads is None:
-            if os.getpid() == self._owner_pid:
-                return
             num_threads = 1
+            if os.getpid() == self._owner_pid:
+                restore = torch.get_num_threads()
         if torch.get_num_threads() != num_threads:
             torch.set_num_threads(num_threads)
+        try:
+            yield
+        finally:
+            if restore is not None and torch.get_num_threads() != restore:
+                torch.set_num_threads(restore)
 
     def _build(self, lens, values, params, device, system_index, mu_min, mu_max):
         """Build one system's closed lens mesh, raising on caustics' failure warnings.
@@ -749,7 +768,10 @@ class CausticsStrongLensSystem(FunctionNode):
         in μ-region mode, of ``region.source``), in batches of ``candidate_batch_size``, each tested
         in one call, up to ``max_candidates`` in all; the first one inside (in draw order) is
         accepted. Sampling stops at the batch holding it, unless ``estimate_mc_area`` is true: then
-        all ``max_candidates`` are drawn and tested, and the fraction inside estimates the area.
+        all ``max_candidates`` are drawn at once and tested in one call, in chunks of
+        ``candidate_batch_size``, and the fraction inside estimates the area. In μ-region mode that
+        one call converts the mesh to caustics' mesh backend and indexes its leaves once, not once
+        per chunk. Either way the draws, and so the accepted source, are the same.
 
         Parameters
         ----------
@@ -782,19 +804,24 @@ class CausticsStrongLensSystem(FunctionNode):
             source = region.source
 
             def accept(points):
-                mu_tot = backend.to_numpy(total_magnification(points[:, 0], points[:, 1], mesh))
+                mu_tot = total_magnification(
+                    points[:, 0], points[:, 1], mesh, batch_size=self._candidate_batch_size
+                )
+                mu_tot = backend.to_numpy(mu_tot)
                 return (mu_tot >= region.mu_min) & (mu_tot <= region.mu_max)  # mu_max is inf when unset.
         else:
             source = curves.source
 
             def accept(points):
-                return _inside_caustics(curves, points)
+                return _inside_caustics(curves, points, batch_size=self._candidate_batch_size)
 
         corners = backend.to_numpy(source)
         low, high = corners.min(axis=0), corners.max(axis=0)
+        # The rng draws the same candidates in one batch as in many, so the batching changes no draw.
+        batch_size = self._max_candidates if estimate_mc_area else self._candidate_batch_size
         drawn, num_inside = None, 0
-        for start in range(0, self._max_candidates, self._candidate_batch_size):
-            size = min(self._candidate_batch_size, self._max_candidates - start)
+        for start in range(0, self._max_candidates, batch_size):
+            size = min(batch_size, self._max_candidates - start)
             candidates = rng.uniform(low, high, size=(size, 2))
             points = backend.as_array(candidates, dtype=backend.float64, device=backend.device(source))
             inside = accept(points)
@@ -981,7 +1008,6 @@ class CausticsStrongLensSystem(FunctionNode):
                 f"CASKADE_BACKEND={self._backend} in the environment, before caustics is imported, so "
                 "that worker processes inherit it."
             )
-        self._set_torch_threads(torch)
         args = self._build_inputs(graph_state, **kwargs)
         rng = rng_info if rng_info is not None else self._rng
         num_samples = graph_state.num_samples
@@ -994,13 +1020,12 @@ class CausticsStrongLensSystem(FunctionNode):
             device = _jax_device(self._device)
             default_device = jax.default_device(device)
         else:
-            # torch.device also moves caustics' mesh bookkeeping, which runs on torch's default device
-            # (geometry.build_device()), onto device.
+            # Caustics' mesh bookkeeping stays on torch's default device; only the lens goes to device.
             device = self._device
-            default_device = torch.device(device)
+            default_device = contextlib.nullcontext()
         sample_offset = graph_state.sample_offset or 0
         rows = []
-        with _CAUSTICS_LOCK, default_device:
+        with _CAUSTICS_LOCK, default_device, self._torch_threads(torch):
             lens = self._working_lens(device)
             for i, sub_seed in enumerate(sub_seeds):
                 values = {name: value if num_samples == 1 else value[i] for name, value in args.items()}
