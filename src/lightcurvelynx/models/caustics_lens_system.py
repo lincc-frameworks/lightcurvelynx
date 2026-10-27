@@ -1015,17 +1015,12 @@ class CausticsStrongLensSystem(FunctionNode):
 
         if self._backend == "jax":
             import jax
-
-            # Caustics' mesh bookkeeping stays on torch's CPU under jax.
             device = _jax_device(self._device)
-            default_device = jax.default_device(device)
         else:
-            # Caustics' mesh bookkeeping stays on torch's default device; only the lens goes to device.
             device = self._device
-            default_device = contextlib.nullcontext()
         sample_offset = graph_state.sample_offset or 0
         rows = []
-        with _CAUSTICS_LOCK, default_device, self._torch_threads(torch):
+        with _CAUSTICS_LOCK, self._torch_threads(torch):
             lens = self._working_lens(device)
             for i, sub_seed in enumerate(sub_seeds):
                 values = {name: value if num_samples == 1 else value[i] for name, value in args.items()}
