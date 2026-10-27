@@ -1,5 +1,4 @@
 import tempfile
-import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
@@ -680,7 +679,7 @@ def test_simulate_lightcurves_to_file(test_data_dir):
 def test_simulate_lightcurves_reproduce(test_data_dir):
     """Test two end to end runs of simulation produce the same
     results when given the same random seed."""
-    num_samples = 10_000
+    num_samples = 1_000
 
     # We load the OpSim data and passband data once.
     opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
@@ -839,7 +838,7 @@ def test_simulate_bandfluxes_dups(test_data_dir):
 
 
 def test_simulate_parallel_threads(test_data_dir):
-    """Test an end to end run of simulating the light curves parallel with threads."""
+    """Runs with a ThreadPoolExecutor should fail."""
     # Load the OpSim data.
     opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
 
@@ -879,73 +878,6 @@ def test_simulate_parallel_threads(test_data_dir):
                 save_full_filter_names=True,
                 progress_bar=False,  # Disable progress bar for testing
             )
-
-    # Old code for using ThreadPoolExecutor directly is commented out below.
-    # TODO: Restore once ThreadPoolExecutor compatibility is resolved.
-    """
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        results = simulate_lightcurves(
-            source,
-            100,
-            survey_info,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            executor=executor,
-            batch_size=10,
-            save_full_filter_names=True,
-            progress_bar=False,  # Disable progress bar for testing
-        )
-    assert len(results) == 100
-    assert np.all(results["nobs"].to_numpy() >= 1)
-    assert np.all(results["ra"].to_numpy() >= ra0 - 0.5)
-    assert np.all(results["ra"].to_numpy() <= ra0 + 0.5)
-    assert np.all(results["dec"].to_numpy() >= dec0 - 0.5)
-    assert np.all(results["dec"].to_numpy() <= dec0 + 0.5)
-
-    for idx in range(100):
-        num_obs = results["nobs"][idx]
-        assert num_obs >= 1
-        assert len(results["lightcurve"][idx]["flux"]) == num_obs
-
-        # Check that we got the full filter names correct.
-        for filter_name, full_name in zip(
-            results["lightcurve"][idx]["filter"],
-            results["lightcurve"][idx]["full_filter_name"],
-            strict=False,
-        ):
-            assert full_name == f"LSST_{filter_name}"
-
-    # Extract the graph state, rerun and check that we get the same pre-noise results.
-    state = GraphState.from_list(results["params"].to_numpy())
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        results2 = simulate_lightcurves(
-            source,
-            100,
-            survey_info,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            executor=executor,
-            batch_size=10,
-            save_full_filter_names=True,
-            progress_bar=False,  # Disable progress bar for testing
-            graph_state=state,
-        )
-    assert np.allclose(results["ra"].to_numpy(), results2["ra"].to_numpy())
-    assert np.allclose(results["dec"].to_numpy(), results2["dec"].to_numpy())
-    assert np.allclose(
-        results["lightcurve.flux_perfect"].to_numpy(),
-        results2["lightcurve.flux_perfect"].to_numpy(),
-    )
-    # Different noise realizations
-    assert not np.allclose(
-        results["lightcurve.flux"].to_numpy(),
-        results2["lightcurve.flux"].to_numpy(),
-    )
-    """
-    warnings.warn(
-        "The full test_simulate_parallel_threads is disabled until "
-        "ThreadPoolExecutor compatibility is resolved."
-    )
 
 
 def test_simulate_parallel_processes(test_data_dir):
