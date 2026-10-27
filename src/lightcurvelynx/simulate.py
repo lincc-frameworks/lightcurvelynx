@@ -17,6 +17,7 @@ from tqdm import tqdm
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.survey_info import SurveyInfo
+from lightcurvelynx.utils.dask_helpers import max_threads_per_process
 from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
 from lightcurvelynx.utils.worker_preload import (
     PreloadMiss,
@@ -973,12 +974,14 @@ def simulate_lightcurves(
                 "Some of the models have been found to be incompatible with ThreadPoolExecutor. "
                 "We are working on a patch. Please use a different executor in the meantime."
             )
-        # Check for a dask client with multiple threads per worker.
-        if hasattr(executor, "nthreads") and np.any(list(np.array(executor.nthreads().values())) > 1):
+        # Check for a dask client that runs more than one thread in a process: either a worker
+        # with several threads or several workers in one process.
+        if hasattr(executor, "nthreads") and max_threads_per_process(executor) > 1:
             raise ValueError(
                 "Some of the models have been found to be incompatible with multi-threaded executors. "
-                "Please create your client with threads_per_worker=1."
-            )  # pragma: no cover
+                "Please create your client with threads_per_worker=1 and without processes=False, "
+                "so that each worker process runs a single thread."
+            )
 
         # If we have an executor, use that regardless of the other settings. Its batches skip
         # the model and survey data only if its workers were preloaded with exactly this data.
