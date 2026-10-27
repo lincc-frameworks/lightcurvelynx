@@ -2,9 +2,9 @@
 
 import concurrent.futures
 import copy
-import gc
 import logging
 import multiprocessing
+import pickle
 import sys
 import warnings
 from pathlib import Path
@@ -19,7 +19,6 @@ from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
 from lightcurvelynx.utils.worker_preload import (
-    _STDLIB_PICKLERS,
     PreloadMiss,
     _build_worker_initializer,
     compute_preload_digest,
@@ -343,13 +342,6 @@ def _simulate_lightcurves_batch(simulation_info):
 
     # Extract the parameters from the SimulationInfo that are used repeated
     # (so we have shorter names).
-    #
-    # Preloaded batches (those with a preload_digest, from _simulate_preloaded_batch) arrive
-    # with a private model whose ObsTables are shared with the worker's preload slot, so they
-    # must not be deep-copied. If upstream's per-batch deepcopy of the model replaces the line
-    # below, skip it for preloaded batches: their model is already private, and a deepcopy would
-    # copy every shared ObsTable for every batch. test_simulate_preloaded_obstable_in_model
-    # fails if a preloaded batch deep-copies an ObsTable.
     model = simulation_info.model
     requested_num_samples = simulation_info.num_samples
     obstable = [info.obstable for info in simulation_info.survey_info]
@@ -621,23 +613,11 @@ def _simulate_lightcurves_batch(simulation_info):
     return results
 
 
-# Preloaded batches free their model copies with a full garbage collection rather than relying on
-# refcounting alone, because model nodes form reference cycles that only a full collection frees.
-# This runs once the batches in this process have loaded at least this many model bytes since the
-# last collection: a full collection costs tens of milliseconds even in a fresh process, which
-# would dominate a run of many small batches, while the copies of a small model cost little memory
-# to keep for a while.
-_PRELOAD_GC_THRESHOLD_BYTES = 64 * 1024**2
-
-# The model bytes loaded by preloaded batches in this process since the last full collection.
-# Threads in one process update it without a lock, accepting benign races: a lost update only
-# delays a collection, and two threads may both collect once. Neither changes any results, and
-# no lock means nothing for a forked child to inherit in a locked state.
-_preload_bytes_since_gc = 0
-
-
 def _simulate_preloaded_batch(simulation_info):
     """Simulate a "light" batch using the model and survey info preloaded on this worker.
+
+    Every preloaded batch on a worker uses the same model object, so any state a batch leaves
+    on the model carries into the next batch on that worker, as it does between serial batches.
 
     Parameters
     ----------
@@ -651,8 +631,6 @@ def _simulate_preloaded_batch(simulation_info):
         The batch's results, as returned by ``_simulate_lightcurves_batch``, or a
         ``PreloadMiss`` marker if this worker does not hold the preloaded data.
     """
-    global _preload_bytes_since_gc
-
     # Load before touching anything else: on a miss the batch is resent with the full data,
     # and with executors that do not copy their arguments, this batch shares its rng with
     # the batch that is resent.
@@ -660,22 +638,9 @@ def _simulate_preloaded_batch(simulation_info):
     if loaded is None:
         return PreloadMiss()
 
-    # The model was freshly unpickled for this batch, so it is already private (see the
-    # deepcopy-skip note in _simulate_lightcurves_batch).
-    model, survey_info, model_nbytes = loaded
     batch_info = copy.copy(simulation_info)
-    batch_info.model = model
-    batch_info.survey_info = survey_info
-    result = _simulate_lightcurves_batch(batch_info)
-
-    # Drop this batch's copy of the model before the next batch starts (see the comment above
-    # _PRELOAD_GC_THRESHOLD_BYTES for why this needs a full collection).
-    del loaded, model, survey_info, batch_info
-    _preload_bytes_since_gc += model_nbytes
-    if _preload_bytes_since_gc >= _PRELOAD_GC_THRESHOLD_BYTES:
-        _preload_bytes_since_gc = 0
-        gc.collect()
-    return result
+    batch_info.model, batch_info.survey_info = loaded
+    return _simulate_lightcurves_batch(batch_info)
 
 
 def _select_preload_digest(simulation_info):
@@ -893,9 +858,9 @@ def simulate_lightcurves(
         direct results. If None, the function runs in serial. If the executor's workers were
         preloaded with ``make_worker_initializer(model, survey_info)`` (for example via
         ``ProcessPoolExecutor(initializer=...)``) and the model and survey data have not
-        changed since, each batch is sent without the model and survey data. Otherwise every
-        batch carries a full copy of them, and a ``WorkerPreloadWarning`` says why. See the
-        parallel_runs notebook.
+        changed since, each batch is sent without the model and survey data, and each worker
+        reuses one copy of them for all of its batches. Otherwise every batch carries a full
+        copy of them, and a ``WorkerPreloadWarning`` says why. See the parallel_runs notebook.
     num_jobs : int, optional
         If provided (and no executor is provided) creates a process pool (ProcessPoolExecutor)
         with the given number of workers to process the results. The pool's workers are
@@ -1033,7 +998,7 @@ def simulate_lightcurves(
         # process pool executor with the specified number of jobs, preloaded with the stdlib
         # pickler as described in the num_jobs docstring above. Build the initializer before
         # the pool so a model or survey that refuses pickling raises here.
-        initializer = _build_worker_initializer(model, survey_info, _STDLIB_PICKLERS)
+        initializer = _build_worker_initializer(model, survey_info, pickle.Pickler)
         if sys.version_info < (3, 14):
             # Older Python versions may default to "fork", so we create a context
             # with "spawn" explicitly.

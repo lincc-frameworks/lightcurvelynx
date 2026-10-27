@@ -9,17 +9,11 @@ import multiprocessing
 import subprocess
 import sys
 import warnings
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
-import numpy as np
 import pytest
 
-from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
-from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
-from lightcurvelynx.obstable.opsim import OpSim
-from lightcurvelynx.simulate import WorkerPreloadWarning, make_worker_initializer, simulate_lightcurves
-from lightcurvelynx.survey_info import SurveyInfo
-from lightcurvelynx.utils.extrapolate import LinearDecay
+from lightcurvelynx.simulate import WorkerPreloadWarning, make_worker_initializer
 
 BACKENDS = [
     "process_fork",
@@ -27,7 +21,6 @@ BACKENDS = [
     "mp_pool",
     "loky",
     "dask_processes",
-    "dask_threads",
     "ray_pool",
 ]
 
@@ -73,13 +66,13 @@ def backend_context(backend):
         ``make_preloaded(initializer)`` returns a context manager for a preloaded executor.
     """
     with contextlib.ExitStack() as stack:
-        if backend in ("dask_processes", "dask_threads"):
+        if backend == "dask_processes":
             distributed = pytest.importorskip("distributed")
-            if backend == "dask_processes":
-                workers = {"n_workers": 2, "threads_per_worker": 1, "processes": True}
-            else:
-                workers = {"n_workers": 1, "threads_per_worker": 4, "processes": False}
-            cluster = stack.enter_context(distributed.LocalCluster(dashboard_address=None, **workers))
+            cluster = stack.enter_context(
+                distributed.LocalCluster(
+                    n_workers=2, threads_per_worker=1, processes=True, dashboard_address=None
+                )
+            )
             client = stack.enter_context(distributed.Client(cluster))
 
             @contextlib.contextmanager
@@ -214,64 +207,3 @@ def test_notebook_defined_class(backend, tmp_path, test_data_dir):
     )
     assert proc.returncode == 0, proc.stderr
     assert "ROWS 20" in proc.stdout
-
-
-@pytest.mark.parametrize("backend", ["thread_pool", "dask_threads"])
-def test_preloaded_sncosmo_thread_safety(backend, assert_identical_results):
-    """Concurrent preloaded batches in one process never share a model, so a model that keeps
-    per-call state (SncosmoWrapperModel) matches a single-threaded run."""
-    pytest.importorskip("sncosmo")
-
-    # The model and observations of upstream's test_simulate_thread_safety.
-    num_obs = 300
-    opsim = OpSim(
-        {
-            "time": np.arange(num_obs) * 0.5,
-            "ra": np.zeros(num_obs),
-            "dec": np.zeros(num_obs),
-            "filter": np.tile(["g", "r", "i"], num_obs // 3),
-            "zp": np.full(num_obs, 30.0),
-            "seeing": np.full(num_obs, 1.12),
-            "skybrightness": np.full(num_obs, 20.0),
-            "exptime": np.full(num_obs, 29.2),
-            "nexposure": np.full(num_obs, 2),
-        }
-    )
-    survey = SurveyInfo(obstable=opsim, survey_name="LSST")
-    model = SncosmoWrapperModel(
-        "salt3",
-        t0=NumpyRandomFunc("uniform", low=20, high=120),
-        x0=NumpyRandomFunc("uniform", low=1e-5, high=1e-3),
-        x1=NumpyRandomFunc("uniform", low=-2, high=2),
-        c=NumpyRandomFunc("uniform", low=-0.2, high=0.3),
-        ra=0.0,
-        dec=0.0,
-        redshift=NumpyRandomFunc("uniform", low=0.05, high=0.3),
-        node_label="salt3",
-        time_extrapolation=LinearDecay(50.0),
-    )
-    init = make_worker_initializer(model, survey)
-
-    def run(executor):
-        return simulate_lightcurves(
-            model=model,
-            num_samples=100,
-            survey_info=survey,
-            rest_time_window_offset=(-50.0, 100.0),
-            batch_size=1,
-            executor=executor,
-            rng=np.random.default_rng(7),
-            progress_bar=False,
-        )
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", WorkerPreloadWarning)
-        with ThreadPoolExecutor(1, initializer=init) as executor:
-            expected = run(executor)
-        if backend == "thread_pool":
-            with ThreadPoolExecutor(8, initializer=init) as executor:
-                result = run(executor)
-        else:
-            with backend_context("dask_threads") as (_, make_preloaded), make_preloaded(init) as client:
-                result = run(client)
-    assert_identical_results(expected, result)

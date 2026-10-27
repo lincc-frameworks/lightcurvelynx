@@ -1,9 +1,6 @@
-"""Tests for worker preloading: serialization, the initializer and its slot, fork handling, and refusal."""
+"""Tests for worker preloading: serialization, the initializer and its slot, and refusal."""
 
-import os
 import pickle
-import warnings
-from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -18,7 +15,6 @@ from lightcurvelynx.utils.worker_preload import (
     is_known_preload_digest,
     load_preloaded_data,
     make_worker_initializer,
-    reset_preload_state,
     serialize_simulation_data,
 )
 
@@ -29,30 +25,8 @@ def test_serialize_is_deterministic_and_modes_agree(preload_inputs):
     kept = serialize_simulation_data(model, [si], keep_bytes=True)
     hashed = serialize_simulation_data(model, [si], keep_bytes=False)
     assert kept.digest == hashed.digest == compute_preload_digest(model, [si])
-    assert hashed.model_bytes is None and hashed.shared_bytes is None
-    assert serialize_simulation_data(model, [si], keep_bytes=True).model_bytes == kept.model_bytes
-
-
-def test_extra_obstable_in_model_is_appended(preload_inputs, test_data_dir):
-    """An ObsTable reachable from the model but not part of survey_info is still shared."""
-    # An ObsTable not in survey_info (a second OpSim load) is also shared: the model bytes stay
-    # small and the loaded sampler's .data is one of the shared objects but not loaded_si[0].obstable.
-    _, si = preload_inputs
-    extra_obstable = OpSim.from_db(test_data_dir / "opsim_small.db")
-    sampler = ObsTableUniformRADECSampler(extra_obstable, radius=1.0, node_label="pos")
-    model = ConstantSEDModel(brightness=100.0, t0=0.0, ra=sampler.ra, dec=sampler.dec, redshift=0.0)
-
-    init = make_worker_initializer(model, si)
-    init()
-    # A never-pickled initializer keeps its bytes after init() is called.
-    assert len(init._model_bytes) * 10 < len(init._shared_bytes)
-
-    loaded_model, loaded_si, _ = load_preloaded_data(init.digest)
-    shared_objects = worker_preload._slot.shared()[1]
-    loaded_sampler = loaded_model.setters["ra"].dependency
-    assert isinstance(loaded_sampler, ObsTableUniformRADECSampler)
-    assert loaded_sampler.data is not loaded_si[0].obstable
-    assert any(loaded_sampler.data is obj for obj in shared_objects)
+    assert hashed.data is None
+    assert serialize_simulation_data(model, [si], keep_bytes=True).data == kept.data
 
 
 def test_serialize_none_components(test_data_dir):
@@ -70,7 +44,7 @@ def test_serialize_none_components(test_data_dir):
 
     init = make_worker_initializer(model, si)
     init()
-    loaded_model, loaded_si, _ = load_preloaded_data(init.digest)
+    loaded_model, loaded_si = load_preloaded_data(init.digest)
 
     assert loaded_model.setters["distance"].value is None
     assert loaded_si[0].noise_model is None
@@ -84,10 +58,11 @@ def test_initializer_round_trip(preload_inputs):
     assert is_known_preload_digest(init.digest) and has_known_preload_digests()
     assert load_preloaded_data(init.digest) is None  # slot still empty
     init()
-    m1, s1, _ = load_preloaded_data(init.digest)
-    m2, s2, _ = load_preloaded_data(init.digest)
-    assert m1 is not m2 and m1 is not model  # fresh model per call
-    assert s1 is s2 and s1[0].obstable is s2[0].obstable  # shared data loaded once
+    m1, s1 = load_preloaded_data(init.digest)
+    m2, s2 = load_preloaded_data(init.digest)
+    assert m1 is m2 and m1 is not model  # one model per process, loaded once
+    assert s1 is s2
+    assert worker_preload._slot._data is None  # the pickled bytes are dropped once loaded
     assert load_preloaded_data("0" * 32) is None
 
 
@@ -140,52 +115,18 @@ def test_shared_objects_resolve_to_one_instance(preload_inputs):
 
     init = make_worker_initializer(model, [si, si2])
     init()
-    loaded_model, loaded_si, _ = load_preloaded_data(init.digest)
+    loaded_model, loaded_si = load_preloaded_data(init.digest)
 
     assert loaded_si[0].obstable is loaded_si[1].obstable
     loaded_sampler = loaded_model.setters["ra"].dependency
     assert loaded_sampler.data is loaded_si[0].obstable
 
 
-def test_lazy_shared_load_is_thread_safe(preload_inputs):
-    """Concurrent loads from many threads share one shared-data load, but not the model."""
+def test_initializer_installs_at_most_once(preload_inputs):
+    """An initializer releases its payload once installed, so calling it again never reinstalls."""
     model, si = preload_inputs
-    init = make_worker_initializer(model, si)
+    init = make_worker_initializer(model, si)  # never pickled
     init()
-
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        results = list(executor.map(lambda _: load_preloaded_data(init.digest), range(8)))
-
-    models = [result[0] for result in results]
-    survey_lists = [result[1] for result in results]
-    assert all(survey_list is survey_lists[0] for survey_list in survey_lists)
-    assert len({id(m) for m in models}) == len(models)
-
-
-def test_never_pickled_initializer_keeps_bytes_and_can_reinstall(preload_inputs):
-    """An initializer that was never pickled keeps its bytes and can preload again."""
-    model, si = preload_inputs
-    init = make_worker_initializer(model, si)
-    init()
-    assert init._model_bytes is not None
-    assert init._shared_bytes is not None
-
-    reset_preload_state()
-    init()  # must still work: this instance never released its bytes
-    assert load_preloaded_data(init.digest) is not None
-
-
-def test_emptied_unpickled_initializer_call_is_a_safe_noop(preload_inputs):
-    """Calling an already-emptied, unpickled initializer never raises and never installs."""
-    model, si = preload_inputs
-    init = pickle.loads(pickle.dumps(make_worker_initializer(model, si)))
-    init()  # releases init's own model and shared bytes, since it was unpickled
-    load_preloaded_data(init.digest)  # releases the slot's own shared bytes
-    assert init._model_bytes is None
-    assert init._shared_bytes is None
-    # The slot itself must also have dropped the shared bytes after the first load.
-    assert worker_preload._slot._shared_bytes is None
-
     other = make_worker_initializer(
         ConstantSEDModel(brightness=1.0, t0=0.0, ra=0.0, dec=0.0, redshift=0.0), si
     )
@@ -193,52 +134,18 @@ def test_emptied_unpickled_initializer_call_is_a_safe_noop(preload_inputs):
 
     init()  # must not raise, and must not touch the slot
     assert load_preloaded_data(init.digest) is None
+    assert load_preloaded_data(other.digest) is not None
 
 
-def test_initializer_same_digest_call_keeps_slot(preload_inputs):
-    """Calling an initializer a second time with the same digest leaves the slot untouched.
+def test_same_digest_install_keeps_loaded_slot(preload_inputs):
+    """A second initializer with the digest the slot already holds leaves the loaded data in place.
 
-    This is what stops ``ThreadPoolExecutor``'s per-thread initializer calls from unpickling
-    the shared data again.
+    Backends may run an initializer more than once per worker (for example dask, when callbacks
+    are registered again), and replacing the slot would unpickle everything again.
     """
-    init = make_worker_initializer(*preload_inputs)  # never pickled: keeps its bytes
-    init()
-    slot_before = worker_preload._slot
-    init()
-    assert worker_preload._slot is slot_before
-
-
-@pytest.mark.skipif(not hasattr(os, "fork"), reason="This platform cannot fork.")
-def test_forked_child_gets_fresh_locks(preload_inputs):
-    """A child forked while the module's locks are held gets fresh, unlocked locks.
-
-    The thread that holds a lock at fork time does not exist in the child, so a lock copied in
-    its locked state would never be released there, and the child's first batch would hang.
-    """
-    model, si = preload_inputs
-    make_worker_initializer(model, si)()
-
-    def module_locks():
-        return [worker_preload._slot_lock, worker_preload._slot._shared_lock]
-
-    held = module_locks()
-    for lock in held:
-        lock.acquire()
-    try:
-        with warnings.catch_warnings():
-            # Python warns that forking a multi-threaded process may deadlock the child.
-            warnings.simplefilter("ignore", DeprecationWarning)
-            pid = os.fork()
-        if pid == 0:
-            # In the child: exit with 0 only if every lock can be taken. os._exit skips the
-            # rest of the test session, which belongs to the parent.
-            exit_code = 1
-            try:
-                exit_code = 0 if all(lock.acquire(timeout=2) for lock in module_locks()) else 1
-            finally:
-                os._exit(exit_code)
-        _, status = os.waitpid(pid, 0)
-    finally:
-        for lock in held:
-            lock.release()
-    assert os.waitstatus_to_exitcode(status) == 0
+    init = make_worker_initializer(*preload_inputs)
+    first, second = (pickle.loads(pickle.dumps(init)) for _ in range(2))
+    first()
+    loaded_model, _ = load_preloaded_data(init.digest)
+    second()
+    assert load_preloaded_data(init.digest)[0] is loaded_model

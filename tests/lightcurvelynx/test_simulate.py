@@ -1,15 +1,12 @@
 import contextlib
 import copy
-import gc
 import pickle
 import sys
 import tempfile
 import threading
 import warnings
-import weakref
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -2039,9 +2036,9 @@ def test_simulate_preloaded_obstable_in_model(
     """A model that holds an ObsTable, either its survey's own or one outside survey_info,
     gives identical results when preloaded.
 
-    The preloaded run also refuses to deep-copy any ObsTable. Preloaded batches share their
-    ObsTables with the worker's preload slot, so a per-batch deepcopy of the model (as
-    upstream adds to _simulate_lightcurves_batch) must skip them.
+    The preloaded run also refuses to deep-copy any ObsTable: preloaded batches share the
+    worker's one copy of the model and its ObsTables, so a per-batch deepcopy would copy every
+    ObsTable for every batch.
     """
     _, si = preload_inputs
     obstable = si.obstable if in_survey_info else OpSim.from_db(test_data_dir / "opsim_small.db")
@@ -2071,73 +2068,21 @@ def test_simulate_preloaded_obstable_in_model(
     assert_identical_results(expected, result)
 
 
-def test_simulate_preloaded_batch_frees_its_model(preload_inputs, monkeypatch, run_preload_sim):
-    """Each preloaded batch frees its own copy of the model before it returns, once the model
-    bytes loaded since the last collection reach the threshold (set to 0 here, so every batch).
-
-    The model's nodes reference each other in cycles, so only the cyclic garbage collector
-    can free a copy. Automatic collection is disabled here, so any copy that is freed was
-    freed by the batch itself.
-    """
+def test_simulate_preloaded_batches_share_the_workers_model(preload_inputs, run_preload_sim):
+    """Every preloaded batch on a worker runs the one model that worker loaded, so state a batch
+    leaves on the model carries into the next batch, as it does between serial batches."""
     model, si = preload_inputs
-    loaded_models = []
-    real_load = simulate_module.load_preloaded_data
-
-    def recording_load(digest):
-        loaded = real_load(digest)
-        if loaded is not None:
-            loaded_models.append(weakref.ref(loaded[0]))
-        return loaded
-
-    # simulate.py imports load_preloaded_data by name, so patch it there.
-    monkeypatch.setattr(simulate_module, "load_preloaded_data", recording_load)
-    monkeypatch.setattr(simulate_module, "_PRELOAD_GC_THRESHOLD_BYTES", 0)
-    make_worker_initializer(model, si)()
-
-    gc.disable()
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", WorkerPreloadWarning)
-            result = run_preload_sim(model, si, PicklingMapExecutor())
-        # Check before re-enabling automatic collection, which would free any leftover copies.
-        alive = [ref() is not None for ref in loaded_models]
-    finally:
-        gc.enable()
-    assert len(result) == 60
-    assert alive == [False] * 6
-
-
-def test_simulate_preloaded_small_model_skips_gc(preload_inputs, monkeypatch, run_preload_sim):
-    """Preloaded batches of a small model never run a full garbage collection, which is slow
-    even when there is little to free."""
-    model, si = preload_inputs
-    collect_calls = []
-    # simulate.py calls gc.collect through its own gc name, so replace that name.
-    monkeypatch.setattr(
-        simulate_module, "gc", SimpleNamespace(collect=lambda *args: collect_calls.append(args))
-    )
-    # Count from zero, whatever model bytes earlier tests in this process have loaded.
-    monkeypatch.setattr(simulate_module, "_preload_bytes_since_gc", 0)
-    make_worker_initializer(model, si)()
+    init = make_worker_initializer(model, si)
+    init()
+    workers_model, _ = load_preloaded_data(init.digest)
+    workers_table = workers_model.setters["t0"].dependency
+    assert workers_table._last_start_index == -1  # Not used yet.
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", WorkerPreloadWarning)
-        result = run_preload_sim(model, si, PicklingMapExecutor())
-    assert len(result) == 60
-    assert collect_calls == []
-
-
-def test_simulate_preloaded_thread_pool(preload_inputs, assert_identical_results, run_preload_sim):
-    """A preloaded ThreadPoolExecutor gives identical results without falling back."""
-    model, si = preload_inputs
-    with pytest.warns(WorkerPreloadWarning, match="not preloaded"):
-        expected = run_preload_sim(model, si, PicklingMapExecutor())
-
-    with ThreadPoolExecutor(4, initializer=make_worker_initializer(model, si)) as executor:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", WorkerPreloadWarning)
-            result = run_preload_sim(model, si, executor)
-    assert_identical_results(expected, result)
+        run_preload_sim(model, si, PicklingMapExecutor())
+    # The six batches of ten ran in order in this process, so the last one started at row 50.
+    assert workers_table._last_start_index == 50
 
 
 def test_simulate_not_preloaded_skips_digest(preload_inputs, monkeypatch, run_preload_sim):
@@ -2247,17 +2192,14 @@ def test_simulate_preload_mixed_hits_and_misses(
 def test_fallback_warning_texts_unchanged(preload_inputs, run_preload_sim, make_stateful_model):
     """Pin the exact text of every preload fallback warning.
 
-    The sentences below are deliberately hardcoded literals, reproducing the warning text
-    at commit ``ca988a0e`` (the former ``_FALLBACK_CASES`` and ``_FALLBACK_SUFFIX``),
-    rather than read from that module. That way refactoring how the warnings are built
-    cannot silently change what a user sees.
+    The sentences below are deliberately hardcoded literals rather than read from
+    ``worker_preload``. That way refactoring how the warnings are built cannot silently change
+    what a user sees.
     """
     suffix = (
         "Each of these batches carries a full copy of the model and survey data. To send this data to "
         "each worker once, pass initializer=make_worker_initializer(model, survey_info) to the executor "
-        "(see the parallel_runs notebook). Batches sent this way that run as threads in one process "
-        "share a single model object, which is not safe for models that keep per-call state "
-        "(e.g. SncosmoWrapperModel)."
+        "(see the parallel_runs notebook)."
     )
     model, si = preload_inputs
 
@@ -2274,9 +2216,8 @@ def test_fallback_warning_texts_unchanged(preload_inputs, run_preload_sim, make_
     # Case 2: unpicklable, with the cause.
     make_worker_initializer(model, si)  # Make the registry non-empty.
     stateful_model = make_stateful_model(si)
-    with ThreadPoolExecutor(2) as executor:
-        with pytest.warns(WorkerPreloadWarning) as record:
-            run_preload_sim(stateful_model, si, executor, num_samples=10, batch_size=5)
+    with pytest.warns(WorkerPreloadWarning) as record:
+        run_preload_sim(stateful_model, si, InProcessMapExecutor(), num_samples=10, batch_size=5)
     assert str(record[0].message) == (
         "The model or survey data could not be pickled, so the workers cannot have been preloaded "
         "with it (RuntimeError: A stateful GivenValueList cannot be pickled. This node does not "
@@ -2315,13 +2256,12 @@ def test_fallback_warning_texts_unchanged(preload_inputs, run_preload_sim, make_
 
 
 def test_simulate_preload_unpicklable_falls_back(preload_inputs, run_preload_sim, make_stateful_model):
-    """Data that refuses pickling falls back on a thread pool, and refuses preloading."""
+    """Data that refuses pickling falls back on an executor that does not pickle its batches."""
     model, si = preload_inputs
     make_worker_initializer(model, si)  # Make the registry non-empty.
     stateful_model = make_stateful_model(si)
-    with ThreadPoolExecutor(2) as executor:
-        with pytest.warns(WorkerPreloadWarning, match="could not be pickled") as record:
-            result = run_preload_sim(stateful_model, si, executor, num_samples=10, batch_size=5)
+    with pytest.warns(WorkerPreloadWarning, match="could not be pickled") as record:
+        result = run_preload_sim(stateful_model, si, InProcessMapExecutor(), num_samples=10, batch_size=5)
     assert len(result) == 10
     # The warning names the pickling error, and points at the simulate_lightcurves call,
     # inside the run_preload_sim fixture.
@@ -2492,7 +2432,7 @@ def test_simulate_preload_leaves_surveys_untouched(preload_inputs, run_preload_s
 
     init = make_worker_initializer(model, si)
     init()
-    _, preloaded_si, _ = load_preloaded_data(init.digest)
+    _, preloaded_si = load_preloaded_data(init.digest)
     preloaded_before = pickle.dumps(preloaded_si, protocol=5)
     with warnings.catch_warnings():
         warnings.simplefilter("error", WorkerPreloadWarning)
