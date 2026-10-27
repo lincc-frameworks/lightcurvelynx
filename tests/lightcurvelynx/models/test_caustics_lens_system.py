@@ -6,7 +6,7 @@ import pickle
 import subprocess
 import sys
 import warnings
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -97,7 +97,6 @@ def _make_system(lens=None, **overrides):
             "lens_parameters": LENS_PARAMETERS,
             "z_s": Z_S,
             "max_images": 5,
-            "seed": 11,
             "node_label": "system",
         }
         | MESH
@@ -222,7 +221,7 @@ def test_user_lens_unchanged_by_sampling():
     """Test that sampling leaves the user's lens untouched."""
     lens = _make_lens()
     before = _snapshot(lens)
-    _make_system(lens).sample_parameters(num_samples=1)
+    _make_system(lens).sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     _assert_same_snapshot(before, _snapshot(lens))
 
 
@@ -255,7 +254,7 @@ def test_inside_caustics_matches_caustic_area_and_is_multiply_imaged():
 
 def test_single_system_shapes_and_padding():
     """Test one-system outputs: scalars, (I,) arrays, padding and sorted, zero-based delays."""
-    state = _make_system().sample_parameters(num_samples=1)
+    state = _make_system().sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     out = state["system"]
     n = int(out["num_images"])
     assert np.ndim(out["source_x"]) == 0 and np.ndim(out["area"]) == 0
@@ -276,7 +275,7 @@ def test_single_system_shapes_and_padding():
 
 def test_multi_system_shapes():
     """Test that S systems give (S,) and (S, I) outputs."""
-    out = _make_system().sample_parameters(num_samples=3)["system"]
+    out = _make_system().sample_parameters(num_samples=3, rng_info=np.random.default_rng(11))["system"]
     assert out["source_x"].shape == (3,) and out["num_images"].shape == (3,) and out["area"].shape == (3,)
     assert out["bb_area"].shape == out["mc_area"].shape == out["n_draws"].shape == (3,)
     assert out["image_x"].shape == (3, 5) and out["shear_2"].shape == (3, 5)
@@ -300,7 +299,7 @@ def _assert_system_matches_caustics(row, ref):
 
 def test_images_solve_lens_equation_and_observables_match_caustics():
     """Test that images map back to the source, and image counts and observables match caustics."""
-    out = _make_system().sample_parameters(num_samples=2)["system"]
+    out = _make_system().sample_parameters(num_samples=2, rng_info=np.random.default_rng(11))["system"]
     ref = _reference_lens()
     for i in range(2):
         _assert_system_matches_caustics(
@@ -315,7 +314,9 @@ def test_images_solve_lens_equation_and_observables_match_caustics():
 
 def test_mu_region_area_and_membership():
     """Test that mu-region mode samples inside mu_min <= mu_tot <= mu_max and returns region.area."""
-    out = _make_system(mu_min=10.0, mu_max=50.0).sample_parameters(num_samples=2)["system"]
+    out = _make_system(mu_min=10.0, mu_max=50.0).sample_parameters(
+        num_samples=2, rng_info=np.random.default_rng(11)
+    )["system"]
     mesh, _, region = _reference_lens().build_closed_lens_mesh(
         MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=10.0, mu_max=50.0
     )
@@ -332,7 +333,7 @@ def test_mu_region_area_and_membership():
 def test_mu_min_picks_each_systems_sampling_region():
     """Test that a per-system mu_min, NaN meaning caustic mode, sets each system's region and area."""
     system = _make_system(mu_min=GivenValueList([np.nan, 10.0]))
-    out = system.sample_parameters(num_samples=2)["system"]
+    out = system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(11))["system"]
     _, curves, _ = _reference_lens().build_closed_lens_mesh(
         MESH["fov"], MESH["init_res"], MESH["min_img_sep"]
     )
@@ -412,11 +413,11 @@ def test_same_seed_reproduces_and_rng_advances_by_num_samples():
 
 def test_linked_fov_varies_per_system():
     """Test that fov and Rein linked to a sampled Einstein radius are used per system."""
-    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
+    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, node_label="rein")
     system = _make_system(
         lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein}, fov=BasicMathNode("5 * r", r=rein)
     )
-    out = system.sample_parameters(num_samples=2)["system"]
+    out = system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(1))["system"]
     assert_allclose(out["fov"], 5.0 * out["sie_Rein"])
     assert out["fov"][0] != out["fov"][1]
     assert out["area"][0] != out["area"][1]  # Each system's mesh is built from its own inputs.
@@ -424,7 +425,8 @@ def test_linked_fov_varies_per_system():
 
 def test_integer_settings_given_as_floats():
     """Test that init_res given as a float-valued node output is cast to int."""
-    out = _make_system(init_res=BasicMathNode("16.0 * 2")).sample_parameters(num_samples=1)["system"]
+    system = _make_system(init_res=BasicMathNode("16.0 * 2"))
+    out = system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))["system"]
     assert int(out["num_images"]) >= 2
 
 
@@ -432,7 +434,7 @@ def test_mapped_parameter_link_samples():
     """Test that a node linked to a mapped lens parameter sees its sampled value."""
     system = _make_system()
     double_q = BasicMathNode("2 * q", q=system.sie_q, node_label="double_q")
-    state = double_q.sample_parameters(num_samples=1)
+    state = double_q.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     assert state["double_q"]["function_node_result"] == pytest.approx(2 * VALUES["q"])
 
 
@@ -502,7 +504,8 @@ def test_mc_area_is_nan_unless_estimated_and_does_not_change_the_draw(mu_min):
 @pytest.mark.parametrize("mu_min", [None, 10.0])
 def test_mc_area_cross_checks_area(mu_min):
     """Test that bb_area bounds the sampled region's contour and mc_area estimates its area."""
-    out = _make_system(mu_min=mu_min, estimate_mc_area=True).sample_parameters(num_samples=1)["system"]
+    system = _make_system(mu_min=mu_min, estimate_mc_area=True)
+    out = system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))["system"]
     _, curves, region = _reference_lens().build_closed_lens_mesh(
         MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=mu_min
     )
@@ -525,7 +528,7 @@ def test_mc_area_tests_mu_region_candidates_in_one_chunked_call(monkeypatch):
 
     monkeypatch.setattr(adaptive, "total_magnification", recording_total_magnification)
     system = _make_system(mu_min=10.0, estimate_mc_area=True, max_candidates=2048, candidate_batch_size=512)
-    system.sample_parameters(num_samples=1)
+    system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     assert calls == [(2048, 512)]
 
 
@@ -559,7 +562,7 @@ def test_rejection_cap_error_names_system_and_region(monkeypatch, mu_min, match)
 def test_per_system_failures_raise(overrides, error, match):
     """Test that bad systems raise instead of reaching the output."""
     with pytest.raises(error, match=match):
-        _make_system(**overrides).sample_parameters(num_samples=1)
+        _make_system(**overrides).sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
 
 
 def test_error_names_global_system_index():
@@ -575,7 +578,7 @@ def test_informational_caustics_warnings_are_reemitted():
     # reaches past the fov edge at 2.5 and caustics widens the fov (a center at 2.45 does not).
     system = _make_system(mesh_kwargs={"centers": [[2.498, 0.0]]})
     with pytest.warns(UserWarning, match="reach outside fov"):
-        system.sample_parameters(num_samples=1)
+        system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
 
 
 def test_build_escalates_failure_warnings_and_reemits_others():
@@ -704,9 +707,10 @@ def test_working_lens_is_reused_and_not_pickled():
     pytest.importorskip("cloudpickle")
     system = _make_system()
     assert system._working is None and system._observables is None  # Nothing is copied at construction.
-    system.sample_parameters(num_samples=1)
+    rng = np.random.default_rng(11)
+    system.sample_parameters(num_samples=1, rng_info=rng)
     working, observables = system._working, system._observables
-    system.sample_parameters(num_samples=1)
+    system.sample_parameters(num_samples=1, rng_info=rng)
     assert working is not None and working is not system._lens
     assert system._working is working and system._observables is observables
     assert all(f.module is working for f in observables.values())
@@ -716,10 +720,11 @@ def test_working_lens_is_reused_and_not_pickled():
 
 def test_reused_working_lens_matches_caustics_at_new_parameter_values():
     """Test that a second compute, reusing the working lens at a new Einstein radius, matches caustics."""
-    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
+    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, node_label="rein")
     system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein})
-    first = system.sample_parameters(num_samples=1)["system"]
-    second = system.sample_parameters(num_samples=1)["system"]
+    rng = np.random.default_rng(1)
+    first = system.sample_parameters(num_samples=1, rng_info=rng)["system"]
+    second = system.sample_parameters(num_samples=1, rng_info=rng)["system"]
     assert second["sie_Rein"] != first["sie_Rein"]
     for row in (first, second):
         _assert_system_matches_caustics(row, _reference_lens(Rein=row["sie_Rein"]))
@@ -730,8 +735,8 @@ def test_unpickled_copies_of_one_node_share_its_working_lens():
     pytest.importorskip("cloudpickle")
     system = _make_system()
     first, second = (pickle.loads(pickle.dumps(system)) for _ in range(2))
-    first.sample_parameters(num_samples=1)
-    second.sample_parameters(num_samples=1)
+    first.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
+    second.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     assert first._working is not None
     assert second._working is first._working and second._observables is first._observables
 
@@ -739,8 +744,8 @@ def test_unpickled_copies_of_one_node_share_its_working_lens():
 def test_separately_built_nodes_get_their_own_working_lenses():
     """Test that two nodes built from identical lenses do not share a working lens."""
     first, second = _make_system(), _make_system()
-    first.sample_parameters(num_samples=1)
-    second.sample_parameters(num_samples=1)
+    first.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
+    second.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     assert first._working is not second._working
 
 
@@ -766,7 +771,7 @@ def _jax_compiles():
 def test_unpickled_copy_at_new_parameter_values_compiles_nothing():
     """Test that a second unpickled copy of a node (a later executor batch) compiles nothing at new values."""
     pytest.importorskip("cloudpickle")
-    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
+    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, node_label="rein")
     system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein})
     first, second = (pickle.loads(pickle.dumps(system)) for _ in range(2))
     first_out = first.sample_parameters(num_samples=1, rng_info=np.random.default_rng(1))["system"]
@@ -795,13 +800,13 @@ def test_second_compute_compiles_no_new_observable_programs(monkeypatch):
         return out
 
     monkeypatch.setattr(JitForward, "__call__", counting_call)
-    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, seed=1, node_label="rein")
-    # Seed 25 draws a 2-image system, then a 4-image one.
-    system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein}, seed=25)
+    rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, node_label="rein")
+    system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein})
+    rng = np.random.default_rng(6)  # Draws a 2-image system, then a 4-image one.
     with _jax_compiles() as compiles:
-        first = system.sample_parameters(num_samples=1)["system"]
+        first = system.sample_parameters(num_samples=1, rng_info=rng)["system"]
         num_first = len(observable_compiles)
-        second = system.sample_parameters(num_samples=1)["system"]
+        second = system.sample_parameters(num_samples=1, rng_info=rng)["system"]
     assert second["sie_Rein"] != first["sie_Rein"]
     assert second["num_images"] != first["num_images"]  # Padding keeps one input shape.
     first_calls, second_calls = observable_compiles[:num_first], observable_compiles[num_first:]
@@ -821,7 +826,7 @@ def test_worker_process_defaults_to_one_thread(restore_torch_threads):
     """Test that a node running outside its construction process uses one torch thread by default."""
     system = _make_system()
     system._owner_pid = -1  # Pretend we are in a worker process.
-    system.sample_parameters(num_samples=1)
+    system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     assert torch.get_num_threads() == 1
 
 
@@ -837,14 +842,14 @@ def test_building_process_samples_on_one_thread_and_restores_its_count(monkeypat
         return solve_system(*args, **kwargs)
 
     monkeypatch.setattr(system, "_solve_system", recording_solve_system)
-    system.sample_parameters(num_samples=2)
+    system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(11))
     assert seen == [1, 1]
     assert torch.get_num_threads() == 2
 
 
 def test_explicit_thread_count_is_applied(restore_torch_threads):
     """Test that torch_num_threads is applied in compute."""
-    _make_system(torch_num_threads=2).sample_parameters(num_samples=1)
+    _make_system(torch_num_threads=2).sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     assert torch.get_num_threads() == 2
 
 
@@ -861,21 +866,11 @@ def test_stored_lens_unchanged_by_sampling():
     assert_array_equal(first["image_x"], second["image_x"])
 
 
-def test_thread_executor_matches_in_process_batches():
-    """Test that a ThreadPoolExecutor run matches in-process batches."""
-    serial = _simulate(executor=_InProcessExecutor(), batch_size=1)
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        threaded = _simulate(executor=pool, batch_size=1)
-    assert_array_equal(threaded["lensed_system_id"], serial["lensed_system_id"])
-    for col in ("ra", "dec", "t0"):
-        assert_allclose(threaded[col], serial[col], rtol=1e-12)
-
-
 def test_process_executor_matches_in_process_batches():
     """Test that a process-based run matches in-process batches within tolerance.
 
-    Under torch it is num_jobs=2 (fork, 1 torch thread per worker); under jax, where forked workers
-    are unsafe, a spawn ProcessPoolExecutor.
+    Under torch it is num_jobs=2 (workers started without forking, 1 torch thread each); under
+    jax, a user-supplied ProcessPoolExecutor with a spawn context.
     """
     pytest.importorskip("cloudpickle")
     serial = _simulate(executor=_InProcessExecutor(), batch_size=1)

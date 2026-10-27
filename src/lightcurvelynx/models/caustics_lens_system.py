@@ -224,16 +224,16 @@ class CausticsStrongLensSystem(FunctionNode):
     caustics' ``(x, y)``: east and north in arcseconds from the lens origin, the same
     convention ``ResolvedStrongLensModel`` expects.
 
-    By default the source is drawn uniformly inside the union of the caustics and 
-    pseudo-caustics (every point there is multiply imaged). If ``mu_min`` is given, it is 
-    instead drawn uniformly inside the source-plane region where ``mu_min <= mu_total <= mu_max`` 
-    (singly imaged sources are then legitimate). ``area`` is the area (in in ``arcsec^2``) 
-    of whichever region was sampled from (``caustic_area(curves)``, or ``region.area`` in μ-region mode), 
-    so a population can be weighted by lensing cross-section. A limitation: the region contours 
-    that caustics traces can misestimate the area of ``mu_min <= mu_total <= mu_max`` near 
-    the lensing caustics, by about 1% at ``mu_min = 10`` and roughly 5-30% for ``mu_min`` 
-    from about 30to 300 on an SIE + external shear test lens. The sampled sources still 
-    follow the true ``mu_total``, since each candidate is accepted by caustics' 
+    By default the source is drawn uniformly inside the union of the caustics and
+    pseudo-caustics (every point there is multiply imaged). If ``mu_min`` is given, it is
+    instead drawn uniformly inside the source-plane region where ``mu_min <= mu_total <= mu_max``
+    (singly imaged sources are then legitimate). ``area`` is the area (in in ``arcsec^2``)
+    of whichever region was sampled from (``caustic_area(curves)``, or ``region.area`` in μ-region mode),
+    so a population can be weighted by lensing cross-section. A limitation: the region contours
+    that caustics traces can misestimate the area of ``mu_min <= mu_total <= mu_max`` near
+    the lensing caustics, by about 1% at ``mu_min = 10`` and roughly 5-30% for ``mu_min``
+    from about 30to 300 on an SIE + external shear test lens. The sampled sources still
+    follow the true ``mu_total``, since each candidate is accepted by caustics'
     ``total_magnification``; caustic mode is unaffected. ``mu_min`` and ``mu_max`` are node
     parameters, unset when None or NaN, so they can be linked to other nodes' outputs and
     evaluated per system: the sampling mode, and with it what ``area`` measures, can then
@@ -283,10 +283,10 @@ class CausticsStrongLensSystem(FunctionNode):
     the sign of ``(1 - κ)**2 - γ1**2 - γ2**2``.
 
     Construction-time input errors, and a per-system ``z_l >= z_s`` or invalid pair of
-    linked ``mu_min`` and ``mu_max``, raise ``ValueError``. 
-    Every other per-system failure raises ``RuntimeError`` naming the system 
-    (its global index and parameter values): the mesh failing to close, depth-limited mesh 
-    refinement, an unbounded μ-region, a hole curve hitting its sample cap, no 
+    linked ``mu_min`` and ``mu_max``, raise ``ValueError``.
+    Every other per-system failure raises ``RuntimeError`` naming the system
+    (its global index and parameter values): the mesh failing to close, depth-limited mesh
+    refinement, an unbounded μ-region, a hole curve hitting its sample cap, no
     strong-lensing region or an empty μ-region, a source outside the image of the
     fov boundary (too few images in the fov), too few images for the sampling mode, or
     more than ``max_images`` images. Other warnings from the mesh build (e.g. a
@@ -317,10 +317,11 @@ class CausticsStrongLensSystem(FunctionNode):
     All of a system's caustics work (mesh build, source sampling, raytracing,
     observables) runs under one module-level lock, because every call fills the parameters
     of the shared working lens, and under torch ``torch.func.jacfwd``, which caustics uses
-    internally, keeps process-global forward-AD state and is not thread-safe. Under a
-    ``ThreadPoolExecutor`` this node's work is therefore serialized across threads:
-    correct, but no faster than running serially. Prefer a process-based executor
-    (``num_jobs`` under torch, ``ProcessPoolExecutor``, Dask, loky, Ray) for speed.
+    internally, keeps process-global forward-AD state and is not thread-safe.
+    ``simulate_lightcurves`` does not support multi-threaded executors (a
+    ``ThreadPoolExecutor``, or a Dask client with more than one thread per worker), so run
+    in parallel with processes: ``num_jobs``, a ``ProcessPoolExecutor`` with a spawn
+    context, a Dask client with ``threads_per_worker=1``, loky or Ray.
 
     Pickling this node (e.g. for ``num_jobs``) requires ``cloudpickle``, and
     unpickling it in a worker does too, because the pickled state holds the stored lens
@@ -336,17 +337,18 @@ class CausticsStrongLensSystem(FunctionNode):
     moves its working lens to ``device`` only inside sampling, never in the process that
     builds it. Caustics runs its mesh bookkeeping on torch's default device, which the node
     leaves unchanged: the CPU, unless the caller has changed it.
-    ``import caustics`` itself probes CUDA, though, so a forked worker cannot use CUDA 
-    ("Cannot re-initialize CUDA in forked subprocess"); ``num_jobs`` and a default 
-    ``ProcessPoolExecutor`` fork on Linux with Python 3.13 or earlier. For ``device="cuda"`` 
-    with a process-based executor, pass ``simulate_lightcurves`` an executor with a spawn 
-    or forkserver context, e.g. ``ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn"))``, 
-    or use Dask, loky or Ray, or set ``PYTORCH_NVML_BASED_CUDA_CHECK=1`` before importing 
-    torch. Under jax, ``"cpu"`` is jax's CPU device and ``"cuda"``, ``"cuda:N"`` or ``"gpu"`` 
-    its first (or N-th) GPU, made jax's default device during sampling. Forked workers are 
-    unsafe under jax on any device, since jax is multithreaded: use an executor with a spawn or
-    forkserver context, as above, or Dask, loky or Ray, and not ``num_jobs`` where it
-    forks. GPU speedup is unmeasured, since caustics handles one system per call.
+    ``import caustics`` itself probes CUDA, though, so a forked worker cannot use CUDA
+    ("Cannot re-initialize CUDA in forked subprocess"). ``num_jobs`` never forks (it uses
+    a spawn context, or from Python 3.14 the platform default), but a ``ProcessPoolExecutor``
+    made without a context forks on Linux with Python 3.13 or earlier. For ``device="cuda"``
+    with your own process-based executor, give it a spawn or forkserver context, e.g.
+    ``ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn"))``, or use Dask,
+    loky or Ray, or set ``PYTORCH_NVML_BASED_CUDA_CHECK=1`` before importing torch. Under
+    jax, ``"cpu"`` is jax's CPU device and ``"cuda"``, ``"cuda:N"`` or ``"gpu"`` its first
+    (or N-th) GPU, made jax's default device during sampling. Forked workers are unsafe
+    under jax on any device, since jax is multithreaded: use ``num_jobs``, an executor with
+    a spawn or forkserver context, as above, or Dask, loky or Ray. GPU speedup is
+    unmeasured, since caustics handles one system per call.
 
     Example wiring this node into ``ResolvedStrongLensModel``:
 
@@ -417,8 +419,6 @@ class CausticsStrongLensSystem(FunctionNode):
         ``compute``, under either backend. Default: None, which uses 1 thread: for good in a
         worker process (any process other than the one that built the node), and in the
         building process only while ``compute`` runs, restoring its thread count afterwards.
-    seed : int, optional
-        The seed for this node's random number generator. Default: None (OS entropy).
     node_label : str, optional
         The label for this node.
     """
@@ -459,7 +459,6 @@ class CausticsStrongLensSystem(FunctionNode):
         raytrace_kwargs=None,
         device="cpu",
         torch_num_threads=None,
-        seed=None,
         node_label=None,
     ):
         _, caustics = _import_caustics()
@@ -570,9 +569,6 @@ class CausticsStrongLensSystem(FunctionNode):
         self._lens_key = uuid.uuid4().hex
         self._working = None
         self._observables = None
-        if seed is None:
-            seed = int.from_bytes(os.urandom(4), "big")
-        self._rng = np.random.default_rng(seed)
 
     def resolved_inputs(self):
         """Return this node's outputs mapped to ``ResolvedStrongLensModel``'s input names.
@@ -981,8 +977,8 @@ class CausticsStrongLensSystem(FunctionNode):
             in place as it is sampled.
         rng_info : numpy.random._generator.Generator, optional
             A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator. It advances by
-            exactly one draw per system.
+            provided, a new, randomly seeded one is used. It advances by exactly one draw
+            per system.
         **kwargs : dict, optional
             Additional function arguments.
 
@@ -1009,12 +1005,11 @@ class CausticsStrongLensSystem(FunctionNode):
                 "that worker processes inherit it."
             )
         args = self._build_inputs(graph_state, **kwargs)
-        rng = rng_info if rng_info is not None else self._rng
+        rng_info = np.random.default_rng() if rng_info is None else rng_info
         num_samples = graph_state.num_samples
-        sub_seeds = rng.integers(0, 2**63, size=num_samples, dtype=np.uint64)
+        sub_seeds = rng_info.integers(0, 2**63, size=num_samples, dtype=np.uint64)
 
         if self._backend == "jax":
-            import jax
             device = _jax_device(self._device)
         else:
             device = self._device
