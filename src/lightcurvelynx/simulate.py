@@ -3,6 +3,7 @@
 import concurrent.futures
 import logging
 import multiprocessing
+import sys
 import warnings
 from pathlib import Path
 
@@ -844,7 +845,13 @@ def simulate_lightcurves(
     else:
         # We want to run in parallel, but did not provide and executor. We create a
         # process pool executor with the specified number of jobs.
-        ctx = multiprocessing.get_context("spawn")  # Needed for older Python versions
+        if sys.version_info < (3, 14):
+            # Older Python versions may default to "fork", so we create a context
+            # with "spawn" explicitly.
+            ctx = multiprocessing.get_context("spawn")
+        else:
+            # Newer python versions can use the default.
+            ctx = None
         with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs, mp_context=ctx) as executor:
             result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
 
