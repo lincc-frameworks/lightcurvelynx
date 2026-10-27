@@ -826,12 +826,13 @@ def simulate_lightcurves(
                 "Some of the models have been found to be incompatible with ThreadPoolExecutor. "
                 "We are working on a patch. Please use a different executor in the meantime."
             )
-        # Check for a dask client with multiple threads per worker.
-        if hasattr(executor, "nthreads") and np.any(list(np.array(executor.nthreads().values())) > 1):
+        # Check for a dask client with multiple threads per worker. Its nthreads() returns a
+        # dictionary mapping each worker's address to that worker's number of threads.
+        if hasattr(executor, "nthreads") and any(n > 1 for n in executor.nthreads().values()):
             raise ValueError(
                 "Some of the models have been found to be incompatible with multi-threaded executors. "
                 "Please create your client with threads_per_worker=1."
-            )  # pragma: no cover
+            )
 
         # If we have an executor, use that regardless of the other settings.
         result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
