@@ -31,8 +31,9 @@ class JoblibExecutor:
 
 def assert_safe_executor(executor):
     """Assert that the given executor is safe to use with the models.
-    This is an evolving list of incompatibilities to check for in different
-    executors.
+
+    These checks are **not** comprehensive, but rather represent an evolving
+    list of incompatibilities found to date.
 
     Parameters
     ----------
