@@ -183,9 +183,9 @@ class ObsTable:
 
         # We convert string columns to categorical for efficiency (memory and serialization in parallel)
         for col in self._table.columns:
-            if self._table[col].dtype in ["str", "string"]:
+            if pd.api.types.is_string_dtype(self._table[col]):
                 all_string = True
-            elif self._table[col].dtype == "object" and (self._table[col].map(type) == str).all():
+            elif pd.api.types.is_object_dtype(self._table[col]) and (self._table[col].map(type) == str).all():
                 # We handle object columns that are actually all strings to support pandas 2.0
                 # or cases where the user explicitly provides a column as object type.
                 all_string = True
