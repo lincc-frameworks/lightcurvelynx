@@ -1,6 +1,65 @@
+import concurrent.futures
+import multiprocessing
+
 import pytest
 
-from lightcurvelynx.utils.dask_helpers import max_threads_per_process
+from lightcurvelynx.utils.parallelization_utils import (
+    assert_safe_executor,
+    dask_max_threads_per_process,
+)
+
+
+def test_assert_safe_executor_threadpool():
+    """Test using a ThreadPoolExecutor raises a ValueError."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        with pytest.raises(ValueError):
+            assert_safe_executor(executor)
+
+
+def test_assert_safe_executor_processpool():
+    """Test using a ProcessPoolExecutor (with and without "fork")."""
+    with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+        assert_safe_executor(executor)
+
+    # We should fail if we set the context to "fork".
+    ctx = multiprocessing.get_context("fork")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=ctx) as executor:
+        with pytest.raises(ValueError):
+            assert_safe_executor(executor)
+
+
+def test_assert_safe_executor_dask():
+    """Test using a Dask client with various configurations."""
+    distributed = pytest.importorskip("dask.distributed")
+
+    # Fail if processes=False (i.e., using threads instead of separate processes)
+    with distributed.Client(
+        dashboard_address=None,
+        n_workers=2,
+        threads_per_worker=1,
+        processes=False,
+    ) as client:
+        with pytest.raises(ValueError):
+            assert_safe_executor(client)
+
+    # Fail if threads_per_worker > 1
+    with distributed.Client(
+        dashboard_address=None,
+        n_workers=1,
+        threads_per_worker=2,
+        processes=True,
+    ) as client:
+        with pytest.raises(ValueError):
+            assert_safe_executor(client)
+
+    # Success case: one worker with one thread in its own process
+    with distributed.Client(
+        dashboard_address=None,
+        n_workers=1,
+        threads_per_worker=1,
+        processes=True,
+    ) as client:
+        assert_safe_executor(client)
 
 
 @pytest.mark.parametrize(
@@ -23,7 +82,7 @@ def test_max_threads_per_process(cluster_args, expected):
     """Count the worker threads in the busiest process of a real dask client."""
     distributed = pytest.importorskip("dask.distributed")
     with distributed.Client(dashboard_address=None, **cluster_args) as client:
-        assert max_threads_per_process(client) == expected
+        assert dask_max_threads_per_process(client) == expected
 
 
 class _FakeClient:
@@ -56,7 +115,7 @@ def test_max_threads_per_process_same_pid_on_different_hosts():
         processes={"tcp://10.0.0.1:8786": ("node-a", 7), "tcp://10.0.0.2:8786": ("node-b", 7)},
         nthreads={"tcp://10.0.0.1:8786": 1, "tcp://10.0.0.2:8786": 1},
     )
-    assert max_threads_per_process(client) == 1
+    assert dask_max_threads_per_process(client) == 1
 
 
 def test_max_threads_per_process_late_workers():
@@ -65,4 +124,4 @@ def test_max_threads_per_process_late_workers():
         processes={"tcp://10.0.0.1:8786": ("node-a", 7)},
         nthreads={"tcp://10.0.0.1:8786": 1, "tcp://10.0.0.2:8786": 1, "tcp://10.0.0.3:8786": 1},
     )
-    assert max_threads_per_process(client) == 1
+    assert dask_max_threads_per_process(client) == 1

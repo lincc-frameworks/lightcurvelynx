@@ -991,19 +991,6 @@ def test_simulate_parallel_processes(test_data_dir):
     assert np.all(results["t0"].to_numpy() >= 0)
     assert np.all(results["t0"].to_numpy() < 500)
 
-    # We can use the default (ProcessPoolExecutor) by giving a number of jobs.
-    results2 = simulate_lightcurves(
-        source,
-        100,
-        survey_info,
-        obstable_save_cols=["observationId", "zp_nJy"],
-        param_cols=["source.brightness"],
-        batch_size=10,
-        num_jobs=2,
-        progress_bar=False,  # Disable progress bar for testing
-    )
-    assert len(results2) == 100
-
     # We can write the results to files.
     with tempfile.TemporaryDirectory() as tmpdir:
         base_path = Path(tmpdir) / "test_df.parquet"
@@ -1071,6 +1058,95 @@ def test_simulate_parallel_processes_fixed_params(test_data_dir):
     assert len(results) == 20
     assert np.all(results["source_brightness"].to_numpy() >= 100.0)
     assert np.all(results["source_brightness"].to_numpy() <= 500.0)
+
+
+def test_simulate_parallel_joblib(test_data_dir):
+    """Test an end to end run of simulating the light curves in parallel
+    with joblib (using the num_jobs parameter)."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    ra0 = opsim_db["ra"].to_numpy()[0]
+    dec0 = opsim_db["dec"].to_numpy()[0]
+    num_samples = 5_000
+    table_data = {
+        "t0": np.arange(num_samples, dtype=float),
+        "ra": np.random.uniform(ra0 - 0.5, ra0 + 0.5, size=num_samples),
+        "dec": np.random.uniform(dec0 - 0.5, dec0 + 0.5, size=num_samples),
+    }
+    table_sampler = TableSampler(table_data, in_order=True)
+
+    # Create a constant SED model with known brightnesses and RA, dec
+    # values that match the opsim.
+    source = ConstantSEDModel(
+        brightness=NumpyRandomFunc("uniform", low=100.0, high=500.0),
+        t0=table_sampler.t0,
+        ra=table_sampler.ra,
+        dec=table_sampler.dec,
+        redshift=0.0,
+        node_label="source",
+    )
+
+    results = simulate_lightcurves(
+        source,
+        500,
+        survey_info,
+        obstable_save_cols=["observationId", "zp_nJy"],
+        param_cols=["source.brightness"],
+        num_jobs=2,
+        batch_size=10,
+        progress_bar=False,  # Disable progress bar for testing
+        rng=np.random.default_rng(42),
+    )
+    assert len(results) == 500
+    assert np.all(results["nobs"].to_numpy() >= 1)
+    assert np.all(results["ra"].to_numpy() >= ra0 - 0.5)
+    assert np.all(results["ra"].to_numpy() <= ra0 + 0.5)
+    assert np.all(results["dec"].to_numpy() >= dec0 - 0.5)
+    assert np.all(results["dec"].to_numpy() <= dec0 + 0.5)
+
+    # Make sure that we get different parameter values across the processes.
+    assert np.unique(results["ra"].to_numpy()).size > 475
+    assert np.unique(results["dec"].to_numpy()).size > 475
+    assert np.unique(results["source_brightness"].to_numpy()).size > 475
+
+    # Check that we did not duplicate any t0 values even though they came
+    # from a TableSampler. We should get each value [0, 499] exactly once.
+    assert np.unique(results["t0"].to_numpy()).size == 500
+    assert np.all(results["t0"].to_numpy() >= 0)
+    assert np.all(results["t0"].to_numpy() < 500)
+
+    # If reuse the batch size and random number generator seed, we should
+    # get the same results.
+    results_repeat = simulate_lightcurves(
+        source,
+        500,
+        survey_info,
+        obstable_save_cols=["observationId", "zp_nJy"],
+        param_cols=["source.brightness"],
+        num_jobs=2,
+        batch_size=10,
+        progress_bar=False,
+        rng=np.random.default_rng(42),
+    )
+    assert np.allclose(
+        results["source_brightness"].to_numpy(),
+        results_repeat["source_brightness"].to_numpy(),
+    )
+    assert np.allclose(results["ra"].to_numpy(), results_repeat["ra"].to_numpy())
+    assert np.allclose(results["dec"].to_numpy(), results_repeat["dec"].to_numpy())
+    assert np.allclose(
+        results["lightcurve.flux"].to_numpy(),
+        results_repeat["lightcurve.flux"].to_numpy(),
+    )
 
 
 def test_simulate_single_lightcurve(test_data_dir):
@@ -2077,6 +2153,77 @@ def test_simulate_process_safety():
     # counts but the same random seed.
     assert params_1 == params_4
     assert not np.any(np.abs(flux_1 - flux_4) > 1e-8)
+
+
+def test_simulate_joblib_safety():
+    """Test that the simulate_lightcurves function is safe when using
+    multiple processes by joblib (using num_jobs)."""
+    # Create a basic OpSim observation table and survey info for the test.
+    num_obs = 300
+    opsim = OpSim(
+        {
+            "time": np.arange(num_obs) * 0.5,
+            "ra": np.zeros(num_obs),
+            "dec": np.zeros(num_obs),
+            "filter": np.tile(["g", "r", "i"], num_obs // 3),
+            "zp": np.full(num_obs, 30.0),
+            "seeing": np.full(num_obs, 1.12),
+            "skybrightness": np.full(num_obs, 20.0),
+            "exptime": np.full(num_obs, 29.2),
+            "nexposure": np.full(num_obs, 2),
+        }
+    )
+    survey = SurveyInfo(obstable=opsim, survey_name="LSST")
+
+    # Create a basic sncosmo model which is not thread-safe.
+    model = SncosmoWrapperModel(
+        "salt3",
+        t0=NumpyRandomFunc("uniform", low=20, high=120),
+        x0=NumpyRandomFunc("uniform", low=1e-5, high=1e-3),
+        x1=NumpyRandomFunc("uniform", low=-2, high=2),
+        c=NumpyRandomFunc("uniform", low=-0.2, high=0.3),
+        ra=0.0,
+        dec=0.0,
+        redshift=NumpyRandomFunc("uniform", low=0.05, high=0.3),
+        node_label="salt3",
+        time_extrapolation=LinearDecay(50.0),
+    )
+
+    # Simulate it with 2 jobs and batch size of 1. We need to keep the
+    # random seed and batch size the same to ensure reproducibility.
+    num_samples = 1000
+    res_2 = simulate_lightcurves(
+        model=model,
+        num_samples=num_samples,
+        survey_info=survey,
+        rest_time_window_offset=(-50.0, 100.0),
+        batch_size=1,
+        num_jobs=2,
+        rng=np.random.default_rng(7),
+        progress_bar=False,
+    )
+    flux_2 = res_2["lightcurve.flux_perfect"].to_numpy()
+    params_2 = GraphState.from_list(res_2["params"])
+
+    # Re-simulate it with 4 jobs and batch size of 1. We need to keep
+    # the random seed and batch size the same to ensure reproducibility.
+    res_4 = simulate_lightcurves(
+        model=model,
+        num_samples=num_samples,
+        survey_info=survey,
+        rest_time_window_offset=(-50.0, 100.0),
+        batch_size=1,
+        num_jobs=4,
+        rng=np.random.default_rng(7),
+        progress_bar=False,
+    )
+    flux_4 = res_4["lightcurve.flux_perfect"].to_numpy()
+    params_4 = GraphState.from_list(res_4["params"])
+
+    # Check that we get the same parameters and flux for different thread
+    # counts but the same random seed.
+    assert params_2 == params_4
+    assert not np.any(np.abs(flux_2 - flux_4) > 1e-8)
 
 
 def test_simulate_lightcurves_single_thread_batched(test_data_dir):

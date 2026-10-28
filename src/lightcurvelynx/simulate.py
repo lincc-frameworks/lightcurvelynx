@@ -1,9 +1,6 @@
 """The core functions for running the LightCurveLynx simulation."""
 
-import concurrent.futures
 import logging
-import multiprocessing
-import sys
 import warnings
 from pathlib import Path
 
@@ -15,7 +12,7 @@ from tqdm import tqdm
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.survey_info import SurveyInfo
-from lightcurvelynx.utils.dask_helpers import max_threads_per_process
+from lightcurvelynx.utils.parallelization_utils import JoblibExecutor, assert_safe_executor
 from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
 
 logger = logging.getLogger(__name__)
@@ -602,7 +599,7 @@ def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000):
     ----------
     simulation_info : SimulationInfo
         The information needed to perform simulate a single batch of results.
-    executor : concurrent.futures.Executor, optional
+    executor : concurrent.futures.Executor
         The executor object to use for parallel processing.
     batch_size : int, optional
         The number of samples to process in each batch when using multiprocessing.
@@ -615,6 +612,9 @@ def _simulate_lightcurves_parallel(simulation_info, executor, batch_size=1_000):
         for each object. Otherwise the NestedFrame is saved to a file and the function
         returns that file's path.
     """
+    # Check that the executor settings are safe for LightCurveLynx models.
+    assert_safe_executor(executor)
+
     # Perform the simulation in parallel batches (with a single progress bar) and
     # combine the results. Since different frameworks may return either Future
     # objects or direct results from the map function, we check for both.
@@ -821,21 +821,6 @@ def simulate_lightcurves(
 
     # Run the simulations.
     if executor is not None:
-        # Make sure we are not using a multi-threaded executor.
-        if isinstance(executor, concurrent.futures.ThreadPoolExecutor):
-            raise ValueError(
-                "Some of the models have been found to be incompatible with ThreadPoolExecutor. "
-                "We are working on a patch. Please use a different executor in the meantime."
-            )
-        # Check for a dask client that runs more than one thread in a process: either a worker
-        # with several threads or several workers in one process.
-        if hasattr(executor, "nthreads") and max_threads_per_process(executor) > 1:
-            raise ValueError(
-                "Some of the models have been found to be incompatible with multi-threaded executors. "
-                "Please create your client with threads_per_worker=1 and without processes=False, "
-                "so that each worker process runs a single thread."
-            )
-
         # If we have an executor, use that regardless of the other settings.
         result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
     elif num_batches == 1:
@@ -847,16 +832,18 @@ def simulate_lightcurves(
         result_list = [_simulate_lightcurves_batch(batch) for batch in batches_list]
     else:
         # We want to run in parallel, but did not provide and executor. We create a
-        # process pool executor with the specified number of jobs.
-        if sys.version_info < (3, 14):
-            # Older Python versions may default to "fork", so we create a context
-            # with "spawn" explicitly.
-            ctx = multiprocessing.get_context("spawn")
-        else:
-            # Newer python versions can use the default.
-            ctx = None
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_jobs, mp_context=ctx) as executor:
-            result_list = _simulate_lightcurves_parallel(simulation_info, executor, batch_size=batch_size)
+        # joblib executor with the specified number of jobs.
+        try:
+            from joblib import Parallel
+        except ImportError as err:
+            raise ImportError("joblib is required for parallel execution with JoblibExecutor.") from err
+
+        with Parallel(n_jobs=num_jobs, mmap_mode="c") as parallel:
+            result_list = _simulate_lightcurves_parallel(
+                simulation_info,
+                JoblibExecutor(parallel),
+                batch_size=batch_size,
+            )
 
     # If we returned the results directly, concatenate them into a single NestedFrame.
     # If we saved them to file, return the list of file paths.
