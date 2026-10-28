@@ -18,7 +18,8 @@ def test_assert_safe_executor_threadpool():
 
 def test_assert_safe_executor_processpool():
     """Test using a ProcessPoolExecutor (with and without "fork")."""
-    with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+    ctx = multiprocessing.get_context("spawn")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=ctx) as executor:
         assert_safe_executor(executor)
 
     # We should fail if we set the context to "fork".

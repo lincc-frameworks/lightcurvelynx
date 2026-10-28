@@ -1,3 +1,4 @@
+import multiprocessing
 import tempfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
@@ -962,7 +963,8 @@ def test_simulate_parallel_processes(test_data_dir):
         node_label="source",
     )
 
-    with ProcessPoolExecutor(max_workers=2) as executor:
+    ctx = multiprocessing.get_context("spawn")  # Need to set for Python <= 3.12
+    with ProcessPoolExecutor(max_workers=2, mp_context=ctx) as executor:
         results = simulate_lightcurves(
             source,
             500,
@@ -1000,17 +1002,19 @@ def test_simulate_parallel_processes(test_data_dir):
             assert not curr_path.exists()
             ind_paths.append(curr_path)
 
-        results3 = simulate_lightcurves(
-            source,
-            200,
-            survey_info,
-            obstable_save_cols=["observationId", "zp_nJy"],
-            param_cols=["source.brightness"],
-            output_file_path=base_path,
-            batch_size=50,
-            num_jobs=4,
-            progress_bar=False,  # Disable progress bar for testing
-        )
+        ctx = multiprocessing.get_context("spawn")  # Need to set for Python <= 3.12
+        with ProcessPoolExecutor(max_workers=4, mp_context=ctx) as executor:
+            results3 = simulate_lightcurves(
+                source,
+                200,
+                survey_info,
+                obstable_save_cols=["observationId", "zp_nJy"],
+                param_cols=["source.brightness"],
+                output_file_path=base_path,
+                batch_size=50,
+                executor=executor,
+                progress_bar=False,  # Disable progress bar for testing
+            )
         assert len(results3) == 4
         for i in range(4):
             assert str(results3[i]) == str(ind_paths[i])
@@ -1147,6 +1151,35 @@ def test_simulate_parallel_joblib(test_data_dir):
         results["lightcurve.flux"].to_numpy(),
         results_repeat["lightcurve.flux"].to_numpy(),
     )
+
+    # We can write the results to files.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_path = Path(tmpdir) / "test_df.parquet"
+        ind_paths = []
+        for i in range(4):
+            curr_path = Path(tmpdir) / f"test_df_part{i}.parquet"
+            assert not curr_path.exists()
+            ind_paths.append(curr_path)
+
+        # Use the default executor.
+        results3 = simulate_lightcurves(
+            source,
+            200,
+            survey_info,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            output_file_path=base_path,
+            batch_size=50,
+            num_jobs=4,
+            progress_bar=False,  # Disable progress bar for testing
+        )
+        assert len(results3) == 4
+        for i in range(4):
+            assert str(results3[i]) == str(ind_paths[i])
+            assert ind_paths[i].exists()
+
+            results_df = read_parquet(ind_paths[i])
+            assert len(results_df) == 50
 
 
 def test_simulate_single_lightcurve(test_data_dir):
@@ -2119,7 +2152,8 @@ def test_simulate_process_safety():
     # Simulate it with 1 process and batch size of 1. We need to keep the
     # random seed and batch size the same to ensure reproducibility.
     num_samples = 1000
-    with ProcessPoolExecutor(1) as ex:
+    ctx = multiprocessing.get_context("spawn")  # Need to set for Python <= 3.12
+    with ProcessPoolExecutor(1, mp_context=ctx) as ex:
         res_1 = simulate_lightcurves(
             model=model,
             num_samples=num_samples,
@@ -2135,7 +2169,8 @@ def test_simulate_process_safety():
 
     # Re-simulate it with 4 processes and batch size of 1. We need to keep
     # the random seed and batch size the same to ensure reproducibility.
-    with ProcessPoolExecutor(4) as ex:
+    ctx = multiprocessing.get_context("spawn")  # Need to set for Python <= 3.12
+    with ProcessPoolExecutor(4, mp_context=ctx) as ex:
         res_4 = simulate_lightcurves(
             model=model,
             num_samples=num_samples,
@@ -2155,7 +2190,7 @@ def test_simulate_process_safety():
     assert not np.any(np.abs(flux_1 - flux_4) > 1e-8)
 
 
-def test_simulate_joblib_safety():
+def test_simulate_joblib_safety(subtests):
     """Test that the simulate_lightcurves function is safe when using
     multiple processes by joblib (using num_jobs)."""
     # Create a basic OpSim observation table and survey info for the test.
@@ -2189,41 +2224,43 @@ def test_simulate_joblib_safety():
         time_extrapolation=LinearDecay(50.0),
     )
 
-    # Simulate it with 2 jobs and batch size of 1. We need to keep the
+    # Simulate it with 1 job and batch size of 1. We need to keep the
     # random seed and batch size the same to ensure reproducibility.
     num_samples = 1000
-    res_2 = simulate_lightcurves(
+    res_1 = simulate_lightcurves(
         model=model,
         num_samples=num_samples,
         survey_info=survey,
         rest_time_window_offset=(-50.0, 100.0),
         batch_size=1,
-        num_jobs=2,
+        num_jobs=1,
         rng=np.random.default_rng(7),
         progress_bar=False,
     )
-    flux_2 = res_2["lightcurve.flux_perfect"].to_numpy()
-    params_2 = GraphState.from_list(res_2["params"])
+    flux_1 = res_1["lightcurve.flux_perfect"].to_numpy()
+    params_1 = GraphState.from_list(res_1["params"])
 
-    # Re-simulate it with 4 jobs and batch size of 1. We need to keep
+    # Re-simulate it with 2 or 5 jobs and batch size of 1. We need to keep
     # the random seed and batch size the same to ensure reproducibility.
-    res_4 = simulate_lightcurves(
-        model=model,
-        num_samples=num_samples,
-        survey_info=survey,
-        rest_time_window_offset=(-50.0, 100.0),
-        batch_size=1,
-        num_jobs=4,
-        rng=np.random.default_rng(7),
-        progress_bar=False,
-    )
-    flux_4 = res_4["lightcurve.flux_perfect"].to_numpy()
-    params_4 = GraphState.from_list(res_4["params"])
+    for num_jobs in [2, 5]:
+        with subtests.test(num_jobs=num_jobs):
+            res_mult = simulate_lightcurves(
+                model=model,
+                num_samples=num_samples,
+                survey_info=survey,
+                rest_time_window_offset=(-50.0, 100.0),
+                batch_size=1,
+                num_jobs=num_jobs,
+                rng=np.random.default_rng(7),
+                progress_bar=False,
+            )
+            flux_mult = res_mult["lightcurve.flux_perfect"].to_numpy()
+            params_mult = GraphState.from_list(res_mult["params"])
 
-    # Check that we get the same parameters and flux for different thread
-    # counts but the same random seed.
-    assert params_2 == params_4
-    assert not np.any(np.abs(flux_2 - flux_4) > 1e-8)
+            # Check that we get the same parameters and flux for different thread
+            # counts but the same random seed.
+            assert params_1 == params_mult
+            assert not np.any(np.abs(flux_1 - flux_mult) > 1e-8)
 
 
 def test_simulate_lightcurves_single_thread_batched(test_data_dir):
