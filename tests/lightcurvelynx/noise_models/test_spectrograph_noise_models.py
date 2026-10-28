@@ -153,3 +153,48 @@ def test_snana_spectrograph_noise_model(test_data_dir):
     assert_allclose(flux2, flux1)
     assert_allclose(err2, err1)
     assert not np.allclose(flux3, flux1, atol=0.0)
+
+    # An unsmeared noise model uses the unpadded grid, but computes the same SNR (from the
+    # unsmeared flux), so it gives the same errors for the same measurements.
+    model_no_smear = SNANANoiseModel(snana_file, compute_smear=False)
+    assert len(model_no_smear.spectrograph.query_waves) < len(model.spectrograph.query_waves)
+    sed_unpadded = np.full((len(indices), len(model_no_smear.spectrograph.query_waves)), flux_density)
+    err4 = model_no_smear.compute_flux_error(
+        measurements, sed=sed_unpadded, obs_table=obs_table, indices=indices
+    )
+    assert_allclose(err4, err1)
+
+    # An SED sampled on a different grid than the noise model's spectrograph fails.
+    with pytest.raises(ValueError, match="query wavelengths"):
+        model.compute_flux_error(measurements, sed=sed_unpadded, obs_table=obs_table, indices=indices)
+
+
+def test_snana_noise_model_texpose_extrapolation(test_data_dir):
+    """Exposure times outside the file's range (120-7200 s) raise by default, and with
+    extrapolation allowed the SNR scales as sqrt(exptime) from the edge of the range."""
+    snana_file = test_data_dir / "fake_snana_spectrograph_gapless.dat"
+    obs_table = LookupOnlyObsTable({"exptime": [60.0, 120.0, 600.0, 7200.0, 14400.0]})
+
+    model = SNANANoiseModel(snana_file)
+    sed = np.full((2, len(model.spectrograph.query_waves)), 100.0)
+    measurements = model.spectrograph.evaluate(sed)
+
+    # By default, exposure times outside the range fail.
+    for idx in [0, 4]:
+        with pytest.raises(ValueError, match="allow_texpose_extrapolation"):
+            model.compute_flux_error(measurements, sed=sed, obs_table=obs_table, indices=[idx, 2])
+
+    # With extrapolation, the SNR is scaled by sqrt(exptime / clamped exptime), so the
+    # error is scaled by the inverse.
+    model_extrap = SNANANoiseModel(snana_file, allow_texpose_extrapolation=True)
+    err_short = model_extrap.compute_flux_error(measurements, sed=sed, obs_table=obs_table, indices=[0, 4])
+    err_edges = model_extrap.compute_flux_error(measurements, sed=sed, obs_table=obs_table, indices=[1, 3])
+    assert_allclose(err_short[0], err_edges[0] * np.sqrt(2.0))  # 60 s vs 120 s
+    assert_allclose(err_short[1], err_edges[1] / np.sqrt(2.0))  # 14400 s vs 7200 s
+
+    # Exposure times within the range are unchanged by allowing extrapolation.
+    err_in_range = model.compute_flux_error(measurements, sed=sed, obs_table=obs_table, indices=[1, 2])
+    err_in_range_extrap = model_extrap.compute_flux_error(
+        measurements, sed=sed, obs_table=obs_table, indices=[1, 2]
+    )
+    assert_allclose(err_in_range_extrap, err_in_range)

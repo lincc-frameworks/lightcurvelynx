@@ -99,7 +99,8 @@ class Spectrograph:
             If float, the same value is applied to all bins. If None, no smearing is applied.
         compute_smear : bool, optional
             Flag to enable smearing of flux between bins based on the wavelength resolution.
-            If true, fluxes from Spectrograph.evaluate() will be smeared.
+            If true, fluxes from Spectrograph.evaluate() will be smeared and the bins are padded
+            on both sides so flux beyond the edges can smear into the edge bins.
             Default: False
         """
         # Check that the input arrays are valid and convert them to numpy arrays.
@@ -129,12 +130,18 @@ class Spectrograph:
             raise ValueError("Bins must have positive width.")
 
         # Compute the query wavelengths at which to evaluate the flux density of the object.
-        # First, we pad the bins to account for smearing later.
+        # First, we pad the bins to account for smearing later (only if smearing is enabled).
         # if max_wave_step is provided AND we need to split at least one bin,
         # we will add multiple points per bin (evenly space
         # throughout the bin) until the maximum gap is LESS than max_wave_step.
         self._wave_to_bin_map = None
-        padded_min, padded_max, padded_resolution, is_padding = self._compute_padded_bins()
+        if compute_smear:
+            padded_min, padded_max, padded_resolution, is_padding = self._compute_padded_bins()
+        else:
+            padded_min = self.waves_min
+            padded_max = self.waves_max
+            padded_resolution = self.wavelength_resolution
+            is_padding = np.full(self.num_bins, False)
         self.padded_min = padded_min
         self.padded_max = padded_max
         self.padded_widths = padded_max - padded_min
@@ -248,7 +255,7 @@ class Spectrograph:
         return True
 
     @classmethod
-    def from_snana_file(cls, file_name: str, *, compute_smear: bool = False):
+    def from_snana_file(cls, file_name: str, *, compute_smear: bool = True):
         """Load a Spectrograph object from a SNANA file.
 
         Parameters
@@ -257,8 +264,9 @@ class Spectrograph:
             The path to the SNANA file containing the spectrograph data.
         compute_smear : bool, optional
             Flag to enable smearing of flux between bins based on the wavelength resolution.
-            If true, fluxes from Spectrograph.evaluate() will be smeared.
-            Default: False
+            If true, fluxes from Spectrograph.evaluate() will be smeared (as in SNANA).
+            Smearing requires the bins to have no gaps, so use False for files with gaps.
+            Default: True
         """
         file_data = read_snana_spectrograph_data(file_name)
         return cls(
@@ -338,7 +346,10 @@ class Spectrograph:
         """
 
         if np.any(np.abs(self.padded_max[:-1] - self.padded_min[1:]) > 1e-8):
-            raise ValueError("The spectrograph bins cannot have gaps when using smearing.")
+            raise ValueError(
+                "The spectrograph bins cannot have gaps when using smearing. "
+                "Use compute_smear=False for spectrographs with gaps between bins."
+            )
 
         smear_matrix = np.zeros((self.num_padded_bins, self.num_padded_bins))
         for i in range(self.num_padded_bins):
@@ -454,6 +465,7 @@ class Spectrograph:
     def evaluate(
         self,
         flux_density_matrix: np.ndarray,
+        apply_smear: bool = True,
     ) -> np.ndarray:
         """Calculate the bin-integrated flux for each bin in the spectrograph
         (in units of erg/s/cm²).
@@ -465,6 +477,10 @@ class Spectrograph:
             flux density values at the wavelengths specified by self.query_waves for a single
             sample. The other dimensions are used to represent multiple times (2D and 3D) and
             multiple objects (3D).
+        apply_smear : bool, optional
+            If True, apply the smear matrix (if the spectrograph was created with
+            compute_smear=True). If False, return the unsmeared bin fluxes.
+            Default: True
 
         Returns
         -------
@@ -524,7 +540,7 @@ class Spectrograph:
         # smearing matrix in the __init__ method and then apply it here. This will allow us to model
         # the effects of the spectrograph's point spread function on the measured fluxes.
         # smear_matrix will not be None if compute_smear was set to True in the __init__ method.
-        if self.smear_matrix is not None:
+        if apply_smear and self.smear_matrix is not None:
             spectro_bin_flux @= self.smear_matrix
 
         # get the flux in the spectrograph's native bins (not the padded bins)

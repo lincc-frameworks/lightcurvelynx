@@ -210,9 +210,8 @@ class SNANANoiseModel(SpectrographNoiseModel):
     Attributes
     ----------
     spectrograph : Spectrograph
-        The spectrograph object containing the instrument parameters.
-    spectrograph_true : Spectrograph
-        The same spectrograph object with no gaussian smearing
+        The spectrograph object containing the instrument parameters. The survey's spectrograph
+        must have the same bins and smearing setting, so the SEDs have the same query wavelengths.
     magref : np.array
         The two reference magnitudes from the SNANA spectrograph file
     texpose_grid : np.array
@@ -221,11 +220,13 @@ class SNANANoiseModel(SpectrographNoiseModel):
         A W x T matrix of zero points, computed from the SNANA spectrograph file values
     sqsigsky_grid : np.array
         A W x T matrix of sky noise squared, computed from the SNANA spectrograph file values
+    allow_texpose_extrapolation : bool
+        Whether exposure times outside the file's exposure time range are allowed.
     """
 
     _required_values = ["exptime"]
 
-    def __init__(self, snana_file):
+    def __init__(self, snana_file, compute_smear=True, allow_texpose_extrapolation=False):
         """Create an SNANANoiseModel from an SNANA spectrograph file. It creates it's own spectrograph
         object from the file.
 
@@ -233,23 +234,26 @@ class SNANANoiseModel(SpectrographNoiseModel):
         ----------
         snana_file : str
             The path to the SNANA spectrograph file.
+        compute_smear : bool, optional
+            Whether the spectrograph smears flux between bins. This must match the survey's
+            spectrograph, e.g. `Spectrograph.from_snana_file(snana_file, compute_smear=True)`.
+            Default: True
+        allow_texpose_extrapolation : bool, optional
+            If False, exposure times outside the file's exposure time range raise a ValueError.
+            If True, they are clamped to the range and the SNR is scaled by
+            sqrt(exptime / clamped exptime), as in SNANA's ALLOW_TEXTRAP option.
+            Default: False
         """
+        self.allow_texpose_extrapolation = allow_texpose_extrapolation
         data = read_snana_spectrograph_data(snana_file)
 
-        # create the spectrographs from the SNANA file data
+        # create the spectrograph from the SNANA file data
         spectrograph = Spectrograph(
             waves_min=data["waves_min"],
             waves_max=data["waves_max"],
             wavelength_resolution=data["waves_sigma"],
             instrument=data.get("instrument", "Spectrograph"),
-            compute_smear=True,
-        )
-        self.spectrograph_true = Spectrograph(
-            waves_min=data["waves_min"],
-            waves_max=data["waves_max"],
-            wavelength_resolution=data["waves_sigma"],
-            instrument=data.get("instrument", "Spectrograph"),
-            compute_smear=False,
+            compute_smear=compute_smear,
         )
 
         super().__init__(spectrograph=spectrograph)
@@ -258,21 +262,10 @@ class SNANANoiseModel(SpectrographNoiseModel):
         self.texpose_grid = data["texpose"]  # (T,)
         self.zp_grid, self.sqsigsky_grid = self._solve(self.magref, data["snr"])  # each (W, T)
 
-        # interpolate the zero point and sky noise grids for arbitrary exposure times
-        self._zp_interp = interp1d(
-            np.log10(self.texpose_grid),
-            self.zp_grid,
-            axis=1,
-            bounds_error=False,
-            fill_value=(self.zp_grid[:, 0], self.zp_grid[:, -1]),
-        )
-        self._sqsigsky_interp = interp1d(
-            self.texpose_grid,
-            self.sqsigsky_grid,
-            axis=1,
-            bounds_error=False,
-            fill_value=(self.sqsigsky_grid[:, 0], self.sqsigsky_grid[:, -1]),
-        )
+        # interpolate the zero point and sky noise grids for exposure times within the grid range.
+        # Exposure times are clamped to the range in compute_flux_error() before interpolating.
+        self._zp_interp = interp1d(np.log10(self.texpose_grid), self.zp_grid, axis=1)
+        self._sqsigsky_interp = interp1d(self.texpose_grid, self.sqsigsky_grid, axis=1)
 
     @cite_function()
     def _solve(self, magref, snr):
@@ -332,15 +325,14 @@ class SNANANoiseModel(SpectrographNoiseModel):
         return zp, sqsigsky
 
     def compute_flux_error(self, measurements, *, sed, obs_table, indices=None, **kwargs):
-        """Compute the flux error for the smeared measurements.
+        """Compute the flux error for the measurements.
 
         Parameters
         ----------
         measurements : array_like of float
-            The smeared flux, shape (T_obs, W) --
-            `spectrograph(compute_smear=True).evaluate(seds)`.
+            The measured flux, shape (T_obs, W) -- `spectrograph.evaluate(sed)`.
         sed : array_like of float
-            The SED used to generate the measurements, shape (T_obs, len(query_waves))
+            The SED used to generate the measurements, shape (T_obs, len(self.spectrograph.query_waves)).
         obs_table : ObsTable
             Must have an `exptime` column (`_required_values`).
         indices : array_like of int, optional
@@ -357,12 +349,35 @@ class SNANANoiseModel(SpectrographNoiseModel):
         """
         measurements = np.asarray(measurements, dtype=float)
 
-        true_flux = self.spectrograph_true.evaluate(sed)
+        # The SED must be sampled on this spectrograph's query wavelengths, so the survey's
+        # spectrograph must match this one (same bins and smearing setting).
+        sed = np.asarray(sed)
+        if sed.shape[-1] != len(self.spectrograph.query_waves):
+            raise ValueError(
+                f"SED has {sed.shape[-1]} wavelengths, but the noise model's spectrograph has "
+                f"{len(self.spectrograph.query_waves)} query wavelengths. Check that the survey's "
+                "spectrograph matches the noise model (same SNANA file and compute_smear setting)."
+            )
+
+        # The SNR is computed from the true (unsmeared) flux, as in SNANA.
+        true_flux = self.spectrograph.evaluate(sed, apply_smear=False)
         exptime = np.asarray(obs_table.get_value_per_row("exptime", indices=indices), dtype=float)
 
+        # Exposure times outside the file's range are an error unless extrapolation is allowed,
+        # in which case we clamp them to the range (sntools_spectrograph.c:1512-1522).
+        tmin, tmax = np.min(self.texpose_grid), np.max(self.texpose_grid)
+        out_of_range = (exptime < tmin) | (exptime > tmax)
+        if np.any(out_of_range) and not self.allow_texpose_extrapolation:
+            raise ValueError(
+                f"Exposure times {np.unique(exptime[out_of_range])} are outside the SNANA file's range "
+                f"[{tmin}, {tmax}] s. Use allow_texpose_extrapolation=True to extrapolate the SNR as "
+                "sqrt(exptime), as in SNANA."
+            )
+        exptime_clamped = np.clip(exptime, tmin, tmax)
+
         # get interpolated ZP and SQSIGSKY for the given exposure times.
-        zp_obs = self._zp_interp(np.log10(exptime)).T  # note ZP interpolated on log10(Texpose)
-        sqsigsky_obs = self._sqsigsky_interp(exptime).T  # (T_obs, W)
+        zp_obs = self._zp_interp(np.log10(exptime_clamped)).T  # note ZP interpolated on log10(Texpose)
+        sqsigsky_obs = self._sqsigsky_interp(exptime_clamped).T  # (T_obs, W)
 
         # get spectrograph snr
         flam = true_flux / self.spectrograph.bin_widths
@@ -377,6 +392,10 @@ class SNANANoiseModel(SpectrographNoiseModel):
         flux_pe = 10.0 ** (-0.4 * (genmag - zp_obs))  # per electron, sntools_spectrograph.c:1566-1567
         fluxerr = np.sqrt(sqsigsky_obs + flux_pe)
         snr_true = flux_pe / fluxerr
+
+        # Scale the SNR as sqrt(exptime) for clamped exposure times (sntools_spectrograph.c:1588-1589).
+        # The factor is 1 for exposure times within the range.
+        snr_true *= np.sqrt(exptime / exptime_clamped)[:, np.newaxis]
 
         invalid = ~(snr_true > 1e-18)  # catches on nans?
         return np.where(invalid, 0.0, measurements / np.where(invalid, 1.0, snr_true))
