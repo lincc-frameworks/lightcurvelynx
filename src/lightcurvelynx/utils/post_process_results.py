@@ -26,6 +26,14 @@ def concat_results(results_list):
     nested_pandas.NestedFrame
         The concatenated DataFrame.
     """
+    # If the list is empty, throw an error.
+    if not results_list:
+        raise ValueError("The results list is empty.")
+
+    # If there is only one result, return it directly.
+    if len(results_list) == 1:
+        return results_list[0]
+
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore", category=FutureWarning, message=".*DataFrame concatenation with empty.*"
@@ -45,14 +53,20 @@ def results_drop_empty(results):
     Parameters
     ----------
     results : nested_pandas.NestedFrame
-        The DataFrame containing lightcurve data.
+        The DataFrame containing light-curve and spectral data.
 
     Returns
     -------
     nested_pandas.NestedFrame
-        The DataFrame with empty lightcurves removed.
+        The DataFrame with rows containing empty light curves
+        and no spectra removed.
     """
-    return results.dropna(subset=["lightcurve"])
+    has_results = np.full(len(results), False, dtype=bool)
+    if "lightcurve" in results.columns:
+        has_results |= ~results["lightcurve"].isna()
+    if "spectra" in results.columns:
+        has_results |= ~results["spectra"].isna()
+    return results.loc[has_results]
 
 
 def results_append_param_as_col(results, param_name):
@@ -103,11 +117,15 @@ def results_append_obstable_data(results, column_name, obstables):
         The DataFrame with the new parameter column added.
     """
     if isinstance(obstables, ObsTable):
-        obstables = [obstables]
+        obstables = [obstables]  # pragma: no cover
 
     obs_idx = results["lightcurve.obs_idx"]
     survey_idx = results["lightcurve.survey_idx"]
     unique_survey_idx = np.unique(survey_idx)
+    if np.max(unique_survey_idx) > len(obstables) - 1 or np.min(unique_survey_idx) < 0:
+        raise ValueError(
+            f"Survey indices {unique_survey_idx} out of range for the {len(obstables)} provided ObsTables."
+        )  # pragma: no cover
 
     new_col = np.full(len(obs_idx), np.nan)
     for s_idx in unique_survey_idx:
@@ -299,17 +317,21 @@ def results_use_full_filter_names(results, passbands):
     if not isinstance(results, NestedFrame) or "lightcurve" not in results.columns:
         raise ValueError("results must be a NestedFrame with a 'lightcurve' column.")
 
+    # Create a copy of the original lightcurve.filter column because we will be
+    # modifying the version in the table to include the full filter names.
     if "filter" not in results["lightcurve"].nest.columns:
-        raise ValueError("lightcurve.flux and lightcurve.fluxerr must be present in the DataFrame.")
+        raise ValueError("lightcurve.filter must be present in the DataFrame.")  # pragma: no cover
+    filter_names = results["lightcurve.filter"].to_numpy(copy=True)
 
+    # If we have the survey_idx information, use that. Otherwise only one survey was provided
+    # So we can mark all the entries as coming from survey zero.
     if "survey_idx" in results["lightcurve"].nest.columns:
-        survey_idx = results["lightcurve.survey_idx"].values
+        survey_idx = results["lightcurve.survey_idx"].to_numpy()
     else:
-        survey_idx = np.zeros(len(results), dtype=int)
+        survey_idx = np.zeros(len(filter_names), dtype=int)
 
     # Go through every pair of survey index and filter name and replace
     # the filter name with the full name from the passband group.
-    filter_names = results["lightcurve.filter"].values.copy()
     for s_idx in np.unique(survey_idx):
         for fil in np.unique(filter_names[survey_idx == s_idx]):
             mask = (survey_idx == s_idx) & (filter_names == fil)

@@ -3,6 +3,7 @@ import os
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
 from lightcurvelynx.utils.bicubic_interp import (
     BicubicAxis,
     BicubicInterpolator,

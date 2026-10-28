@@ -4,6 +4,7 @@ import pickle
 import jax
 import numpy as np
 import pytest
+
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
 

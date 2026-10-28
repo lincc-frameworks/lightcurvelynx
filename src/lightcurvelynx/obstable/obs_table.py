@@ -43,10 +43,12 @@ class ObsTable:
         For example, in Rubin's OpSim we might have the column "observationStartMJD"
         which maps to "time". In that case we would have an entry with key="time"
         and value="observationStartMJD".
-    detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion, or
-        DetectorFootprint, optional
+    detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion,
+        DetectorFootprint, or str, optional
         The footprint object for the instrument's detector. If None, no footprint
-        filtering is done. Default is None.
+        filtering is done. Otherwise the input can define a spatial region or a string
+        indicating which preset of the detector footprint to use.
+        Default is None.
     wcs : astropy.wcs.WCS, optional
         The WCS for the footprint. Either this or pixel_scale must be provided if
         a footprint is provided as a Astropy region.
@@ -156,7 +158,7 @@ class ObsTable:
 
                 # Save the inverse mapping as well
                 self._inv_colmap[value] = key
-        self._table.rename(columns=name_map, inplace=True)
+        self._table = self._table.rename(columns=name_map)
 
         # Check that we have the required columns and filter out any NaNs.
         for col in self._required_columns:
@@ -178,6 +180,28 @@ class ObsTable:
                 if mask.any():
                     logger.debug(f"Remapping filter name '{alt_name}' to standard name '{standard_name}'.")
                     self._table.loc[mask, "filter"] = standard_name
+
+        # We convert string columns to categorical for efficiency (memory and serialization in parallel)
+        for col in self._table.columns:
+            if pd.api.types.is_string_dtype(self._table[col]):
+                all_string = True
+            elif pd.api.types.is_object_dtype(self._table[col]) and (self._table[col].map(type) == str).all():
+                # We handle object columns that are actually all strings to support pandas 2.0
+                # or cases where the user explicitly provides a column as object type.
+                all_string = True
+            else:
+                all_string = False
+
+            if all_string:
+                if len(pd.unique(self._table[col])) > 100:
+                    warnings.warn(
+                        f"Column '{col}' has more than 100 unique string values. We are skipping "
+                        f"the conversion to categorical. This may impact performance and memory "
+                        f"usage with parallel computation. Consider dropping this column if it "
+                        f"is not needed for your analysis."
+                    )
+                else:
+                    self._table[col] = self._table[col].astype("category")
 
         # Save the survey values, with table metadata and keyword arguments overwriting the defaults.
         self.survey_values = self._default_survey_values.copy()
@@ -211,6 +235,11 @@ class ObsTable:
 
         # Create the footprint if one is provided.
         if detector_footprint is not None:
+            # If a string is provided, try to load from one of the defaults. Otherwise,
+            # we have a full region.
+            if isinstance(detector_footprint, str):
+                logger.debug(f"Loading detector footprint from preset: {detector_footprint}")
+                detector_footprint = DetectorFootprint.from_preset(detector_footprint)
             self.set_detector_footprint(detector_footprint, wcs=wcs)
         else:
             self._detector_footprint = None
@@ -236,9 +265,7 @@ class ObsTable:
             return True
         if key in self._inv_colmap and self._inv_colmap[key] in self._table.columns:
             return True
-        if key in self.survey_values and self.survey_values[key] is not None:
-            return True
-        return False
+        return key in self.survey_values and self.survey_values[key] is not None
 
     def copy(self):
         """Create a copy of the ObsTable."""
@@ -821,8 +848,8 @@ class ObsTable:
 
         Returns
         -------
-        inds : list[int] or list[numpy.ndarray]
-            Depending on the input, this is either a list of indices for a single query point
+        inds : numpy.ndarray or list[numpy.ndarray]
+            Depending on the input, this is either an array of indices for a single query point
             or a list of arrays (of indices) for an array of query points.
         """
         if query_ra is None or query_dec is None:

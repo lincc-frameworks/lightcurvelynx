@@ -1,7 +1,6 @@
 """Wrapper classes for some of scipy's sampling functions."""
 
 import warnings
-from os import urandom
 
 import numpy as np
 import scipy.stats
@@ -67,11 +66,9 @@ class NumericalInversePolynomialFunc(FunctionNode):
     domain : tuple, optional
         A tuple of (min, max) values to use as bounds for the sampling. If
         not provided, scipy will try to infer the domain.
-    seed : int, optional
-        The seed to use.
     """
 
-    def __init__(self, dist=None, *, domain=None, seed=None, **kwargs):
+    def __init__(self, dist=None, *, domain=None, **kwargs):
         # Check that the distribution object/class has a pdf or logpdf function
         # or that we have provided a function directly.
         if not hasattr(dist, "pdf") and not hasattr(dist, "logpdf"):
@@ -90,28 +87,12 @@ class NumericalInversePolynomialFunc(FunctionNode):
             self._inv_poly = _safe_make_inv_polynomial(self._dist, domain=self._domain)
             self._vect_sample = None
 
-        # Get a default random number generator for this object, using the
-        # given seed if one is provided.
-        if seed is None:
-            seed = int.from_bytes(urandom(4), "big")
-        self._rng = np.random.default_rng(seed=seed)
-
         # Set the function and add all the kwargs as parameters.
         super().__init__(self._rvs, **kwargs)
 
     def _rvs(self):
         """A place holder function to use for object naming."""
         pass
-
-    def set_seed(self, new_seed):
-        """Update the random number generator's seed to a given value.
-
-        Parameters
-        ----------
-        new_seed : int
-            The given seed
-        """
-        self._rng = np.random.default_rng(seed=new_seed)
 
     def _create_and_sample(self, args, rng):
         """Create the distribution function and sample it. This is only
@@ -157,7 +138,7 @@ class NumericalInversePolynomialFunc(FunctionNode):
             The result of the computation. This return value is provided so that testing
             functions can easily access the results.
         """
-        rng = rng_info if rng_info is not None else self._rng
+        rng = rng_info if rng_info is not None else np.random.default_rng()
 
         if self._inv_poly is not None:
             # Batch sample all the results.
@@ -269,8 +250,6 @@ class ScipyRandomDist(FunctionNode):
     ----------
     dist_name : str
         The name of the distribution from which to sample.
-    seed : int, optional
-        The seed to use.
     node_label : str, optional
         An optional label for the node. If not provided, a default label
         will be created based on the function name and parameters.
@@ -278,7 +257,7 @@ class ScipyRandomDist(FunctionNode):
         The parameters to use to create the distribution object.
     """
 
-    def __init__(self, dist_name, seed=None, node_label=None, **kwargs):
+    def __init__(self, dist_name, node_label=None, **kwargs):
         super().__init__(self._non_func, node_label=node_label)
 
         # Create the template of the distribution class and save the parameters.
@@ -290,22 +269,6 @@ class ScipyRandomDist(FunctionNode):
         for key, val in kwargs.items():
             self.add_parameter(key, val)
             self.params_names.append(key)
-
-        # Get a default random number generator for this object, using the
-        # given seed if one is provided.
-        if seed is None:
-            seed = int.from_bytes(urandom(4), "big")
-        self._rng = np.random.default_rng(seed=seed)
-
-    def set_seed(self, new_seed):
-        """Update the random number generator's seed to a given value.
-
-        Parameters
-        ----------
-        new_seed : int
-            The given seed
-        """
-        self._rng = np.random.default_rng(seed=new_seed)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Execute the wrapped function.
@@ -336,7 +299,7 @@ class ScipyRandomDist(FunctionNode):
             is func attribute is None.
         """
         # If a random number generator is given use that. Otherwise use the default one.
-        rng = rng_info if rng_info is not None else self._rng
+        rng = rng_info if rng_info is not None else np.random.default_rng()
 
         # Set the size according to the number of samples.
         size_param = graph_state.num_samples if graph_state.num_samples > 1 else None

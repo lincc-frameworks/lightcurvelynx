@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.dustmap import ConstantHemisphereDustMap, DustmapWrapper
 from lightcurvelynx.effects.extinction import ExtinctionEffect, _DustExtinctionWrapper
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
@@ -95,6 +96,46 @@ def test_set_frame():
         ExtinctionEffect("G23", ebv=0.1, r_v=3.1, frame="InvalidFrame", backend="dust_extinction")
 
 
+def test_extinction_effect_chain():
+    """Test that we can chain two ExtinctionEffects."""
+    pytest.importorskip("extinction")
+    model = ConstantSEDModel(brightness=1000.0, ra=15.0, dec=-10.0, node_label="test")
+
+    dust_effect = ExtinctionEffect(
+        "odonnell94",
+        ebv=0.1,
+        r_v=3.1,
+        frame="rest",
+        backend="extinction",
+    )
+    model.add_effect(dust_effect)
+
+    # We fail if we try to add another dust effect that uses the same EBV name.
+    with pytest.raises(ValueError):
+        model.add_effect(dust_effect)
+
+    # Not really a galaxy effect, but we just need to test that we can handle the
+    # duplicate ebv parameter, using a different name.
+    galaxy_effect = ExtinctionEffect(
+        "odonnell94",
+        ebv=0.15,
+        r_v=3.1,
+        frame="rest",
+        backend="extinction",
+        ebv_param_name="galaxy_ebv",
+    )
+    model.add_effect(galaxy_effect)
+
+    # If we sample the model, we can see both ebv values (correctly named).
+    state = model.sample_parameters(num_samples=1)
+    assert state["test"]["ebv"] == pytest.approx(0.1)
+    assert state["test"]["galaxy_ebv"] == pytest.approx(0.15)
+
+    # We can apply the extinction effect to a set of fluxes.
+    fluxes = model.evaluate_sed(np.array([1.0]), np.array([7000.0, 5200.0, 4800.0]), state)
+    assert np.all(np.isfinite(fluxes))
+
+
 def test_pickle_extinction_models(subtests):
     """Test that we can pickle and unpickle extinction effects regardless of backend."""
     pytest.importorskip("dust_extinction")
@@ -130,7 +171,7 @@ def test_constant_extinction(subtests):
     # Use given ebv values. Usually these would be computed from a dustmap,
     # based on (RA, dec).
     pytest.importorskip("dust_extinction")
-    ebv_node = GivenValueList([0.1, 0.2, 0.3, 0.1, 0.2, 0.3])
+    ebv_node = GivenValueList([0.1, 0.2, 0.3, 0.1, 0.2, 0.3], stateful=False)
     for backend, ext_name in zip(["dust_extinction", "extinction"], ["F99", "fm07"], strict=False):
         with subtests.test(backend=backend, model=ext_name):
             dust_effect = ExtinctionEffect(ext_name, r_v=3.1, frame="rest", ebv=ebv_node, backend=backend)
@@ -163,8 +204,8 @@ def test_dustmap_chain(subtests):
         with subtests.test(backend=backend, model=ext_name):
             model = ConstantSEDModel(
                 brightness=100.0,
-                ra=GivenValueList([45.0, 45.0, 45.0, 45.0, 45.0, 45.0]),
-                dec=GivenValueList([20.0, -20.0, 10.0, 20.0, -20.0, 10.0]),
+                ra=GivenValueList([45.0, 45.0, 45.0, 45.0, 45.0, 45.0], stateful=False),
+                dec=GivenValueList([20.0, -20.0, 10.0, 20.0, -20.0, 10.0], stateful=False),
                 redshift=0.0,
             )
 

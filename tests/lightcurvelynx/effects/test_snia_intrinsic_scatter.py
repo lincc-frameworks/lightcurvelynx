@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.effects.snia_intrinsic_scatter import (
     _C11_COV_KNOTS,
     _C11_KNOT_WAVELENGTHS,

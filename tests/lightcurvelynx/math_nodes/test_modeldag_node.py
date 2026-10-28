@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.math_nodes.modeldag_node import ModelDAGNode
 
 

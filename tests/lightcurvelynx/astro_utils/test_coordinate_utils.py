@@ -1,6 +1,7 @@
 import astropy.units as u
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.coordinate_utils import (
     build_moc_from_coords,
     dedup_coords,

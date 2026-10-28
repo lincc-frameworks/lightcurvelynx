@@ -76,9 +76,6 @@ class GraphState:
     def __len__(self):
         return self.num_parameters
 
-    def __next__(self):
-        return next(self._iterate())
-
     def __iter__(self):
         return self._iterate()
 
@@ -217,7 +214,7 @@ class GraphState:
             new_state.states[node_name] = {}
             for var_name, var_value in node_vars.items():
                 if self.num_samples == 1:
-                    new_state.states[node_name][var_name] = var_value
+                    new_state.states[node_name][var_name] = copy.deepcopy(var_value)
                 else:
                     new_state.states[node_name][var_name] = var_value.copy()
 
@@ -394,12 +391,20 @@ class GraphState:
         for full_name in all_param_full_names:
             node_name, param_name = full_name.split(".")
 
-            # Create a numpy array that is the concatenation of all the values
-            # from each of the GraphStates.
+            # Create a numpy array that is the concatenation of all the values from each
+            # of the GraphStates along the sample axis, so vector-valued parameters keep
+            # their per-sample shape.
             values_list = []
             for current in graph_states:
-                values_list.append(np.atleast_1d(current[full_name]))
+                values = np.asarray(current[full_name])
+                if current.num_samples == 1:
+                    values = values[np.newaxis, ...]
+                values_list.append(values)
             values = np.concatenate(values_list)
+
+            # If we only have a single sample, store its value.
+            if total_samples == 1:
+                values = values[0]
             result.set(node_name, param_name, values, force_copy=False, fixed=False)
         return result
 
@@ -593,11 +598,12 @@ class GraphState:
         # repeating the values according to repeats.
         for node_name, node_vars in self.states.items():
             for var_name, value in node_vars.items():
-                # Compute the new values as an array.
+                # Compute the new values as an array, repeating along the sample axis so
+                # vector-valued parameters keep their per-sample shape.
+                values = np.asarray(value)
                 if self.num_samples == 1:
-                    new_values = np.full(repeats[0], value)
-                else:
-                    new_values = np.repeat(value, repeats)
+                    values = values[np.newaxis, ...]
+                new_values = np.repeat(values, repeats, axis=0)
 
                 # If we only have a single sample at the end, store its value.
                 if new_num_samples == 1:
@@ -643,7 +649,7 @@ class GraphState:
         GraphState
             The sliced GraphState.
         """
-        if self.num_samples <= 0:
+        if self.num_samples <= 0:  # pragma: no cover
             raise ValueError("Cannot sample an empty GraphState")
         if start < 0 or stop > self.num_samples or start >= stop:
             raise ValueError(f"Invalid slice [{start}:{stop}] in GraphState with {self.num_samples} entries.")
@@ -689,6 +695,9 @@ class GraphState:
         if isinstance(params, str):
             params = [params]
 
+        if len(params) == 0:
+            raise ValueError("No parameters specified for extraction.")
+
         # Go through all the parameters. If a parameters full name is provided,
         # look it up now and save the result. Otherwise put it into a list to check
         # for in each node.
@@ -704,7 +713,7 @@ class GraphState:
             else:
                 single_params.add(current)
 
-        if len(single_params) == 0:
+        if len(single_params) == 0:  # pragma: no cover
             # Nothing else to do.
             return results
 

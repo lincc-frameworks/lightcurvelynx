@@ -6,6 +6,7 @@ import numpy as np
 import pyarrow as pa
 import pytest
 from astropy.table import Table
+
 from lightcurvelynx.graph_state import DependencyGraph, GraphState, transpose_dict_of_list
 
 
@@ -408,6 +409,12 @@ def test_graph_state_copy():
     assert state2["a"]["v2"] == 20.0
     assert state2["b"]["v1"] == 3.0  # No effect since this variable is fixed.
 
+    # Mutable single-sample values must not be shared with the copy.
+    state.set("a", "metadata", {"flags": ["original"]})
+    state2 = state.copy()
+    state2["a"]["metadata"]["flags"].append("copied")
+    assert state["a"]["metadata"] == {"flags": ["original"]}
+
     # Test with arrays.
     state = GraphState(3, sample_offset=2)
     state.set("a", "v1", np.array([1.0, 2.0, 3.0]))
@@ -472,6 +479,37 @@ def test_create_single_graph_state_from_list():
     # Fail on empty list.
     with pytest.raises(ValueError):
         _ = GraphState.from_list([])
+
+
+def test_create_graph_state_from_list_vector_values():
+    """Test that from_list concatenates vector-valued parameters along the sample axis."""
+    state1 = GraphState(num_samples=1)
+    state1.set("a", "v1", 1.0)
+    state1.set("a", "vec", np.array([1.0, 2.0, 3.0]))
+
+    state2 = GraphState(num_samples=2)
+    state2.set("a", "v1", [2.0, 3.0])
+    state2.set("a", "vec", np.array([[4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]))
+
+    dict1 = {"a.v1": 4.0, "a.vec": np.array([10.0, 11.0, 12.0])}
+    state = GraphState.from_list([state1, state2, dict1])
+
+    assert state.num_samples == 4
+    assert np.array_equal(state["a"]["v1"], [1.0, 2.0, 3.0, 4.0])
+    assert np.array_equal(state["a"]["vec"], np.arange(1.0, 13.0).reshape(4, 3))
+
+
+def test_create_graph_state_from_list_single_sample():
+    """Test that from_list of one single-sample state stores its values directly."""
+    state1 = GraphState(num_samples=1)
+    state1.set("a", "v1", 1.0)
+    state1.set("a", "vec", np.array([1.0, 2.0, 3.0]))
+
+    state = GraphState.from_list([state1])
+    assert state.num_samples == 1
+    assert np.isscalar(state["a"]["v1"])
+    assert state["a"]["v1"] == 1.0
+    assert np.array_equal(state["a"]["vec"], [1.0, 2.0, 3.0])
 
 
 def test_create_multi_sample_graph_state_reference():
@@ -569,6 +607,22 @@ def test_graph_state_equal():
     state5 = GraphState(num_samples=1)
     state6 = GraphState(num_samples=2)
     assert state5 != state6
+
+    # Two states are not equal if they have different sets of parameters.
+    state7 = GraphState(num_samples=2)
+    state7.set("a", "v1", [1.0, 1.0])
+    state7.set("a", "v2", [2.0, 2.0])
+    state7.set("b", "v1", [3.0, 3.0])
+    state7.set("c", "v1", [4.0, 4.0])
+
+    state8 = GraphState(num_samples=2)
+    state8.set("a", "v1", [1.0, 1.0])
+    state8.set("a", "v2", [2.0, 2.0])
+    state8.set("b", "v1", [3.0, 3.0])
+    assert state7 != state8  # Different number of parameters
+
+    state8.set("a", "v3", [5.0, 5.0])
+    assert state7 != state8  # Different sets of parameters
 
 
 def test_graph_state_equal_scalars():
@@ -944,6 +998,47 @@ def test_graph_state_repeat_integer_shortcut():
     assert np.array_equal(state["a"]["v1"], [1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
 
 
+def test_graph_state_repeat_multi_sample_vector_values():
+    """Test that repeat expands vector-valued parameters along the sample axis."""
+    state = GraphState(num_samples=3)
+    state.set("a", "v1", [1.0, 2.0, 3.0])
+    state.set("a", "vec", np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]))
+
+    state.repeat([2, 0, 1])
+    assert state.num_samples == 3
+    assert np.array_equal(state["a"]["v1"], [1.0, 1.0, 3.0])
+    assert np.array_equal(state["a"]["vec"], [[1.0, 2.0], [1.0, 2.0], [5.0, 6.0]])
+
+
+def test_graph_state_repeat_single_sample_vector_values():
+    """Test that repeat copies a single sample's vector-valued parameters whole."""
+    state = GraphState(num_samples=1)
+    state.set("a", "v1", 2.5)
+    state.set("a", "vec4", np.array([0.0, 1.0, 2.0, 3.0]))
+    state.set("b", "vec2", np.array([-1.0, -2.0]))
+
+    state.repeat([4])
+    assert state.num_samples == 4
+    assert np.array_equal(state["a"]["v1"], [2.5, 2.5, 2.5, 2.5])
+    assert np.array_equal(state["a"]["vec4"], np.tile([0.0, 1.0, 2.0, 3.0], (4, 1)))
+    assert np.array_equal(state["b"]["vec2"], np.tile([-1.0, -2.0], (4, 1)))
+
+
+def test_graph_state_repeat_vector_values_to_single():
+    """Test that repeat keeps a vector-valued parameter intact when the
+    result is a single sample."""
+    state = GraphState(num_samples=3)
+    state.set("a", "vec", np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]))
+
+    state.repeat([0, 1, 0])
+    assert state.num_samples == 1
+    assert np.array_equal(state["a"]["vec"], [3.0, 4.0])
+
+    state.repeat([1])
+    assert state.num_samples == 1
+    assert np.array_equal(state["a"]["vec"], [3.0, 4.0])
+
+
 def test_graph_to_from_file(tmp_path):
     """Test that we can create an AstroPy Table from a GraphState."""
     state = GraphState(num_samples=3)
@@ -1023,6 +1118,10 @@ def test_graph_state_extract_parameters():
 
     with pytest.raises(KeyError):
         _ = state.extract_parameters(["v2", "v100"])
+
+    # We fail if we give no parameters.
+    with pytest.raises(ValueError):
+        _ = state.extract_parameters([])
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -1173,6 +1272,10 @@ def test_dependency_graph_subgraphs():
     assert dep_graph.get_all_dependencies("a.1") == set()
     assert dep_graph.get_all_dependencies("e.1") == set()
 
+    # We fail with an invalid parameter name for get_all_dependencies.
+    with pytest.raises(KeyError):
+        dep_graph.get_all_dependencies("invalid.1")
+
     # We can get the various types of subgraphs for a node, including:
     # 1) All nodes on which this node depends (incoming=True, outgoing=False)
     subgraph1 = dep_graph.build_subgraph("b.1", incoming=True, outgoing=False)
@@ -1194,6 +1297,10 @@ def test_dependency_graph_subgraphs():
     assert set(subgraph3.all_params) == {"a.1", "c.1", "b.1", "c.2", "d.1"}
     assert subgraph3.incoming["b.1"] == set(["a.1", "c.1"])
     assert subgraph3.outgoing["b.1"] == set(["c.2", "d.1"])
+
+    # We fail with an invalid parameter name for build_subgraph.
+    with pytest.raises(KeyError):
+        dep_graph.build_subgraph("invalid.1", incoming=True, outgoing=True)
 
     # Test that we can extract all connected components.
     components = dep_graph.build_connected_components()

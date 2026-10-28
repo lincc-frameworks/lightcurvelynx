@@ -86,6 +86,13 @@ class OpSim(ObsTable):
         A dictionary mapping filter names to their saturation thresholds in magnitudes. The filters
         provided must match those in the table. If not provided, OpSim-specific defaults will be
         used.
+    detector_footprint : astropy.regions.SkyRegion, Astropy.regions.PixelRegion,
+        DetectorFootprint, or str, optional
+        The footprint object for the instrument's detector. If None, no footprint filtering is done.
+        You can provide a string indicating which preset of the LSST detector footprint to use
+        (e.g., "lsst" for all 189 chips, "lsst-approx" for the approximate layout, or "lsst-ccd" for
+        per-CCD level footprint).
+        Default is None.
     **kwargs : dict
         Additional keyword arguments to pass to the constructor. This includes overrides
         for survey parameters such as:
@@ -153,12 +160,12 @@ class OpSim(ObsTable):
         "z_20": "z",
     }
 
-    # Class constants for the column names.
     def __init__(
         self,
         table,
         colmap=None,
         saturation_mags=None,
+        detector_footprint=None,
         **kwargs,
     ):
         colmap = self._default_colnames if colmap is None else colmap
@@ -167,10 +174,18 @@ class OpSim(ObsTable):
         if saturation_mags is None:
             saturation_mags = self._default_saturation_mags
 
+        # OpSim data (including the MAF queries) switched to using the "band" column
+        # for the short band names and now uses "filter" column for the extended name.
+        # Since filter is already used as a column name, we cannot map band->filter
+        # using colmap. Instead we overwrite the "filter" column directly.
+        if "band" in table:
+            table["filter"] = table["band"]
+
         super().__init__(
             table,
             colmap=colmap,
             saturation_mags=saturation_mags,
+            detector_footprint=detector_footprint,
             **kwargs,
         )
 
@@ -209,7 +224,7 @@ class OpSim(ObsTable):
             self.add_column("sky_bg_e", sky, overwrite=True)
 
     @classmethod
-    def from_url(cls, opsim_url, force_download=False):
+    def from_url(cls, opsim_url, force_download=False, **kwargs):
         """Construct an OpSim object from a URL to a predefined opsim data file.
 
         For Rubin OpSim data, you will typically use the latest baseline data set in:
@@ -224,6 +239,8 @@ class OpSim(ObsTable):
         force_download : bool, optional
             If True, the OpSim data will be downloaded even if it already exists locally.
             Default is False.
+        **kwargs : dict, optional
+            Additional keyword arguments to pass to the constructor.
 
         Returns
         -------
@@ -235,7 +252,7 @@ class OpSim(ObsTable):
 
         if not download_data_file_if_needed(data_path, opsim_url, force_download=force_download):
             raise RuntimeError(f"Failed to download opsim data from {opsim_url}.")
-        return cls.from_db(data_path)
+        return cls.from_db(data_path, **kwargs)
 
 
 def create_random_opsim(num_obs, seed=None):

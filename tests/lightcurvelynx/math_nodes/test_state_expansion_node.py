@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.base_models import FunctionNode, ParameterizedNode
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
@@ -77,7 +78,7 @@ def test_state_expansion_node():
     assert state["add"]["value_sum"].tolist() == [2, 2, 3, 3]
 
     # We can use non-uniform repeats.
-    repeats_list = GivenValueList([2, 0, 3])
+    repeats_list = GivenValueList([2, 0, 3], stateful=False)
     exp_node3 = StateExpansionNode(repeats=repeats_list, node_label="exp3")
     single_model = SingleVariableNode(name="value", value=exp_node3.org_inds, node_label="single")
     state = single_model.sample_parameters(num_samples=3)
@@ -100,7 +101,7 @@ def test_state_expansion_node_subparameters():
         {"a": [], "b": []},
         {"a": [9, 10], "b": [13, 14], "c": [15, 16]},  # Extra column should be ignored.
     ]
-    sub_param_node = GivenValueList(sub_param_list)
+    sub_param_node = GivenValueList(sub_param_list, stateful=False)
     exp_node = StateExpansionNode(
         param_names=["a", "b"],
         param_values=sub_param_node,
@@ -151,7 +152,7 @@ def test_state_expansion_node_subparameters():
     ]
     bad_node = StateExpansionNode(
         param_names=["a", "b"],
-        param_values=GivenValueList(bad_subparameters),
+        param_values=GivenValueList(bad_subparameters, stateful=False),
     )
     with pytest.raises(ValueError):
         _ = bad_node.sample_parameters(num_samples=2)
@@ -163,7 +164,7 @@ def test_state_expansion_node_subparameters():
     ]
     bad_node2 = StateExpansionNode(
         param_names=["a", "b"],
-        param_values=GivenValueList(bad_subparameters2),
+        param_values=GivenValueList(bad_subparameters2, stateful=False),
     )
     with pytest.raises(ValueError):
         _ = bad_node2.sample_parameters(num_samples=2)
@@ -172,10 +173,10 @@ def test_state_expansion_node_subparameters():
 def test_state_expansion_node_subparameters_chaining():
     """Test that we can chain the StateExpansionNode."""
     # The first value is just a list of integers.
-    value1 = GivenValueList([i * 10 for i in range(10)])
+    value1 = GivenValueList([i * 10 for i in range(10)], stateful=False)
 
     # The second value provides TWO values to add to each value1.
-    sub_param_list = GivenValueList([{"value2": [i, i + 1]} for i in range(10)])
+    sub_param_list = GivenValueList([{"value2": [i, i + 1]} for i in range(10)], stateful=False)
     value2 = StateExpansionNode(param_names=["value2"], param_values=sub_param_list)
 
     # We add these two values together in a new node, which should trigger the expansion of
@@ -202,7 +203,7 @@ def test_state_expansion_node_subparameters_chaining():
     ]
     value2_uneven = StateExpansionNode(
         param_names=["value2"],
-        param_values=GivenValueList(sub_param_list2),
+        param_values=GivenValueList(sub_param_list2, stateful=False),
     )
     value1.reset()  # Reset the value1 node to trigger a new expansion with the new subparameters.
     add_node_uneven = _AddModel(
@@ -233,7 +234,7 @@ def test_state_expansion_node_accepts_single_mapping_from_sampler():
     """Test that a single mapping returned by a sampler is expanded."""
     node = StateExpansionNode(
         param_names=["a", "b"],
-        param_values=GivenValueList([{"a": [1, 2], "b": [3, 4]}]),
+        param_values=GivenValueList([{"a": [1, 2], "b": [3, 4]}], stateful=False),
         node_label="exp",
     )
 

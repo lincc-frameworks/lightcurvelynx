@@ -1,9 +1,10 @@
 import numpy as np
+from numpy.testing import assert_allclose
+
 from lightcurvelynx.noise_models.noise_utils import (
     apply_noise,
     poisson_bandflux_std,
 )
-from numpy.testing import assert_allclose
 
 
 def test_poisson_flux_std_flux():

@@ -12,6 +12,22 @@ def _build_colormap(unique_filters):
     filter_list = list(unique_filters)
     n_filters = len(filter_list)
 
+    # If we have limited filters like "g" and "r", use those colors directly.
+    if set(filter_list).issubset({"g", "r"}):
+        return {"g": "green", "r": "red"}
+
+    # If we have the "standard" filters like ugriz, use the LSST color mapping
+    # as shown in https://rtn-045.lsst.io/#colorblind-friendly-plots
+    if set(filter_list).issubset({"u", "g", "r", "i", "z", "y"}):
+        return {
+            "u": "#1600ea",
+            "g": "#31de1f",
+            "r": "#b52626",
+            "i": "#370201",
+            "z": "#ba52ff",
+            "y": "#61a2b3",
+        }
+
     # Use different colormaps depending on the number of filters.
     if n_filters <= 10:
         cmap = plt.get_cmap("tab10", 10)
@@ -22,6 +38,41 @@ def _build_colormap(unique_filters):
     colormap = {f: cmap(i) for i, f in enumerate(filter_list)}
 
     return colormap
+
+
+def _build_symbol_map(unique_filters):
+    """Construct a mapping of filters to symbols."""
+    filter_list = list(unique_filters)
+
+    # If we have limited filters like ugriz, the symbols proposed in:
+    # https://rtn-045.lsst.io/#colorblind-friendly-plots
+    if set(filter_list).issubset({"u", "g", "r", "i", "z", "y"}):
+        plot_symbols = {"u": "o", "g": "^", "r": "v", "i": "s", "z": "*", "y": "p"}
+    else:
+        symbols = ["o", "^", "v", "s", "*", "p", "h", "H", "D", "d"]
+        plot_symbols = {f: symbols[i % len(symbols)] for i, f in enumerate(filter_list)}
+    return plot_symbols
+
+
+def _build_line_map(unique_filters):
+    """Construct a mapping of filters to line styles."""
+    filter_list = list(unique_filters)
+
+    # If we have limited filters like ugriz, the line styles proposed in:
+    # https://rtn-045.lsst.io/#colorblind-friendly-plots
+    if set(filter_list).issubset({"u", "g", "r", "i", "z", "y"}):
+        return {
+            "u": "--",
+            "g": (0, (3, 1, 1, 1)),
+            "r": "-.",
+            "i": "-",
+            "z": (0, (3, 1, 1, 1, 1, 1)),
+            "y": ":",
+        }
+    else:
+        line_styles = ["-", "--", "-.", ":"]
+        line_map = {f: line_styles[i % len(line_styles)] for i, f in enumerate(filter_list)}
+        return line_map
 
 
 def plot_lightcurves(
@@ -54,7 +105,7 @@ def plot_lightcurves(
         A length T matrix of filter names. If not provided all points are
         treated as coming from the same filter. None by default.
     underlying_model: dict or None, optional
-        A dictionary mapping filter names to the noise free light curves for this model.
+        A dictionary mapping filter names to the noise-free light curves for this model.
         If provided, these curves will be plotted as lines behind the data points.
         None by default.
     ax : matplotlib.pyplot.Axes or None, optional
@@ -123,16 +174,20 @@ def plot_lightcurves(
     if colormap is None:
         colormap = _build_colormap(unique_filters)
 
+    # Assign different symbols for each filter.
+    symbol_map = _build_symbol_map(unique_filters)
+
     # Plot the data with one line for each filter.
     for filter in unique_filters:
         filter_mask = filters == filter
 
         # Plot the underlying model if it is provided.
         if underlying_model is not None and filter in underlying_model:
+            line_map = _build_line_map(unique_filters)
             ax.plot(
                 underlying_model["times"],
                 underlying_model[filter],
-                linestyle="-",
+                linestyle=line_map[filter],
                 color=colormap[filter],
                 alpha=0.5,
                 label=f"Model {filter}",
@@ -142,7 +197,7 @@ def plot_lightcurves(
             ax.plot(
                 times[filter_mask],
                 fluxes[filter_mask],
-                marker="o",
+                marker=symbol_map[filter],
                 label=f"Sample {filter}",
                 color=colormap[filter],
                 **kwargs,
@@ -152,7 +207,7 @@ def plot_lightcurves(
                 times[filter_mask],
                 fluxes[filter_mask],
                 yerr=fluxerrs[filter_mask],
-                fmt="o",
+                fmt=symbol_map[filter],
                 label=f"Sample {filter}",
                 color=colormap[filter],
                 **kwargs,

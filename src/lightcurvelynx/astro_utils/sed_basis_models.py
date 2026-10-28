@@ -103,7 +103,7 @@ class SEDBasisModel:
             filter_sed_basis[0, valid_waves] = 1.0
 
             total_flux = passbands.fluxes_to_bandflux(filter_sed_basis, filter)
-            if total_flux[0] <= 0:
+            if total_flux[0] <= 0:  # pragma: no cover
                 raise ValueError(f"Total flux for filter {filter} is {total_flux[0]}.")
             sed_basis_values[filter] = filter_sed_basis[0, :] / total_flux[0]
 

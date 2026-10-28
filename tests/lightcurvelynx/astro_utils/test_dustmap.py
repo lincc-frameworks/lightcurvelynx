@@ -3,6 +3,7 @@ import importlib
 import numpy as np
 import pytest
 from citation_compass import find_in_citations
+
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
 from lightcurvelynx.astro_utils.dustmap import ConstantHemisphereDustMap, DustmapWrapper, SFDMap
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
@@ -36,8 +37,8 @@ def test_dust_map_wrapper():
 
     dust_node1 = DustmapWrapper(
         dust_map=fake_dust_map,
-        ra=GivenValueList(ra_vals),
-        dec=GivenValueList(dec_vals),
+        ra=GivenValueList(ra_vals, stateful=False),
+        dec=GivenValueList(dec_vals, stateful=False),
         node_label="dust",
     )
     samples = dust_node1.sample_parameters(num_samples=len(dec_vals))
@@ -51,8 +52,8 @@ def test_dust_map_wrapper():
     dust_node2 = DustmapWrapper(
         dust_map=fake_dust_map,
         ebv_func=_ebv_adjust,
-        ra=GivenValueList(ra_vals),
-        dec=GivenValueList(dec_vals),
+        ra=GivenValueList(ra_vals, stateful=False),
+        dec=GivenValueList(dec_vals, stateful=False),
         node_label="dust",
     )
     samples = dust_node2.sample_parameters(num_samples=len(dec_vals))
@@ -69,8 +70,8 @@ def test_sfdmap():
     # and high dust in the South.
     dust = SFDMap(
         _LIGHTCURVELYNX_TEST_DATA_DIR / "dustmaps" / "sfdmap2",
-        ra=GivenValueList([125.0, -45.0, 10.0]),
-        dec=GivenValueList([60.0, -30.0, -45.0]),
+        ra=GivenValueList([125.0, -45.0, 10.0], stateful=False),
+        dec=GivenValueList([60.0, -30.0, -45.0], stateful=False),
         node_label="dust",
     )
 

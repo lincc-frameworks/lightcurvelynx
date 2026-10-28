@@ -4,6 +4,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 from astropy import units as u
+
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
@@ -184,9 +185,10 @@ def test_sncosmo_models_chained() -> None:
     # reproducible tests.
     model = SncosmoWrapperModel(
         "hsiao",
-        amplitude=NumpyRandomFunc("uniform", low=2.0, high=12.0, seed=100),
+        amplitude=NumpyRandomFunc("uniform", low=2.0, high=12.0),
     )
-    _ = model.sample_parameters()
+    rng = np.random.default_rng(100)
+    _ = model.sample_parameters(rng_info=rng)
 
     assert np.array_equal(model.param_names, ["amplitude"])
     assert 2.0 <= model.parameter_values[0] <= 12.0
@@ -196,7 +198,7 @@ def test_sncosmo_models_chained() -> None:
     hist = [0] * 10
     source_model = model.source
     for _ in range(10_000):
-        _ = model.sample_parameters()
+        _ = model.sample_parameters(rng_info=rng)
         bin = int(source_model.parameters[0] - 2.0)
         hist[bin] += 1
 

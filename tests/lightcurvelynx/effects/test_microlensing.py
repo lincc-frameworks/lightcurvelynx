@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.effects.microlensing import Microlensing
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 

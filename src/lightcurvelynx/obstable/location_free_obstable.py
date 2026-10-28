@@ -73,7 +73,9 @@ class LocationFreeObsTable(ObsTable):
             The WCS for the footprint. Either this or pixel_scale must be provided if
             a footprint is provided as a Astropy region.
         """
-        raise NotImplementedError("LocationFreeObsTable does not support detector footprints.")
+        raise NotImplementedError(
+            "LocationFreeObsTable does not support detector footprints."
+        )  # pragma: no cover
 
     def _build_spatial_data(self):
         """Build the spatial data for the LocationFreeObsTable. This is a no-op since the LocationFreeObsTable

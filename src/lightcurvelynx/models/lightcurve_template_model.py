@@ -827,7 +827,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
 
         super().__init__(passbands=passbands, filters=self.filters, **kwargs)
 
-        # Either choose from the indices (in order)
+        # Either choose from the indices (in order) or use a sampler.
         if indices is not None:
             if weights is not None:
                 raise ValueError("Cannot provide both 'weights' and 'indices' parameters.")
@@ -835,7 +835,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
                 indices = np.asarray(indices)
                 if np.any((indices < 0) | (indices >= len(lightcurves))):
                     raise ValueError("Indices must be between 0 and the number of light curves.")
-                indices_sampler = GivenValueList(indices)
+                indices_sampler = GivenValueList(indices, stateful=True)
             else:
                 # Assume it is already a parameter or sampler.
                 indices_sampler = indices
@@ -946,8 +946,8 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             raise ValueError("Filter must be provided to compute minphase.")
         if graph_state is None:
             raise ValueError("Graph state must be provided to compute minphase.")
-        if graph_state.num_samples > 1:
-            raise ValueError("Graph state must have num_samples=1 to compute maxphase.")
+        if graph_state.num_samples != 1:
+            raise ValueError("Graph state must have num_samples=1 to compute minphase.")
 
         model_ind = self.get_param(graph_state, "selected_lightcurve")
         lc_model = self.lightcurves[model_ind]
@@ -979,7 +979,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             raise ValueError("Filter must be provided to compute maxphase.")
         if graph_state is None:
             raise ValueError("Graph state must be provided to compute maxphase.")
-        if graph_state.num_samples > 1:
+        if graph_state.num_samples != 1:
             raise ValueError("Graph state must have num_samples=1 to compute maxphase.")
 
         model_ind = self.get_param(graph_state, "selected_lightcurve")

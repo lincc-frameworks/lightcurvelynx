@@ -16,6 +16,7 @@ from astropy import units as u
 from astropy.io.votable import parse
 from astroquery.svo_fps import SvoFps
 from citation_compass import cite_function
+from requests.exceptions import ConnectionError
 
 from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.consts import lsst_filter_plot_colors
@@ -406,17 +407,17 @@ class PassbandGroup:
 
         # Download the table if it does not exist or if force_download is True.
         success = download_data_file_if_needed(table_path, table_url, force_download=force_download)
-        if not success:
+        if not success:  # pragma: no cover
             raise RuntimeError(f"Failed to download Roman passband table from {table_url}.")
 
         # Load the table, convert the wavelengths from microns to Angstroms, create Passband objects.
         # The table contains effective area in m^2, but since we normalize the transmission tables,
         # we can just use this directly.
         table = pd.read_csv(table_path, comment="#", sep=r"[\s,]+", engine="python")
-        waves = table["Wave"].values * 10_000  # Convert microns to Angstroms
+        waves = table["Wave"].to_numpy() * 10_000  # Convert microns to Angstroms
 
         for filter_name in ["F062", "F087", "F106", "F129", "F146", "F158", "F184", "F213"]:
-            table_values = np.vstack([waves, table[filter_name].values.astype(float)]).T
+            table_values = np.vstack([waves, table[filter_name].to_numpy(dtype=float)]).T
             pb = Passband(table_values, "Roman", filter_name, **kwargs)
             passbands.append(pb)
         return passbands
@@ -834,9 +835,7 @@ class Passband:
         # Check that they have the (approximately) same transmission tables.
         if self.normalized_system_response.shape != other.normalized_system_response.shape:
             return False
-        if not np.allclose(self.normalized_system_response, other.normalized_system_response):
-            return False
-        return True
+        return np.allclose(self.normalized_system_response, other.normalized_system_response)
 
     @classmethod
     def from_file(
@@ -894,7 +893,7 @@ class Passband:
 
         # Download the table if it does not exist or if force_download is True.
         success = download_data_file_if_needed(table_path, table_url, force_download=force_download)
-        if not success:
+        if not success:  # pragma: no cover
             raise RuntimeError(f"Failed to download passband table from {table_url}.")
 
         # Load the table and create the passband.
@@ -1262,7 +1261,7 @@ class Passband:
         numerators = transmissions / wavelengths_angstrom
         denominator = scipy.integrate.trapezoid(numerators, x=wavelengths_angstrom)
 
-        if np.isclose(denominator, 0.0):
+        if np.isclose(denominator, 0.0):  # pragma: no cover
             raise ValueError("Denominator is zero; cannot normalize transmission table.")
 
         # Calculate phi_b for each wavelength
@@ -1383,3 +1382,18 @@ class Passband:
 
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylim(0, None)
+
+
+def check_connect_to_svo():
+    """Perform a quick check that we can connect to the SVO service.
+
+    Returns
+    -------
+    bool
+        True if the connection to the SVO service is successful, False otherwise.
+    """
+    try:
+        _ = SvoFps.get_filter_list(facility="SkyMapper", instrument="SkyMapper")
+        return True
+    except ConnectionError:
+        return False

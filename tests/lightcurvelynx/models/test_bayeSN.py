@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from astropy.cosmology import FlatLambdaCDM
 from citation_compass import find_in_citations
+
 from lightcurvelynx.models.bayesn import BayesnModel
 
 

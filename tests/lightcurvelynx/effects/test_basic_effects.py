@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
 from lightcurvelynx.models.basic_models import ConstantSEDModel
 

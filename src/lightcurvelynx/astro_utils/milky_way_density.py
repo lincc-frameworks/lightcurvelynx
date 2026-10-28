@@ -124,7 +124,7 @@ class MilkyWayDensityBase(ABC):
         z : numpy.ndarray
             Heights above the Galactic mid-plane in kpc, shape (n_samples,).
         """
-        if rng is None:
+        if rng is None:  # pragma: no cover
             rng = np.random.default_rng()
 
         # Draw uniform random numbers and find the corresponding grid indices

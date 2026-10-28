@@ -117,7 +117,6 @@ class RedshiftDistFunc(FunctionNode):
         # Create a partial function with the cosmology fixed. We do this
         # so that cosmology is not added as a node parameter.
         func = partial(redshift_to_distance, cosmology=cosmology)
-        func.__name__ = "redshift_to_distance"
         func.__doc__ = redshift_to_distance.__doc__
 
         # Call the super class's constructor with the needed information.

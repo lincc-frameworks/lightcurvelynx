@@ -1,6 +1,8 @@
 Notebooks
 ========================================================================================
 
+This page provides a list of notebooks by category. For a mapping of specific topics to their corresponding notebooks and documentation pages, please refer to :doc:`glossary and index <glossary>`.
+
 Getting Started
 -----------------------------------------------------------------------------------------
 
@@ -66,18 +68,20 @@ in roughly alphabetical order of simulation package or simulation type).
 
     AGN Damped Random Walk Model <notebooks/pre_executed/agn>
     Basic SNIa Simulation <notebooks/simple_snia>
-    Simulating SNIa with Rubin Opsim <notebooks/pre_executed/plasticc_snia>
+    BayeSN Supernova Ia Model <notebooks/pre_executed/bayeSN_example>
     EzTaoX <notebooks/pre_executed/eztaox_example>
     GoPreaux <notebooks/pre_executed/gopreaux_example>
     Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
+    M-Dwarf Flares <notebooks/mdwarf_flares>
     Microlensing Effect Example <notebooks/pre_executed/microlensing>
     PyLIMA Micro-Lensing Model <notebooks/pre_executed/pylima_example>
     PZFlow Source Demo <notebooks/pre_executed/using_pzflow>
     Redback Models <notebooks/pre_executed/redback_example>
     Resampling LCLIB <notebooks/pre_executed/lclib_example>
+    Rubin DP2 (end to end example) <notebooks/pre_executed/rubin_dp2>    
     SNANA Models <notebooks/pre_executed/snana_example>
+    SNIa with Rubin Opsim <notebooks/pre_executed/plasticc_snia>
     Synphot-based Models <notebooks/pre_executed/synphot_example>
-    BayeSN Supernova Ia Model <notebooks/pre_executed/bayeSN_example>
 
 
 Other Surveys

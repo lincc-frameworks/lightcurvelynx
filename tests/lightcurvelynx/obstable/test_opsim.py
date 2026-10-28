@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.opsim import (
@@ -65,6 +66,9 @@ def test_create_opsim():
 
     # Without a filters column we cannot access the filters.
     assert len(ops_data.filters) == 0
+
+    # Check that we do not have a detector footprint by default.
+    assert not ops_data.uses_footprint()
 
     # We can create an OpSim directly from the dictionary as well.
     ops_data2 = OpSim(pdf)
@@ -130,6 +134,36 @@ def test_create_opsim_filter_mapping():
         "zp": np.ones(7),
     }
     opsim = OpSim(values)
+    assert set(opsim.filters) == set(["g", "i", "r", "u", "z"])
+    assert np.array_equal(opsim["filter"], np.array(["g", "i", "r", "u", "z", "r", "g"]))
+
+
+def test_create_opsim_band_data():
+    """Create an OpSim with filter information specified as in the band column
+    and the filter column including the longer names.
+    """
+    # Check that we can only provide band information (no filter column).
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0, 45.0, 90.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0]),
+        "band": np.array(["g", "i", "r", "u", "z", "r", "g"]),
+        "zp": np.ones(7),
+    }
+    opsim = OpSim(values)  # Input as a dictionary
+    assert set(opsim.filters) == set(["g", "i", "r", "u", "z"])
+    assert np.array_equal(opsim["filter"], np.array(["g", "i", "r", "u", "z", "r", "g"]))
+
+    # Check that we completely overwrite filter when band is provided.
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0, 45.0, 90.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0]),
+        "band": np.array(["g", "i", "r", "u", "z", "r", "g"]),
+        "filter": np.array(["ignore"] * 7),  # We overwrite filter when band is provided.
+        "zp": np.ones(7),
+    }
+    opsim = OpSim(pd.DataFrame(values))  # Input as a DataFrame
     assert set(opsim.filters) == set(["g", "i", "r", "u", "z"])
     assert np.array_equal(opsim["filter"], np.array(["g", "i", "r", "u", "z", "r", "g"]))
 
@@ -324,6 +358,18 @@ def test_write_read_opsim_db():
         ops_data.write_db(file_path, overwrite=True)
 
 
+def test_create_opsim_detector_footprint():
+    """Create a minimal OpSim object with a preset detector footprint."""
+    values = {
+        "observationStartMJD": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "fieldRA": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "fieldDec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+    }
+    ops_data = OpSim(values, detector_footprint="lsst-approx")
+    assert ops_data.uses_footprint()
+
+
 def test_write_read_opsim_parquet():
     """Create a minimal opsim data frame, test that we can write it as a parquet file,
     and test that we can correctly read it back in."""
@@ -512,6 +558,11 @@ def test_read_opsim_shorten(opsim_shorten):
     """Read in a shorten OpSim file from the testing data directory."""
     ops_data = OpSim.from_db(opsim_shorten)
     assert len(ops_data) == 100
+    assert not ops_data.uses_footprint()
+
+    # Test that we can pass along a detector footprint preset.
+    ops_data2 = OpSim.from_db(opsim_shorten, detector_footprint="lsst-approx")
+    assert ops_data2.uses_footprint()
 
 
 def test_opsim_flux_err_point_source(opsim_shorten):

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 from citation_compass import find_in_citations
+
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.redback_models import RedbackWrapperModel
 from lightcurvelynx.utils.extrapolate import ConstantPadding
@@ -40,11 +41,11 @@ class _ToySNModel:
 
     def minphase(self):
         """Get the minimum phase of the model."""
-        return None  # The model does not know its own phase bounds (like redback kilanova).
+        return None  # The model does not know its own phase bounds (like redback kilonova).
 
     def maxphase(self):
         """Get the maximum phase of the model."""
-        return None  # The model does not know its own phase bounds (like redback kilanova).
+        return None  # The model does not know its own phase bounds (like redback kilonova).
 
     def get_flux_density(self, times, wavelengths):
         """A toy flux function that depends on time and wave.
@@ -274,7 +275,7 @@ def test_redback_models_chained_toy() -> None:
     """Test that we can create and evaluate a model with chained parameters."""
     t0 = 64350.0
     parameters = {
-        "height": GivenValueList([500.0, 1000.0, 1500.0]),
+        "height": GivenValueList([500.0, 1000.0, 1500.0], stateful=False),
         "width": 10.0,
     }
 
@@ -365,7 +366,7 @@ def test_redback_model_extrapolation() -> None:
 
 
 @pytest.mark.filterwarnings("ignore")
-def test_redback_kilanova_model_bounds() -> None:
+def test_redback_kilonova_model_bounds() -> None:
     """Test that we can create a RedbackWrapperModel from a function
     that has bounds, and that the wrapper model correctly infers the bounds."""
     redback = pytest.importorskip("redback")

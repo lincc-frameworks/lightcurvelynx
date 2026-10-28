@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from astropy.table import Table
 from citation_compass import find_in_citations
+
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
 from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
@@ -285,6 +286,41 @@ def test_create_lightcurve_band_data_from_lclib_table_periodic() -> None:
             lc_data.lightcurves[filt][5, 1],
             lc_data.lightcurves[filt][0, 1],
         )
+
+
+def test_create_lightcurve_band_data_validation_errors() -> None:
+    """Test validation errors for invalid LightcurveBandData inputs."""
+    with pytest.raises(TypeError):
+        LightcurveBandData(object(), lc_data_t0=0.0)
+
+    with pytest.raises(ValueError):
+        LightcurveBandData(np.array([[0.0, 1.0], [1.0, 2.0]]), lc_data_t0=0.0)
+
+    bad_lightcurves = {
+        "u": np.array([[0.0, 1.0], [2.0, 3.0]]),
+        "g": np.array([[3.0, 4.0], [2.0, 5.0]]),
+    }
+    with pytest.raises(ValueError):
+        LightcurveBandData(bad_lightcurves, lc_data_t0=0.0, periodic=True)
+
+    lc_data = LightcurveBandData(_create_toy_lightcurves(), lc_data_t0=0.0)
+    with pytest.raises(ValueError):
+        lc_data.evaluate_bandfluxes(np.array([0.0, 1.0]), "missing")
+
+
+def test_create_lightcurve_band_data_from_lclib_table_invalid_inputs() -> None:
+    """Test error handling for invalid or incomplete LCLIB table inputs."""
+    with pytest.raises(ValueError):
+        LightcurveBandData.from_lclib_table(Table({"u": [1.0, 2.0]}))
+
+    table = Table({"time": [0.0, 1.0], "u": [1.0, 2.0], "g": [2.0, 3.0]})
+    table.meta["RECUR_CLASS"] = "BAD-CLASS"
+    with pytest.raises(ValueError):
+        LightcurveBandData.from_lclib_table(table)
+
+    empty_table = Table({"time": [0.0]})
+    with pytest.raises(ValueError):
+        LightcurveBandData.from_lclib_table(empty_table, filters=["missing"])
 
 
 def test_create_lightcurve_template_model() -> None:
@@ -750,7 +786,8 @@ def test_create_multilightcurve_template_model() -> None:
     assert set(model.filters) == {"u", "g", "r"}
 
     # Check that we sample the light curves correctly.
-    graph_state = model.sample_parameters(num_samples=1_000)
+    rng = np.random.default_rng(101010)
+    graph_state = model.sample_parameters(num_samples=1_000, rng_info=rng)
     lc_used = graph_state["source"]["selected_lightcurve"]
     assert np.all((lc_used == 0) | (lc_used == 1))
     assert np.sum(lc_used == 0) >= 200  # approximately 25% of the samples should be from lc1
@@ -801,6 +838,30 @@ def test_create_multilightcurve_template_model() -> None:
     assert model.minphase(filter="g", graph_state=single_state) is None
     assert model.maxphase(filter="g", graph_state=single_state) is None
 
+    # If we reuse the seed, we get the same templates.
+    model2 = MultiLightcurveTemplateModel(
+        [lc1_data, lc2_data],
+        pb_group,
+        weights=[0.25, 0.75],
+        t0=0.0,
+        node_label="source",
+    )
+    rng2 = np.random.default_rng(101010)
+    graph_state2 = model2.sample_parameters(num_samples=1_000, rng_info=rng2)
+    assert np.all(lc_used == graph_state2["source"]["selected_lightcurve"])
+
+    # If we use a different the seed, we get the different templates.
+    model3 = MultiLightcurveTemplateModel(
+        [lc1_data, lc2_data],
+        pb_group,
+        weights=[0.25, 0.75],
+        t0=0.0,
+        node_label="source",
+    )
+    rng3 = np.random.default_rng(101011)
+    graph_state3 = model3.sample_parameters(num_samples=1_000, rng_info=rng3)
+    assert not np.all(lc_used == graph_state3["source"]["selected_lightcurve"])
+
 
 def test_create_multilightcurve_template_model_indices() -> None:
     """Test that we can create a simple MultiLightcurveTemplateModel object
@@ -824,7 +885,7 @@ def test_create_multilightcurve_template_model_indices() -> None:
     lc2_data = LightcurveBandData(lc2_lightcurves, lc_data_t0=0.0, periodic=True)
 
     # Create the MultiLightcurveTemplateModel with both light curves and predefined indices.
-    indices = GivenValueList([0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1])
+    indices = GivenValueList([0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1], stateful=False)
     model = MultiLightcurveTemplateModel(
         [lc1_data, lc2_data],
         pb_group,

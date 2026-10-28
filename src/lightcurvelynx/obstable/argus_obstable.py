@@ -149,7 +149,7 @@ class ArgusHealpixObsTable(ObsTable):
             The WCS for the footprint. Either this or pixel_scale must be provided if
             a footprint is provided as a Astropy region.
         """
-        raise NotImplementedError("ArgusObsTable does not support detector footprints.")
+        raise NotImplementedError("ArgusObsTable does not support detector footprints.")  # pragma: no cover
 
     def _build_spatial_data(self):
         """Construct a mapping of healpix id to row number from the ObsTable."""
@@ -280,8 +280,8 @@ class ArgusHealpixObsTable(ObsTable):
 
         Returns
         -------
-        inds : list[int] or list[numpy.ndarray]
-            Depending on the input, this is either a list of indices for a single query point
+        inds : numpy.ndarray or list[numpy.ndarray]
+            Depending on the input, this is either an array of indices for a single query point
             or a list of arrays (of indices) for an array of query points.
         """
         # If the query RA and Dec are scalars, convert them to 1D arrays for consistent processing.

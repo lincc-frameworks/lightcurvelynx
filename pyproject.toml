@@ -42,7 +42,7 @@ dependencies = [
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
 [project.optional-dependencies]
 dev = [
-    "asv[virtualenv]==0.6.6", # Used to compute performance benchmarks
+    "asv==0.6.6", # Used to compute performance benchmarks
     "bilby",  # Used for Bayesian inference
     "dust_extinction",
     "extinction>=0.4.7",
@@ -51,6 +51,7 @@ dev = [
     "jax",
     "lsdb>=0.10.2",
     "modeldag",
+    "mosfit>=2.1",  # Used for physical models of transients
     "networkx",  # Used for graph visualization
     "pre-commit", # Used to run checks before finalizing a git commit
     "pytest",
@@ -69,6 +70,7 @@ all = [
     "extinction>=0.4.7",  # Needed by sncosmo
     "jax",
     "lsdb>=0.10.2",  # Used to read and write LSDB catalogs
+    "mosfit>=2.1",  # Used for physical models of transients
     "networkx",  # Used for graph visualization
     "pzflow>=4.0",
     "synphot",  # used for SED modeling tests
@@ -92,6 +94,7 @@ testpaths = [
     "docs",
 ]
 addopts = "--doctest-modules --doctest-glob=*.rst"
+log_cli_level = "INFO"
 
 [tool.ruff]
 line-length = 110
@@ -123,7 +126,9 @@ select = [
     "D300",
     "D417",
     "D419",
-]
+    # Numpy v2.0 compatibility
+    "NPY201",
+    ]
 ignore = [
     "UP006", # Allow non standard library generics in type hints
     "UP007", # Allow Union in type hints

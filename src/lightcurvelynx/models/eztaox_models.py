@@ -329,7 +329,7 @@ class EzTaoXWrapperModel(BandfluxModel, CiteClass):
                 "The compute_bandflux method should not be called directly for the "
                 "EzTaoXWrapperModel. Instead, use the evaluate_bandfluxes method which "
                 "handles caching of the bandflux computations."
-            )
+            )  # pragma: no cover
 
         # Extract the bandfluxes from the entries with matching filters.
         filter_mask = self._cached_data["filters"] == filter

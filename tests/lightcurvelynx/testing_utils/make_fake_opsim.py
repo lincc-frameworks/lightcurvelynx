@@ -1,6 +1,7 @@
 import argparse
 
 import numpy as np
+
 from lightcurvelynx.obstable.opsim import OpSim
 
 _all_columns = [

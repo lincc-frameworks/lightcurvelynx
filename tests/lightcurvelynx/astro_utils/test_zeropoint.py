@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.optimize import fsolve
+
 from lightcurvelynx.astro_utils.mag_flux import flux2mag
 from lightcurvelynx.astro_utils.zeropoint import (
     calculate_zp_from_maglim,
@@ -7,7 +9,6 @@ from lightcurvelynx.astro_utils.zeropoint import (
     sky_bg_adu_to_electrons,
 )
 from lightcurvelynx.obstable.opsim import _opsim_dark_current, _opsim_pixel_scale, _opsim_readout_noise
-from scipy.optimize import fsolve
 
 
 def test_magnitude_electron_zeropoint():

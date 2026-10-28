@@ -709,7 +709,7 @@ class ParameterizedNode:
             elif setter.source_type == _ParameterSource.COMPUTE_OUTPUT:
                 # Computed parameters are set only after all the other (input) parameters.
                 any_compute = True
-            else:
+            else:  # pragma: no cover
                 raise ValueError(f"Invalid _ParameterSource type {setter.source_type}")
 
         # If this is a function node and the parameters depend on the result of its own computation
@@ -854,7 +854,7 @@ class ParameterizedNode:
         if self.node_pos is None:
             raise ValueError(
                 f"Node {self.node_string} is missing position. You must call "
-                "set_graph_positions() before building a pytree."
+                "set_graph_positions() or sample the node before building a pytree."
             )
 
         # Skip nodes that we have already seen.
@@ -908,7 +908,7 @@ class FunctionNode(ParameterizedNode):
 
     Examples
     --------
-    >>> my_func = TDFunc(random.randint, a=1, b=10)                # doctest: +SKIP
+    >>> my_func = TDFunc(random.integers, a=1, b=10)               # doctest: +SKIP
     >>> value1 = my_func()      # Sample from default range        # doctest: +SKIP
     >>> value2 = my_func(b=20)  # Sample from extended range       # doctest: +SKIP
 
@@ -920,7 +920,7 @@ class FunctionNode(ParameterizedNode):
     For example, the following will fail (because b is not defined in the
     constructor)::
 
-        my_func = TDFunc(random.randint, a=1)
+        my_func = TDFunc(random.integers, a=1)
         value1 = my_func(b=10.0)
     """
 
@@ -930,9 +930,6 @@ class FunctionNode(ParameterizedNode):
         if fixed_params is not None and len(fixed_params) > 0:
             # Create a partial function with some of the parameters fixed.
             self.func = partial(func, **fixed_params)
-
-            # We need to set the __name__ parameter because it is not preserved by partial.
-            self.func.__name__ = func.__name__
         else:
             # Use the function as-is.
             self.func = func
@@ -961,13 +958,31 @@ class FunctionNode(ParameterizedNode):
         happens in an overloaded compute() function."""
         pass
 
+    def _func_name(self):
+        """Get the name of the node's function.
+
+        The name is taken from the underlying function (unwrapping any partials)
+        instead of from an attribute set on the partial object, because the pickling
+        used by multiprocessing (e.g. ProcessPoolExecutor) does not preserve
+        attributes set on a partial.
+
+        Returns
+        -------
+        name : str
+            The name of the function.
+        """
+        func = self.func
+        while isinstance(func, partial):
+            func = func.func
+        return func.__name__
+
     def _update_node_string(self, new_str=None):
         """Update the node's string. A FunctionNode's string includes
         the function name in addition to the class name.
         """
         if new_str is None:
             pos_string = f"_{self.node_pos}" if self.node_pos is not None else ""
-            fn_str = f":{self.func.__name__}" if self.func is not None else ""
+            fn_str = f":{self._func_name()}" if self.func is not None else ""
             new_str = f"{self.__class__.__name__}{fn_str}{pos_string}"
         super()._update_node_string(new_str)
 
@@ -1011,7 +1026,7 @@ class FunctionNode(ParameterizedNode):
         else:
             if len(results) != len(self.outputs):
                 raise ValueError(
-                    f"Incorrect number of results returned by {self.func.__name__}. "
+                    f"Incorrect number of results returned by {self._func_name()}. "
                     f"Expected {len(self.outputs)}, but got {results}."
                 )
             for i in range(len(self.outputs)):

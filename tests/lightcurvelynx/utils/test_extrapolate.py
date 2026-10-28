@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.utils.extrapolate import (
     ConstantPadding,

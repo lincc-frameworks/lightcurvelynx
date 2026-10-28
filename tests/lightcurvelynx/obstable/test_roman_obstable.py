@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from lightcurvelynx import _LIGHTCURVELYNX_TEST_DATA_DIR
 from lightcurvelynx.obstable.roman_obstable import RomanObsTable, RomanPoissonFluxNoiseModel
 

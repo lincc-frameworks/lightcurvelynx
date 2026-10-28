@@ -23,14 +23,19 @@ class BinarySampler(NumpyRandomFunc):
     ----------
     probability : float
         The probability of returning True.
+
+    Parameters
+    ----------
+    probability : float
+        The probability of returning True.
     """
 
-    def __init__(self, probability, seed=None, **kwargs):
+    def __init__(self, probability, **kwargs):
         if probability < 0 or probability > 1:
             raise ValueError(f"Probability must be between 0 and 1. Got {probability}.")
         self.probability = probability
 
-        super().__init__("uniform", seed=seed, **kwargs)
+        super().__init__("uniform", **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
@@ -52,7 +57,7 @@ class BinarySampler(NumpyRandomFunc):
             The result of the computation. This return value is provided so that testing
             functions can easily access the results.
         """
-        rng = rng_info if rng_info is not None else self._rng
+        rng = rng_info if rng_info is not None else np.random.default_rng()
 
         if graph_state.num_samples == 1:
             results = rng.random() < self.probability
@@ -88,14 +93,21 @@ class GivenValueList(FunctionNode):
         Whether this node is stateful. If True, the node will keep track of the next
         index to return. If False, the node will always return the first N values in the list,
         where N is the number of samples requested.
-        Default: True
     """
 
-    def __init__(self, values, *, stateful=True, **kwargs):
+    def __init__(self, values, *, stateful=None, **kwargs):
         self.values = np.asarray(values)
         if len(values) == 0:
             raise ValueError("No values provided for GivenValueList")
         self.next_ind = 0
+
+        if stateful is None:
+            warnings.warn(
+                "In the future, no default value will be provided for 'stateful'. "
+                "Please explicitly set the 'stateful' argument to True or False.",
+                DeprecationWarning,
+            )
+            stateful = True
         self._stateful = stateful
 
         super().__init__(self._non_func, **kwargs)
@@ -178,16 +190,24 @@ class GivenValueSampler(NumpyRandomFunc):
         The number of values that can be sampled.
     _weights : numpy.ndarray, optional
         The weights for each value, if provided. If None, all values are equally likely.
+
+    Parameters
+    ----------
+    values : int, list, or numpy.ndarray
+        The values to select from. If an integer is provided, it is treated as a range
+        from 0 to that value - 1.
+    weights : list or numpy.ndarray, optional
+        The weights for each value. If None, all values are equally likely.
     """
 
-    def __init__(self, values, weights=None, seed=None, **kwargs):
+    def __init__(self, values, weights=None, **kwargs):
         if isinstance(values, int):
             values = np.arange(values)
         self.values = np.asarray(values)
 
         self._num_values = len(values)
         if self._num_values == 0:
-            raise ValueError("No values provided for NumpySamplerNode")
+            raise ValueError("No values provided for GivenValueSampler")
 
         # Compute the normalized weights for each value.
         if weights is not None:
@@ -206,7 +226,7 @@ class GivenValueSampler(NumpyRandomFunc):
         else:
             self._weights = None
 
-        super().__init__("uniform", seed=seed, **kwargs)
+        super().__init__("uniform", **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Return the given values.
@@ -228,7 +248,7 @@ class GivenValueSampler(NumpyRandomFunc):
             The result of the computation. This return value is provided so that testing
             functions can easily access the results.
         """
-        rng = rng_info if rng_info is not None else self._rng
+        rng = rng_info if rng_info is not None else np.random.default_rng()
 
         if graph_state.num_samples == 1:
             inds = rng.choice(self._num_values, p=self._weights)
@@ -259,7 +279,7 @@ class GivenValueSelector(FunctionNode):
         super().__init__(self._select, index=index, **kwargs)
         self.values = np.asarray(values)
         if len(values) == 0:
-            raise ValueError("No values provided for GivenValueList")
+            raise ValueError("No values provided for GivenValueSelector")
 
     def _select(self, index):
         """Select the value at the given index."""

@@ -1,7 +1,5 @@
 """Wrapper classes for calling numpy random number generators."""
 
-from os import urandom
-
 import numpy as np
 
 from lightcurvelynx.base_models import FunctionNode
@@ -28,8 +26,6 @@ class NumpyRandomFunc(FunctionNode):
         The shape of the array to generate for each sample. Actual
         returned value will be ``(num_samples, *size)``.
         Default: None (single values for each sample)
-    seed : int, optional
-        The seed to use.
 
     Note
     ----
@@ -48,8 +44,24 @@ class NumpyRandomFunc(FunctionNode):
     >>> func_node = NumpyRandomFunc("normal", loc=5.0, scale=1.0)
     """
 
-    def __init__(self, func_name, size=1, seed=None, **kwargs):
+    def __init__(self, func_name, size=1, **kwargs):
         self.func_name = func_name
+
+        # Check for unsupported keyword arguments.
+        if "seed" in kwargs:
+            # We no longer support setting the seed during construction.
+            raise ValueError(
+                "Directly setting the seed during construction is no longer supported. "
+                "Users can control the randomness by passing a random number generator "
+                "into compute() via the rng_info argument."
+            )
+        if "fixed_params" in kwargs:
+            # We can't support fixed parameters because, we use the method from
+            # the given random number generator.
+            raise ValueError(
+                "You cannot set fixed parameters for a NumpyRandomFunc node. "
+                "Users can instead pass constants."
+            )
 
         # The node does not support the 'choice' function since it cannot take a list of different
         # lists to use for each sampling run (sample 1 chooses a value from list 1, sample 2 from
@@ -76,28 +88,11 @@ class NumpyRandomFunc(FunctionNode):
                 )
             self.sample_size = size
 
-        # Get a default random number generator for this object, using the
-        # given seed if one is provided.
-        if seed is None:
-            seed = int.from_bytes(urandom(4), "big")
-        self._rng = np.random.default_rng(seed=seed)
-
         # Check that the function exists in numpy's random number generator library.
-        if not hasattr(self._rng, func_name):
+        _test_rng = np.random.default_rng()
+        if not hasattr(_test_rng, func_name):
             raise ValueError(f"Random function {func_name} does not exist.")
-        func = getattr(self._rng, func_name)
-        super().__init__(func, **kwargs)
-
-    def set_seed(self, new_seed):
-        """Update the random number generator's seed to a given value.
-
-        Parameters
-        ----------
-        new_seed : int
-            The given seed
-        """
-        self._rng = np.random.default_rng(seed=new_seed)
-        self.func = getattr(self._rng, self.func_name)
+        super().__init__(self._non_func, **kwargs)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Execute the wrapped function.
@@ -143,8 +138,10 @@ class NumpyRandomFunc(FunctionNode):
                     arg_value_expanded = arg_value.reshape(expanded_shape)
                     args[key] = np.broadcast_to(arg_value_expanded, target_size)
 
-        # If a random number generator is given use that. Otherwise use the default one.
-        func = self.func if rng_info is None else getattr(rng_info, self.func_name)
+        # If a random number generator is given use that. Otherwise create a new random one.
+        if rng_info is None:
+            rng_info = np.random.default_rng()
+        func = getattr(rng_info, self.func_name)
 
         # Set the size according to the number of samples.
         size_param = (graph_state.num_samples, *self.sample_size)
@@ -180,8 +177,6 @@ class NumpyMultivariateNormalFunc(FunctionNode):
         A length D array with the mean of the distribution for each sample.
     cov : array-like
         A D x D array with the covariance matrix of the distribution for each sample.
-    seed : int, optional
-        The seed to use.
 
     Examples
     --------
@@ -192,7 +187,23 @@ class NumpyMultivariateNormalFunc(FunctionNode):
     >>> func_node = NumpyRandomFunc("normal", loc=5.0, scale=1.0)
     """
 
-    def __init__(self, mean, cov, seed=None, **kwargs):
+    def __init__(self, mean, cov, **kwargs):
+        # Check for unsupported keyword arguments.
+        if "seed" in kwargs:
+            # We no longer support setting the seed during construction.
+            raise ValueError(
+                "Directly setting the seed during construction is no longer supported. "
+                "Users can control the randomness by passing a random number generator "
+                "into compute() via the rng_info argument."
+            )
+        if "fixed_params" in kwargs:
+            # We can't support fixed parameters because, we use the method from
+            # the given random number generator.
+            raise ValueError(
+                "You cannot set fixed parameters for a NumpyRandomFunc node. "
+                "Users can instead pass constants."
+            )
+
         self.dims = len(mean)
         if self.dims == 0:  # pragma: no cover
             raise ValueError(f"Mean must be a non-empty array. Received {mean}.")
@@ -204,24 +215,8 @@ class NumpyMultivariateNormalFunc(FunctionNode):
         if self.cov.shape != (self.dims, self.dims):  # pragma: no cover
             raise ValueError(f"Covariance matrix must be a 2D array with shape ({self.dims}, {self.dims}).")
 
-        # Get a default random number generator for this object, using the
-        # given seed if one is provided.
-        if seed is None:
-            seed = int.from_bytes(urandom(4), "big")
-        self._rng = np.random.default_rng(seed=seed)
-
         # We use a non-function, since all the work is done in the compute function.
         super().__init__(self._non_func, **kwargs)
-
-    def set_seed(self, new_seed):
-        """Update the random number generator's seed to a given value.
-
-        Parameters
-        ----------
-        new_seed : int
-            The given seed
-        """
-        self._rng = np.random.default_rng(seed=new_seed)
 
     def compute(self, graph_state, rng_info=None, **kwargs):
         """Sample from the multivariate normal distribution.
@@ -243,8 +238,8 @@ class NumpyMultivariateNormalFunc(FunctionNode):
             The result of the computation. If num_samples > 1, this will be an array of shape
             (num_samples, dims). Otherwise it will be a 1D array of length dims.
         """
-        rng = self._rng if rng_info is None else rng_info
+        rng_info = np.random.default_rng() if rng_info is None else rng_info
         num_samples = graph_state.num_samples if graph_state.num_samples > 1 else None
-        results = rng.multivariate_normal(mean=self.mean, cov=self.cov, size=num_samples)
+        results = rng_info.multivariate_normal(mean=self.mean, cov=self.cov, size=num_samples)
         self._save_results(results, graph_state)
         return results

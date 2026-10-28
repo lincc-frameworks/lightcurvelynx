@@ -1,9 +1,13 @@
+import pickle
 import random
+from multiprocessing.reduction import ForkingPickler
 
 import jax
 import numpy as np
 import pytest
+
 from lightcurvelynx.base_models import FunctionNode, ParameterizedNode, _ParameterSource
+from lightcurvelynx.graph_state import GraphState
 from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
 
 
@@ -29,6 +33,19 @@ def _test_func(value1, value2):
         The second parameter.
     """
     return value1 + value2
+
+
+def _too_many_results(value1, value2):
+    """Return three values (for testing a mismatch with the number of outputs).
+
+    Parameters
+    ----------
+    value1 : `float`
+        The first parameter.
+    value2 : `float`
+        The second parameter.
+    """
+    return (value1, value2, value1 + value2)
 
 
 class _PairModel(ParameterizedNode):
@@ -387,8 +404,13 @@ def test_parameterized_node_build_pytree():
     """Test that we can extract the PyTree of a graph."""
     model1 = _PairModel(value1=0.5, value2=1.5, node_label="A")
     model2 = _PairModel(value1=model1.value1, value2=3.0, node_label="B")
-    graph_state = model2.sample_parameters()
 
+    # We fail if the model has never been sampled (and thus node positions are not set)
+    bad_graph_state = GraphState(num_samples=1)
+    with pytest.raises(ValueError):
+        model2.build_pytree(bad_graph_state)
+
+    graph_state = model2.sample_parameters()
     pytree = model2.build_pytree(graph_state)
     assert pytree["A"]["value1"] == 0.5
     assert pytree["A"]["value2"] == 1.5
@@ -428,6 +450,13 @@ def test_function_node_basic():
 
     # We can also compute this result (for testing) by calling generate().
     assert my_func.generate() == 3.0
+
+
+def test_function_node_none():
+    """Test that we can create a function node without a function, but we fail in compute."""
+    my_func = FunctionNode(None, value1=1.0, value2=2.0)
+    with pytest.raises(ValueError):
+        my_func.sample_parameters()
 
 
 def test_function_node_chain():
@@ -484,6 +513,32 @@ def test_function_node_multi_dim():
     state = my_func.sample_parameters(num_samples=10)
     assert len(state["sum"]["function_node_result"]) == 10
     assert np.all(state["sum"]["function_node_result"] == 15)
+
+
+def test_function_node_fixed_params_multiprocessing():
+    """Test that a FunctionNode with fixed_params can be used after the pickling
+    used to send objects to multiprocessing workers (e.g. ProcessPoolExecutor)."""
+    my_func = FunctionNode(_test_func, value1=1.0, fixed_params={"value2": 2.0})
+    worker_func = pickle.loads(ForkingPickler.dumps(my_func))
+
+    state = worker_func.sample_parameters()
+    assert str(worker_func) == "FunctionNode:_test_func_0"
+    assert worker_func.get_param(state, "function_node_result") == 3.0
+
+
+def test_function_node_fixed_params_multiprocessing_bad_outputs():
+    """Test that a FunctionNode with fixed_params that returns the wrong number of results
+    raises a ValueError after the pickling used to send objects to multiprocessing workers."""
+    my_func = FunctionNode(
+        _too_many_results,
+        value1=1.0,
+        fixed_params={"value2": 2.0},
+        outputs=["res1", "res2"],
+    )
+    worker_func = pickle.loads(ForkingPickler.dumps(my_func))
+
+    with pytest.raises(ValueError, match="_too_many_results"):
+        worker_func.sample_parameters()
 
 
 def test_function_node_obj():

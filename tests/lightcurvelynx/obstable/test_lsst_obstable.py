@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 from lightcurvelynx.obstable.lsst_obstable import LSSTObsTable
 from lightcurvelynx.utils.io_utils import read_sqlite_table
@@ -144,6 +145,28 @@ def test_lsst_obstable_from_ccdvisit():
     with pytest.warns(UserWarning):
         obs_table_with_nan = LSSTObsTable.from_ccdvisit_table(ccd_visit_table)
     assert len(obs_table_with_nan) == 176
+
+
+def test_lsst_obstable_from_ccdvisit_psf_footprint():
+    """Test that a provided psfArea column is used instead of deriving the PSF footprint from seeing."""
+    times = 60623.25 + np.arange(5) * 0.1
+    ccd_visit_table = _make_fake_data(times)
+    num_rows = len(ccd_visit_table)
+
+    # Without psfArea, the footprint is derived from the seeing and pixel scale.
+    derived_table = LSSTObsTable.from_ccdvisit_table(ccd_visit_table)
+    assert "psf_footprint" in derived_table
+    derived_values = np.asarray(derived_table["psf_footprint"])
+
+    # With psfArea, the given values are used (even though seeing and pixelScale are present).
+    provided_values = np.linspace(1000.0, 2000.0, num_rows)
+    assert not np.any(np.isclose(provided_values, derived_values))
+    ccd_visit_table["psfArea"] = provided_values
+
+    obs_table = LSSTObsTable.from_ccdvisit_table(ccd_visit_table)
+    assert "seeing" in obs_table
+    assert "pixel_scale" in obs_table
+    assert np.allclose(obs_table["psf_footprint"], provided_values)
 
 
 def test_lsst_obstable_from_ccdvisit_range_search(test_data_dir):
