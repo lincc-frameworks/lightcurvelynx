@@ -1213,3 +1213,69 @@ def test_obstable_make_resampled_table_fail():
             new_times,
             filter=np.array(["r", "g", "i"]),  # Wrong length
         )
+
+
+def test_obs_table_string_to_categorical():
+    """Test that we correctly convert string columns with <100 entries
+    to categorical."""
+
+    # Simple categorical (filter column).
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+        "filter": np.array(["r", "g", "i", "r", "i"]),
+    }
+    pdf = pd.DataFrame(values)
+    pdf["filter"] = pdf["filter"].astype("str")  # Force to string
+    obs_table = ObsTable(pdf)
+    assert obs_table._table["filter"].dtype.name == "category"
+    assert obs_table._table["time"].dtype.name == "float64"
+    assert obs_table._table["filter"].cat.categories.tolist() == ["g", "i", "r"]
+
+    # It should still behave like a string when we access an element.
+    assert obs_table._table["filter"].iloc[0] == "r"
+    assert isinstance(obs_table._table["filter"].iloc[0], str)
+    assert np.array_equal(obs_table._table["filter"].values, ["r", "g", "i", "r", "i"])
+
+    # Too many filter values to convert.
+    with pytest.warns(UserWarning):
+        values = {
+            "time": np.arange(1005),
+            "ra": np.full(1005, 1.0),
+            "dec": np.full(1005, 1.0),
+            "zp": np.full(1005, 1.0),
+            "filter": np.array([f"filter{i}" for i in range(1005)]),
+        }
+        obs_table = ObsTable(values)
+    assert obs_table._table["filter"].dtype.name != "category"  # Should not be converted
+
+    # Simple categorical as an object (older pandas).
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+        "filter": np.array(["r", "g", "i", "r", "i"]),
+    }
+    pdf = pd.DataFrame(values)
+    pdf["filter"] = pdf["filter"].astype("object")  # Force to object
+    obs_table = ObsTable(pdf)
+    assert obs_table._table["filter"].dtype.name == "category"
+    assert obs_table._table["time"].dtype.name == "float64"
+
+    # Mix of string and other objects should be left alone.
+    class _RandObject:
+        pass
+
+    values = {
+        "time": np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        "ra": np.array([15.0, 30.0, 15.0, 0.0, 60.0]),
+        "dec": np.array([-10.0, -5.0, 0.0, 5.0, 10.0]),
+        "zp": np.ones(5),
+        "mixed_col": np.array(["r", "g", _RandObject(), "r", "i"]),
+    }
+    obs_table = ObsTable(values)
+    assert obs_table._table["mixed_col"].dtype.name == "object"
+    assert obs_table._table["time"].dtype.name == "float64"

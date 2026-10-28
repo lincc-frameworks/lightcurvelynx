@@ -181,6 +181,28 @@ class ObsTable:
                     logger.debug(f"Remapping filter name '{alt_name}' to standard name '{standard_name}'.")
                     self._table.loc[mask, "filter"] = standard_name
 
+        # We convert string columns to categorical for efficiency (memory and serialization in parallel)
+        for col in self._table.columns:
+            if self._table[col].dtype in ["str", "string"]:
+                all_string = True
+            elif self._table[col].dtype == "object" and (self._table[col].map(type) == str).all():
+                # We handle object columns that are actually all strings to support pandas 2.0
+                # or cases where the user explicitly provides a column as object type.
+                all_string = True
+            else:
+                all_string = False
+
+            if all_string:
+                if len(pd.unique(self._table[col])) > 100:
+                    warnings.warn(
+                        f"Column '{col}' has more than 100 unique string values. We are skipping "
+                        f"the conversion to categorical. This may impact performance and memory "
+                        f"usage with parallel computation. Consider dropping this column if it "
+                        f"is not needed for your analysis."
+                    )
+                else:
+                    self._table[col] = self._table[col].astype("category")
+
         # Save the survey values, with table metadata and keyword arguments overwriting the defaults.
         self.survey_values = self._default_survey_values.copy()
         if "lightcurvelynx_survey_data" in self._table.attrs:
