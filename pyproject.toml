@@ -20,11 +20,11 @@ dependencies = [
     "astropy",
     "astroquery",
     "cdshealpix",
-    "citation-compass>=0.0.3",
+    "citation-compass>=0.1.0",
+    "joblib",  # Used for parallel execution with Joblib
     "matplotlib",
     "mocpy",
     "nested-pandas>=0.6.0",
-    "networkx",  # Used for graph visualization
     "numpy>=2.0",
     "pandas",
     "pooch",

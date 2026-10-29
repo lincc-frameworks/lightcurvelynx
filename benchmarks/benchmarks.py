@@ -280,3 +280,33 @@ class TimeSuite:
         )
 
     time_basic_end_to_end_simulation.timeout = 300.0  # 5 minutes
+
+    def time_parallel_end_to_end_simulation(self):
+        """Time a parallel simulation run of an SncosmoWrapperModel."""
+        obs_table = self.obs_table
+        ra_dec_sampler = ApproximateMOCSampler.from_obstable(obs_table, depth=8)
+        t_min, t_max = obs_table.time_bounds()
+
+        source = SncosmoWrapperModel(
+            "salt2-h17",
+            t0=0.5 * (t_min + t_max),
+            x0=1.0e-6,
+            x1=0.5,
+            c=0.2,
+            ra=ra_dec_sampler.ra,
+            dec=ra_dec_sampler.dec,
+            redshift=0.01,
+            node_label="source",
+            time_extrapolation=LinearDecay(decay_width=50.0),
+        )
+
+        _ = simulate_lightcurves(
+            model=source,
+            num_samples=100,
+            survey_info=SurveyInfo(obstable=obs_table, passbands=self.passbands, survey_name="LSST"),
+            obs_time_window_offset=(-100, 400),
+            num_jobs=4,  # Example: use 4 parallel jobs
+            progress_bar=False,  # Disable progress bar
+        )
+
+    time_parallel_end_to_end_simulation.timeout = 300.0  # 5 minutes
