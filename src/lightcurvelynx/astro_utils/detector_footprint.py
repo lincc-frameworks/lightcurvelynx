@@ -417,14 +417,10 @@ class DetectorFootprint:
             ax.legend()
 
             # Adjust the bounding box to include all the points.
-            if xmin < pixel_x.min():
-                xmin = pixel_x.min() - 2.0
-            if xmax > pixel_x.max():
-                xmax = pixel_x.max() + 2.0
-            if ymin < pixel_y.min():
-                ymin = pixel_y.min() - 2.0
-            if ymax > pixel_y.max():
-                ymax = pixel_y.max() + 2.0
+            xmin = np.min([xmin, pixel_x.min() - 2.0])
+            xmax = np.max([xmax, pixel_x.max() + 2.0])
+            ymin = np.min([ymin, pixel_y.min() - 2.0])
+            ymax = np.max([ymax, pixel_y.max() + 2.0])
 
         ax.set_title("Detector Footprint")
         ax.set_xlabel("Pixel X")
