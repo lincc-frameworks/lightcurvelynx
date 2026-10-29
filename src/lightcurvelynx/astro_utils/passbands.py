@@ -16,7 +16,7 @@ from astropy import units as u
 from astropy.io.votable import parse
 from astroquery.svo_fps import SvoFps
 from citation_compass import cite_function
-from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectionError, HTTPError
 
 from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.consts import lsst_filter_plot_colors
@@ -1396,4 +1396,6 @@ def check_connect_to_svo():
         _ = SvoFps.get_filter_list(facility="SkyMapper", instrument="SkyMapper")
         return True
     except ConnectionError:
+        return False
+    except HTTPError:
         return False
