@@ -81,6 +81,31 @@ def test_concat_results():
     assert np.allclose(results["lightcurve"][4]["flux"], [22.0, 21.0])
 
 
+def test_concat_results_with_empty_lightcurves():
+    """Test that concat_results keeps the nested column when one batch has no observations."""
+    # A batch where no object matched any observation. Building the nested frame from
+    # empty lists (as the simulation does) gives every nested column a float dtype.
+    outer_dict_1 = {"id": [0, 1], "ra": [10.0, 20.0], "nobs": [0, 0]}
+    inner_dict_1 = {"mjd": [], "flux": [], "filter": [], "obs_idx": []}
+    res1 = NestedFrame(data=outer_dict_1, index=[0, 1])
+    res1 = res1.join_nested(pd.DataFrame(data=inner_dict_1, index=[]), "lightcurve")
+
+    outer_dict_2 = {"id": [0], "ra": [30.0], "nobs": [2]}
+    inner_dict_2 = {"mjd": [59000.0, 59001.0], "flux": [20.0, 22.0], "filter": ["g", "r"], "obs_idx": [4, 7]}
+    res2 = NestedFrame(data=outer_dict_2, index=[0])
+    res2 = res2.join_nested(pd.DataFrame(data=inner_dict_2, index=[0, 0]), "lightcurve")
+
+    results = concat_results([res1, res2])
+    assert len(results) == 3
+    assert results.columns.tolist() == ["id", "ra", "nobs", "lightcurve"]
+    assert results["id"].tolist() == [0, 1, 2]
+    assert results.nested_columns == ["lightcurve"]
+    assert results["lightcurve"].dtype == res2["lightcurve"].dtype
+    assert results["lightcurve.filter"].tolist() == ["g", "r"]
+    assert results["lightcurve.obs_idx"].tolist() == [4, 7]
+    assert np.allclose(results["lightcurve.flux"], [20.0, 22.0])
+
+
 def test_concat_results_empty():
     """Test the concat_results function on an empty list."""
     with pytest.raises(ValueError, match="The results list is empty."):

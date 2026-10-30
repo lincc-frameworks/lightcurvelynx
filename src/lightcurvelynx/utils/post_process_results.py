@@ -34,6 +34,28 @@ def concat_results(results_list):
     if len(results_list) == 1:
         return results_list[0]
 
+    # A result where no object matched any observation has its nested columns built from
+    # empty lists, so every nested field gets an inferred float dtype. pandas >= 3 no longer
+    # ignores such empty entries when finding a common dtype, so concatenating them with
+    # non-empty results would turn the nested column into a plain object column. Cast the
+    # empty nested columns to the dtype of a result with data before concatenating.
+    results_list = list(results_list)
+    nested_cols = dict.fromkeys(col for res in results_list for col in res.nested_columns)
+    for col in nested_cols:
+        ref_dtype = next(
+            (
+                res[col].dtype
+                for res in results_list
+                if col in res.nested_columns and res[col].nest.flat_length > 0
+            ),
+            None,
+        )
+        if ref_dtype is None:
+            continue
+        for idx, res in enumerate(results_list):
+            if col in res.nested_columns and res[col].nest.flat_length == 0:
+                results_list[idx] = res.assign(**{col: res[col].astype(ref_dtype)})
+
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore", category=FutureWarning, message=".*DataFrame concatenation with empty.*"
