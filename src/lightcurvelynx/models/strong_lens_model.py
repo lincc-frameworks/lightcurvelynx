@@ -3,6 +3,8 @@ its own lens system, and every lensed image becomes its own row (and light curve
 simulation, with its own sky position, arrival time, and magnification.
 """
 
+import warnings
+
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord, SkyOffsetFrame
@@ -75,6 +77,8 @@ class _LensImageExpansionNode(FunctionNode):
         args = self._build_inputs(graph_state, **kwargs)
         delays = np.atleast_2d(np.asarray(args["all_time_delays"], dtype=float))
         num_systems, width = delays.shape
+        # counts[i] is the number of active images in system i, i.e. the number of rows
+        # sample i expands into (a system with zero images is dropped).
         if "num_images" in args:
             counts = np.atleast_1d(np.asarray(args["num_images"])).astype(int)
         else:
@@ -115,10 +119,12 @@ class _LensImageExpansionNode(FunctionNode):
 class _LensImagePositionNode(FunctionNode):
     """Compute the lens origin and an image's sky position from the unlensed source position.
 
-    The source and image offsets are measured in the lens-centred frame
+    The source and image offsets are measured in the lens-centered frame
     (``SkyOffsetFrame(origin=lens)``). The lens origin is the point from which the source
     appears at (``source_x``, ``source_y``). It is found with a closed-form first guess
-    followed by two fixed-point corrections.
+    followed by fixed-point corrections until the source is within ``tolerance`` of that
+    offset (at most ``max_corrections`` corrections). Rows that do not converge, which only
+    happens within about one offset of a celestial pole, trigger a warning.
 
     Parameters
     ----------
@@ -128,11 +134,45 @@ class _LensImagePositionNode(FunctionNode):
         The source offset (east, north) from the lens origin in arcseconds.
     image_x, image_y : parameter
         The image offset (east, north) from the lens origin in arcseconds.
+    tolerance : float, optional
+        The maximum distance (in arcseconds) between the source's lens-frame offset and
+        (``source_x``, ``source_y``) at which the lens origin counts as converged. Default: 1e-6
+    max_corrections : int, optional
+        The maximum number of corrections applied to the first guess of the lens origin.
+        Rows still beyond ``tolerance`` afterwards trigger a warning. Default: 10
     **kwargs : dict, optional
         Additional keyword arguments, such as ``node_label``.
+
+    Attributes
+    ----------
+    tolerance : float
+        The convergence tolerance for the lens origin in arcseconds.
+    max_corrections : int
+        The maximum number of corrections applied to the first guess of the lens origin.
     """
 
-    def __init__(self, *, source_ra, source_dec, source_x, source_y, image_x, image_y, **kwargs):
+    def __init__(
+        self,
+        *,
+        source_ra,
+        source_dec,
+        source_x,
+        source_y,
+        image_x,
+        image_y,
+        tolerance=1e-6,
+        max_corrections=10,
+        **kwargs,
+    ):
+        if tolerance <= 0.0:
+            raise ValueError(f"Invalid tolerance: {tolerance}. It must be positive.")
+        if not isinstance(max_corrections, int | np.integer) or max_corrections < 0:
+            raise ValueError(
+                f"Invalid max_corrections: {max_corrections}. It must be a non-negative integer."
+            )
+        self.tolerance = tolerance
+        self.max_corrections = max_corrections
+
         super().__init__(
             self._non_func,
             outputs=["lens_ra", "lens_dec", "ra", "dec"],
@@ -169,11 +209,28 @@ class _LensImagePositionNode(FunctionNode):
         source = SkyCoord(np.asarray(args["source_ra"]) * u.deg, np.asarray(args["source_dec"]) * u.deg)
 
         # Start from the source shifted back by its offset (exact on the equator), then
-        # move the lens until the source appears at the requested lens-frame offset.
+        # move the lens until the source appears at the requested lens-frame offset. Each
+        # correction shrinks the error by roughly offset / (distance to the celestial pole).
         lens = source.spherical_offsets_by(-source_x, -source_y)
-        for _ in range(2):
+        for num_corrections in range(self.max_corrections + 1):
             seen = source.transform_to(SkyOffsetFrame(origin=lens))
-            lens = lens.spherical_offsets_by(seen.lon.wrap_at(180 * u.deg) - source_x, seen.lat - source_y)
+            # Offsets are signed, so wrap the longitude to [-180, 180) deg rather than [0, 360).
+            d_lon = seen.lon.wrap_at(180 * u.deg) - source_x
+            d_lat = seen.lat - source_y
+            unconverged = np.hypot(d_lon, d_lat) > self.tolerance * u.arcsec
+            if not np.any(unconverged) or num_corrections == self.max_corrections:
+                break
+            # Only move unconverged rows, so each row's result is independent of the batch.
+            lens = lens.spherical_offsets_by(
+                np.where(unconverged, d_lon, 0.0), np.where(unconverged, d_lat, 0.0)
+            )
+        if np.any(unconverged):
+            warnings.warn(
+                f"{np.sum(unconverged)} lens origin(s) did not converge to {self.tolerance} arcsec "
+                f"within {self.max_corrections} corrections. East/north offsets are ill-defined within "
+                "about one offset of a celestial pole, so these sources do not sit exactly at their "
+                "requested offsets."
+            )
 
         image = lens.spherical_offsets_by(
             np.asarray(args["image_x"]) * u.arcsec,
@@ -208,7 +265,7 @@ class ResolvedStrongLensModel(MultiObjectModel):
     num_images           int        (S,)      Number of active leading entries.
     ==================== ========== ========= ==========================================
 
-    Offsets are measured in the lens-centred frame. The source model's own ``ra``/``dec`` is
+    Offsets are measured in the lens-centered frame. The source model's own ``ra``/``dec`` is
     the unlensed source position, from which the lens origin and image positions are
     derived. Delays are normalized so the earliest image has a delay of zero, and
     ``image_id`` numbers the images in arrival order. Use
@@ -237,6 +294,8 @@ class ResolvedStrongLensModel(MultiObjectModel):
       that re-zero their time axis (e.g. ``EzTaoXWrapperModel``) will not show delays.
       Deterministic transient models are unaffected.
     * No seeing, PSF, or blending is modeled; every image is treated as resolved.
+    * East/north offsets are ill-defined near a celestial pole. A source within about one
+      offset of a pole may not sit exactly at its requested offset, which triggers a warning.
 
     Parameters
     ----------
@@ -253,6 +312,13 @@ class ResolvedStrongLensModel(MultiObjectModel):
         The fixed-width image arrival delays in observer-frame days.
     num_images : parameter, optional
         The number of active leading image entries. If None, all entries are active.
+    lens_origin_tolerance : float, optional
+        The maximum distance (in arcseconds) between the source's offset from the derived lens
+        origin and (``source_x``, ``source_y``) at which the lens origin counts as converged.
+        Default: 1e-6
+    lens_origin_max_corrections : int, optional
+        The maximum number of corrections applied to the first guess of the lens origin. Lens
+        origins still beyond ``lens_origin_tolerance`` afterwards trigger a warning. Default: 10
     node_label : str, optional
         The label for this node.
 
@@ -273,9 +339,11 @@ class ResolvedStrongLensModel(MultiObjectModel):
         macro_magnifications,
         time_delays,
         num_images=None,
+        lens_origin_tolerance=1e-6,
+        lens_origin_max_corrections=10,
         node_label=None,
     ):
-        images = _LensImageExpansionNode(
+        self._images_node = _LensImageExpansionNode(
             image_x=image_x,
             image_y=image_y,
             macro_magnifications=macro_magnifications,
@@ -283,41 +351,46 @@ class ResolvedStrongLensModel(MultiObjectModel):
             num_images=num_images,
             node_label=None if node_label is None else f"{node_label}_images",
         )
-        positions = _LensImagePositionNode(
+        self._positions_node = _LensImagePositionNode(
             source_ra=source_model.ra,
             source_dec=source_model.dec,
             source_x=source_x,
             source_y=source_y,
-            image_x=images.image_x,
-            image_y=images.image_y,
+            image_x=self._images_node.image_x,
+            image_y=self._images_node.image_y,
+            tolerance=lens_origin_tolerance,
+            max_corrections=lens_origin_max_corrections,
             node_label=None if node_label is None else f"{node_label}_positions",
         )
-        image_t0 = BasicMathNode(
+        self._image_t0_node = BasicMathNode(
             "t0 + time_delay",
             t0=source_model.t0,
-            time_delay=images.time_delay,
+            time_delay=self._images_node.time_delay,
             node_label=None if node_label is None else f"{node_label}_t0",
         )
         super().__init__(
             [source_model],
-            ra=positions.ra,
-            dec=positions.dec,
+            ra=self._positions_node.ra,
+            dec=self._positions_node.dec,
             redshift=source_model.redshift,
-            t0=image_t0,
+            t0=self._image_t0_node,
             distance=source_model.distance,
             node_label=node_label,
         )
         self.source_model = source_model
 
         extra_params = {
-            "system_id": (images.system_id, "Index of the lens system."),
-            "image_id": (images.image_id, "Index of the image within its system, in arrival order."),
-            "image_x": (images.image_x, "Image offset east of the lens origin (arcsec)."),
-            "image_y": (images.image_y, "Image offset north of the lens origin (arcsec)."),
-            "macro_magnification": (images.macro_magnification, "Absolute image magnification."),
-            "time_delay": (images.time_delay, "Image delay after the earliest image (days)."),
-            "lens_ra": (positions.lens_ra, "Right ascension of the lens origin (degrees)."),
-            "lens_dec": (positions.lens_dec, "Declination of the lens origin (degrees)."),
+            "system_id": (self._images_node.system_id, "Index of the lens system."),
+            "image_id": (
+                self._images_node.image_id,
+                "Index of the image within its system, in arrival order.",
+            ),
+            "image_x": (self._images_node.image_x, "Image offset east of the lens origin (arcsec)."),
+            "image_y": (self._images_node.image_y, "Image offset north of the lens origin (arcsec)."),
+            "macro_magnification": (self._images_node.macro_magnification, "Absolute image magnification."),
+            "time_delay": (self._images_node.time_delay, "Image delay after the earliest image (days)."),
+            "lens_ra": (self._positions_node.lens_ra, "Right ascension of the lens origin (degrees)."),
+            "lens_dec": (self._positions_node.lens_dec, "Declination of the lens origin (degrees)."),
             "source_x": (source_x, "Source offset east of the lens origin (arcsec)."),
             "source_y": (source_y, "Source offset north of the lens origin (arcsec)."),
         }

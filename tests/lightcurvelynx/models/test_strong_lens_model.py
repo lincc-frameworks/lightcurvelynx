@@ -1,4 +1,5 @@
 import pickle
+import warnings
 
 import numpy as np
 import pytest
@@ -162,13 +163,15 @@ POSITION_CASES = [
     (0.0001, 30.0, -1.0, 0.5, -3.0, 1.0),  # image RA wraps below 0 to ~359.9995
     (45.0, 89.9, 2.0, -1.5, -1.2, 2.8),
     (200.0, -89.9, -2.5, 1.0, 1.5, -2.0),
+    (300.0, 89.99, 1.0, -0.5, 0.8, 1.2),  # near the pole the lens origin needs extra corrections
 ]
 
 
 def _lens_frame_offsets(ra, dec, lens_ra, lens_dec):
-    """Return (east, north) offsets in arcsec of (ra, dec) in the lens-centred frame."""
+    """Return (east, north) offsets in arcsec of (ra, dec) in the lens-centered frame."""
     frame = SkyOffsetFrame(origin=SkyCoord(lens_ra * u.deg, lens_dec * u.deg))
     offset = SkyCoord(ra * u.deg, dec * u.deg).transform_to(frame)
+    # Offsets are signed, so wrap the longitude to [-180, 180) deg rather than [0, 360).
     return offset.lon.wrap_at(180 * u.deg).to_value(u.arcsec), offset.lat.to_value(u.arcsec)
 
 
@@ -195,6 +198,22 @@ def test_position_node_recovers_lens_frame_offsets(
     assert ix == pytest.approx(image_x, abs=1e-6)
     assert iy == pytest.approx(image_y, abs=1e-6)
     assert 0.0 <= params["ra"] < 360.0
+
+
+def test_position_node_warns_when_lens_origin_does_not_converge():
+    """Test that an unreachable source offset near a celestial pole raises a warning."""
+    # The source is 0.36 arcsec from the pole, so no lens origin sees it 5 arcsec to the east.
+    node = _LensImagePositionNode(
+        source_ra=0.0,
+        source_dec=89.9999,
+        source_x=5.0,
+        source_y=0.0,
+        image_x=1.0,
+        image_y=0.0,
+        node_label="positions",
+    )
+    with pytest.warns(UserWarning, match="did not converge"):
+        node.sample_parameters(num_samples=1)
 
 
 def test_position_node_matches_scalar_rows():
@@ -265,6 +284,55 @@ def test_resolved_lens_rows_and_parameters():
     sx, sy = _lens_frame_offsets(SOURCE_RA[ids], SOURCE_DEC[ids], params["lens_ra"], params["lens_dec"])
     assert_allclose(sx, SOURCE_X[ids], atol=1e-6)
     assert_allclose(sy, SOURCE_Y[ids], atol=1e-6)
+
+
+def _make_near_pole_lens(**lens_origin_settings):
+    """Return a one-system lens whose source is 36 arcsec from the north celestial pole."""
+    source = LinearTimeModel(
+        linear_base=10.0, linear_scale=2.0, t0=100.0, ra=300.0, dec=89.99, redshift=0.0, node_label="source"
+    )
+    return ResolvedStrongLensModel(
+        source,
+        source_x=1.0,
+        source_y=-0.5,
+        image_x=[0.8, -0.6],
+        image_y=[1.2, -0.3],
+        macro_magnifications=[2.0, 1.0],
+        time_delays=[0.0, 5.0],
+        node_label="lens",
+        **lens_origin_settings,
+    )
+
+
+def test_lens_origin_max_corrections_is_used():
+    """Test that without corrections, the first guess near a pole is not accurate enough and warns."""
+    with pytest.warns(UserWarning, match="did not converge"):
+        _make_near_pole_lens(lens_origin_max_corrections=0).sample_parameters(num_samples=1)
+
+
+def test_lens_origin_tolerance_is_used():
+    """Test that a looser tolerance accepts the first guess near a pole without a warning."""
+    lens = _make_near_pole_lens(lens_origin_max_corrections=0, lens_origin_tolerance=0.1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        params = lens.sample_parameters(num_samples=1)["lens"]
+    sx, sy = _lens_frame_offsets(300.0, 89.99, params["lens_ra"], params["lens_dec"])
+    assert np.all(np.hypot(sx - 1.0, sy + 0.5) <= 0.1)
+
+
+@pytest.mark.parametrize(
+    "lens_origin_settings",
+    [
+        {"lens_origin_tolerance": 0.0},
+        {"lens_origin_tolerance": -1e-6},
+        {"lens_origin_max_corrections": -1},
+        {"lens_origin_max_corrections": 2.5},
+    ],
+)
+def test_invalid_lens_origin_settings_raise(lens_origin_settings):
+    """Test that a non-positive tolerance or a negative or non-integer correction count is rejected."""
+    with pytest.raises(ValueError):
+        _make_near_pole_lens(**lens_origin_settings)
 
 
 def test_source_parameters_are_shared_per_system():
@@ -475,6 +543,8 @@ class _WavelengthTiltEffect(EffectModel):
         super().__init__(rest_frame=False)
 
     def apply(self, flux_density, times=None, wavelengths=None, **kwargs):
+        if wavelengths is None:
+            raise ValueError("wavelengths must be provided")
         return flux_density * (wavelengths[np.newaxis, :] / 5000.0)
 
 
