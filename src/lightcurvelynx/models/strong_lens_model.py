@@ -1,0 +1,475 @@
+"""A resolved strong-lens model that wraps a single physical source. Each sampled source has
+its own lens system, and every lensed image becomes its own row (and light curve) in the
+simulation, with its own sky position, arrival time, and magnification.
+"""
+
+import warnings
+
+import numpy as np
+from astropy import units as u
+from astropy.coordinates import SkyCoord, SkyOffsetFrame
+
+from lightcurvelynx.base_models import FunctionNode
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
+from lightcurvelynx.models.multi_object_model import MultiObjectModel
+from lightcurvelynx.models.physical_model import BandfluxModel, SEDModel
+
+
+class _LensImageExpansionNode(FunctionNode):
+    """Expand each lens system in the GraphState into one row per active image.
+
+    Each system's active images (the leading ``num_images`` entries of the fixed-width
+    arrays) are sorted by arrival time and their delays are normalized so the earliest
+    image has a delay of zero. The GraphState is then repeated so every value sampled so
+    far is shared by all of a system's image rows.
+
+    Parameters
+    ----------
+    image_x, image_y : parameter
+        Fixed-width image offsets (east, north) from the lens origin in arcseconds.
+    macro_magnifications : parameter
+        Fixed-width absolute (dimensionless) image magnifications.
+    time_delays : parameter
+        Fixed-width image arrival delays in observer-frame days.
+    num_images : parameter, optional
+        The number of active leading entries per system. If None, all entries are active.
+    **kwargs : dict, optional
+        Additional keyword arguments, such as ``node_label``.
+    """
+
+    def __init__(self, *, image_x, image_y, macro_magnifications, time_delays, num_images=None, **kwargs):
+        # Inputs and outputs share one parameter namespace, so the inputs are prefixed.
+        inputs = {
+            "all_image_x": image_x,
+            "all_image_y": image_y,
+            "all_macro_magnifications": macro_magnifications,
+            "all_time_delays": time_delays,
+        }
+        if num_images is not None:
+            inputs["num_images"] = num_images
+
+        super().__init__(
+            self._non_func,
+            outputs=["system_id", "image_id", "image_x", "image_y", "macro_magnification", "time_delay"],
+            **inputs,
+            **kwargs,
+        )
+
+    def compute(self, graph_state, rng_info=None, **kwargs):
+        """Expand the GraphState and save the per-image values.
+
+        Parameters
+        ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values. This object is modified
+            in place (expanded) as it is sampled.
+        rng_info : numpy.random._generator.Generator, optional
+            Unused.
+        **kwargs : dict, optional
+            Additional function arguments.
+
+        Returns
+        -------
+        list
+            The per-image system_id, image_id, image_x, image_y, macro_magnification,
+            and time_delay values.
+        """
+        args = self._build_inputs(graph_state, **kwargs)
+        delays = np.atleast_2d(np.asarray(args["all_time_delays"], dtype=float))
+        num_systems, width = delays.shape
+        # counts[i] is the number of active images in system i, i.e. the number of rows
+        # sample i expands into (a system with zero images is dropped).
+        if "num_images" in args:
+            counts = np.atleast_1d(np.asarray(args["num_images"])).astype(int)
+        else:
+            counts = np.full(num_systems, width)
+
+        # Sort each system's active images by delay, pushing the inactive padding to the end.
+        active = np.arange(width) < counts[:, np.newaxis]
+        active_delays = np.where(active, delays, np.inf)
+        order = np.argsort(active_delays, axis=1, kind="stable")
+
+        def take(values):
+            # After sorting, each row's active entries lead the row, so the active mask
+            # selects them in system-major order.
+            values = np.atleast_2d(np.asarray(values, dtype=float))
+            return np.take_along_axis(values, order, axis=1)[active]
+
+        starts = np.cumsum(counts) - counts  # The index of each system's first image.
+        time_delay = take(delays) - np.repeat(np.min(active_delays, axis=1), counts)
+        sample_offset = graph_state.sample_offset or 0
+        system_id = np.repeat(np.arange(num_systems) + sample_offset, counts)
+        image_id = np.arange(np.sum(counts)) - np.repeat(starts, counts)
+
+        graph_state.repeat(counts)
+        results = [
+            system_id,
+            image_id,
+            take(args["all_image_x"]),
+            take(args["all_image_y"]),
+            take(args["all_macro_magnifications"]),
+            time_delay,
+        ]
+        if graph_state.num_samples == 1:
+            results = [value[0] for value in results]
+        self._save_results(results, graph_state)
+        return results
+
+
+class _LensImagePositionNode(FunctionNode):
+    """Compute the lens origin and an image's sky position from the unlensed source position.
+
+    The source and image offsets are measured in the lens-centered frame
+    (``SkyOffsetFrame(origin=lens)``). The lens origin is the point from which the source
+    appears at (``source_x``, ``source_y``). It is found with a closed-form first guess
+    followed by fixed-point corrections until the source is within ``tolerance`` of that
+    offset (at most ``max_corrections`` corrections). Rows that do not converge, which only
+    happens within about one offset of a celestial pole, trigger a warning.
+
+    Parameters
+    ----------
+    source_ra, source_dec : parameter
+        The unlensed source position in degrees.
+    source_x, source_y : parameter
+        The source offset (east, north) from the lens origin in arcseconds.
+    image_x, image_y : parameter
+        The image offset (east, north) from the lens origin in arcseconds.
+    tolerance : float, optional
+        The maximum distance (in arcseconds) between the source's lens-frame offset and
+        (``source_x``, ``source_y``) at which the lens origin counts as converged. Default: 1e-6
+    max_corrections : int, optional
+        The maximum number of corrections applied to the first guess of the lens origin.
+        Rows still beyond ``tolerance`` afterwards trigger a warning. Default: 10
+    **kwargs : dict, optional
+        Additional keyword arguments, such as ``node_label``.
+
+    Attributes
+    ----------
+    tolerance : float
+        The convergence tolerance for the lens origin in arcseconds.
+    max_corrections : int
+        The maximum number of corrections applied to the first guess of the lens origin.
+    """
+
+    def __init__(
+        self,
+        *,
+        source_ra,
+        source_dec,
+        source_x,
+        source_y,
+        image_x,
+        image_y,
+        tolerance=1e-6,
+        max_corrections=10,
+        **kwargs,
+    ):
+        if tolerance <= 0.0:
+            raise ValueError(f"Invalid tolerance: {tolerance}. It must be positive.")
+        if not isinstance(max_corrections, int | np.integer) or max_corrections < 0:
+            raise ValueError(
+                f"Invalid max_corrections: {max_corrections}. It must be a non-negative integer."
+            )
+        self.tolerance = tolerance
+        self.max_corrections = max_corrections
+
+        super().__init__(
+            self._non_func,
+            outputs=["lens_ra", "lens_dec", "ra", "dec"],
+            source_ra=source_ra,
+            source_dec=source_dec,
+            source_x=source_x,
+            source_y=source_y,
+            image_x=image_x,
+            image_y=image_y,
+            **kwargs,
+        )
+
+    def compute(self, graph_state, rng_info=None, **kwargs):
+        """Compute and save the lens and image positions.
+
+        Parameters
+        ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values. This object is modified
+            in place as it is sampled.
+        rng_info : numpy.random._generator.Generator, optional
+            Unused.
+        **kwargs : dict, optional
+            Additional function arguments.
+
+        Returns
+        -------
+        list
+            The lens RA, lens Dec, image RA, and image Dec in degrees.
+        """
+        args = self._build_inputs(graph_state, **kwargs)
+        source_x = np.asarray(args["source_x"]) * u.arcsec
+        source_y = np.asarray(args["source_y"]) * u.arcsec
+        source = SkyCoord(np.asarray(args["source_ra"]) * u.deg, np.asarray(args["source_dec"]) * u.deg)
+
+        # Start from the source shifted back by its offset (exact on the equator), then
+        # move the lens until the source appears at the requested lens-frame offset. Each
+        # correction shrinks the error by roughly offset / (distance to the celestial pole).
+        lens = source.spherical_offsets_by(-source_x, -source_y)
+        for num_corrections in range(self.max_corrections + 1):
+            seen = source.transform_to(SkyOffsetFrame(origin=lens))
+            # Offsets are signed, so wrap the longitude to [-180, 180) deg rather than [0, 360).
+            d_lon = seen.lon.wrap_at(180 * u.deg) - source_x
+            d_lat = seen.lat - source_y
+            unconverged = np.hypot(d_lon, d_lat) > self.tolerance * u.arcsec
+            if not np.any(unconverged) or num_corrections == self.max_corrections:
+                break
+            # Only move unconverged rows, so each row's result is independent of the batch.
+            lens = lens.spherical_offsets_by(
+                np.where(unconverged, d_lon, 0.0), np.where(unconverged, d_lat, 0.0)
+            )
+        if np.any(unconverged):
+            warnings.warn(
+                f"{np.sum(unconverged)} lens origin(s) did not converge to {self.tolerance} arcsec "
+                f"within {self.max_corrections} corrections. East/north offsets are ill-defined within "
+                "about one offset of a celestial pole, so these sources do not sit exactly at their "
+                "requested offsets."
+            )
+
+        image = lens.spherical_offsets_by(
+            np.asarray(args["image_x"]) * u.arcsec,
+            np.asarray(args["image_y"]) * u.arcsec,
+        )
+        results = [lens.ra.deg, lens.dec.deg, image.ra.deg, image.dec.deg]
+        self._save_results(results, graph_state)
+        return results
+
+
+class ResolvedStrongLensModel(MultiObjectModel):
+    """A strongly lensed source whose images are resolved into separate objects.
+
+    Each sampled source has its own lens system. Sampling expands every system into one
+    row per active image, so ``num_samples`` counts lens systems while evaluation and
+    simulation results contain one row (and light curve) per image. Each image row has
+    its own ``ra``/``dec`` (the image position), ``t0`` (the source ``t0`` plus the image's
+    delay), and magnification. The source model itself is never modified.
+
+    The image inputs follow a fixed-width convention (``I`` entries per system, of which
+    the leading ``num_images`` are active and the rest are padding that is ignored):
+
+    ==================== ========== ========= ==========================================
+    Parameter            One system S systems Meaning
+    ==================== ========== ========= ==========================================
+    source_x, source_y   scalar     (S,)      Source offset (east, north) from the lens
+                                              origin in arcseconds.
+    image_x, image_y     (I,)       (S, I)    Image offsets (east, north) from the lens
+                                              origin in arcseconds.
+    macro_magnifications (I,)       (S, I)    Absolute (dimensionless) magnifications.
+    time_delays          (I,)       (S, I)    Arrival delays in observer-frame days.
+    num_images           int        (S,)      Number of active leading entries.
+    ==================== ========== ========= ==========================================
+
+    Offsets are measured in the lens-centered frame. The source model's own ``ra``/``dec`` is
+    the unlensed source position, from which the lens origin and image positions are
+    derived. Delays are normalized so the earliest image has a delay of zero, and
+    ``image_id`` numbers the images in arrival order. Use
+    ``param_cols=["<label>.system_id", "<label>.image_id"]`` in ``simulate_lightcurves`` to
+    regroup images by system. When replaying a saved ``state`` with
+    ``simulate_lightcurves(..., graph_state=state)``, pass ``num_samples=state.num_samples``
+    (the number of image rows), not the number of systems.
+
+    Sampling semantics: the source's parameters (including those of effects attached to the
+    source, and of rest-frame effects added through this wrapper) are sampled once per
+    system and shared by all of its images. Parameters reachable only through this wrapper,
+    such as those of observer-frame effects added to it or nodes linked to its ``ra``/``dec``,
+    are sampled per image. A rest-frame effect whose parameters link to this wrapper's values
+    (e.g. a dust map at ``lens.ra``/``lens.dec``) is sampled per image and triggers the
+    expansion while the source is being sampled, so source parameters registered after it
+    (including those of rest-frame effects added later) are also sampled per image. Add such
+    effects last.
+
+    Notes
+    -----
+    * This model must be the top-level model passed to ``simulate_lightcurves``; it is not
+      supported as a child of another multi-object model. Composite sources (any
+      ``MultiObjectModel``, e.g. a host plus a transient) are not supported.
+    * Each image is evaluated separately at ``t - time_delay``. A source that draws new
+      random numbers at evaluation time gets independent randomness per image, and models
+      that re-zero their time axis (e.g. ``EzTaoXWrapperModel``) will not show delays.
+      Deterministic transient models are unaffected.
+    * No seeing, PSF, or blending is modeled; every image is treated as resolved.
+    * East/north offsets are ill-defined near a celestial pole. A source within about one
+      offset of a pole may not sit exactly at its requested offset, which triggers a warning.
+
+    Parameters
+    ----------
+    source_model : BasePhysicalModel
+        The (single) physical source to lens. It must define ``t0``, since each image's
+        ``t0`` is the source ``t0`` plus its delay. It is evaluated once per image.
+    source_x, source_y : parameter
+        The source offset (east, north) from the lens origin in arcseconds.
+    image_x, image_y : parameter
+        The fixed-width image offsets (east, north) from the lens origin in arcseconds.
+    macro_magnifications : parameter
+        The fixed-width absolute (dimensionless) image magnifications.
+    time_delays : parameter
+        The fixed-width image arrival delays in observer-frame days.
+    num_images : parameter, optional
+        The number of active leading image entries. If None, all entries are active.
+    lens_origin_tolerance : float, optional
+        The maximum distance (in arcseconds) between the source's offset from the derived lens
+        origin and (``source_x``, ``source_y``) at which the lens origin counts as converged.
+        Default: 1e-6
+    lens_origin_max_corrections : int, optional
+        The maximum number of corrections applied to the first guess of the lens origin. Lens
+        origins still beyond ``lens_origin_tolerance`` afterwards trigger a warning. Default: 10
+    node_label : str, optional
+        The label for this node.
+
+    Attributes
+    ----------
+    source_model : BasePhysicalModel
+        The lensed source.
+    """
+
+    def __init__(
+        self,
+        source_model,
+        *,
+        source_x,
+        source_y,
+        image_x,
+        image_y,
+        macro_magnifications,
+        time_delays,
+        num_images=None,
+        lens_origin_tolerance=1e-6,
+        lens_origin_max_corrections=10,
+        node_label=None,
+    ):
+        self._images_node = _LensImageExpansionNode(
+            image_x=image_x,
+            image_y=image_y,
+            macro_magnifications=macro_magnifications,
+            time_delays=time_delays,
+            num_images=num_images,
+            node_label=None if node_label is None else f"{node_label}_images",
+        )
+        self._positions_node = _LensImagePositionNode(
+            source_ra=source_model.ra,
+            source_dec=source_model.dec,
+            source_x=source_x,
+            source_y=source_y,
+            image_x=self._images_node.image_x,
+            image_y=self._images_node.image_y,
+            tolerance=lens_origin_tolerance,
+            max_corrections=lens_origin_max_corrections,
+            node_label=None if node_label is None else f"{node_label}_positions",
+        )
+        self._image_t0_node = BasicMathNode(
+            "t0 + time_delay",
+            t0=source_model.t0,
+            time_delay=self._images_node.time_delay,
+            node_label=None if node_label is None else f"{node_label}_t0",
+        )
+        super().__init__(
+            [source_model],
+            ra=self._positions_node.ra,
+            dec=self._positions_node.dec,
+            redshift=source_model.redshift,
+            t0=self._image_t0_node,
+            distance=source_model.distance,
+            node_label=node_label,
+        )
+        self.source_model = source_model
+
+        extra_params = {
+            "system_id": (self._images_node.system_id, "Index of the lens system."),
+            "image_id": (
+                self._images_node.image_id,
+                "Index of the image within its system, in arrival order.",
+            ),
+            "image_x": (self._images_node.image_x, "Image offset east of the lens origin (arcsec)."),
+            "image_y": (self._images_node.image_y, "Image offset north of the lens origin (arcsec)."),
+            "macro_magnification": (self._images_node.macro_magnification, "Absolute image magnification."),
+            "time_delay": (self._images_node.time_delay, "Image delay after the earliest image (days)."),
+            "lens_ra": (self._positions_node.lens_ra, "Right ascension of the lens origin (degrees)."),
+            "lens_dec": (self._positions_node.lens_dec, "Declination of the lens origin (degrees)."),
+            "source_x": (source_x, "Source offset east of the lens origin (arcsec)."),
+            "source_y": (source_y, "Source offset north of the lens origin (arcsec)."),
+        }
+        for name, (setter, description) in extra_params.items():
+            self.add_parameter(name, setter, description=description, allow_gradient=False)
+
+        # The source applies its own redshift; the wrapper must not apply it again.
+        self.apply_redshift = False
+
+    def minwave(self, graph_state=None):
+        """Get the source's minimum supported wavelength (in angstroms) or None."""
+        return self.source_model.minwave(graph_state=graph_state)
+
+    def maxwave(self, graph_state=None):
+        """Get the source's maximum supported wavelength (in angstroms) or None."""
+        return self.source_model.maxwave(graph_state=graph_state)
+
+    def _evaluate_single(self, times, wavelengths, state, **kwargs):
+        """Evaluate one image's SED: the magnified source at ``t - time_delay``, followed
+        by this wrapper's observer-frame effects at the observed times.
+
+        Parameters
+        ----------
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        wavelengths : numpy.ndarray
+            A length N array of wavelengths (in angstroms).
+        state : GraphState
+            An object mapping graph parameters to their values with num_samples=1.
+        **kwargs : dict, optional
+            Additional keyword arguments passed to the source.
+
+        Returns
+        -------
+        flux_density : numpy.ndarray
+            A length T x N matrix of SED values (in nJy).
+        """
+        if isinstance(self.source_model, BandfluxModel):
+            raise TypeError("ResolvedStrongLensModel with a BandfluxModel source does not support SEDs.")
+        params = self.get_local_params(state)
+        flux_density = params["macro_magnification"] * self.source_model.evaluate_sed(
+            times - params["time_delay"], wavelengths, state, **kwargs
+        )
+        for effect in self.obs_frame_effects:
+            flux_density = effect.apply(flux_density, times=times, wavelengths=wavelengths, **params)
+        return flux_density
+
+    def _evaluate_bandfluxes_single(self, passband_group, times, filters, state):
+        """Evaluate one image's band fluxes.
+
+        For an SED source, the image's SED (including this wrapper's observer-frame effects)
+        is integrated over each passband. For a bandflux source, the magnified source band
+        fluxes at ``t - time_delay`` are computed and this wrapper's effects are applied with
+        ``apply_bandflux`` at the observed times.
+
+        Parameters
+        ----------
+        passband_group : PassbandGroup
+            The passband group to use.
+        times : numpy.ndarray
+            A length T array of observer frame timestamps in MJD.
+        filters : numpy.ndarray
+            A length T array of filter names.
+        state : GraphState
+            An object mapping graph parameters to their values with num_samples=1.
+
+        Returns
+        -------
+        bandfluxes : numpy.ndarray
+            A length T array of band fluxes (in nJy).
+        """
+        if not isinstance(self.source_model, BandfluxModel):
+            # MultiObjectModel disables this path, so use the SEDModel integration directly.
+            return SEDModel._evaluate_bandfluxes_single(self, passband_group, times, filters, state)
+
+        params = self.get_local_params(state)
+        bandfluxes = params["macro_magnification"] * self.source_model.evaluate_bandfluxes(
+            passband_group, times - params["time_delay"], filters, state
+        )
+        for effect in self.obs_frame_effects:
+            bandfluxes = effect.apply_bandflux(bandfluxes, times=times, filters=filters, **params)
+        return bandfluxes
