@@ -106,6 +106,22 @@ def test_concat_results_with_empty_lightcurves():
     assert np.allclose(results["lightcurve.flux"], [20.0, 22.0])
 
 
+def test_concat_results_all_empty_lightcurves():
+    """Test that concat_results leaves the nested column as is when no batch has observations."""
+    inner_dict = {"mjd": [], "flux": [], "filter": []}
+    res1 = NestedFrame(data={"id": [0, 1], "nobs": [0, 0]}, index=[0, 1])
+    res1 = res1.join_nested(pd.DataFrame(data=inner_dict, index=[]), "lightcurve")
+    res2 = NestedFrame(data={"id": [0], "nobs": [0]}, index=[0])
+    res2 = res2.join_nested(pd.DataFrame(data=inner_dict, index=[]), "lightcurve")
+
+    results = concat_results([res1, res2])
+    assert len(results) == 3
+    assert results["id"].tolist() == [0, 1, 2]
+    assert results.nested_columns == ["lightcurve"]
+    assert results["lightcurve"].dtype == res1["lightcurve"].dtype
+    assert results["lightcurve"].nest.flat_length == 0
+
+
 def test_concat_results_empty():
     """Test the concat_results function on an empty list."""
     with pytest.raises(ValueError, match="The results list is empty."):
