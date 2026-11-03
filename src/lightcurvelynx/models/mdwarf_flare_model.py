@@ -41,7 +41,8 @@ class MDwarfFlareModel(SEDModel):
     * flare_temp - The temperature of the cold part of the flare in kelvins.
     * balmer_jump_ratio - the ratio of the spectral intensity`
         below the Balmer jump wavelength (3645Å) to above the Balmer jump wavelength
-
+    * MOC - if provided, limits the sample distribution in space 
+        to that particular footprint
     Parameters
     ----------
     star_temp : parameter, optional
@@ -61,7 +62,11 @@ class MDwarfFlareModel(SEDModel):
         If not provided, uniform-randomly sampled between 9000 and 14000 K.
     balmer_jump_ratio : parameter, optional
         the ratio of the spectral intensity below the balmer jump to above the balmer jump
-        (which is a blackbody at flare_temp). Defaults to 2
+    MOC: MOC or None, optional
+        Constrains the ra/dec that M Dwarfs are simulated in
+        via the MilkyWayCoordinateSampler. 
+        Only used if distance is not provided.
+        If None is provided, there is no constraint.
     """
 
     def __init__(
@@ -73,6 +78,7 @@ class MDwarfFlareModel(SEDModel):
         flare_amplitude=None,
         flare_temp=None,
         balmer_jump_ratio=None,
+        MOC=None,
         **kwargs,
     ):
         # Check for cases where distance will be auto-computed from redshift and cosmology.
@@ -87,6 +93,11 @@ class MDwarfFlareModel(SEDModel):
                 "Distance is not provided, but will be computed from redshift "
                 "and cosmology. This may not match the expected distribution for "
                 "Galactic m-dwarf flares."
+            )
+        if kwargs.get("MOC") is not None and kwargs.get("distance") is not None:
+            warnings.warn(
+                "MOC is provided, but will not be used."
+                "To use MOC, set distance, ra, and dec to None"
             )
 
         super().__init__(**kwargs)
@@ -109,7 +120,8 @@ class MDwarfFlareModel(SEDModel):
                     "pzflow package is not installed by default. You can install it with "
                     "`pip install pzflow` or `conda install conda-forge::pzflow`."
                 ) from err
-            flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
+            # flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
+            flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
             node = PZFlowNode(flow)
             # the node has them in log space
             star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff, label="mathnode")
@@ -149,7 +161,7 @@ class MDwarfFlareModel(SEDModel):
             description="The temperature of the cold part of the flare in kelvins.",
         )
         if not self.has_valid_param("distance"):
-            sampler = MilkyWayCoordSampler(node_label="mw")
+            sampler = MilkyWayCoordSampler(survey_footprint=MOC, node_label="mw")
             self.set_parameter("distance", value=sampler.distance_pc)
             if self.has_valid_param("ra") or self.has_valid_param("dec"):
                 warnings.warn(
