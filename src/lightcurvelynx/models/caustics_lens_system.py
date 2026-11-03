@@ -16,6 +16,7 @@ import warnings
 from itertools import pairwise
 
 import numpy as np
+from citation_compass import CiteClass
 
 from lightcurvelynx.base_models import FunctionNode
 
@@ -32,30 +33,38 @@ _WORKING_LENSES = {}
 
 
 def _import_caustics():
-    """Import torch and caustics (with its adaptive mesh API), lazily.
+    """Import torch, caskade and caustics (with its adaptive mesh API), lazily.
 
     Returns
     -------
     torch : module
         The ``torch`` module.
+    caskade : module
+        The ``caskade`` module.
     caustics : module
         The ``caustics`` module.
 
     Raises
     ------
     ImportError
-        If torch or caustics (with the adaptive mesh API) are not installed.
+        If torch, caskade or caustics (with the adaptive mesh API) are not installed.
     """
     try:
+        import caskade
         import caustics
+
+        # No caustics release has the adaptive mesh API yet, so importing it checks that the
+        # installed caustics does.
         import caustics.lenses.func.adaptive  # noqa: F401
         import torch
     except ImportError as err:
         raise ImportError(
-            "CausticsStrongLensSystem requires torch and caustics (with the adaptive mesh API), and "
-            "jax for caustics' jax backend. Install caustics from its feat/adaptive_refactor branch."
+            "CausticsStrongLensSystem requires torch, caskade and caustics (with the adaptive mesh "
+            "API), which are not yet in a caustics release. Install caustics, which brings torch "
+            "and caskade, from its adaptive mesh branch: "
+            "pip install git+https://github.com/jacob-hjortlund/caustics.git@feat/adaptive_refactor"
         ) from err
-    return torch, caustics
+    return torch, caskade, caustics
 
 
 def _jax_device(device):
@@ -70,8 +79,16 @@ def _jax_device(device):
     -------
     jax.Device
         The jax CPU device, or the first (or N-th) jax GPU device.
+
+    Raises
+    ------
+    ImportError
+        If jax is not installed.
     """
-    import jax
+    try:
+        import jax
+    except ImportError as err:
+        raise ImportError("Caustics' jax backend requires jax: pip install jax") from err
 
     kind, _, index = device.partition(":")
     return jax.devices("gpu" if kind == "cuda" else kind)[int(index or 0)]
@@ -96,13 +113,13 @@ def _lens_param_index(lens):
         If two different parameters share the same key, e.g. two modules with the same
         ``name=``.
     """
-    from caskade import Module, Param
+    _, caskade, _ = _import_caustics()
 
     index = {}
     for node in lens.topological_ordering():
-        if isinstance(node, Module):
+        if isinstance(node, caskade.Module):
             for key, child in node.children.items():
-                if isinstance(child, Param) and not child.pointer:
+                if isinstance(child, caskade.Param) and not child.pointer:
                     full_key = f"{node.name}.{key}"
                     existing = index.get(full_key)
                     if existing is not None and existing is not child:
@@ -127,10 +144,10 @@ def _inside_caustics(curves, points, batch_size=None):
     curves : caustics.lenses.func.adaptive.CriticalCurvesAndCaustics
         The curves of a closed lens mesh.
     points : array
-        A (B, 2) float64 array of caustics' active backend: source-plane positions in
-        arcseconds, on the device of ``curves.source``.
+        The batch of source-plane positions to test, in arcseconds: a (B, 2) float64 array of
+        caustics' active backend, with B the batch dimension, on the device of ``curves.source``.
     batch_size : int, optional
-        The most points tested in one winding-number call. Default: None, all B at once.
+        The most points tested in one winding-number call. Default: None, the whole batch at once.
 
     Returns
     -------
@@ -169,7 +186,7 @@ def _reemit(w):
 
 
 def _check_mu_bounds(mu_min, mu_max):
-    """Check a pair of μ-region bounds, either of which may be unset (None or NaN).
+    """Check the validity of a pair of μ-region bounds, either of which may be unset (None or NaN).
 
     Parameters
     ----------
@@ -202,7 +219,7 @@ def _describe_system(system_index, values):
     return f"system {system_index} ({inputs})"
 
 
-class CausticsStrongLensSystem(FunctionNode):
+class CausticsStrongLensSystem(FunctionNode, CiteClass):
     """A sampling node that produces strong-lens image arrays with caustics.
 
     For each sampled lens system this node uses `caustics
@@ -220,12 +237,12 @@ class CausticsStrongLensSystem(FunctionNode):
     By default the source is drawn uniformly inside the union of the caustics and
     pseudo-caustics (every point there is multiply imaged). If ``mu_min`` is given, it is
     instead drawn uniformly inside the source-plane region where ``mu_min <= mu_total <= mu_max``
-    (singly imaged sources are then legitimate). ``area`` is the area (in in ``arcsec^2``)
+    (singly imaged sources are then legitimate). ``area`` is the area (in ``arcsec^2``)
     of whichever region was sampled from (``caustic_area(curves)``, or ``region.area`` in μ-region mode),
     so a population can be weighted by lensing cross-section. A limitation: the region contours
     that caustics traces can misestimate the area of ``mu_min <= mu_total <= mu_max`` near
     the lensing caustics, by about 1% at ``mu_min = 10`` and roughly 5-30% for ``mu_min``
-    from about 30to 300 on an SIE + external shear test lens. The sampled sources still
+    from about 30 to 300 on an SIE + external shear test lens. The sampled sources still
     follow the true ``mu_total``, since each candidate is accepted by caustics'
     ``total_magnification``; caustic mode is unaffected. ``mu_min`` and ``mu_max`` are node
     parameters, unset when None or NaN, so they can be linked to other nodes' outputs and
@@ -398,6 +415,10 @@ class CausticsStrongLensSystem(FunctionNode):
         thread count is restored afterwards. Default: None, which uses 1 thread.
     node_label : str, optional
         The label for this node.
+
+    References
+    ----------
+    * caustics: Stone et al. 2024, JOSS, 9(103), 7081 - https://doi.org/10.21105/joss.07081
     """
 
     OUTPUTS = (
@@ -438,7 +459,7 @@ class CausticsStrongLensSystem(FunctionNode):
         torch_num_threads=None,
         node_label=None,
     ):
-        _, caustics = _import_caustics()
+        _, _, caustics = _import_caustics()
 
         if max_images < 1:
             raise ValueError(f"max_images must be at least 1, got {max_images}.")
@@ -518,6 +539,12 @@ class CausticsStrongLensSystem(FunctionNode):
 
         super().__init__(self._non_func, outputs=list(self.OUTPUTS), node_label=node_label, **node_inputs)
 
+        # caskade gives each parameter one of two states: a static one's value is stored on the lens,
+        # while a dynamic one's value is passed in on every call (``params=``), as a list in
+        # ``lens.dynamic_params`` order. On a copy, so the user's lens is never modified, make the
+        # parameters this node samples per system (the mapped keys and z_s) dynamic, freeze every
+        # other one at the value it has on the lens, and record each parameter's node parameter name,
+        # so that ``_param_order`` lists the sampled values in the order caustics expects them.
         mapped_keys = set(lens_parameters) | {z_s_key}
         stored_lens = copy.deepcopy(lens)
         names = {}
@@ -786,18 +813,24 @@ class CausticsStrongLensSystem(FunctionNode):
         batch_size = self._max_candidates if estimate_mc_area else self._candidate_batch_size
         drawn, num_inside = None, 0
         for start in range(0, self._max_candidates, batch_size):
+            # Draw a batch of candidates in the bounding box and test which lie inside the region.
             size = min(batch_size, self._max_candidates - start)
             candidates = rng.uniform(low, high, size=(size, 2))
             points = backend.as_array(candidates, dtype=backend.float64, device=backend.device(source))
             inside = accept(points)
+            # A running count over all batches, for the Monte Carlo area estimate.
             num_inside += int(inside.sum())
             if drawn is None and inside.any():
+                # Accept the first candidate inside, in draw order; n_draws is its 1-based position
+                # among all the candidates drawn.
                 first = int(np.argmax(inside))
                 drawn = {
                     "source_x": float(candidates[first, 0]),
                     "source_y": float(candidates[first, 1]),
                     "n_draws": start + first + 1,
                 }
+                # Without estimate_mc_area only the accepted source is needed, so stop at the first
+                # batch that holds one.
                 if not estimate_mc_area:
                     break
         if drawn is None:
@@ -902,6 +935,8 @@ class CausticsStrongLensSystem(FunctionNode):
                 f"{_describe_system(system_index, values)}: the source has {num_images} images, "
                 f"more than max_images={self._max_images}; raise max_images."
             )
+        # A source inside a caustic or pseudo-caustic has at least two images, but a μ-region can
+        # extend outside the caustics, where a source has a single (magnified) image.
         min_images = 1 if mu_min is not None else 2
         if num_images < min_images:
             raise RuntimeError(
@@ -964,7 +999,7 @@ class CausticsStrongLensSystem(FunctionNode):
         RuntimeError
             If a system fails otherwise (see the failure policy in the class docstring).
         """
-        torch, caustics = _import_caustics()
+        torch, _, caustics = _import_caustics()
 
         if caustics.backend.backend != self._backend:
             raise ValueError(

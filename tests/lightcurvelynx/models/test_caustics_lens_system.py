@@ -14,41 +14,40 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose, assert_array_equal
 
-torch = pytest.importorskip("torch")
-caustics = pytest.importorskip("caustics")
-adaptive = pytest.importorskip("caustics.lenses.func.adaptive")
-
-import lightcurvelynx  # noqa: E402,I001
-from caskade import Module, Param  # noqa: E402
-from caustics import backend  # noqa: E402
-from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup  # noqa: E402
-from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode  # noqa: E402
-from lightcurvelynx.math_nodes.given_sampler import GivenValueList  # noqa: E402
-from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc  # noqa: E402
-from lightcurvelynx.models.basic_models import LinearTimeModel  # noqa: E402
-from lightcurvelynx.models.caustics_lens_system import (  # noqa: E402
+import lightcurvelynx
+from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
+from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
+from lightcurvelynx.math_nodes.given_sampler import GivenValueList
+from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
+from lightcurvelynx.models.basic_models import LinearTimeModel
+from lightcurvelynx.models.caustics_lens_system import (
     CausticsStrongLensSystem,
     _inside_caustics,
     _jax_device,
     _lens_param_index,
 )
-from lightcurvelynx.models.strong_lens_model import ResolvedStrongLensModel  # noqa: E402
-from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel  # noqa: E402
-from lightcurvelynx.obstable.fake_obs_table import FakeObsTable  # noqa: E402
-from lightcurvelynx.simulate import simulate_lightcurves  # noqa: E402
-from lightcurvelynx.survey_info import SurveyInfo  # noqa: E402
+from lightcurvelynx.models.strong_lens_model import ResolvedStrongLensModel
+from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel
+from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
+from lightcurvelynx.simulate import simulate_lightcurves
+from lightcurvelynx.survey_info import SurveyInfo
 
-Z_L, Z_S = 0.5, 1.5
-VALUES = {"q": 0.7, "phi": 0.3, "Rein": 1.0, "gamma_1": 0.05, "gamma_2": -0.02}
-LENS_PARAMETERS = {
-    "lens.z_l": Z_L,
-    "sie.q": VALUES["q"],
-    "sie.phi": VALUES["phi"],
-    "sie.Rein": VALUES["Rein"],
-    "shear.gamma_1": VALUES["gamma_1"],
-    "shear.gamma_2": VALUES["gamma_2"],
+torch = pytest.importorskip("torch")
+caustics = pytest.importorskip("caustics")
+adaptive = pytest.importorskip("caustics.lenses.func.adaptive")
+backend = caustics.backend
+
+_Z_L, _Z_S = 0.5, 1.5
+_VALUES = {"q": 0.7, "phi": 0.3, "Rein": 1.0, "gamma_1": 0.05, "gamma_2": -0.02}
+_LENS_PARAMETERS = {
+    "lens.z_l": _Z_L,
+    "sie.q": _VALUES["q"],
+    "sie.phi": _VALUES["phi"],
+    "sie.Rein": _VALUES["Rein"],
+    "shear.gamma_1": _VALUES["gamma_1"],
+    "shear.gamma_2": _VALUES["gamma_2"],
 }
-MESH = {"fov": 5.0, "init_res": 32, "min_img_sep": 1e-2}
+_MESH = {"fov": 5.0, "init_res": 32, "min_img_sep": 1e-2}
 
 
 def _make_lens(sie_name="sie", q=None, phi=None, Rein=None, gamma_1=None, gamma_2=None, z_l=None, z_s=None):
@@ -68,7 +67,7 @@ def _reference_lens(**overrides):
     store python floats in float32, and casting the lens to float64 afterwards would keep that
     rounding (e.g. q = 0.699999988). Keyword overrides (e.g. ``Rein=0.9``) replace the test values.
     """
-    values = VALUES | {"z_l": Z_L, "z_s": Z_S} | overrides
+    values = _VALUES | {"z_l": _Z_L, "z_s": _Z_S} | overrides
     return _make_lens(**{k: backend.as_array(v, dtype=backend.float64) for k, v in values.items()}).to(
         dtype=backend.float64
     )
@@ -92,16 +91,13 @@ def _assert_same_snapshot(before, after):
 
 def _make_system(lens=None, **overrides):
     """Return a CausticsStrongLensSystem over the test lens; keyword overrides replace defaults."""
-    kwargs = (
-        {
-            "lens_parameters": LENS_PARAMETERS,
-            "z_s": Z_S,
-            "max_images": 5,
-            "node_label": "system",
-        }
-        | MESH
-        | overrides
-    )
+    kwargs = {
+        "lens_parameters": _LENS_PARAMETERS,
+        "z_s": _Z_S,
+        "max_images": 5,
+        "node_label": "system",
+    }
+    kwargs = kwargs | _MESH | overrides
     return CausticsStrongLensSystem(_make_lens() if lens is None else lens, **kwargs)
 
 
@@ -137,7 +133,7 @@ def test_user_lens_is_not_modified():
     """Test that construction leaves the user's lens untouched."""
     lens = _make_lens()
     before = _snapshot(lens)
-    _make_system(lens)
+    _ = _make_system(lens)
     _assert_same_snapshot(before, _snapshot(lens))
 
 
@@ -159,7 +155,7 @@ def test_static_lens_values_need_no_mapping():
     """Test that parameters set on the caustics object stay constants and need no mapping."""
     system = _make_system(
         _make_lens(q=0.7, phi=0.3),
-        lens_parameters={k: v for k, v in LENS_PARAMETERS.items() if k not in ("sie.q", "sie.phi")},
+        lens_parameters={k: v for k, v in _LENS_PARAMETERS.items() if k not in ("sie.q", "sie.phi")},
     )
     assert "sie_q" not in system._param_order
 
@@ -167,9 +163,9 @@ def test_static_lens_values_need_no_mapping():
 @pytest.mark.parametrize(
     "overrides, match",
     [
-        ({"lens_parameters": LENS_PARAMETERS | {"sie.nope": 1.0}}, "sie.nope"),
-        ({"lens_parameters": {k: v for k, v in LENS_PARAMETERS.items() if k != "sie.q"}}, "sie.q"),
-        ({"lens_parameters": LENS_PARAMETERS | {"lens.z_s": 1.0}}, "z_s"),
+        ({"lens_parameters": _LENS_PARAMETERS | {"sie.nope": 1.0}}, "sie.nope"),
+        ({"lens_parameters": {k: v for k, v in _LENS_PARAMETERS.items() if k != "sie.q"}}, "sie.q"),
+        ({"lens_parameters": _LENS_PARAMETERS | {"lens.z_s": 1.0}}, "z_s"),
         ({"max_images": 0}, "max_images"),
         ({"max_candidates": 0}, "max_candidates"),
         ({"candidate_batch_size": 0}, "candidate_batch_size"),
@@ -188,13 +184,15 @@ def test_construction_errors(overrides, match):
 
 def test_name_collision_raises():
     """Test that a mapped key colliding with a node parameter raises (module 'z' + param 's' -> 'z_s')."""
-    params = {k.replace("sie.", "z."): v for k, v in LENS_PARAMETERS.items()} | {"z.s": 0.0}
+    params = {k.replace("sie.", "z."): v for k, v in _LENS_PARAMETERS.items()} | {"z.s": 0.0}
     with pytest.raises(ValueError, match="z_s"):
         _make_system(_make_lens(sie_name="z"), lens_parameters=params)
 
 
 def test_mapped_keys_with_one_node_name_raise():
     """Test that two mapped keys becoming the same node parameter name ('a.b_c', 'a_b.c' -> 'a_b_c') raise."""
+    from caskade import Module, Param
+
     lens, inner = Module("a"), Module("a_b")
     lens.b_c, inner.c, lens.inner = Param("b_c", 1.0), Param("c", 1.0), inner
     with pytest.raises(ValueError, match=r"'a\.b_c' and 'a_b\.c'.*'a_b_c'"):
@@ -204,7 +202,17 @@ def test_mapped_keys_with_one_node_name_raise():
 def test_key_errors_list_available_keys():
     """Test that unknown-key errors list the available module.param keys."""
     with pytest.raises(ValueError, match=r"sie\.Rein"):
-        _make_system(lens_parameters=LENS_PARAMETERS | {"SIE.q": 0.5})
+        _make_system(lens_parameters=_LENS_PARAMETERS | {"SIE.q": 0.5})
+
+
+@pytest.mark.parametrize("missing", ["caustics.lenses.func.adaptive", "caskade"])
+def test_missing_dependency_raises_with_install_instructions(monkeypatch, missing):
+    """Test that a missing caustics adaptive mesh API or caskade raises an ImportError saying how to
+    install it."""
+    lens = _make_lens()
+    monkeypatch.setitem(sys.modules, missing, None)
+    with pytest.raises(ImportError, match="pip install"):
+        _make_system(lens)
 
 
 def test_compute_under_another_backend_raises():
@@ -221,14 +229,14 @@ def test_user_lens_unchanged_by_sampling():
     """Test that sampling leaves the user's lens untouched."""
     lens = _make_lens()
     before = _snapshot(lens)
-    _make_system(lens).sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
+    _ = _make_system(lens).sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     _assert_same_snapshot(before, _snapshot(lens))
 
 
 def _mesh_and_curves():
     """Return a mesh and curves of the reference lens at the test settings."""
     mesh, curves, _ = _reference_lens().build_closed_lens_mesh(
-        MESH["fov"], MESH["init_res"], MESH["min_img_sep"]
+        _MESH["fov"], _MESH["init_res"], _MESH["min_img_sep"]
     )
     return mesh, curves
 
@@ -318,7 +326,7 @@ def test_mu_region_area_and_membership():
         num_samples=2, rng_info=np.random.default_rng(11)
     )["system"]
     mesh, _, region = _reference_lens().build_closed_lens_mesh(
-        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=10.0, mu_max=50.0
+        _MESH["fov"], _MESH["init_res"], _MESH["min_img_sep"], mu_min=10.0, mu_max=50.0
     )
     assert_allclose(out["area"], region.area, rtol=1e-10)
     mu_tot = backend.to_numpy(
@@ -332,13 +340,13 @@ def test_mu_region_area_and_membership():
 
 def test_mu_min_picks_each_systems_sampling_region():
     """Test that a per-system mu_min, NaN meaning caustic mode, sets each system's region and area."""
-    system = _make_system(mu_min=GivenValueList([np.nan, 10.0]))
+    system = _make_system(mu_min=GivenValueList([np.nan, 10.0], stateful=False))
     out = system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(11))["system"]
     _, curves, _ = _reference_lens().build_closed_lens_mesh(
-        MESH["fov"], MESH["init_res"], MESH["min_img_sep"]
+        _MESH["fov"], _MESH["init_res"], _MESH["min_img_sep"]
     )
     mesh, _, region = _reference_lens().build_closed_lens_mesh(
-        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=10.0
+        _MESH["fov"], _MESH["init_res"], _MESH["min_img_sep"], mu_min=10.0
     )
     assert_allclose(out["area"], [adaptive.caustic_area(curves), region.area], rtol=1e-10)
     sx, sy = (backend.as_array(out[name][1:]) for name in ("source_x", "source_y"))
@@ -348,9 +356,9 @@ def test_mu_min_picks_each_systems_sampling_region():
 @pytest.mark.parametrize(
     "mu_min, mu_max, match",
     [
-        (GivenValueList([np.nan]), 50.0, "mu_min must be given"),
-        (GivenValueList([10.0]), 5.0, r"mu_max \(5.0\) must be greater than mu_min \(10.0\)"),
-        (10.0, GivenValueList([5.0]), r"mu_max \(5.0\) must be greater than mu_min \(10.0\)"),
+        (GivenValueList([np.nan], stateful=False), 50.0, "mu_min must be given"),
+        (GivenValueList([10.0], stateful=False), 5.0, r"mu_max \(5.0\) must be greater than mu_min \(10.0\)"),
+        (10.0, GivenValueList([5.0], stateful=False), r"mu_max \(5.0\) must be greater than mu_min \(10.0\)"),
     ],
 )
 def test_invalid_per_system_mu_bounds_raise(mu_min, mu_max, match):
@@ -378,7 +386,7 @@ def test_invalid_per_system_mu_bounds_raise(mu_min, mu_max, match):
 def test_mu_region_acceptance_matches_region_area(mu_min, mu_max):
     """Test that the node's mu-region acceptance rule agrees with region.area (statistical)."""
     mesh, _, region = _reference_lens().build_closed_lens_mesh(
-        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=mu_min, mu_max=mu_max
+        _MESH["fov"], _MESH["init_res"], _MESH["min_img_sep"], mu_min=mu_min, mu_max=mu_max
     )
     source = backend.to_numpy(region.source)
     lo, hi = source.min(axis=0), source.max(axis=0)
@@ -404,7 +412,7 @@ def test_same_seed_reproduces_and_rng_advances_by_num_samples():
     """Test reproducibility and that the shared rng advances by exactly num_samples draws."""
     rng_a, rng_b = np.random.default_rng(7), np.random.default_rng(7)
     first = _make_system().sample_parameters(num_samples=2, rng_info=rng_a)["system"]
-    rng_b.integers(0, 2**63, size=2, dtype=np.uint64)
+    _ = rng_b.integers(0, 2**63, size=2, dtype=np.uint64)
     assert rng_a.random() == rng_b.random()
     second = _make_system().sample_parameters(num_samples=2, rng_info=np.random.default_rng(7))["system"]
     for name in CausticsStrongLensSystem.OUTPUTS:
@@ -415,7 +423,7 @@ def test_linked_fov_varies_per_system():
     """Test that fov and Rein linked to a sampled Einstein radius are used per system."""
     rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, node_label="rein")
     system = _make_system(
-        lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein}, fov=BasicMathNode("5 * r", r=rein)
+        lens_parameters=_LENS_PARAMETERS | {"sie.Rein": rein}, fov=BasicMathNode("5 * r", r=rein)
     )
     out = system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(1))["system"]
     assert_allclose(out["fov"], 5.0 * out["sie_Rein"])
@@ -435,7 +443,7 @@ def test_mapped_parameter_link_samples():
     system = _make_system()
     double_q = BasicMathNode("2 * q", q=system.sie_q, node_label="double_q")
     state = double_q.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
-    assert state["double_q"]["function_node_result"] == pytest.approx(2 * VALUES["q"])
+    assert state["double_q"]["function_node_result"] == pytest.approx(2 * _VALUES["q"])
 
 
 @pytest.mark.parametrize(
@@ -448,7 +456,7 @@ def test_no_sampling_region_raises(mu_min, match):
     cosmo = caustics.FlatLambdaCDM(name="cosmo")
     shear = caustics.ExternalShear(cosmology=cosmo, name="shear", x0=0.0, y0=0.0)
     lens = caustics.SinglePlane(cosmology=cosmo, lenses=[shear], name="lens")
-    params = {k: v for k, v in LENS_PARAMETERS.items() if not k.startswith("sie.")}
+    params = {k: v for k, v in _LENS_PARAMETERS.items() if not k.startswith("sie.")}
     with pytest.raises(RuntimeError, match=f"system 0 .*{match}"):
         _make_system(lens, lens_parameters=params, mu_min=mu_min).sample_parameters(num_samples=1)
 
@@ -507,7 +515,7 @@ def test_mc_area_cross_checks_area(mu_min):
     system = _make_system(mu_min=mu_min, estimate_mc_area=True)
     out = system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))["system"]
     _, curves, region = _reference_lens().build_closed_lens_mesh(
-        MESH["fov"], MESH["init_res"], MESH["min_img_sep"], mu_min=mu_min
+        _MESH["fov"], _MESH["init_res"], _MESH["min_img_sep"], mu_min=mu_min
     )
     contour = backend.to_numpy(curves.source if region is None else region.source)
     assert out["bb_area"] == pytest.approx(np.prod(contour.max(axis=0) - contour.min(axis=0)), rel=1e-10)
@@ -528,7 +536,7 @@ def test_mc_area_tests_mu_region_candidates_in_one_chunked_call(monkeypatch):
 
     monkeypatch.setattr(adaptive, "total_magnification", recording_total_magnification)
     system = _make_system(mu_min=10.0, estimate_mc_area=True, max_candidates=2048, candidate_batch_size=512)
-    system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
+    _ = system.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     assert calls == [(2048, 512)]
 
 
@@ -547,7 +555,7 @@ def test_rejection_cap_error_names_system_and_region(monkeypatch, mu_min, match)
 @pytest.mark.parametrize(
     "overrides, error, match",
     [
-        ({"lens_parameters": LENS_PARAMETERS | {"lens.z_l": 2.0}}, ValueError, "z_l"),
+        ({"lens_parameters": _LENS_PARAMETERS | {"lens.z_l": 2.0}}, ValueError, "z_l"),
         ({"max_images": 1}, RuntimeError, "max_images"),
         ({"fov": 2.0, "mesh_kwargs": {"max_iters": 0}}, RuntimeError, r"extension\(s\)"),
         # A starting fov inside the critical curves, where the mesh holds only the pseudo-caustic.
@@ -567,7 +575,7 @@ def test_per_system_failures_raise(overrides, error, match):
 
 def test_error_names_global_system_index():
     """Test that errors name the system by its global index (sample_offset + local index)."""
-    system = _make_system(lens_parameters=LENS_PARAMETERS | {"lens.z_l": 2.0})
+    system = _make_system(lens_parameters=_LENS_PARAMETERS | {"lens.z_l": 2.0})
     with pytest.raises(ValueError, match="system 7"):
         system.sample_parameters(num_samples=1, sample_offset=7)
 
@@ -659,7 +667,7 @@ class _InProcessExecutor:
 def _make_resolved():
     """Return a ResolvedStrongLensModel whose images come from the caustics test system."""
     source = LinearTimeModel(
-        linear_base=10.0, linear_scale=2.0, t0=100.0, ra=10.0, dec=-30.0, redshift=Z_S, node_label="source"
+        linear_base=10.0, linear_scale=2.0, t0=100.0, ra=10.0, dec=-30.0, redshift=_Z_S, node_label="source"
     )
     system = _make_system(z_s=source.redshift)
     return ResolvedStrongLensModel(source, **system.resolved_inputs(), node_label="lensed")
@@ -708,9 +716,9 @@ def test_working_lens_is_reused_and_not_pickled():
     system = _make_system()
     assert system._working is None and system._observables is None  # Nothing is copied at construction.
     rng = np.random.default_rng(11)
-    system.sample_parameters(num_samples=1, rng_info=rng)
+    _ = system.sample_parameters(num_samples=1, rng_info=rng)
     working, observables = system._working, system._observables
-    system.sample_parameters(num_samples=1, rng_info=rng)
+    _ = system.sample_parameters(num_samples=1, rng_info=rng)
     assert working is not None and working is not system._lens
     assert system._working is working and system._observables is observables
     assert all(f.module is working for f in observables.values())
@@ -721,7 +729,7 @@ def test_working_lens_is_reused_and_not_pickled():
 def test_reused_working_lens_matches_caustics_at_new_parameter_values():
     """Test that a second compute, reusing the working lens at a new Einstein radius, matches caustics."""
     rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, node_label="rein")
-    system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein})
+    system = _make_system(lens_parameters=_LENS_PARAMETERS | {"sie.Rein": rein})
     rng = np.random.default_rng(1)
     first = system.sample_parameters(num_samples=1, rng_info=rng)["system"]
     second = system.sample_parameters(num_samples=1, rng_info=rng)["system"]
@@ -735,8 +743,8 @@ def test_unpickled_copies_of_one_node_share_its_working_lens():
     pytest.importorskip("cloudpickle")
     system = _make_system()
     first, second = (pickle.loads(pickle.dumps(system)) for _ in range(2))
-    first.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
-    second.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
+    _ = first.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
+    _ = second.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     assert first._working is not None
     assert second._working is first._working and second._observables is first._observables
 
@@ -744,8 +752,8 @@ def test_unpickled_copies_of_one_node_share_its_working_lens():
 def test_separately_built_nodes_get_their_own_working_lenses():
     """Test that two nodes built from identical lenses do not share a working lens."""
     first, second = _make_system(), _make_system()
-    first.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
-    second.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
+    _ = first.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
+    _ = second.sample_parameters(num_samples=1, rng_info=np.random.default_rng(11))
     assert first._working is not second._working
 
 
@@ -772,7 +780,7 @@ def test_unpickled_copy_at_new_parameter_values_compiles_nothing():
     """Test that a second unpickled copy of a node (a later executor batch) compiles nothing at new values."""
     pytest.importorskip("cloudpickle")
     rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, node_label="rein")
-    system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein})
+    system = _make_system(lens_parameters=_LENS_PARAMETERS | {"sie.Rein": rein})
     first, second = (pickle.loads(pickle.dumps(system)) for _ in range(2))
     first_out = first.sample_parameters(num_samples=1, rng_info=np.random.default_rng(1))["system"]
     # The second system's build needs no padded batch size the first one did not (a new size would
@@ -801,7 +809,7 @@ def test_second_compute_compiles_no_new_observable_programs(monkeypatch):
 
     monkeypatch.setattr(JitForward, "__call__", counting_call)
     rein = NumpyRandomFunc("uniform", low=0.8, high=1.2, node_label="rein")
-    system = _make_system(lens_parameters=LENS_PARAMETERS | {"sie.Rein": rein})
+    system = _make_system(lens_parameters=_LENS_PARAMETERS | {"sie.Rein": rein})
     rng = np.random.default_rng(6)  # Draws a 2-image system, then a 4-image one.
     with _jax_compiles() as compiles:
         first = system.sample_parameters(num_samples=1, rng_info=rng)["system"]
@@ -837,7 +845,7 @@ def test_sampling_uses_torch_num_threads_and_restores_the_count(
         return solve_system(*args, **kwargs)
 
     monkeypatch.setattr(system, "_solve_system", recording_solve_system)
-    system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(11))
+    _ = system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(11))
     assert seen == [expected, expected]
     assert torch.get_num_threads() == 2
 
@@ -904,6 +912,13 @@ def test_jax_device_maps_torch_style_names(monkeypatch, device, expected):
     assert _jax_device(device) == expected
 
 
+def test_jax_device_without_jax_raises_with_install_instructions(monkeypatch):
+    """Test that a device name mapped without jax installed raises an ImportError saying how to install it."""
+    monkeypatch.setitem(sys.modules, "jax", None)
+    with pytest.raises(ImportError, match="pip install jax"):
+        _jax_device("cpu")
+
+
 # The fixed case of test_jax_backend_matches_torch, run in a fresh process: caustics picks its backend
 # once, at import, from CASKADE_BACKEND.
 _CASE = f"""
@@ -922,7 +937,7 @@ sie = caustics.SIE(cosmology=cosmo, name="sie", x0=0.0, y0=0.0, s=0.0)
 shear = caustics.ExternalShear(cosmology=cosmo, name="shear", x0=0.0, y0=0.0)
 lens = caustics.SinglePlane(cosmology=cosmo, lenses=[sie, shear], name="lens")
 system = CausticsStrongLensSystem(
-    lens, lens_parameters={LENS_PARAMETERS!r}, z_s={Z_S!r}, max_images=5, node_label="system", **{MESH!r}
+    lens, lens_parameters={_LENS_PARAMETERS!r}, z_s={_Z_S!r}, max_images=5, node_label="system", **{_MESH!r}
 )
 out = system.sample_parameters(num_samples=2, rng_info=np.random.default_rng(5))["system"]
 np.savez(sys.argv[1], **{{name: out[name] for name in system.OUTPUTS}})
