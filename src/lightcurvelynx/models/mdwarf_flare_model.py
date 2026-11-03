@@ -120,8 +120,7 @@ class MDwarfFlareModel(SEDModel):
                     "pzflow package is not installed by default. You can install it with "
                     "`pip install pzflow` or `conda install conda-forge::pzflow`."
                 ) from err
-            # flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
-            flow = Flow(file=_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
+            flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
             node = PZFlowNode(flow)
             # the node has them in log space
             star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff, label="mathnode")
