@@ -32,9 +32,9 @@ from lightcurvelynx.obstable.fake_obs_table import FakeObsTable
 from lightcurvelynx.simulate import simulate_lightcurves
 from lightcurvelynx.survey_info import SurveyInfo
 
-torch = pytest.importorskip("torch")
 caustics = pytest.importorskip("caustics")
 adaptive = pytest.importorskip("caustics.lenses.func.adaptive")
+torch = pytest.importorskip("torch")
 backend = caustics.backend
 
 _Z_L, _Z_S = 0.5, 1.5
