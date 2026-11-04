@@ -9,7 +9,7 @@ There are a bunch of ways to get help:
 
 - **LSST-DA Slack** Channel: If you are a member of the LSST Discovery Alliance Slack workspace, you can ask questions in the `#lincc-frameworks-lightcurvelynx <https://discovery-alliance.slack.com/archives/C08HSEG1D0D>`__ channel.
 
-- **Office Hours**: The LINCC Framework team holds regular office hours where you can drop in to ask questions and get help. See the `LINCC Frameworks team page <https://lsstdiscoveryalliance.org/lsst-discovery-alliance-programs/lincc-frameworks/>`__` for details.
+- **Office Hours**: The LINCC Framework team holds regular office hours where you can drop in to ask questions and get help. See the `LINCC Frameworks team page <https://lsstdiscoveryalliance.org/lsst-discovery-alliance-programs/lincc-frameworks/>`__ for details.
 
 - **FAQ**: Check out the :doc:`FAQ page <faq>` for answers to common questions.
 
