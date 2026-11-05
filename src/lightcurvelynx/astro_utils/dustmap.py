@@ -193,9 +193,9 @@ class SFDMap(DustEBV):
 
     Citations
     ---------
-    Software https://github.com/AmpelAstro/sfdmap2
-    Forked from https://github.com/kbarbary/sfdmap
-    Dust map data from Schlegel, Finkbeiner and Davis (1998).
+    * Software https://github.com/AmpelAstro/sfdmap2
+    * Forked from https://github.com/kbarbary/sfdmap
+    * Dust map data from Schlegel, Finkbeiner and Davis (1998).
 
     Attributes
     ----------

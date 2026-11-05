@@ -13,11 +13,18 @@ from lightcurvelynx.math_nodes.scipy_random import NumericalInversePolynomialFun
 
 def snia_volumetric_rates(redshift, r0=2.27e-5, alpha=1.7):
     """
-    SN Ia volumetric rate.
-    r_v(z) = r0 * (1+z)^alpha （SNe Ia yr^-1 Mpc^-3 h_70^3）
-    The default values are from Frohmaier et al. (2019).
-    r0 = 2.27+/-0.19e-5
-    alpha = 1.7+/-0.21
+    SN Ia volumetric rate, calcuyated using::
+
+        r_v(z) = r0 * (1+z)^alpha （SNe Ia yr^-1 Mpc^-3 h_70^3）
+    
+    The default values are from Frohmaier et al. (2019):
+    
+        r0 = 2.27+/-0.19e-5
+        alpha = 1.7+/-0.21
+
+    References
+    -----------
+    Frohmaier et al. (2019).
 
     Parameters
     ----------
