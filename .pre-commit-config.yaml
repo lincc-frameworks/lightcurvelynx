@@ -76,10 +76,11 @@ repos:
     hooks:
       - id: pre-executed-nb-never-execute
         name: Check pre-executed notebooks
-        files: ^docs/pre_executed/.*\.ipynb$
+        files: ^docs/notebooks/pre_executed/.*\.ipynb$
         verbose: true
+        pass_filenames: false
         args:
-          ["docs/pre_executed/"]
+          ["docs/notebooks/pre_executed/"]
     # Run unit tests, verify that they pass. Note that coverage is run against
     # the ./src directory here because that is what will be committed. In the
     # github workflow script, the coverage is run against the installed package
