@@ -41,7 +41,7 @@ In addition to built-in and user-defined models, LightCurveLynx is designed to b
 many excellent existing modeling packages. Wrappers are provided for popular packages including:
 
 * `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`_ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
-* `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/Bayesian>`).
+* `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/bayeSN_example>`).
 * `MOSFiT <https://github.com/guillochon/MOSFiT>`_ - A package of semi-analytic models for a wide range of transients, including superluminous supernovae, kilonovae and tidal disruption events.
 * `PyLIMA <https://github.com/ebachelet/pyLIMA>`_ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
 * `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
@@ -144,13 +144,13 @@ You will need to restart your notebook server to see the new kernel.
 Updating from TDAstro
 -------------------------------------------------------------------------------
 
-This package was recently renamed from TDAstro to LightCurveLynx. A few changes will be needed to
-update your code:
+In September 2025, this package was renamed from TDAstro to LightCurveLynx. 
+If you are still using the older package, a few changes will be needed to update your code:
 
-   * If you use the package as a dependency (e.g. in pyproject.toml), update your requirements to use `lightcurvelynx` instead of `tdastro`.
-   * Update your import statements from `import tdastro` to `import lightcurvelynx`.
-   * If you have cloned the repository, update your remote URL to `https://github.com/lincc-frameworks/lightcurvelynx`.
-   * If you have installed from PyPI or conda-forge, uninstall `tdastro` and install `lightcurvelynx` instead.
+   * If you use the package as a dependency (e.g. in pyproject.toml), update your requirements to use ``lightcurvelynx`` instead of ``tdastro``.
+   * Update your import statements from ``import tdastro`` to ``import lightcurvelynx``.
+   * If you have cloned the repository, update your remote URL to ``https://github.com/lincc-frameworks/lightcurvelynx``.
+   * If you have installed from PyPI or conda-forge, uninstall ``tdastro`` and install ``lightcurvelynx`` instead.
 
 If you run into any problems or have any questions, please reach out to the team. We are happy to help!
 
