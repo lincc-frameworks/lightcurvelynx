@@ -109,6 +109,8 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **Time-Varying Effects** - For information on creating time-varying effects in simulations, see :doc:`Time Varying Effects Notebook <notebooks/time_varying_effects>`.
 
+**Time Windows** - LightCurveLynx allows users to filter observations to only those that occur within a window around the object's ``t0`` parameter using the ``obs_time_window_offset`` or ``rest_time_window_offset`` parameters. For some examples of this, see the :doc:`Basic SN Iqa <notebooks/simple_snia>`, :doc:`Mdwarf Flares <notebooks/mdwarf_flares>`, or :doc:`Redback <notebooks/pre_executed/redback_example>` notebooks.
+
 **UniformRADEC** - A sampler that draws uniform samples in right ascension and declination. See also :doc:`Sampling Positions Notebook <notebooks/sampling_positions>`.
 
 **Wavelength** - Photon wavelength, in angstroms.
