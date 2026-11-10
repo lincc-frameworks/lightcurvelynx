@@ -209,7 +209,7 @@ class PoissonFluxNoiseModel(FluxNoiseModel):
     - sky_bg_e: Sky background (electrons / pixel^2).
     - zp: The photometric zero point (nJy / electron).
     - zp_err_mag: The uncertainty in the photometric zero point in magnitudes (optional, default is 0.0).
-    
+
     Users should ensure that the necessary parameters (in the correct units) are derived in
     the ObsTable's `_derive_noise_columns` method.
     """
@@ -287,7 +287,7 @@ class GivenNoiseModel(FluxNoiseModel):
     given (per-row) noise level.
 
     This noise model uses the following values from the ObsTable:
-    
+
     - bandflux_error: The standard deviation of the noise to apply to the bandflux measurements (nJy).
     """
 
@@ -344,6 +344,7 @@ class FiveSigmaDepthNoiseModel(FluxNoiseModel):
     """A noise model that simulates photon noise from only the five-sigma depth information.
 
     This noise model uses the following values from the ObsTable:
+
     - five_sigma_depth: The five-sigma depth in AB magnitudes.
 
     Note

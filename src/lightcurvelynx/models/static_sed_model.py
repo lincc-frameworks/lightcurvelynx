@@ -2,6 +2,7 @@
 
 import numpy as np
 from astropy import units as u
+from citation_compass import cite_function
 
 from lightcurvelynx.astro_utils.sed import SED
 from lightcurvelynx.math_nodes.given_sampler import GivenValueSampler
@@ -107,6 +108,7 @@ class StaticSEDModel(SEDModel):
         return cls(sed_values=sed_data, **kwargs)
 
     @classmethod
+    @cite_function
     def from_synphot(cls, sp_model, waves=None, **kwargs):
         """Generate the spectrum from a given synphot model.
 

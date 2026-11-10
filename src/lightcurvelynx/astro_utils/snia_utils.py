@@ -3,6 +3,7 @@ import numpy as np
 import scipy.integrate as integrate
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
+from citation_compass import cite_function
 from scipy.stats import norm
 from scipy.stats.sampling import NumericalInversePolynomial
 
@@ -11,14 +12,15 @@ from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.scipy_random import NumericalInversePolynomialFunc
 
 
+@cite_function
 def snia_volumetric_rates(redshift, r0=2.27e-5, alpha=1.7):
     """
-    SN Ia volumetric rate, calcuyated using::
+    SN Ia volumetric rate, calculated using::
 
         r_v(z) = r0 * (1+z)^alpha （SNe Ia yr^-1 Mpc^-3 h_70^3）
-    
-    The default values are from Frohmaier et al. (2019):
-    
+
+    The default values are from Frohmaier et al. (2019)::
+
         r0 = 2.27+/-0.19e-5
         alpha = 1.7+/-0.21
 

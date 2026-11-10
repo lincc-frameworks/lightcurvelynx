@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pooch
 from astropy.coordinates import SkyCoord
-from citation_compass import CiteClass
+from citation_compass import CiteClass, cite_function
 
 from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.base_models import FunctionNode
@@ -179,6 +179,7 @@ class ConstantHemisphereDustMap:
         return self.compute_ebv(coords.ra.deg, coords.dec.deg)
 
 
+@cite_function
 class SFDMap(DustEBV):
     """A dustmap using the sfdmap2 package.
 
@@ -191,8 +192,8 @@ class SFDMap(DustEBV):
     it will automatically be downloaded there when the class is
     instantiated.
 
-    Citations
-    ---------
+    References
+    ----------
     * Software https://github.com/AmpelAstro/sfdmap2
     * Forked from https://github.com/kbarbary/sfdmap
     * Dust map data from Schlegel, Finkbeiner and Davis (1998).

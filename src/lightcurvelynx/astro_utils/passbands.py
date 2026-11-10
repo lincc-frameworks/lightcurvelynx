@@ -1339,9 +1339,7 @@ class Passband:
         figure=None,
         color=None,
         plot_transmission=False,
-    ) -> None:    - "lsst": The LSST (Rubin Observatory) detector footprint (all 189 detectors)
-            - "lsst-approx": An approximate LSST detector footprint (much faster)
-        
+    ) -> None:
         """Plot the passband.
 
         Parameters
