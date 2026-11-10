@@ -41,8 +41,7 @@ class MDwarfFlareModel(SEDModel):
     * flare_temp - The temperature of the cold part of the flare in kelvins.
     * balmer_jump_ratio - the ratio of the spectral intensity`
         below the Balmer jump wavelength (3645Å) to above the Balmer jump wavelength
-    * MOC - if provided, limits the sample distribution in space
-        to that particular footprint
+
     Parameters
     ----------
     star_temp : parameter, optional
@@ -62,11 +61,6 @@ class MDwarfFlareModel(SEDModel):
         If not provided, uniform-randomly sampled between 9000 and 14000 K.
     balmer_jump_ratio : parameter, optional
         the ratio of the spectral intensity below the balmer jump to above the balmer jump
-    MOC: MOC or None, optional
-        Constrains the ra/dec that M Dwarfs are simulated in
-        via the MilkyWayCoordinateSampler.
-        Only used if distance is not provided.
-        If None is provided, there is no constraint.
     """
 
     def __init__(
@@ -96,7 +90,7 @@ class MDwarfFlareModel(SEDModel):
             )
         if kwargs.get("MOC") is not None and kwargs.get("distance") is not None:
             warnings.warn(
-                "MOC is provided, but will not be used.To use MOC, set distance, ra, and dec to None"
+                "MOC is provided, but will not be used. To use MOC, set distance, ra, and dec to None"
             )
 
         super().__init__(**kwargs)
