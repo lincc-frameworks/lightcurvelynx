@@ -568,7 +568,32 @@ def _simulate_lightcurves_batch(simulation_info):
     # Create the nested frame and either save it to a file or return it directly.
     logger.info("Compiling results.")
     results = NestedFrame(data=results_dict, index=list(range(realized_num_samples)))
-    nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
+    if len(nested_index) == 0:
+        # When no object in the batch matches any observation, nested_dict is built from
+        # empty lists and DataFrame inference defaults every column to float64. Explicitly
+        # type the empty columns so Parquet part files share the same schema as non-empty batches.
+        base_dtypes = {
+            "mjd": "float64",
+            "filter": "string",
+            "flux": "float64",
+            "fluxerr": "float64",
+            "flux_perfect": "float64",
+            "survey_idx": "int64",
+            "obs_idx": "int64",
+            "is_saturated": "bool",
+            "full_filter_name": "string",
+        }
+        nested_data = {}
+        for col in nested_dict:
+            col_dtype = base_dtypes.get(col)
+            if col_dtype is None:
+                col_dtype = next((obs[col].dtype for obs in obstable if col in obs), "float64")
+                if col_dtype == object:
+                    col_dtype = "string"
+            nested_data[col] = pd.Series([], dtype=col_dtype)
+        nested_frame = pd.DataFrame(data=nested_data, index=nested_index)
+    else:
+        nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
     results = results.join_nested(nested_frame, "lightcurve")
 
     # Add the parameters as a pyarrow column.

@@ -2309,3 +2309,60 @@ def test_simulate_lightcurves_single_thread_batched(test_data_dir):
     assert np.unique(state["source.brightness"]).size > 95
     assert np.unique(state["source.ra"]).size > 95
     assert np.unique(state["source.dec"]).size > 95
+
+
+def test_simulate_lightcurves_empty_batch_parquet_schema(test_data_dir):
+    """Test that part files written with output_file_path can be read back together
+    when at least one batch has no observations (Issue #1033)."""
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    # 2 sources:
+    # First source has coordinates/time outside the opsim coverage (yielding 0 observations in batch 0).
+    # Second source matches opsim coverage (yielding observations in batch 1).
+    ras = [180.0, float(opsim_db["ra"].iloc[0])]
+    decs = [45.0, float(opsim_db["dec"].iloc[0])]
+    t0s = [0.0, 60676.0]
+    source = ConstantSEDModel(
+        brightness=GivenValueList([1000.0, 1000.0], stateful=False),
+        t0=GivenValueList(t0s, stateful=False),
+        ra=GivenValueList(ras, stateful=False),
+        dec=GivenValueList(decs, stateful=False),
+        redshift=0.0,
+        node_label="source",
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_path = Path(tmpdir) / "test_empty_batch.parquet"
+        part_paths = simulate_lightcurves(
+            source,
+            2,
+            survey_info,
+            obstable_save_cols=["observationId", "zp_nJy"],
+            param_cols=["source.brightness"],
+            output_file_path=base_path,
+            batch_size=1,
+            progress_bar=False,
+        )
+        assert len(part_paths) == 2
+        for p in part_paths:
+            assert Path(p).exists()
+
+        # Reading back the directory of part files must not fail with ArrowInvalid schema mismatch
+        part0_df = read_parquet(part_paths[0])
+        part1_df = read_parquet(part_paths[1])
+        assert part0_df["lightcurve"].nest.flat_length == 0
+        assert part1_df["lightcurve"].nest.flat_length > 0
+        assert part0_df["lightcurve"].dtype == part1_df["lightcurve"].dtype
+
+        results_df = read_parquet(tmpdir)
+        assert len(results_df) == 2
+        assert results_df["nobs"].iloc[0] == 0
+        assert results_df["nobs"].iloc[1] > 0
+        assert results_df.nested_columns == ["lightcurve"]
+        assert results_df["lightcurve"].dtype == part1_df["lightcurve"].dtype
