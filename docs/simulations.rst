@@ -36,7 +36,7 @@ When starting a new simulation there are a few key questions to ask (in this ord
 
 1. What do you want to simulate (supernova, kilonova, AGN, etc.)? The answer to this question determines the class you use to create the model object. For example, if you want to simulate a kilonova using the ``redback`` package, you would start by creating ``RedbackWrapperModel`` object.
 
-2. What parameters does your model have? And how do you want to set them? The answers to these questions determine how you set the parameters of the model object. All parameters within a model are set using arguments in the object’s constructors.
+2. What parameters does your model have? And how do you want to set them? The answers to these questions determine how you set the parameters of the model object. All parameters within a model are set using arguments in the object's constructors.
 
 3. What effects do you want to apply to the light coming from this object? The answer to this question will determine which effect objects you create and add to the object.
 
@@ -45,7 +45,7 @@ When starting a new simulation there are a few key questions to ask (in this ord
 Defining a parameterized model 
 -------------------------------------------------------------------------------
 
-The core idea behind LightCurveLynx is that we want to generate light curves from parameterized models of astronomical objects/phenomena. Users do this by creating model objects that are subclasses of the ``BasePhysicalModel`` class. This object provides the recipe for computing the noise-free light curves given values for its parameters. By providing a distribution of parameter values into the model, users can simulate an entire population of these objects. For example, they could use the `SALT2JaxModel` with parameterized values of `c`, `x0`, and `x1` to simulate a population of Type Ia supernovae.
+The core idea behind LightCurveLynx is that we want to generate light curves from parameterized models of astronomical objects/phenomena. Users do this by creating model objects that are subclasses of the ``BasePhysicalModel`` class. This object provides the recipe for computing the noise-free light curves given values for its parameters. By providing a distribution of parameter values into the model, users can simulate an entire population of these objects. For example, they could use the ``SALT2JaxModel`` with parameterized values of ``c``, ``x0``, and ``x1`` to simulate a population of Type Ia supernovae.
 
 .. code-block:: python
 
@@ -131,17 +131,13 @@ Additional effects can be applied to the noise-free light curves to produce more
 The effects are applied in two batches. Rest frame effects are applied to the flux densities in the rest frame.
 The flux densities are then converted to the observer frame where the observer frame effects are applied.
 
-Finally, if the raw flux densities are at the spectral level, they are integrated over the bandpasses to obtain the bandflux level
-values using the ``PassbandGroup``.
+Finally, if the raw flux densities are at the spectral level, they are integrated over the bandpasses to obtain the bandflux level values using the ``PassbandGroup``.
 
 
 Generating band flux curves
 -------------------------------------------------------------------------------
 
-All models provide a helper function, ``evaluate_bandfluxes()``, that wraps the combination of
-evaluation and integration with the passbands. This function takes the passband information,
-a list of times, and a list of filter names. It returns the band flux at each of those times
-in each of the filters.
+All models provide a helper function, ``evaluate_bandfluxes()``, that wraps the combination of evaluation and integration with the passbands. This function takes the passband information, a list of times, and a list of filter names. It returns the band flux at each of those times in each of the filters.
 
 .. figure:: _static/GetBandFluxes.png
    :class: no-scaled-link
@@ -151,17 +147,10 @@ in each of the filters.
 
    An example of the evaluate_bandfluxes function
 
-In addition to being a convenient helper function for spectral models, generating the data at the band flux level allows
-certain models to skip spectral-level flux density generation. In particular, a ``BandfluxModel`` is a subclass of the
-``PhysicalModel`` whose computation is only defined at the band flux level. An example of this approach are models of empirically
-fit light curves, such as those from LCLIB. Since we do not have the underlying SEDs for these types of models,
-so we can only work with them at the band flux level. See the
+In addition to being a convenient helper function for spectral models, generating the data at the band flux level allows certain models to skip spectral-level flux density generation. In particular, a ``BandfluxModel`` is a subclass of the ``PhysicalModel`` whose computation is only defined at the band flux level. An example of this approach is using models of empirically fit light curves, such as those from LCLIB. Since we do not have the underlying SEDs for these types of models, so we can only work with them at the band flux level. See the
 :doc:`lightcurve template model <notebooks/lightcurve_source_demo>` for an example of this type of model.
 
-**Note** that most models in LightCurveLynx operate at the spectral level and we *strongly* encourage new models to
-produce spectral-level information where possible. Working at the finer grained level allows more comprehensive and accurate
-simulations, such as accounting for wavelength and time compression due to redshift. The models that generate
-band fluxes directly will not account for all of these factors.
+**Note** that most models in LightCurveLynx operate at the spectral level and we *strongly* encourage new models to produce spectral-level information where possible. Working at the finer grained level allows more comprehensive and accurate simulations, such as accounting for wavelength and time compression due to redshift. The models that generate band fluxes directly will not account for all of these factors.
 
 
 Running a Full Simulation
@@ -173,14 +162,16 @@ To run a full simulation, users call the ``simulate_lightcurves()`` function, wh
 
     results = simulate_lightcurves(model, num_samples, survey_info)
 
-The ``simulate_lightcurves()`` function has many additional arguments to allow the user to
-control various aspects of the simulation. These include:
+The ``simulate_lightcurves()`` function has many additional arguments to allow the user to control various aspects of the simulation. These include:
 
-* ``obs_time_window_offset`` and ``rest_time_window_offset`` which limit simulation to windows around the (observer and rest-frame respectively) t0 of the model.
+* ``obs_time_window_offset`` and ``rest_time_window_offset`` which limit simulation to windows around the (observer and rest-frame respectively) t0 of the model. For some examples of this, see the :doc:`Basic SN Iqa <notebooks/simple_snia>`, :doc:`Mdwarf Flares <notebooks/mdwarf_flares>`, or :doc:`Redback <notebooks/pre_executed/redback_example>` notebooks.
 * ``obstable_save_cols``, ``param_cols``, and ``save_full_filter_names`` which allow users to save additional context information about the simulation in the results.
 * ``output_file_path`` which allows users to save the results to a file instead of returning them directly.
 * ``executor``, ``batch_size``, and ``num_jobs`` which allow users to run the simulation in parallel. See the section on parallelization below for more details.
+* ``drop_empty_rows`` which automatically drops rows for objects with no observations.
+* ``progress_bar`` which allows users to disable the progress bar.
 * ``rng`` which allows users to control the randomness of the simulation by passing in a predefined random number generator. See the section on controlling randomness below for more details.
+* ``graph_state`` which allows users to replay previous simulations.
 
 
 Examples
@@ -204,7 +195,7 @@ See our selection of :doc:`tutorial notebooks <notebooks>` for further examples.
 Controlling Randomness
 -------------------------------------------------------------------------------
 
-LightCurveLynx allows the user to control randomness by passing in a predefined random number generator to ``simulate_lightcurves()`` via the `rng` parameter. If the user provides a random number generator with a fixed seed, then the parameters sampled throughout the simulation are effectively predefined and identical between simulations.
+LightCurveLynx allows the user to control randomness by passing in a predefined random number generator to ``simulate_lightcurves()`` via the ``rng`` parameter. If the user provides a random number generator with a fixed seed, then the parameters sampled throughout the simulation are effectively predefined and identical between simulations.
 
 .. code-block:: python
 
@@ -244,26 +235,28 @@ Note that if you want to produce exactly the same results, you can instead provi
 Running in Parallel
 -------------------------------------------------------------------------------
 
-Simulations can be performed in parallel by providing a ``concurrent.futures.Executor`` object.
-This object can be a built-in parallelization method, such as 
-`ProcessPoolExecutor`, or other libraries, such as `dask <https://docs.dask.org/en/latest/>`_ or
-`ray <https://docs.ray.io/en/latest/>`_. Note that each process will load a full version of all the data,
-so they may be memory intensive. 
+Simulations can be performed in parallel by providing a ``concurrent.futures.Executor`` object via the ``executor`` parameter or setting the ``num_jobs`` parameter. For single machine parallelization, we recommend just using the ``num_jobs`` parameter as it sets defaults to minimize memory usage while ensuring safe execution.
 
-**WARNING:** Because we cannot guarantee that all libraries and modules we use are thread safe (and some of our own models are **not** thread safe), we do not support `ThreadPoolExecutor` or other multi-threaded approaches such as `dask.distributed.Client(threads_per_worker>1)`. Please use single threaded executors such as `concurrent.futures.ProcessPoolExecutor` (with a context of spawn) or a `dask.distributed.Client` with `threads_per_worker=1`. For more information see the :doc:`parallelization notebook <notebooks/parallel_runs>`.
+For more control, the users can instantiate their own executor object and pass it as a parameter. For example, you can use:
 
-**NOTE**: Not all subpackages work with distributed computation yet. If you get an error about
-not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
+* `ProcessPoolExecutor` with a specified number of workers. The context should be set as "spawn" or "forkserver" to avoid incompatibility issues with certain libraries and modules.
+* `Dask <https://docs.dask.org/en/latest/>`_ clients. You should always use ``threads_per_worker=1`` and `processes=True` to ensure each process runs in a separate thread-safe process.
+* `Joblib <https://joblib.readthedocs.io/en/stable/>`_ clients. We provide the ``lightcurvelynx.utils.parallelization_utils.JoblibExecutor`` wrapper for using joblib with the simulation framework.
+* `Loky <https://loky.readthedocs.io/en/stable/API.html>`_ clients.
+* `Ray <https://docs.ray.io/en/latest/>`_ clients.
+
+Because we cannot guarantee that all libraries and modules we use are thread safe (and some of our own models are **not** thread safe), we do not support ``ThreadPoolExecutor`` or other multi-threaded approaches such as ``dask.distributed.Client(threads_per_worker>1)``. Please use single threaded executors such as ``concurrent.futures.ProcessPoolExecutor`` (with a context of spawn) or a ``dask.distributed.Client`` with ``threads_per_worker=1``. For more information see the :doc:`parallelization notebook <notebooks/parallel_runs>`.
 
 The :doc:`parallelization notebook <notebooks/parallel_runs>` provides an example of how to use
 LightCurveLynx to run simulations in parallel including using dask and ray.
 
-Note that random number generation will be different when the batch size changes. If given a random number generator, each batch uses it to first sample parameters and then generate the observations. If the batch size changes, it changes how many numbers are sampled for each parameter. So using the same random number generator and different batch sizes will produce different results. In contrast, changing the number of jobs should not impact the results (given a seeded random number generator).
-
+**NOTES**: 
+* At the minimum each machine will need to load a full copy of the data. For some executors (e.g. `ProcessPoolExecutor`), the job loads one copy **per-batch**. Thus, these approaches can be extremely memory-intensive. For single-machine simulation, we suggest using the ``num_jobs`` parameter, which uses safe-shared memory.
+* Not all sub-packages work with distributed computation yet. If you get an error about
+not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
+* Due to how the numbers are generated, the sampling will change when the batch size changes even if a seeded random number generator has been provided. See the :doc:`randomness <randomness>` page for more details.
 
 Results and Output
 -------------------------------------------------------------------------------
 
-The results of a simulation are returned as a `nested-pandas DataFrame <https://nested-pandas.readthedocs.io/en/latest/>`_.
-For details on the structure of the output and how to save it, see the 
-:doc:`Results and Output documentation page <results_and_output>`.
+The results of a simulation are returned as a `nested-pandas DataFrame <https://nested-pandas.readthedocs.io/en/latest/>`_. For details on the structure of the output and how to save it, see the :doc:`Results and Output documentation page <results_and_output>`.

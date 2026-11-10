@@ -6,7 +6,7 @@ from numpy.testing import assert_allclose
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.noise_models.spectrograph_noise_models import (
     ConstantSpectrographNoiseModel,
-    SNANANoiseModel,
+    PoissonSpectrographNoiseModel,
 )
 
 
@@ -100,7 +100,7 @@ def test_snana_noise_model_solve(test_data_dir):
     """Test that the solved (ZP, SQSIGSKY) reproduce the file's SNR at both magrefs
     (SNANA's own self-check, sntools_spectrograph.c:748-754)."""
     snana_file = test_data_dir / "fake_snana_spectrograph_gapless.dat"
-    model = SNANANoiseModel(snana_file)
+    model = PoissonSpectrographNoiseModel(snana_file)
     snr = np.array([[50.01, 100.8, 148.36], [3.14, 4.90, 6.55]])[None] + 0.001 * np.arange(8)[:, None, None]
 
     for m, magref in enumerate(model.magref):
@@ -119,7 +119,7 @@ def test_snana_noise_model_solve(test_data_dir):
 )
 def test_snana_noise_model_solve_fail(test_data_dir, magref, snr, match):
     """Test that _solve raises a clear error for SNR tables that cannot be solved."""
-    model = SNANANoiseModel(test_data_dir / "fake_snana_spectrograph_gapless.dat")
+    model = PoissonSpectrographNoiseModel(test_data_dir / "fake_snana_spectrograph_gapless.dat")
     snr = np.asarray(snr, dtype=float).reshape(1, 2, 1)  # (W=1, M=2, T=1)
     with pytest.raises(ValueError, match=match):
         model._solve(magref, snr)
@@ -132,7 +132,7 @@ def test_snana_spectrograph_noise_model(test_data_dir):
     indices = np.array([2, 0])
 
     snana_file = test_data_dir / "fake_snana_spectrograph_gapless.dat"
-    model = SNANANoiseModel(snana_file)
+    model = PoissonSpectrographNoiseModel(snana_file)
     flux_density = 100
     sed = np.full((len(indices), len(model.spectrograph.query_waves)), flux_density)
     measurements = model.spectrograph.evaluate(sed)
@@ -156,7 +156,7 @@ def test_snana_spectrograph_noise_model(test_data_dir):
 
     # An unsmeared noise model uses the unpadded grid, but computes the same SNR (from the
     # unsmeared flux), so it gives the same errors for the same measurements.
-    model_no_smear = SNANANoiseModel(snana_file, compute_smear=False)
+    model_no_smear = PoissonSpectrographNoiseModel(snana_file, compute_smear=False)
     assert len(model_no_smear.spectrograph.query_waves) < len(model.spectrograph.query_waves)
     sed_unpadded = np.full((len(indices), len(model_no_smear.spectrograph.query_waves)), flux_density)
     err4 = model_no_smear.compute_flux_error(
@@ -175,7 +175,7 @@ def test_snana_noise_model_texpose_extrapolation(test_data_dir):
     snana_file = test_data_dir / "fake_snana_spectrograph_gapless.dat"
     obs_table = LookupOnlyObsTable({"exptime": [60.0, 120.0, 600.0, 7200.0, 14400.0]})
 
-    model = SNANANoiseModel(snana_file)
+    model = PoissonSpectrographNoiseModel(snana_file)
     sed = np.full((2, len(model.spectrograph.query_waves)), 100.0)
     measurements = model.spectrograph.evaluate(sed)
 
@@ -186,7 +186,7 @@ def test_snana_noise_model_texpose_extrapolation(test_data_dir):
 
     # With extrapolation, the SNR is scaled by sqrt(exptime / clamped exptime), so the
     # error is scaled by the inverse.
-    model_extrap = SNANANoiseModel(snana_file, allow_texpose_extrapolation=True)
+    model_extrap = PoissonSpectrographNoiseModel(snana_file, allow_texpose_extrapolation=True)
     err_short = model_extrap.compute_flux_error(measurements, sed=sed, obs_table=obs_table, indices=[0, 4])
     err_edges = model_extrap.compute_flux_error(measurements, sed=sed, obs_table=obs_table, indices=[1, 3])
     assert_allclose(err_short[0], err_edges[0] * np.sqrt(2.0))  # 60 s vs 120 s

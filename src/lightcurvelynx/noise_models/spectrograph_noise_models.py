@@ -204,8 +204,9 @@ class ConstantSpectrographNoiseModel(SpectrographNoiseModel):
         return np.full_like(measurements, self.noise_level, dtype=float)
 
 
-class SNANANoiseModel(SpectrographNoiseModel):
-    """A noise model that implements an SNANA-like Poisson noise from SNANA spectrograph files.
+class PoissonSpectrographNoiseModel(SpectrographNoiseModel):
+    """A noise model that implements a Poisson noise model for spectrograph measurements
+    based on data from SNANA spectrograph files.
 
     Attributes
     ----------
@@ -227,8 +228,8 @@ class SNANANoiseModel(SpectrographNoiseModel):
     _required_values = ["exptime"]
 
     def __init__(self, snana_file, compute_smear=True, allow_texpose_extrapolation=False):
-        """Create an SNANANoiseModel from an SNANA spectrograph file. It creates it's own spectrograph
-        object from the file.
+        """Create an PoissonSpectrographNoiseModel from an SNANA spectrograph file. It creates
+        it's own spectrograph object from the file.
 
         Parameters
         ----------
