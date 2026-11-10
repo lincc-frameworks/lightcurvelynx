@@ -136,7 +136,7 @@ It is possible to change the values within the ``GraphState`` object before pass
 Can I Simulate Spectra?
 --------------------------------------------------------------------------------
 
-Yes, with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph, in units of erg/s/cm². This feature is currently in an early stage of development and can only simulate simple noise in the measurements. In addition, spectra simulation can **only** be applied to spectra-level models. It will not work on bandflux-only models. For more details, see :doc:`the spectrograph demo notebook <notebooks/spectrograph_demo>`.
+Yes, with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph, in units of erg/s/cm². This feature is currently in an early stage of development and can only simulate simple noise in the measurements. In addition, spectra simulation can **only** be applied to spectra-level models. It will not work on bandflux-only models. For more details, see :doc:`the spectrograph demo notebook <notebooks/pre_executed/spectrograph_demo>`.
 
 
 Can I Generate Points from a Catalog?

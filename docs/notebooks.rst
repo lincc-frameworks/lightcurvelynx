@@ -31,7 +31,7 @@ features and models of the LightCurveLynx package.
     CCD Level Obstables <notebooks/ccd_obstables>
     Sampling Object Positions <notebooks/sampling_positions>
     Passband Demo <notebooks/passband-demo>
-    Simulating Spectra <notebooks/spectrograph_demo>
+    Simulating Spectra <notebooks/pre_executed/spectrograph_demo>
     Debugging Models <notebooks/debugging>
     Combining Models (including Hosts/Sources) <notebooks/host_source_models>
     Extrapolation in Time and Wavelength <notebooks/extrapolation>
