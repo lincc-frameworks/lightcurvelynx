@@ -177,8 +177,9 @@ def plot_lightcurves(
     # Assign different symbols for each filter.
     symbol_map = _build_symbol_map(unique_filters)
 
-    # Plot the data with one line for each filter.
-    for filter in unique_filters:
+    # Plot the data with one line for each filter. Plot them in the order they
+    # are specified in the color map.
+    for filter in colormap:
         filter_mask = filters == filter
 
         # Plot the underlying model if it is provided.
