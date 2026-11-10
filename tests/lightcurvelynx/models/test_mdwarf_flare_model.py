@@ -8,6 +8,7 @@ from astropy import units as u
 from astropy.cosmology import Planck18
 
 from lightcurvelynx.astro_utils.passbands import check_connect_to_svo
+from lightcurvelynx.math_nodes.given_sampler import GivenValueList
 from lightcurvelynx.models.mdwarf_flare_model import MDwarfFlareModel
 
 # The test values with known output. first, no sampling
@@ -113,11 +114,11 @@ def test_mdwarf_flare_model_parameter_sampling():
 
     model = MDwarfFlareModel(t0=10, node_label="model")
     state = model.sample_parameters(num_samples=1)
-    assert state["mw"]["distance_pc"] > 0
-    assert state["mw"]["ra"] >= 0
-    assert state["mw"]["ra"] <= 360
-    assert state["mw"]["dec"] >= -90
-    assert state["mw"]["dec"] <= 90
+    assert state["model"]["distance"] > 0
+    assert state["model"]["ra"] >= 0
+    assert state["model"]["ra"] <= 360
+    assert state["model"]["dec"] >= -90
+    assert state["model"]["dec"] <= 90
     # star temp
     assert state["model"]["star_temp"] > 0
     # star radius - to make sure it's not in solar radii i assert >100
@@ -158,3 +159,40 @@ def test_mdwarf_flare_model_warnings():
             t0=10,
             distance=10.0,  # 10 parsec
         )
+
+
+def test_mdwarf_flare_model_with_balmer_jump():
+    """
+    Test that we can set a Balmer jump ratio for the flare spectrum.
+    """
+    if not check_connect_to_svo():
+        pytest.skip("Skipping test if we cannot connect to the SVO service.")
+
+    model = MDwarfFlareModel(
+        star_temp=4000,
+        star_radius=0.09 * u.R_sun.to(u.cm),
+        flare_fwhm=0.1,
+        flare_amplitude=0.03,
+        flare_temp=5000,
+        balmer_jump_ratio=GivenValueList([1.0, 2.0, 2.0, 3.0, 1.0], stateful=False),
+        t0=10,
+        distance=100 * u.parsec,
+    )
+
+    # test that compute_sed runs/has the shape we expect
+    states = model.sample_parameters(num_samples=5)
+    fluxes = model.evaluate_sed(times, wavelengths, states)
+    assert fluxes.shape == (5, 201, 4000)
+
+    # Check that the flux_perfect should be the same when the Balmer jump ratio
+    # is the same and different otherwise.
+    assert np.allclose(fluxes[0], fluxes[4])  # first and last should be the same
+    assert np.allclose(fluxes[1], fluxes[2])  # second and third should be the same
+    assert not np.allclose(fluxes[0], fluxes[1])
+    assert not np.allclose(fluxes[0], fluxes[2])
+    assert not np.allclose(fluxes[0], fluxes[3])
+    assert not np.allclose(fluxes[1], fluxes[3])
+    assert not np.allclose(fluxes[1], fluxes[4])
+    assert not np.allclose(fluxes[2], fluxes[3])
+    assert not np.allclose(fluxes[2], fluxes[4])
+    assert not np.allclose(fluxes[3], fluxes[4])

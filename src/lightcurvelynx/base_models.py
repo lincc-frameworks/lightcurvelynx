@@ -53,6 +53,7 @@ static functions.
 
 from functools import partial
 
+import astropy.units as u
 import numpy as np
 
 from lightcurvelynx.graph_state import DependencyGraph, GraphState
@@ -691,8 +692,13 @@ class ParameterizedNode:
                 if graph_state.num_samples == 1:
                     graph_state.set(self.node_string, name, setter.value)
                 else:
-                    # Note we can't use np.full here in case setter.value is an array itself.
-                    repeated_value = np.array([setter.value] * graph_state.num_samples)
+                    # Note we can't use np.full here in case setter.value is an array itself,
+                    # and we need to handle the case where setter.value is an astropy unit.
+                    repeated_list = [setter.value] * graph_state.num_samples
+                    if isinstance(setter.value, u.Quantity):
+                        repeated_value = u.Quantity(repeated_list)
+                    else:
+                        repeated_value = np.array(repeated_list)
                     graph_state.set(self.node_string, name, repeated_value)
             elif setter.source_type == _ParameterSource.MODEL_PARAMETER:
                 graph_state.set(

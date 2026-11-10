@@ -116,7 +116,7 @@ class MDwarfFlareModel(SEDModel):
             flow = Flow.from_file(_LIGHTCURVELYNX_BASE_DATA_DIR / "model_files/flare_flow.pzflow.pkl")
             node = PZFlowNode(flow)
             # the node has them in log space
-            star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff, label="mathnode")
+            star_temp = BasicMathNode("10 ** log_teff", log_teff=node.logTeff)
             # converting from solar radii to cm
             star_radius = BasicMathNode("10 ** log_radius * 6.96e10", log_radius=node.logRadius)
 
@@ -153,7 +153,7 @@ class MDwarfFlareModel(SEDModel):
             description="The temperature of the cold part of the flare in kelvins.",
         )
         if not self.has_valid_param("distance"):
-            sampler = MilkyWayCoordSampler(survey_footprint=MOC, node_label="mw")
+            sampler = MilkyWayCoordSampler(survey_footprint=MOC)
             self.set_parameter("distance", value=sampler.distance_pc)
             if self.has_valid_param("ra") or self.has_valid_param("dec"):
                 warnings.warn(
@@ -398,10 +398,12 @@ class MDwarfFlareModel(SEDModel):
         I_flare_for_tess = self._build_spectrum_bb_with_balmer(
             wavelengths=self._tess_waves,
             temp_low=params["flare_temp"],
+            balmer_jump_ratio=params["balmer_jump_ratio"],
         )
         I_flare_full = self._build_spectrum_bb_with_balmer(
             wavelengths=wavelengths,
             temp_low=params["flare_temp"],
+            balmer_jump_ratio=params["balmer_jump_ratio"],
         )
         integral_flare = self._tess_band_integrate(I_flare_for_tess)
 

@@ -101,13 +101,15 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **SEDModel** - ``SEDModel`` is a subclass of the ``BasePhysicalModel`` class that specifically represents flux density of a physical source as a function of time and wavelength.
 
-**Spectrograph** - A spectrograph is an instrument that measures the flux density of a source as a function of wavelength. See also :doc:`Multiple Surveys Notebook <notebooks/multiple_surveys>` and :doc:`Spectrograph Demo Notebook <notebooks/spectrograph_demo>`.
+**Spectrograph** - A spectrograph is an instrument that measures the flux density of a source as a function of wavelength. See also :doc:`Multiple Surveys Notebook <notebooks/multiple_surveys>` and :doc:`Spectrograph Demo Notebook <notebooks/pre_executed/spectrograph_demo>`.
 
-**SurveyInfo** - The ``SurveyInfo`` object contains all the information about the survey(s) being simulated, including the observation information (``ObsTable``), passbands (``PassbandGroup``), and noise model for each survey. See also :doc:`Introduction Notebook <notebooks/introduction>` and :doc:`Survey Data <survey_data>`. For spectrograph simulations, see :doc:`Spectrograph Demo Notebook <notebooks/spectrograph_demo>`; for multiple surveys, see :doc:`Multiple Surveys Notebook <notebooks/multiple_surveys>`.
+**SurveyInfo** - The ``SurveyInfo`` object contains all the information about the survey(s) being simulated, including the observation information (``ObsTable``), passbands (``PassbandGroup``), and noise model for each survey. See also :doc:`Introduction Notebook <notebooks/introduction>` and :doc:`Survey Data <survey_data>`. For spectrograph simulations, see :doc:`Spectrograph Demo Notebook <notebooks/pre_executed/spectrograph_demo>`; for multiple surveys, see :doc:`Multiple Surveys Notebook <notebooks/multiple_surveys>`.
 
 **TableSampler** - A sampler that draws samples from a table of precomputed values. See also :doc:`Advanced Sampling Notebook <notebooks/advanced_sampling>`.
 
 **Time-Varying Effects** - For information on creating time-varying effects in simulations, see :doc:`Time Varying Effects Notebook <notebooks/time_varying_effects>`.
+
+**Time Windows** - LightCurveLynx allows users to filter observations to only those that occur within a window around the object's ``t0`` parameter using the ``obs_time_window_offset`` or ``rest_time_window_offset`` parameters. For some examples of this, see the :doc:`Basic SN Iqa <notebooks/simple_snia>`, :doc:`Mdwarf Flares <notebooks/mdwarf_flares>`, or :doc:`Redback <notebooks/pre_executed/redback_example>` notebooks.
 
 **UniformRADEC** - A sampler that draws uniform samples in right ascension and declination. See also :doc:`Sampling Positions Notebook <notebooks/sampling_positions>`.
 
