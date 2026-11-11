@@ -254,7 +254,7 @@ The :doc:`parallelization notebook <notebooks/parallel_runs>` provides an exampl
 LightCurveLynx to run simulations in parallel including using dask and ray.
 
 .. note::
-   * At the minimum each machine will need to load a full copy of the data. For some executors (e.g. `ProcessPoolExecutor``), the job loads one copy **per-batch**. Thus, these approaches can be extremely memory-intensive. For single-machine simulation, we suggest using the `num_jobs` parameter, which uses safe-shared memory.
+   * At the minimum each machine will need to load a full copy of the data. For some executors (e.g. ``ProcessPoolExecutor``), the job loads one copy **per-batch**. Thus, these approaches can be extremely memory-intensive. For single-machine simulation, we suggest using the ``num_jobs`` parameter, which uses safe-shared memory.
    * Not all sub-packages work with distributed computation yet. If you get an error about
      not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
    * Due to how the numbers are generated, the sampling will change when the batch size changes even if a seeded random number generator has been provided. See the :doc:`randomness <randomness>` page for more details.
