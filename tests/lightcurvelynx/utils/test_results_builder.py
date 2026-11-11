@@ -481,3 +481,48 @@ def test_simulation_results_builder_add_light_curve_column_in_progress():
 
     with pytest.raises(RuntimeError):
         builder.add_light_curve_column("new_column", dtype=int)
+
+
+def test_simulation_results_builder_light_curve_string_column():
+    """Test that string columns in light curves are properly converted to pd.StringDtype."""
+    builder = _create_basic_builder(2)
+
+    # Create observation table with a string column
+    obstable = FakeObsTable(
+        {
+            "time": [1.0, 2.0],
+            "ra": [0.0, 0.0],
+            "dec": [10.0, 10.0],
+            "filter": ["r", "r"],
+            "zp": [0.5, 0.5],
+            "instrument_name": ["telescope_a", "telescope_b"],  # string column
+        }
+    )
+
+    # Add the string column to light curves
+    builder.add_light_curve_column("instrument_name", obs_table_list=[obstable])
+    assert "instrument_name" in builder.lightcurve_dict
+
+    # Add observations and build results to test the StringDtype conversion on line 391
+    builder.start_new_object(0)
+    builder.add_light_curve_observations(
+        mjd=[1.0, 2.0],
+        filter=["g", "r"],
+        flux=[1.0, 2.0],
+        fluxerr=[0.1, 0.2],
+        flux_perfect=[1.0, 2.0],
+        survey_idx=[0, 0],
+        obs_idx=[0, 1],
+        is_saturated=[False, False],
+        instrument_name=["telescope_a", "telescope_b"],
+    )
+    builder.append_current_object()
+
+    # Build results and verify the string column has pd.StringDtype
+    df = builder.build_results()
+    lc = df["lightcurve"].iloc[0]
+
+    # Verify the string column exists and has the correct dtype
+    assert "instrument_name" in lc
+    assert isinstance(lc["instrument_name"].dtype, pd.StringDtype)
+    assert list(lc["instrument_name"]) == ["telescope_a", "telescope_b"]

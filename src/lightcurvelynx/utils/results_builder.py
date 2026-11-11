@@ -325,8 +325,8 @@ class SimulationResultBuilder:
         Finish and append the current object to the main light curve dictionary. We sort
         the observations by their MJD before appending.
         """
-        if self.current_light_curve is None:
-            raise RuntimeError("No current light curve to append.")
+        if self.current_index is None:
+            raise RuntimeError("No current object to append.")
 
         # Nothing to append.
         if self.current_num_obs == 0:
@@ -388,7 +388,9 @@ class SimulationResultBuilder:
         for col in self.lightcurve_dict:
             light_curve_data[col] = pd.Series(
                 self.lightcurve_dict[col],
-                dtype="string" if self.lightcurve_dtypes[col] is str else self.lightcurve_dtypes[col],
+                dtype=pd.StringDtype()
+                if pd.api.types.is_string_dtype(self.lightcurve_dtypes[col])
+                else self.lightcurve_dtypes[col],
                 index=self.lightcurve_index,
             )
         lightcurve_frame = pd.DataFrame(data=light_curve_data)
