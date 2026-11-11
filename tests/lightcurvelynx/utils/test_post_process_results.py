@@ -320,9 +320,15 @@ def test_results_drop_empty():
     assert len(filtered_results) == 3
     assert filtered_results["object_id"].tolist() == [0, 2, 3]
 
+    # Check that we have the correct light curves. Since we reset the indices,
+    # we need to check using the new indices (old index is preserved in the
+    # object_id column).
     assert len(filtered_results["lightcurve"][0]) == 3
-    assert len(filtered_results["lightcurve"][2]) == 1
-    assert len(filtered_results["lightcurve"][3]) == 2
+    assert np.allclose(filtered_results["lightcurve"][0]["flux"], [10.0, 12.0, 11.0])
+    assert len(filtered_results["lightcurve"][1]) == 1
+    assert np.allclose(filtered_results["lightcurve"][1]["flux"], [20.0])
+    assert len(filtered_results["lightcurve"][2]) == 2
+    assert np.allclose(filtered_results["lightcurve"][2]["flux"], [22.0, 30.0])
 
     # Try a nested frame with only spectra (no light curves).
     results2 = NestedFrame(data=source_data, index=[0, 1, 2, 3, 4])
@@ -628,6 +634,49 @@ def test_results_augment_lightcurves_single_invalid():
     assert "detection" in results.columns
     assert "mag" in results.columns
     assert "magerr" in results.columns
+
+
+def test_results_augment_after_drop_empty():
+    """Test that we can call results_augment_lightcurves after dropping rows with the
+    results_drop_empty function.
+    """
+    # Create a NestedFrame with some empty lightcurves.
+    source_data = {
+        "object_id": [0, 1, 2, 3, 4],
+        "ra": [10.0, 20.0, 30.0, 40.0, 50.0],
+        "dec": [-10.0, -20.0, -30.0, -40.0, -50.0],
+        "nobs": [3, 0, 1, 2, 0],
+        "z": [0.1, 0.2, 0.3, 0.4, 0.5],
+        "t0": [59000, 59001, 59002, 59003, 59004],
+    }
+    results = NestedFrame(data=source_data, index=[0, 1, 2, 3, 4])
+
+    # Create a nested DataFrame with lightcurves, some of which are empty.
+    nested_data = {
+        "mjd": [59005, 59006, 59007, 59008, 59009, 59010],
+        "flux": [10.0, 12.0, 11.0, 20.0, 22.0, 30.0],
+        "fluxerr": [1.0, 1.0, 1.0, 2.0, 2.0, 3.0],
+        "filter": ["g", "r", "i", "g", "r", "i"],
+    }
+    nested_frame = pd.DataFrame(data=nested_data, index=[0, 0, 0, 2, 3, 3])
+
+    # Add the nested DataFrame to the results.
+    results = results.join_nested(nested_frame, "lightcurve")
+    assert len(results) == 5
+    assert results["object_id"].tolist() == [0, 1, 2, 3, 4]
+
+    # Apply the drop_empty function.
+    filtered_results = results_drop_empty(results)
+    assert len(filtered_results) == 3
+    assert filtered_results["object_id"].tolist() == [0, 2, 3]
+
+    # Augment the light curves (with a t)
+    augmented_results = results_augment_lightcurves(filtered_results, min_snr=0.0001)
+    assert "time_rel" in augmented_results["lightcurve"].nest.columns
+    assert np.allclose(
+        augmented_results["lightcurve.time_rel"].tolist(),
+        [5.0, 6.0, 7.0, 6.0, 6.0, 7.0],
+    )
 
 
 def test_augment_lightcurves_with_existing_detection_column():
