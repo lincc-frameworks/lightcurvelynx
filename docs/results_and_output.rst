@@ -53,7 +53,7 @@ For example, the parameter ``c`` from the node ``salt2`` would be stored under t
 
 The parameter values will either be scalars or arrays depending on the number of samples generated.
 
-Admittedly, since the parameters are stored in a raw format, they can be difficult to work with. We provide utility functions to convert these parse through the list and work with them.
+Admittedly, since the parameters are stored in a raw format, they can be difficult to work with. We provide utility functions to parse through the list and work with them.
 
 Users can rebuild the original ``GraphState`` object from the parameters using the ``GraphState.from_list()`` function:
 
