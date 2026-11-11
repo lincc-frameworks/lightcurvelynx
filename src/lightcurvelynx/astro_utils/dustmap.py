@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pooch
 from astropy.coordinates import SkyCoord
-from citation_compass import CiteClass, cite_function
+from citation_compass import CiteClass
 
 from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.base_models import FunctionNode
@@ -179,8 +179,7 @@ class ConstantHemisphereDustMap:
         return self.compute_ebv(coords.ra.deg, coords.dec.deg)
 
 
-@cite_function
-class SFDMap(DustEBV):
+class SFDMap(DustEBV, CiteClass):
     """A dustmap using the sfdmap2 package.
 
     This does not need to be used with DustmapWrapper, but rather is
