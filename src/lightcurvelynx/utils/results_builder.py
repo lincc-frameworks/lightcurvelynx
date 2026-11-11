@@ -220,31 +220,24 @@ class SimulationResultBuilder:
             warnings.warn(f"No observation tables contain column {column_name}.")
             return
         else:
-            # Collect the dtypes of the column from surveys that have it.
-            present_dtypes = [
+            # Collect the dtypes of the column from each observation table. If the column is missing,
+            # use object.
+            all_dtypes = [
                 (
                     obs_table[column_name].dtype
                     if hasattr(obs_table[column_name], "dtype")
                     else obs_table.get_value_per_row(column_name, indices=[]).dtype
                 )
-                for obs_table in obs_table_list
                 if column_name in obs_table
+                else object
+                for obs_table in obs_table_list
             ]
 
-            # Determine the common dtype from surveys that supply the column.
-            if len(set(present_dtypes)) == 1:
-                # All surveys with the column have the same dtype; use it directly.
-                self.lightcurve_dtypes[column_name] = present_dtypes[0]
+            # Make sure we can determine a consistent dtype for the column.
+            if len(set(all_dtypes)) == 1:
+                self.lightcurve_dtypes[column_name] = all_dtypes[0]
             else:
-                # Surveys have different dtypes; find a common type via numpy result_type.
-                # This ensures Parquet compatibility by promoting to a common type that can hold all values.
-                # For missing values in surveys without the column, pandas will use NaN (for numeric types).
-                try:
-                    common_dtype = np.result_type(*present_dtypes)
-                    self.lightcurve_dtypes[column_name] = common_dtype
-                except TypeError:
-                    # If types cannot be unified (e.g., string and numeric), fall back to object.
-                    self.lightcurve_dtypes[column_name] = object
+                self.lightcurve_dtypes[column_name] = object
 
         # Add the empty column.
         self.lightcurve_dict[column_name] = []

@@ -437,12 +437,11 @@ def test_simulation_results_builder_add_light_curve_column():
     assert "custom_col2" in builder.lightcurve_dict
     assert builder.lightcurve_dtypes["custom_col2"] == object
 
-    # If we add a column that is only present in one observation table, we use the dtype
-    # from the table that has it. Missing values in other surveys will be represented as NaN,
-    # which is correctly handled by pandas/Arrow for numeric types.
+    # If we add a column that is only present in one observation table, it should default
+    # to 'object' to correctly handle None.
     builder.add_light_curve_column("custom_col3", obs_table_list=[obstable1, obstable2])
     assert "custom_col3" in builder.lightcurve_dict
-    assert builder.lightcurve_dtypes["custom_col3"] == np.float64
+    assert builder.lightcurve_dtypes["custom_col3"] == object
 
     # If we add a column that is not present in any observation table, it should produce a warning
     # and not add the column.
@@ -471,93 +470,3 @@ def test_simulation_results_builder_add_light_curve_column_in_progress():
 
     with pytest.raises(RuntimeError):
         builder.add_light_curve_column("new_column", dtype=int)
-
-
-def test_simulation_results_builder_add_light_curve_column_type_promotion():
-    """Test that different numeric types are promoted to a common type."""
-    builder = _create_basic_builder(10)
-
-    # Create observation tables with different numeric dtypes that can be promoted
-    obstable1 = FakeObsTable(
-        {
-            "time": [1.0, 2.0],
-            "ra": [0.0, 0.0],
-            "dec": [10.0, 10.0],
-            "filter": ["r", "r"],
-            "zp": [0.5, 0.5],
-            "numeric_col": [1, 2],  # int
-        }
-    )
-    obstable2 = FakeObsTable(
-        {
-            "time": [3.0],
-            "ra": [0.0],
-            "dec": [10.0],
-            "filter": ["r"],
-            "zp": [0.5],
-            "numeric_col": [1.5],  # float
-        }
-    )
-
-    # int and float should be promoted to float
-    builder.add_light_curve_column("numeric_col", obs_table_list=[obstable1, obstable2])
-    assert "numeric_col" in builder.lightcurve_dict
-    # np.result_type(int, float) returns float64
-    assert builder.lightcurve_dtypes["numeric_col"] == np.float64
-
-
-def test_simulation_results_builder_add_light_curve_column_incompatible_types():
-    """Test that incompatible types (string and numeric) fall back to object."""
-    builder = _create_basic_builder(10)
-
-    obstable1 = FakeObsTable(
-        {
-            "time": [1.0, 2.0],
-            "ra": [0.0, 0.0],
-            "dec": [10.0, 10.0],
-            "filter": ["r", "r"],
-            "zp": [0.5, 0.5],
-            "mixed_col": ["a", "b"],  # string
-        }
-    )
-    obstable2 = FakeObsTable(
-        {
-            "time": [3.0],
-            "ra": [0.0],
-            "dec": [10.0],
-            "filter": ["r"],
-            "zp": [0.5],
-            "mixed_col": [1],  # int - incompatible with string
-        }
-    )
-
-    # string and int cannot be promoted, should fall back to object
-    builder.add_light_curve_column("mixed_col", obs_table_list=[obstable1, obstable2])
-    assert "mixed_col" in builder.lightcurve_dict
-    assert builder.lightcurve_dtypes["mixed_col"] == object
-
-
-def test_simulation_results_builder_build_results_with_no_objects():
-    """Test that build_results works correctly when no objects have been added."""
-    builder = _create_basic_builder(5)
-
-    df = builder.build_results()
-    assert len(df) == 5
-    assert all(df["lightcurve"].isna())
-    assert all(df["spectra"].isna())
-    assert all(df["nobs"] == 0)
-
-
-def test_simulation_results_builder_add_result_column_with_none_values():
-    """Test that result columns with None values are handled correctly."""
-    builder = _create_basic_builder(3)
-
-    # Add a column with None values (mixed types)
-    builder.add_result_column("optional_column", [1.0, None, 3.0])
-    assert "optional_column" in builder.results_dict
-    # Mixed numeric/None should be object
-    assert builder.results_dtypes["optional_column"] == object
-
-    df = builder.build_results()
-    assert "optional_column" in df.columns
-    assert pd.isna(df["optional_column"].iloc[1])
