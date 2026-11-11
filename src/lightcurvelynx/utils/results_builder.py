@@ -11,6 +11,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 from nested_pandas import NestedFrame
 
 logger = logging.getLogger(__name__)
@@ -119,7 +120,6 @@ class SimulationResultBuilder:
             "measured_flux_error": [],
             "instrument": [],
         }
-        import pyarrow as pa
 
         spectrum_array_dtype = pd.ArrowDtype(pa.list_(pa.float64()))
         self.spectra_dtypes = {

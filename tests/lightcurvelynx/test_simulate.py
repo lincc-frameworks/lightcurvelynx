@@ -2368,3 +2368,69 @@ def test_write_read_empty_lightcurve(test_data_dir):
         )
         results2 = read_parquet(tmp_path / "res2")  # Read whole directory
         assert len(results2) == 2
+
+
+def test_write_read_empty_spectra(test_data_dir):
+    """Test that we can merge files when one of them has an empty spectra nested table."""
+    # The first survey points at a different location on the sky and uses a spectrograph.
+    obsdata = {
+        "time": [0.5],
+        "ra": [90.0],
+        "dec": [-60.0],
+        "filter": ["spectra"],
+        "zp": [0.05],
+        "seeing": [1.12],
+        "skybrightness": [20.0],
+        "exptime": [29.2],
+        "nexposure": [2],
+    }
+    spectrograph = Spectrograph.from_regular_grid(2000.0, 10000.0, 100.0, instrument="survey2")
+    survey_info = SurveyInfo(
+        obstable=OpSim(obsdata),
+        passbands=spectrograph,
+        noise_model=ConstantSpectrographNoiseModel(1.0),
+    )
+
+    # We create a model where one source will be seen and the other won't. We use
+    # both ordering, so we can test both parquet merge cases.
+    model1 = ConstantSEDModel(
+        brightness=100.0,
+        t0=5.0,
+        ra=GivenValueList([0.0, 180.0], stateful=False),
+        dec=GivenValueList([10.0, -60.0], stateful=False),
+        redshift=0.01,
+    )
+    model2 = ConstantSEDModel(
+        brightness=100.0,
+        t0=5.0,
+        ra=GivenValueList([180.0, 0.0], stateful=False),
+        dec=GivenValueList([-60.0, 10.0], stateful=False),
+        redshift=0.01,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        Path.mkdir(tmp_path / "res1")
+        _ = simulate_lightcurves(
+            model1,
+            2,
+            survey_info,
+            batch_size=1,  # Need each file to have one sample.
+            output_file_path=tmp_path / "res1" / "results.parquet",
+            progress_bar=False,
+        )
+        results1 = read_parquet(tmp_path / "res1")  # Read whole directory
+        assert len(results1) == 2
+
+        Path.mkdir(tmp_path / "res2")
+        _ = simulate_lightcurves(
+            model2,
+            2,
+            survey_info,
+            batch_size=1,  # Need each file to have one sample.
+            output_file_path=tmp_path / "res2" / "results.parquet",
+            progress_bar=False,
+        )
+        results2 = read_parquet(tmp_path / "res2")  # Read whole directory
+        assert len(results2) == 2
