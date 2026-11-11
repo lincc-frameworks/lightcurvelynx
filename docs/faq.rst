@@ -142,7 +142,7 @@ Yes, with some caveats. LightCurveLynx has built-in support for simulating spect
 Can I Generate Points from a Catalog?
 --------------------------------------------------------------------------------
 
-Yes. LightCurveLynx allows you to generate light curves for objects in a catalog containing positions using the ``CatalogRADECSampler`` object. This sampler takes a table with at least ``ra`` and ``dec`` columns. The ``from_hats()`` helper function loads catalogs directly from the `HATS format <https://www.ivoa.net/documents/Notes/HATS/>`_.
+Yes. LightCurveLynx allows you to generate light curves for objects in a catalog containing positions using the ``CatalogRADECSampler`` object. This sampler takes a table with at least ``ra`` and ``dec`` columns. The ``from_hats()`` helper function loads catalogs directly from the `HATS format <https://www.ivoa.net/documents/Notes/HATS/>`__.
 
 See the :doc:`sampling positions demo notebook <notebooks/sampling_positions>` for a detailed description of how to sample (RA, dec) positions.
 

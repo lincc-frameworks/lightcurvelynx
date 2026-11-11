@@ -3,7 +3,7 @@ Citations / Acknowledgements
 
 If you use LightCurveLynx in your research, we ask that you cite the following papers:
 
-  * Dai et. al. 2026 "LightCurveLynx: Forward Modeling of Time-Domain Surveys with Application to ZTF SN Ia DR2" (in review; see `arxiv.org/abs/2604.07134 <https://arxiv.org/abs/2604.07134>`_ )
+  * Dai et. al. 2026 "LightCurveLynx: Forward Modeling of Time-Domain Surveys with Application to ZTF SN Ia DR2" (in review; see `arxiv.org/abs/2604.07134 <https://arxiv.org/abs/2604.07134>`__ )
   * Kubica et. al. 2026 "LightCurveLynx: Fast and Nimble Time Domain Simulation for Astronomical Surveys" (`in review <https://joss.theoj.org/papers/01344d3b6112431d1a4e49e41389e587>`_)
 
 LightCurveLynx relies on numerous open source packages to perform the computation. Please make sure to cite the packages that your study uses.
@@ -39,8 +39,8 @@ citation information in class and function docstrings to help users identify rel
 As an example, consider the dust extinction effect. LightCurveLynx supports a variety of external dustmaps
 libraries, but was primarily designed to work with the `dustmaps <https://github.com/gregreen/dustmaps>`_
 package (Green 2018). The dust extinction is computed via the ExtinctionEffect which uses the
-`dust_extinction <https://github.com/karllark/dust_extinction>`_ package (Gordon 2024) or the
-`extinction <https://github.com/sncosmo/extinction>`_ package (Barbary et. al. 2017). In addition,
+`dust_extinction <https://github.com/karllark/dust_extinction>`__ package (Gordon 2024) or the
+`extinction <https://github.com/sncosmo/extinction>`__ package (Barbary et. al. 2017). In addition,
 each individual dustmap and extinction function should be cited
 from their original science paper. The `dustmaps readthedocs <https://dustmaps.readthedocs.io/en/latest/maps.html>`_
 page provides more information on the available dustmaps and their citations.
