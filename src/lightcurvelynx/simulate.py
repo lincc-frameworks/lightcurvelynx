@@ -14,6 +14,7 @@ from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.parallelization_utils import JoblibExecutor, assert_safe_executor
 from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
+from lightcurvelynx.utils.results_builder import SimulationResultBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -349,65 +350,34 @@ def _simulate_lightcurves_batch(simulation_info):
     if realized_num_samples != requested_num_samples:
         logger.info(f"Sampled {requested_num_samples} sources into {realized_num_samples} rows.")
 
-    # Create a dictionary for the object level information, including any saved parameters.
-    # Some of these are placeholders (e.g. nobs) until they can be filled in during the simulation.
-    # These values are always pulled from the outer-most object (model), which most often
-    # corresponds to the source (as opposed to a host).
+    # Create the data structure to track all of the simulation information and add the
+    # standard top-level columns from the model (e.g., ra, dec, t0, redshift).
     logger.info("Setting up result data structures.")
     ra = np.atleast_1d(model.get_param(sample_states, "ra"))
     dec = np.atleast_1d(model.get_param(sample_states, "dec"))
-    results_dict = {
-        "id": list(range(realized_num_samples)),
-        "ra": ra.tolist(),
-        "dec": dec.tolist(),
-        "nobs": [0] * realized_num_samples,
-        "t0": np.atleast_1d(model.get_param(sample_states, "t0")).tolist(),
-        "z": np.atleast_1d(model.get_param(sample_states, "redshift")).tolist(),
-    }
+    t0 = np.atleast_1d(model.get_param(sample_states, "t0"))
+    redshift = np.atleast_1d(model.get_param(sample_states, "redshift"))
+    results_builder = SimulationResultBuilder(ra, dec, t0, redshift)
+
+    # Add any parameters the user wants to save.
     if simulation_info.param_cols is not None:
         for col in simulation_info.param_cols:
-            if col not in sample_states:
-                raise KeyError(
-                    f"Parameter column {col} not found in model parameters. "
-                    f"Available parameters are: {sample_states.get_all_params_names()}."
-                )
-            results_dict[col.replace(".", "_")] = np.atleast_1d(sample_states[col]).tolist()
+            results_builder.add_param_column(col, sample_states)
 
-    # Set up the nested array for the per-observation data, including ObsTable information.
-    nested_index = []
-    nested_dict = {
-        "mjd": [],
-        "filter": [],
-        "flux": [],
-        "fluxerr": [],
-        "flux_perfect": [],
-        "survey_idx": [],  # The index of the survey
-        "obs_idx": [],  # The index of the observation in the survey
-        "is_saturated": [],
-    }
+    # Add any obstable_save_cols to the light curves nested dictionary (note the
+    # base columns are already added).
     if obstable_save_cols is None:
         obstable_save_cols = []
     for col in obstable_save_cols:
-        nested_dict[col] = []
+        results_builder.add_light_curve_column(col, obs_table_list=obstable)
     if simulation_info.save_full_filter_names:
-        nested_dict["full_filter_name"] = []
-
-    # Create a second nested dictionary for the spectra if we are saving those.
-    spectra_index = []
-    spectra_dict = {
-        "mjd": [],
-        "waves": [],
-        "measured_flux": [],
-        "measured_flux_perfect": [],
-        "measured_flux_error": [],
-        "instrument": [],
-    }
+        results_builder.add_light_curve_column("full_filter_name", dtype=str)
 
     # Determine which of the of the simulated positions match the pointings from each ObsTable.
     logger.info("Performing range searches to find matching observations.")
     start_times, end_times = get_time_windows(
-        model.get_param(sample_states, "t0"),
-        model.get_param(sample_states, "redshift"),
+        t0,
+        redshift,
         simulation_info.obs_time_window_offset,
         simulation_info.rest_time_window_offset,
     )
@@ -429,13 +399,8 @@ def _simulate_lightcurves_batch(simulation_info):
         unit="obj",
         disable=not simulation_info.progress_bar,
     ):
-        total_num_obs = 0
-
-        # Create an object-specific nested dictionary for this so we can sort by time
-        # (over all surveys) before appending to the overall nested dictionary.
-        # These will be collected as a list of lists/numpy arrays until they are
-        # all merged together.
-        object_nested_dict = {key: [] for key in nested_dict}
+        # Start the data accumulation for observation data for this object (over all surveys).
+        results_builder.start_new_object(idx)
 
         for survey_idx in range(num_surveys):
             # Find the indices, times, and filters where the current model is seen. Skip any
@@ -479,15 +444,14 @@ def _simulate_lightcurves_batch(simulation_info):
 
                 # We append each spectral as a separate entry in the spectra nested dictionary.
                 for obs_idx, obs_time in enumerate(obs_times):
-                    spectra_dict["mjd"].append(obs_time)
-                    spectra_dict["waves"].append(passbands[survey_idx].bin_centers)
-                    spectra_dict["measured_flux_perfect"].append(measured_flux_perfect[obs_idx])
-                    spectra_dict["measured_flux"].append(measured_flux[obs_idx])
-                    spectra_dict["measured_flux_error"].append(measured_flux_error[obs_idx])
-                    spectra_dict["instrument"].append(passbands[survey_idx].instrument)
-
-                # Add the new entries to the spectra_index.
-                spectra_index.extend([idx] * nobs)
+                    results_builder.add_spectra_observations(
+                        mjd=obs_time,
+                        waves=passbands[survey_idx].bin_centers,
+                        measured_flux_perfect=measured_flux_perfect[obs_idx],
+                        measured_flux=measured_flux[obs_idx],
+                        measured_flux_error=measured_flux_error[obs_idx],
+                        instrument=passbands[survey_idx].instrument,
+                    )
             else:
                 # This is a PassbandGroup integrator, so we compute the bandfluxes for the lightcurves column.
                 # Compute the bandfluxes and errors over just the given filters.
@@ -520,65 +484,38 @@ def _simulate_lightcurves_batch(simulation_info):
                 else:
                     saturation_flags = [False] * nobs
 
-                # Append the per-observation data to the nested dictionary, including
-                # any needed ObsTable columns. These are appended
-                object_nested_dict["mjd"].append(obs_times)
-                object_nested_dict["filter"].append(obs_filters)
-                object_nested_dict["flux_perfect"].append(bandfluxes_perfect)
-                object_nested_dict["flux"].append(bandfluxes)
-                object_nested_dict["fluxerr"].append(bandfluxes_error)
-                object_nested_dict["survey_idx"].append([survey_idx] * nobs)
-                object_nested_dict["is_saturated"].append(saturation_flags)
-                object_nested_dict["obs_idx"].append(obs_index)
-                for col in obstable_save_cols:
-                    if len(obs_index) > 0:
-                        col_data = obstable[survey_idx].get_value_per_row(
-                            col, indices=obs_index, default=None
-                        )
-                        object_nested_dict[col].append(col_data)
-
-                # Add the new entries to the light curve's nested index.
-                nested_index.extend([idx] * nobs)
-
-                # Add the survey name from the integrator information if we chose to save it.
+                # Create a dictionary of the extra columns to be added.
+                extra_cols = {
+                    col: obstable[survey_idx].get_value_per_row(col, indices=obs_index, default=None)
+                    for col in obstable_save_cols
+                }
                 if simulation_info.save_full_filter_names:
                     obs_filters = np.asarray(obs_filters)
                     full_filter_names = np.empty_like(obs_filters, dtype=object)
                     for filter_name in np.unique(obs_filters):
                         pb_obj = passbands[survey_idx][filter_name]
                         full_filter_names[obs_filters == filter_name] = pb_obj.full_name
-                    object_nested_dict["full_filter_name"].append(list(full_filter_names))
+                    extra_cols["full_filter_name"] = full_filter_names.tolist()
 
-            # Regardless of the integrator (instrument), we count the number of observations.
-            total_num_obs += nobs
+                # Save the values for this set of observations, including any extra columns.
+                results_builder.add_light_curve_observations(
+                    mjd=obs_times,
+                    filter=obs_filters,
+                    flux_perfect=bandfluxes_perfect,
+                    flux=bandfluxes,
+                    fluxerr=bandfluxes_error,
+                    survey_idx=[survey_idx] * nobs,
+                    obs_idx=obs_index,
+                    is_saturated=saturation_flags,
+                    **extra_cols,
+                )
 
-        # Sort the object nested dictionary by time (across all surveys) before appending to the
-        # overall nested dictionary (which will aggregate over all objects). We only do this
-        # if we have at least one non-spectral observation.
-        if len(object_nested_dict["mjd"]) > 0:
-            obj_survey_times = np.concatenate(object_nested_dict["mjd"])
-            sorted_indices = np.argsort(obj_survey_times, kind="stable")
-            for key in nested_dict:
-                nested_col_data = np.concatenate(object_nested_dict[key])
-                nested_dict[key].extend(nested_col_data[sorted_indices].tolist())
-
-        # The number of observations is the total across all surveys.
-        results_dict["nobs"][idx] = total_num_obs
+        # Finish this object and append it to the main results.
+        results_builder.finish()
 
     # Create the nested frame and either save it to a file or return it directly.
     logger.info("Compiling results.")
-    results = NestedFrame(data=results_dict, index=list(range(realized_num_samples)))
-    nested_frame = pd.DataFrame(data=nested_dict, index=nested_index)
-    results = results.join_nested(nested_frame, "lightcurve")
-
-    # Add the parameters as a pyarrow column.
-    params_array = sample_states.to_pyarrow_struct_array()
-    results["params"] = pd.Series(params_array, dtype=pd.ArrowDtype(params_array.type))
-
-    # Add in the spectra (if any were sampled).
-    if len(spectra_index) > 0:
-        spectra_frame = pd.DataFrame(data=spectra_dict, index=spectra_index)
-        results = results.join_nested(spectra_frame, "spectra")
+    results = results_builder.build_nested_frame(state=sample_states)
 
     # Drop any rows that have neither lightcurve nor spectra data.
     if simulation_info.drop_empty_rows:
