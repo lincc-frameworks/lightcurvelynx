@@ -21,6 +21,8 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **CatalogRADECSampler** - A node that samples positions (RA, Dec) from a table. See also :doc:`Sampling Positions Notebook <notebooks/sampling_positions>`.
 
+**Citation-Compass** - The `citation_compass <https://github.com/lincc-frameworks/citation-compass>`__ package from the LINCC Frameworks, used to track specifically annotated citations encountered during simulations. See also :doc:`Citations Notebook <notebooks/citations>`.
+
 **Dependency Graph (Parameters)** - A graph that represents the dependencies between parameters in the simulation. See also :doc:`Debugging Notebook <notebooks/debugging>`.
 
 **DetectorFootprint** - An object that represents the detector's field of view. See also :doc:`DetectorFootprint Notebook <notebooks/detector_footprint>` and :doc:`CCD-Level Observation Tables Notebook <notebooks/ccd_obstables>`.

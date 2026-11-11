@@ -123,7 +123,7 @@ LightCurveLynx includes a variety of plotting functions to visualize the results
 The function takes arrays for flux and time, as well as optional arrays for flux errors and filters. The resulting plot will show the light curve with error bars and different colors for each filter.
 
 For example a plot of one of the light curves from the SIMSED.TDE-MOSFIT data set
-(`zenodo link <https://zenodo.org/records/2612896>`_) is shown below.
+(`zenodo link <https://zenodo.org/records/2612896>`__) is shown below.
 
 .. figure:: _static/plotted_lightcurve.png
    :class: no-scaled-link
