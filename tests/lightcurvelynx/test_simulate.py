@@ -2313,15 +2313,9 @@ def test_simulate_lightcurves_single_thread_batched(test_data_dir):
 
 def test_write_read_empty_lightcurve(test_data_dir):
     """Test to confirm issue 1033 is fixed."""
-    # Load the OpSim data.
+    # Load the OpSim and passband data.
     opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
-
-    # Load the passband data for the griz filters only.
-    passband_group = PassbandGroup.from_preset(
-        preset="LSST",
-        table_dir=test_data_dir / "passbands",
-        filters=["g", "r", "i", "z"],
-    )
+    passband_group = PassbandGroup.from_preset(preset="LSST", table_dir=test_data_dir / "passbands")
     survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
     # We create a model where one source will be seen and one source will not
