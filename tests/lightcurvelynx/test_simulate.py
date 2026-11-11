@@ -407,7 +407,7 @@ def test_simulate_lightcurves(test_data_dir):
     )
     assert len(results) == 5
     assert "lightcurve" in results
-    assert "spectra" not in results
+    assert "spectra" in results  # We include it even though it is empty
 
     assert np.all(results["nobs"].to_numpy() >= 1)
     assert np.allclose(results["ra"].to_numpy(), opsim_db["ra"].to_numpy()[0:5])
@@ -1371,7 +1371,7 @@ def test_simulate_multiple_surveys(test_data_dir):
     assert len(results) == 1
     assert results["nobs"][0] == 4
     assert "lightcurve" in results
-    assert "spectra" not in results
+    assert "spectra" in results  # Included even though empty
 
     # Check that the light curve was simulated correctly, including saving the zeropoint information
     # from each ObsTable. All entries for the light curve should be sorted by time.
@@ -1384,9 +1384,9 @@ def test_simulate_multiple_surveys(test_data_dir):
     # The custom column should only exist for observations from one of the surveys
     # and should be NaN for the other survey.
     assert lightcurve["custom_col"][0] == 1
-    assert np.isnan(lightcurve["custom_col"][1])
+    assert pd.isna(lightcurve["custom_col"][1])
     assert lightcurve["custom_col"][2] == 1
-    assert np.isnan(lightcurve["custom_col"][3])
+    assert pd.isna(lightcurve["custom_col"][3])
 
 
 def test_simulate_multiple_surveys_diff_filters():
@@ -1468,7 +1468,7 @@ def test_simulate_multiple_surveys_diff_filters():
         model,
         1,
         [survey_info1, survey_info2],
-        obstable_save_cols=["zp", "custom_col"],
+        obstable_save_cols=["zp"],
         save_full_filter_names=True,
         progress_bar=False,  # Disable progress bar for testing
     )
@@ -1860,7 +1860,6 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
         source,
         1,
         survey_info,
-        obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
     )
     assert len(results) == 1
@@ -1977,7 +1976,6 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
         source,
         1,
         survey_info,
-        obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
     )
     assert len(results) == 1
@@ -2309,3 +2307,151 @@ def test_simulate_lightcurves_single_thread_batched(test_data_dir):
     assert np.unique(state["source.brightness"]).size > 95
     assert np.unique(state["source.ra"]).size > 95
     assert np.unique(state["source.dec"]).size > 95
+
+
+def test_write_read_empty_lightcurve(test_data_dir):
+    """Test to confirm issue 1033 is fixed. We need to run a simulation where at least
+    one of the result files has an empty light curve column."""
+    # Create a fake OpSim with exactly three observations (at two different locations)
+    # and corresponding passband data.
+    opsim_db = OpSim(
+        {
+            "time": [60676.0, 60677.0, 60678.0],
+            "ra": [0.0, 180.0, 0.0],
+            "dec": [0.0, 10.0, 0.0],
+            "filter": ["r", "g", "r"],
+            "zp": [0.05, 0.05, 0.05],
+            "seeing": [1.12, 1.12, 1.12],
+            "skybrightness": [20.0, 20.0, 20.0],
+            "exptime": [29.2, 29.2, 29.2],
+            "nexposure": [2, 2, 2],
+        }
+    )
+    passband_group = PassbandGroup.from_preset(preset="LSST", table_dir=test_data_dir / "passbands")
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    # We create a model for three sources where one source will be seen once,
+    # one source will be seen twice, and one source will not at all.
+    # We do this in a two orderings, because it can matter to parquet if the first
+    # table has data vs not.
+    model1 = ConstantSEDModel(
+        brightness=100.0,
+        t0=5.0,
+        ra=GivenValueList([250.0, 0.0, 180.0], stateful=False),
+        dec=GivenValueList([89.0, 0.0, 10.0], stateful=False),
+        redshift=0.01,
+    )
+    model2 = ConstantSEDModel(
+        brightness=100.0,
+        t0=5.0,
+        ra=GivenValueList([0.0, 180.0, 250.0], stateful=False),
+        dec=GivenValueList([0.0, 10.0, 89.0], stateful=False),
+        redshift=0.01,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        Path.mkdir(tmp_path / "res1")
+        _ = simulate_lightcurves(
+            model1,
+            3,
+            survey_info,
+            batch_size=1,  # Need each file to have one sample.
+            output_file_path=tmp_path / "res1" / "results.parquet",
+            progress_bar=False,
+        )
+        results1 = read_parquet(tmp_path / "res1")  # Read whole directory
+        assert len(results1) == 3
+        assert results1["lightcurve"].iloc[0] is None
+        assert len(results1["lightcurve"].iloc[1]) == 2
+        assert len(results1["lightcurve"].iloc[2]) == 1
+        assert np.array_equal(results1["lightcurve"].iloc[1]["filter"], ["r", "r"])
+        assert np.array_equal(results1["lightcurve"].iloc[2]["filter"], ["g"])
+        assert np.allclose(results1["lightcurve"].iloc[1]["mjd"], [60676.0, 60678.0])
+        assert np.allclose(results1["lightcurve"].iloc[2]["mjd"], [60677.0])
+
+        Path.mkdir(tmp_path / "res2")
+        _ = simulate_lightcurves(
+            model2,
+            3,
+            survey_info,
+            batch_size=1,  # Need each file to have one sample.
+            output_file_path=tmp_path / "res2" / "results.parquet",
+            progress_bar=False,
+        )
+        results2 = read_parquet(tmp_path / "res2")  # Read whole directory
+        assert len(results2) == 3
+        assert len(results2["lightcurve"].iloc[0]) == 2
+        assert len(results2["lightcurve"].iloc[1]) == 1
+        assert results2["lightcurve"].iloc[2] is None
+        assert np.array_equal(results2["lightcurve"].iloc[0]["filter"], ["r", "r"])
+        assert np.array_equal(results2["lightcurve"].iloc[1]["filter"], ["g"])
+        assert np.allclose(results2["lightcurve"].iloc[0]["mjd"], [60676.0, 60678.0])
+        assert np.allclose(results2["lightcurve"].iloc[1]["mjd"], [60677.0])
+
+
+def test_write_read_empty_spectra():
+    """Test that we can merge files when one of them has an empty spectra nested table."""
+    # The first survey points at a different location on the sky and uses a spectrograph.
+    obsdata = {
+        "time": [0.5],
+        "ra": [90.0],
+        "dec": [-60.0],
+        "filter": ["spectra"],
+        "zp": [0.05],
+        "seeing": [1.12],
+        "skybrightness": [20.0],
+        "exptime": [29.2],
+        "nexposure": [2],
+    }
+    spectrograph = Spectrograph.from_regular_grid(2000.0, 10000.0, 100.0, instrument="survey2")
+    survey_info = SurveyInfo(
+        obstable=OpSim(obsdata),
+        passbands=spectrograph,
+        noise_model=ConstantSpectrographNoiseModel(1.0),
+    )
+
+    # We create a model where one source will be seen and the other won't. We use
+    # both ordering, so we can test both parquet merge cases.
+    model1 = ConstantSEDModel(
+        brightness=100.0,
+        t0=5.0,
+        ra=GivenValueList([0.0, 180.0], stateful=False),
+        dec=GivenValueList([10.0, -60.0], stateful=False),
+        redshift=0.01,
+    )
+    model2 = ConstantSEDModel(
+        brightness=100.0,
+        t0=5.0,
+        ra=GivenValueList([180.0, 0.0], stateful=False),
+        dec=GivenValueList([-60.0, 10.0], stateful=False),
+        redshift=0.01,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        Path.mkdir(tmp_path / "res1")
+        _ = simulate_lightcurves(
+            model1,
+            2,
+            survey_info,
+            batch_size=1,  # Need each file to have one sample.
+            output_file_path=tmp_path / "res1" / "results.parquet",
+            progress_bar=False,
+        )
+        results1 = read_parquet(tmp_path / "res1")  # Read whole directory
+        assert len(results1) == 2
+
+        Path.mkdir(tmp_path / "res2")
+        _ = simulate_lightcurves(
+            model2,
+            2,
+            survey_info,
+            batch_size=1,  # Need each file to have one sample.
+            output_file_path=tmp_path / "res2" / "results.parquet",
+            progress_bar=False,
+        )
+        results2 = read_parquet(tmp_path / "res2")  # Read whole directory
+        assert len(results2) == 2
