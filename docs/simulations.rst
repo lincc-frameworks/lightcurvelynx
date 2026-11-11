@@ -54,7 +54,7 @@ The core idea behind LightCurveLynx is that we want to generate light curves fro
 In addition to the built-in models, the software provides wrappers to common modeling packages such as:
 
 * `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`_ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
-* `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/Bayesian>`).
+* `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/bayeSN_example>`).
 * `MOSFiT <https://github.com/guillochon/MOSFiT>`_ - A package of semi-analytic models for a wide range of transients, including superluminous supernovae, kilonovae and tidal disruption events.
 * `PyLIMA <https://github.com/ebachelet/pyLIMA>`_ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
 * `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
@@ -150,8 +150,11 @@ All models provide a helper function, ``evaluate_bandfluxes()``, that wraps the 
 In addition to being a convenient helper function for spectral models, generating the data at the band flux level allows certain models to skip spectral-level flux density generation. In particular, a ``BandfluxModel`` is a subclass of the ``PhysicalModel`` whose computation is only defined at the band flux level. An example of this approach is using models of empirically fit light curves, such as those from LCLIB. Since we do not have the underlying SEDs for these types of models, so we can only work with them at the band flux level. See the
 :doc:`lightcurve template model <notebooks/lightcurve_source_demo>` for an example of this type of model.
 
-**Note** that most models in LightCurveLynx operate at the spectral level and we *strongly* encourage new models to produce spectral-level information where possible. Working at the finer grained level allows more comprehensive and accurate simulations, such as accounting for wavelength and time compression due to redshift. The models that generate band fluxes directly will not account for all of these factors.
-
+.. note::
+   Most models in LightCurveLynx operate at the spectral level and we *strongly* encourage new models to
+   produce spectral-level information where possible. Working at the finer grained level allows more comprehensive and accurate
+   simulations, such as accounting for wavelength and time compression due to redshift. The models that generate
+   band fluxes directly will not account for all of these factors.
 
 Running a Full Simulation
 -------------------------------------------------------------------------------
@@ -240,7 +243,7 @@ Simulations can be performed in parallel by providing a ``concurrent.futures.Exe
 For more control, the users can instantiate their own executor object and pass it as a parameter. For example, you can use:
 
 * `ProcessPoolExecutor` with a specified number of workers. The context should be set as "spawn" or "forkserver" to avoid incompatibility issues with certain libraries and modules.
-* `Dask <https://docs.dask.org/en/latest/>`_ clients. You should always use ``threads_per_worker=1`` and `processes=True` to ensure each process runs in a separate thread-safe process.
+* `Dask <https://docs.dask.org/en/latest/>`_ clients. You should always use ``threads_per_worker=1`` and ``processes=True`` to ensure each process runs in a separate thread-safe process.
 * `Joblib <https://joblib.readthedocs.io/en/stable/>`_ clients. We provide the ``lightcurvelynx.utils.parallelization_utils.JoblibExecutor`` wrapper for using joblib with the simulation framework.
 * `Loky <https://loky.readthedocs.io/en/stable/API.html>`_ clients.
 * `Ray <https://docs.ray.io/en/latest/>`_ clients.
@@ -250,11 +253,11 @@ Because we cannot guarantee that all libraries and modules we use are thread saf
 The :doc:`parallelization notebook <notebooks/parallel_runs>` provides an example of how to use
 LightCurveLynx to run simulations in parallel including using dask and ray.
 
-**NOTES**: 
-* At the minimum each machine will need to load a full copy of the data. For some executors (e.g. `ProcessPoolExecutor`), the job loads one copy **per-batch**. Thus, these approaches can be extremely memory-intensive. For single-machine simulation, we suggest using the ``num_jobs`` parameter, which uses safe-shared memory.
-* Not all sub-packages work with distributed computation yet. If you get an error about
-not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
-* Due to how the numbers are generated, the sampling will change when the batch size changes even if a seeded random number generator has been provided. See the :doc:`randomness <randomness>` page for more details.
+.. note::
+   * At the minimum each machine will need to load a full copy of the data. For some executors (e.g. ``ProcessPoolExecutor``), the job loads one copy **per-batch**. Thus, these approaches can be extremely memory-intensive. For single-machine simulation, we suggest using the ``num_jobs`` parameter, which uses safe-shared memory.
+   * Not all sub-packages work with distributed computation yet. If you get an error about
+     not being able to pickle an object, please let the LightCurveLynx team know so we can investigate.
+   * Due to how the numbers are generated, the sampling will change when the batch size changes even if a seeded random number generator has been provided. See the :doc:`randomness <randomness>` page for more details.
 
 Results and Output
 -------------------------------------------------------------------------------
