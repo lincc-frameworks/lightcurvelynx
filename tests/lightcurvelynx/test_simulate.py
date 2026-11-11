@@ -2312,27 +2312,42 @@ def test_simulate_lightcurves_single_thread_batched(test_data_dir):
 
 
 def test_write_read_empty_lightcurve(test_data_dir):
-    """Test to confirm issue 1033 is fixed."""
-    # Load the OpSim and passband data.
-    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+    """Test to confirm issue 1033 is fixed. We need to run a simulation where at least
+    one of the result files has an empty light curve column."""
+    # Create a fake OpSim with exactly three observations (at two different locations)
+    # and corresponding passband data.
+    opsim_db = OpSim(
+        {
+            "time": [60676.0, 60677.0, 60678.0],
+            "ra": [0.0, 180.0, 0.0],
+            "dec": [0.0, 10.0, 0.0],
+            "filter": ["r", "g", "r"],
+            "zp": [0.05, 0.05, 0.05],
+            "seeing": [1.12, 1.12, 1.12],
+            "skybrightness": [20.0, 20.0, 20.0],
+            "exptime": [29.2, 29.2, 29.2],
+            "nexposure": [2, 2, 2],
+        }
+    )
     passband_group = PassbandGroup.from_preset(preset="LSST", table_dir=test_data_dir / "passbands")
     survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
 
-    # We create a model where one source will be seen and one source will not
-    # (because it is in the Northern hemisphere and outside the survey footprint).
-    # We do this in both order, because the order of merging parquet files can matter.
+    # We create a model for three sources where one source will be seen once,
+    # one source will be seen twice, and one source will not at all.
+    # We do this in a two orderings, because it can matter to parquet if the first
+    # table has data vs not.
     model1 = ConstantSEDModel(
         brightness=100.0,
         t0=5.0,
-        ra=GivenValueList([250.0, opsim_db["ra"].to_numpy()[0]], stateful=False),
-        dec=GivenValueList([89.0, opsim_db["dec"].to_numpy()[0]], stateful=False),
+        ra=GivenValueList([250.0, 0.0, 180.0], stateful=False),
+        dec=GivenValueList([89.0, 0.0, 10.0], stateful=False),
         redshift=0.01,
     )
     model2 = ConstantSEDModel(
         brightness=100.0,
         t0=5.0,
-        ra=GivenValueList([opsim_db["ra"].to_numpy()[0], 250.0], stateful=False),
-        dec=GivenValueList([opsim_db["dec"].to_numpy()[0], 89.0], stateful=False),
+        ra=GivenValueList([0.0, 180.0, 250.0], stateful=False),
+        dec=GivenValueList([0.0, 10.0, 89.0], stateful=False),
         redshift=0.01,
     )
 
@@ -2342,29 +2357,43 @@ def test_write_read_empty_lightcurve(test_data_dir):
         Path.mkdir(tmp_path / "res1")
         _ = simulate_lightcurves(
             model1,
-            2,
+            3,
             survey_info,
             batch_size=1,  # Need each file to have one sample.
             output_file_path=tmp_path / "res1" / "results.parquet",
             progress_bar=False,
         )
         results1 = read_parquet(tmp_path / "res1")  # Read whole directory
-        assert len(results1) == 2
+        assert len(results1) == 3
+        assert results1["lightcurve"].iloc[0] is None
+        assert len(results1["lightcurve"].iloc[1]) == 2
+        assert len(results1["lightcurve"].iloc[2]) == 1
+        assert np.array_equal(results1["lightcurve"].iloc[1]["filter"], ["r", "r"])
+        assert np.array_equal(results1["lightcurve"].iloc[2]["filter"], ["g"])
+        assert np.allclose(results1["lightcurve"].iloc[1]["mjd"], [60676.0, 60678.0])
+        assert np.allclose(results1["lightcurve"].iloc[2]["mjd"], [60677.0])
 
         Path.mkdir(tmp_path / "res2")
         _ = simulate_lightcurves(
             model2,
-            2,
+            3,
             survey_info,
             batch_size=1,  # Need each file to have one sample.
             output_file_path=tmp_path / "res2" / "results.parquet",
             progress_bar=False,
         )
         results2 = read_parquet(tmp_path / "res2")  # Read whole directory
-        assert len(results2) == 2
+        assert len(results2) == 3
+        assert len(results2["lightcurve"].iloc[0]) == 2
+        assert len(results2["lightcurve"].iloc[1]) == 1
+        assert results2["lightcurve"].iloc[2] is None
+        assert np.array_equal(results2["lightcurve"].iloc[0]["filter"], ["r", "r"])
+        assert np.array_equal(results2["lightcurve"].iloc[1]["filter"], ["g"])
+        assert np.allclose(results2["lightcurve"].iloc[0]["mjd"], [60676.0, 60678.0])
+        assert np.allclose(results2["lightcurve"].iloc[1]["mjd"], [60677.0])
 
 
-def test_write_read_empty_spectra(test_data_dir):
+def test_write_read_empty_spectra():
     """Test that we can merge files when one of them has an empty spectra nested table."""
     # The first survey points at a different location on the sky and uses a spectrograph.
     obsdata = {
