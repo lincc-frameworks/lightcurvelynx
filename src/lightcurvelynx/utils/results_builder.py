@@ -119,13 +119,16 @@ class SimulationResultBuilder:
             "measured_flux_error": [],
             "instrument": [],
         }
+        import pyarrow as pa
+
+        spectrum_array_dtype = pd.ArrowDtype(pa.list_(pa.float64()))
         self.spectra_dtypes = {
             "mjd": float,
-            "waves": object,
-            "measured_flux": object,
-            "measured_flux_perfect": object,
-            "measured_flux_error": object,
-            "instrument": str,
+            "waves": spectrum_array_dtype,
+            "measured_flux": spectrum_array_dtype,
+            "measured_flux_perfect": spectrum_array_dtype,
+            "measured_flux_error": spectrum_array_dtype,
+            "instrument": pd.StringDtype(),
         }
 
     def add_result_column(self, column_name, column_values, dtype=None):
@@ -220,7 +223,13 @@ class SimulationResultBuilder:
             # Collect the dtypes of the column from each observation table. If the column is missing,
             # use object.
             all_dtypes = [
-                obs_table[column_name].dtype if column_name in obs_table else object
+                (
+                    obs_table[column_name].dtype
+                    if hasattr(obs_table[column_name], "dtype")
+                    else obs_table.get_value_per_row(column_name, indices=[]).dtype
+                )
+                if column_name in obs_table
+                else object
                 for obs_table in obs_table_list
             ]
 
@@ -379,7 +388,7 @@ class SimulationResultBuilder:
         for col in self.lightcurve_dict:
             light_curve_data[col] = pd.Series(
                 self.lightcurve_dict[col],
-                dtype=self.lightcurve_dtypes[col],
+                dtype="string" if self.lightcurve_dtypes[col] is str else self.lightcurve_dtypes[col],
                 index=self.lightcurve_index,
             )
         lightcurve_frame = pd.DataFrame(data=light_curve_data)

@@ -376,8 +376,8 @@ def _simulate_lightcurves_batch(simulation_info):
     # Determine which of the of the simulated positions match the pointings from each ObsTable.
     logger.info("Performing range searches to find matching observations.")
     start_times, end_times = get_time_windows(
-        t0,
-        redshift,
+        model.get_param(sample_states, "t0"),
+        model.get_param(sample_states, "redshift"),
         simulation_info.obs_time_window_offset,
         simulation_info.rest_time_window_offset,
     )
