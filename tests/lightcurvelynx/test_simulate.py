@@ -1371,7 +1371,7 @@ def test_simulate_multiple_surveys(test_data_dir):
     assert len(results) == 1
     assert results["nobs"][0] == 4
     assert "lightcurve" in results
-    assert "spectra" not in results
+    assert "spectra" in results  # Included even though empty
 
     # Check that the light curve was simulated correctly, including saving the zeropoint information
     # from each ObsTable. All entries for the light curve should be sorted by time.

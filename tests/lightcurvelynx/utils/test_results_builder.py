@@ -45,7 +45,7 @@ def test_basic_simulation_results_builder():
     assert df["spectra"].iloc[0] is None
 
     # We fail if we try to add light curve information without starting a new object.
-    with pytest.raises(ValueError):
+    with pytest.raises(RuntimeError):
         builder.add_light_curve_observations(
             mjd=[0.0],
             filter=["g"],
@@ -69,6 +69,11 @@ def test_basic_simulation_results_builder():
         obs_idx=[0, 1, 2],
         is_saturated=[False, False, False],
     )
+
+    # We fail if we try to start a new object before appending the current one.
+    with pytest.raises(RuntimeError):
+        builder.start_new_object(0)
+
     builder.append_current_object()
 
     # Check that we build a data frame with all the expected columns.
@@ -83,6 +88,48 @@ def test_basic_simulation_results_builder():
     # We fail if we try to start an object with an index out of bounds.
     with pytest.raises(ValueError):
         builder.start_new_object(10)
+
+    # We can add a second observation to the same object.
+    builder.start_new_object(0)
+    builder.add_light_curve_observations(
+        mjd=[0.0, 1.0, 2.0],
+        filter=["g", "g", "g"],
+        flux=[1.0, 1.0, 1.0],
+        fluxerr=[0.1, 0.1, 0.1],
+        flux_perfect=[1.0, 1.0, 1.0],
+        survey_idx=[1, 1, 1],
+        obs_idx=[0, 1, 2],
+        is_saturated=[False, False, False],
+    )
+    builder.append_current_object()
+    df = builder.build_results()
+    assert len(df["lightcurve"].iloc[0]) == 6
+    assert df["nobs"].iloc[0] == 6
+
+    # We can append the current object even if no new observations were added.
+    builder.start_new_object(0)
+    builder.append_current_object()
+    df = builder.build_results()
+    assert len(df["lightcurve"].iloc[0]) == 6
+    assert df["nobs"].iloc[0] == 6
+
+    # We fail if we try to add without all the columns.
+    builder.start_new_object(0)
+    with pytest.raises(KeyError):
+        builder.add_light_curve_observations(mjd=[0.0])
+
+    # We fail if we try to add light curve observations with different array lengths.
+    with pytest.raises(ValueError):
+        builder.add_light_curve_observations(
+            mjd=[0.0, 1.0],
+            filter=["g"],
+            flux=[1.0, 1.0],
+            fluxerr=[0.1, 0.1],
+            flux_perfect=[1.0, 1.0],
+            survey_idx=[0, 0],
+            obs_idx=[0, 1],
+            is_saturated=[False, False],
+        )
 
 
 def test_simulation_results_builder_fail():
@@ -111,6 +158,10 @@ def test_simulation_results_builder_add_column():
     with pytest.raises(ValueError):
         builder.add_result_column("wrong_length_column", [1, 2])
 
+    # Fail if we try to add a column that already exists.
+    with pytest.raises(KeyError):
+        builder.add_result_column("ra", [1])
+
     # Succeed if we add a column with the correct number of observations.
     builder.add_result_column("correct_length_column", ["str"])
     assert "correct_length_column" in builder.results_dict
@@ -134,6 +185,9 @@ def test_simulation_results_builder_add_column():
 def test_simulation_results_builder_add_mixed_column():
     """Test that we can add a new column with a mix of types."""
     builder = _create_basic_builder(3)
+    builder.add_result_column("uniform_column", [1, 2, 3])
+    assert builder.results_dtypes["uniform_column"] == int
+
     builder.add_result_column("mixed_column", [1, None, 3])
     assert builder.results_dtypes["mixed_column"] == object
 
@@ -153,6 +207,10 @@ def test_simulation_results_builder_add_param_column():
     df = builder.build_results()
     assert "a_v1" in df.columns
     assert df["a_v1"].iloc[0] == 1.0
+
+    # We fail if we try to add a parameter that does not exist in the GraphState.
+    with pytest.raises(KeyError):
+        builder.add_param_column("a.v2", state)
 
 
 def test_simulation_results_builder_sort_light_curves():
@@ -251,7 +309,7 @@ def test_basic_simulation_results_add_spectra():
     builder = _create_basic_builder(3)
 
     # We fail if we try to add spectra information without starting a new object.
-    with pytest.raises(ValueError):
+    with pytest.raises(RuntimeError):
         builder.add_spectra_observations(
             mjd=0.0,
             waves=[4000.0, 5000.0, 6000.0],
@@ -352,6 +410,7 @@ def test_simulation_results_builder_add_light_curve_column():
             "zp": [0.5, 0.5, 0.5],
             "custom_col1": [1, 2, 3],
             "custom_col2": ["a", "b", "c"],
+            "custom_col3": [1.1, 1.2, 1.3],
         }
     )
     builder.add_light_curve_column("custom_col1", obs_table_list=[obstable1])
@@ -359,7 +418,7 @@ def test_simulation_results_builder_add_light_curve_column():
     assert builder.lightcurve_dtypes["custom_col1"] == int
 
     # We can't add a column twice.
-    with pytest.raises(ValueError):
+    with pytest.raises(KeyError):
         builder.add_light_curve_column("custom_col1", obs_table_list=[obstable1])
 
     # If we have different dtypes for the same column across different observation tables,
@@ -377,3 +436,37 @@ def test_simulation_results_builder_add_light_curve_column():
     builder.add_light_curve_column("custom_col2", obs_table_list=[obstable1, obstable2])
     assert "custom_col2" in builder.lightcurve_dict
     assert builder.lightcurve_dtypes["custom_col2"] == object
+
+    # If we add a column that is only present in one observation table, it should default
+    # to 'object' to correctly handle None.
+    builder.add_light_curve_column("custom_col3", obs_table_list=[obstable1, obstable2])
+    assert "custom_col3" in builder.lightcurve_dict
+    assert builder.lightcurve_dtypes["custom_col3"] == object
+
+    # If we add a column that is not present in any observation table, it should produce a warning
+    # and not add the column.
+    with pytest.warns(UserWarning):
+        builder.add_light_curve_column("custom_col4", obs_table_list=[obstable1, obstable2])
+    assert "custom_col4" not in builder.lightcurve_dict
+
+
+def test_simulation_results_builder_add_light_curve_column_in_progress():
+    """Test that we cannot add columns for the light curves after we have started
+    constructing the data set."""
+    builder = _create_basic_builder(4)
+
+    builder.start_new_object(0)
+    builder.add_light_curve_observations(
+        mjd=[10.0, 11.0],
+        filter=["g", "g"],
+        flux=[1.0, 1.0],
+        fluxerr=[0.1, 0.1],
+        flux_perfect=[1.0, 1.0],
+        survey_idx=[0, 0],
+        obs_idx=[0, 1],
+        is_saturated=[False, False],
+    )
+    builder.append_current_object()
+
+    with pytest.raises(RuntimeError):
+        builder.add_light_curve_column("new_column", dtype=int)

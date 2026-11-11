@@ -7,6 +7,7 @@ function while adding significantly more validity checks and convenience for man
 """
 
 import logging
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -140,6 +141,10 @@ class SimulationResultBuilder:
         dtype : type, optional
             The data type of the column. If not specified, it will be inferred from the first value.
         """
+        # Check that the column does not exist yet.
+        if column_name in self.results_dict:
+            raise KeyError(f"Column {column_name} already exists in the results.")
+
         # Check that the column has the correct number of values.
         if len(column_values) != self.realized_num_samples:
             raise ValueError(
@@ -198,15 +203,19 @@ class SimulationResultBuilder:
             The data type of the column. If not specified, it will be inferred from the observation tables.
         """
         if len(self.lightcurve_dict["mjd"]) != 0:
-            raise ValueError("Cannot add new light curve columns after observations have been added.")
+            raise RuntimeError("Cannot add new light curve columns after observations have been added.")
         if column_name in self.lightcurve_dict:
-            raise ValueError(f"Column {column_name} already exists in the light curve dictionary.")
+            raise KeyError(f"Column {column_name} already exists in the light curve dictionary.")
 
         # Save the dtype of the column.
         if dtype is not None:
             self.lightcurve_dtypes[column_name] = dtype
         elif obs_table_list is None or len(obs_table_list) == 0:
             raise ValueError("Must either provide a dtype or a list of ObsTables.")
+        elif np.all([column_name not in obs_table for obs_table in obs_table_list]):
+            # Don't store the column if it will have no values. But produce a warning.
+            warnings.warn(f"No observation tables contain column {column_name}.")
+            return
         else:
             # Collect the dtypes of the column from each observation table. If the column is missing,
             # use object.
@@ -214,10 +223,6 @@ class SimulationResultBuilder:
                 obs_table[column_name].dtype if column_name in obs_table else object
                 for obs_table in obs_table_list
             ]
-            if len(all_dtypes) == 0:
-                # Don't store the column if it will have no values. But produce a warning.
-                logger.warning(f"No observation tables contain column {column_name}.")
-                return
 
             # Make sure we can determine a consistent dtype for the column.
             if len(set(all_dtypes)) == 1:
@@ -239,7 +244,7 @@ class SimulationResultBuilder:
             The index of the light curve to initialize.
         """
         if self.current_light_curve is not None:
-            raise ValueError("Cannot start a new object before appending the current one.")
+            raise RuntimeError("Cannot start a new object before appending the current one.")
 
         if index < 0 or index >= self.realized_num_samples:
             raise ValueError(f"Index {index} is out of range for the light curve samples.")
@@ -263,12 +268,12 @@ class SimulationResultBuilder:
             Keyword arguments where the key is the column name and the value is a list of observations.
         """
         if self.current_light_curve is None:
-            raise ValueError("start_new_object must be called before adding observations.")
+            raise RuntimeError("start_new_object must be called before adding observations.")
 
         num_observations = len(kwargs["mjd"])
         for col in self.lightcurve_dict:
             if col not in kwargs:
-                raise ValueError(f"Missing observations for column {col}.")
+                raise KeyError(f"Missing observations for column {col}.")
 
             # We keep the observations as a list of lists and use np.concatenate when
             # needed to flatten them.
@@ -295,11 +300,11 @@ class SimulationResultBuilder:
             Keyword arguments where the key is the column name and the value is a list of observations.
         """
         if self.current_index is None:
-            raise ValueError("start_new_object must be called before adding spectra observations.")
+            raise RuntimeError("start_new_object must be called before adding spectra observations.")
 
         for col in self.current_spectra:
             if col not in kwargs:
-                raise ValueError(f"Missing observations for column {col}.")
+                raise KeyError(f"Missing observations for column {col}.")
 
             # We maintain the overall spectra dictionary as a list of lists, where each entry
             # corresponds to a single spectra observation.
@@ -312,7 +317,7 @@ class SimulationResultBuilder:
         the observations by their MJD before appending.
         """
         if self.current_light_curve is None:
-            raise ValueError("No current light curve to append.")
+            raise RuntimeError("No current light curve to append.")
 
         # Nothing to append.
         if self.current_num_obs == 0:
@@ -341,7 +346,7 @@ class SimulationResultBuilder:
             self.spectra_index.extend([self.current_index] * len(self.current_spectra["mjd"]))
 
         # Reset the data structure for the next light curve.
-        self.results_dict["nobs"][self.current_index] = self.current_num_obs
+        self.results_dict["nobs"][self.current_index] += self.current_num_obs
         self.current_num_obs = 0
         self.current_light_curve = None
         self.current_spectra = None
