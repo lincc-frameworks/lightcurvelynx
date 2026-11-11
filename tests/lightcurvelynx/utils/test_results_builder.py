@@ -132,6 +132,17 @@ def test_basic_simulation_results_builder():
         )
 
 
+def test_simulation_results_builder_build_results_with_no_objects():
+    """Test that build_results works correctly when no objects have been added."""
+    builder = _create_basic_builder(5)
+
+    df = builder.build_results()
+    assert len(df) == 5
+    assert all(df["lightcurve"].isna())
+    assert all(df["spectra"].isna())
+    assert all(df["nobs"] == 0)
+
+
 def test_simulation_results_builder_fail():
     """Test failures when constructing a new object"""
     ra = np.array([0.0])
