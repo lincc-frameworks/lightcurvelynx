@@ -2309,3 +2309,62 @@ def test_simulate_lightcurves_single_thread_batched(test_data_dir):
     assert np.unique(state["source.brightness"]).size > 95
     assert np.unique(state["source.ra"]).size > 95
     assert np.unique(state["source.dec"]).size > 95
+
+
+def test_write_read_empty_lightcurve(test_data_dir):
+    """Test to confirm issue 1033 is fixed."""
+    # Load the OpSim data.
+    opsim_db = OpSim.from_db(test_data_dir / "opsim_small.db")
+
+    # Load the passband data for the griz filters only.
+    passband_group = PassbandGroup.from_preset(
+        preset="LSST",
+        table_dir=test_data_dir / "passbands",
+        filters=["g", "r", "i", "z"],
+    )
+    survey_info = SurveyInfo(obstable=opsim_db, passbands=passband_group)
+
+    # We create a model where one source will be seen and one source will not
+    # (because it is in the Northern hemisphere and outside the survey footprint).
+    # We do this in both order, because the order of merging parquet files can matter.
+    model1 = ConstantSEDModel(
+        brightness=100.0,
+        t0=5.0,
+        ra=GivenValueList([250.0, opsim_db["ra"].to_numpy()[0]], stateful=False),
+        dec=GivenValueList([89.0, opsim_db["dec"].to_numpy()[0]], stateful=False),
+        redshift=0.01,
+    )
+    model2 = ConstantSEDModel(
+        brightness=100.0,
+        t0=5.0,
+        ra=GivenValueList([opsim_db["ra"].to_numpy()[0], 250.0], stateful=False),
+        dec=GivenValueList([opsim_db["dec"].to_numpy()[0], 89.0], stateful=False),
+        redshift=0.01,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+
+        Path.mkdir(tmp_path / "res1")
+        _ = simulate_lightcurves(
+            model1,
+            2,
+            survey_info,
+            batch_size=1,  # Need each file to have one sample.
+            output_file_path=tmp_path / "res1" / "results.parquet",
+            progress_bar=False,
+        )
+        results1 = read_parquet(tmp_path / "res1")  # Read whole directory
+        assert len(results1) == 2
+
+        Path.mkdir(tmp_path / "res2")
+        _ = simulate_lightcurves(
+            model2,
+            2,
+            survey_info,
+            batch_size=1,  # Need each file to have one sample.
+            output_file_path=tmp_path / "res2" / "results.parquet",
+            progress_bar=False,
+        )
+        results2 = read_parquet(tmp_path / "res2")  # Read whole directory
+        assert len(results2) == 2
