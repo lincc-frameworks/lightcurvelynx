@@ -23,6 +23,11 @@ class SimulationResultBuilder:
     of various meta-data. We break this into a separate class to similify the
     _simulate_lightcurves_batch function.
 
+    Note
+    ----
+    Users should never need to interact with this class directly; it is intended for internal
+    use within the simulation framework.
+
     Parameters
     ----------
     ra : array-like
@@ -233,10 +238,15 @@ class SimulationResultBuilder:
                 for obs_table in obs_table_list
             ]
 
-            # Make sure we can determine a consistent dtype for the column.
-            if len(set(all_dtypes)) == 1:
-                self.lightcurve_dtypes[column_name] = all_dtypes[0]
+            # Filter out 'object' dtypes that are only present because the column is missing,
+            # and check if the remaining dtypes are consistent.
+            present_dtypes = [dt for dt in all_dtypes if dt != object]
+            if len(present_dtypes) > 0 and len(set(present_dtypes)) == 1:
+                # All tables where the column exists have the same dtype.
+                self.lightcurve_dtypes[column_name] = present_dtypes[0]
             else:
+                # Inconsistent dtypes where the column exists, all columns are object,
+                # or the column is missing from all tables.
                 self.lightcurve_dtypes[column_name] = object
 
         # Add the empty column.
@@ -386,11 +396,21 @@ class SimulationResultBuilder:
         # Create the light curve data frame (with appropriate dtypes) and merge it in.
         light_curve_data = {}
         for col in self.lightcurve_dict:
+            col_dtype = self.lightcurve_dtypes[col]
+            if pd.api.types.is_string_dtype(col_dtype):
+                series_dtype = pd.StringDtype()
+            elif pd.api.types.is_integer_dtype(col_dtype):
+                # Use nullable integer dtype to support NaN values
+                series_dtype = pd.Int64Dtype()
+            elif pd.api.types.is_bool_dtype(col_dtype):
+                # Use nullable boolean dtype to support NA values
+                series_dtype = pd.BooleanDtype()
+            else:
+                # Float, datetime, and other types handle NaN/NaT naturally
+                series_dtype = col_dtype
             light_curve_data[col] = pd.Series(
                 self.lightcurve_dict[col],
-                dtype=pd.StringDtype()
-                if pd.api.types.is_string_dtype(self.lightcurve_dtypes[col])
-                else self.lightcurve_dtypes[col],
+                dtype=series_dtype,
                 index=self.lightcurve_index,
             )
         lightcurve_frame = pd.DataFrame(data=light_curve_data)

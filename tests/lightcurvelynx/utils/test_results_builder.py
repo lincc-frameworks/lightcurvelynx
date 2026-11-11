@@ -448,11 +448,11 @@ def test_simulation_results_builder_add_light_curve_column():
     assert "custom_col2" in builder.lightcurve_dict
     assert builder.lightcurve_dtypes["custom_col2"] == object
 
-    # If we add a column that is only present in one observation table, it should default
-    # to 'object' to correctly handle None.
+    # If we add a column that is only present in one observation table, it should be float
+    # because they can handle Nones.
     builder.add_light_curve_column("custom_col3", obs_table_list=[obstable1, obstable2])
     assert "custom_col3" in builder.lightcurve_dict
-    assert builder.lightcurve_dtypes["custom_col3"] == object
+    assert builder.lightcurve_dtypes["custom_col3"] == float
 
     # If we add a column that is not present in any observation table, it should produce a warning
     # and not add the column.
@@ -526,3 +526,81 @@ def test_simulation_results_builder_light_curve_string_column():
     assert "instrument_name" in lc
     assert isinstance(lc["instrument_name"].dtype, pd.StringDtype)
     assert list(lc["instrument_name"]) == ["telescope_a", "telescope_b"]
+
+
+def test_simulation_results_builder_light_curve_columns_with_nan():
+    """Test that bool, float, and integer columns with NaN values are properly
+    converted to nullable types.
+    """
+    builder = _create_basic_builder(2)
+
+    # Create observation tables where one has bool, float, and integer columns
+    # and the other does not.
+    obstable1 = FakeObsTable(
+        {
+            "time": [1.0, 2.0],
+            "ra": [0.0, 0.0],
+            "dec": [10.0, 10.0],
+            "filter": ["r", "r"],
+            "zp": [0.5, 0.5],
+            "int_col": [10, 20],  # integer column
+            "float_col": [1.1, 2.2],  # float column
+            "bool_col": [True, False],  # boolean column
+        }
+    )
+    obstable2 = FakeObsTable(
+        {
+            "time": [3.0],
+            "ra": [0.0],
+            "dec": [10.0],
+            "filter": ["r"],
+            "zp": [0.5],
+        }
+    )
+
+    # Add each of the columns to the "lightcurve" columns.
+    builder.add_light_curve_column("int_col", obs_table_list=[obstable1, obstable2])
+    builder.add_light_curve_column("float_col", obs_table_list=[obstable1, obstable2])
+    builder.add_light_curve_column("bool_col", obs_table_list=[obstable1, obstable2])
+
+    # Check that the columns are there.
+    assert "int_col" in builder.lightcurve_dict
+    assert "float_col" in builder.lightcurve_dict
+    assert "bool_col" in builder.lightcurve_dict
+
+    # Check that we have the correct dtypes.
+    assert builder.lightcurve_dtypes["int_col"] == int
+    assert builder.lightcurve_dtypes["float_col"] == float
+    assert builder.lightcurve_dtypes["bool_col"] == bool
+
+    # Add observations from both surveys to create mixed int and NaN
+    builder.start_new_object(0)
+    builder.add_light_curve_observations(
+        mjd=[1.0, 2.0, 3.0],
+        filter=["g", "r", "g"],
+        flux=[1.0, 2.0, 3.0],
+        fluxerr=[0.1, 0.2, 0.3],
+        flux_perfect=[1.0, 2.0, 3.0],
+        survey_idx=[0, 1, 0],
+        obs_idx=[0, 0, 1],
+        is_saturated=[False, False, False],
+        int_col=[10, None, 20],
+        float_col=[1.1, None, 2.2],
+        bool_col=[True, None, False],
+    )
+    builder.append_current_object()
+
+    # Build results and verify the integer column uses nullable Int64Dtype
+    df = builder.build_results()
+    lc = df["lightcurve"].iloc[0]
+
+    # Verify the integer column exists and has the correct data
+    assert lc["int_col"][0] == 10
+    assert np.isnan(lc["int_col"][1])
+    assert lc["int_col"][2] == 20
+    assert lc["float_col"][0] == 1.1
+    assert np.isnan(lc["float_col"][1])
+    assert lc["float_col"][2] == 2.2
+    assert lc["bool_col"][0] is True
+    assert lc["bool_col"][1] is None
+    assert lc["bool_col"][2] is False

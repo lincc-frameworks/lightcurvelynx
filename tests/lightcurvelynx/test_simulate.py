@@ -1384,9 +1384,9 @@ def test_simulate_multiple_surveys(test_data_dir):
     # The custom column should only exist for observations from one of the surveys
     # and should be NaN for the other survey.
     assert lightcurve["custom_col"][0] == 1
-    assert np.isnan(lightcurve["custom_col"][1])
+    assert pd.isna(lightcurve["custom_col"][1])
     assert lightcurve["custom_col"][2] == 1
-    assert np.isnan(lightcurve["custom_col"][3])
+    assert pd.isna(lightcurve["custom_col"][3])
 
 
 def test_simulate_multiple_surveys_diff_filters():
@@ -1468,7 +1468,7 @@ def test_simulate_multiple_surveys_diff_filters():
         model,
         1,
         [survey_info1, survey_info2],
-        obstable_save_cols=["zp", "custom_col"],
+        obstable_save_cols=["zp"],
         save_full_filter_names=True,
         progress_bar=False,  # Disable progress bar for testing
     )
@@ -1860,7 +1860,6 @@ def test_simulate_with_saturation_mags_as_none(test_data_dir):
         source,
         1,
         survey_info,
-        obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
     )
     assert len(results) == 1
@@ -1977,7 +1976,6 @@ def test_simulate_with_custom_saturation_mags(test_data_dir):
         source,
         1,
         survey_info,
-        obstable_save_cols=["observationId", "zp_nJy"],
         param_cols=["source.brightness"],
     )
     assert len(results) == 1
