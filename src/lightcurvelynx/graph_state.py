@@ -960,10 +960,11 @@ class DependencyGraph:
 
     def build_subgraph(self, param_name, incoming=True, outgoing=True):
         """Get the DAG subgraph that contains this parameter. This can be:
+
         1) the parameters on which this parameter depends (incoming=True, outgoing=False),
         2) the parameters that depend on this parameter (incoming=False, outgoing=True), or
         3) all parameters in the same connected component as this parameter
-        (incoming=True, outgoing=True).
+           (incoming=True, outgoing=True).
 
         Parameters
         ----------

@@ -42,7 +42,7 @@ your simulation:
     import logging
     logging.basicConfig(level=logging.INFO)
 
-You can also use `logging.DEBUG` to see even more detailed debug-level messages.
+You can also use ``logging.DEBUG`` to see even more detailed debug-level messages.
 
 
 I Am Seeing Empty Light Curves for Some Entries. Why Is This Happening?
@@ -59,7 +59,7 @@ You can find the empty rows in your results using:
 
     idx = results.lightcurve.isna()
 
-and check whether the row was observed using the `ObsTable.get_observations()` function
+and check whether the row was observed using the ``ObsTable.get_observations()`` function
 with the corresponding RA and dec.
 
 
@@ -67,7 +67,7 @@ Can I Use a Random Seed to Get Reproducible Results?
 -------------------------------------------------------------------------------
 
 Yes. LightCurveLynx allows the user to control randomness by passing in a predefined
-random number generator via the `rng` parameter in the ``simulate_lightcurves()`` function.
+random number generator via the ``rng`` parameter in the ``simulate_lightcurves()`` function.
 If the user provides a random number generator with a fixed seed, then the results of the
 simulation will be reproducible.
 

@@ -788,7 +788,7 @@ class CatalogRADECSampler(ObsTableRADECSampler):
         super().__init__(data, dedup_threshold=dedup_threshold, **kwargs)
 
 
-class MilkyWayCoordSampler(NumpyRandomFunc):
+class MilkyWayCoordSampler(NumpyRandomFunc, CiteClass):
     """A FunctionNode that samples (RA, dec, distance) positions according to a
     Milky Way stellar density model.
 

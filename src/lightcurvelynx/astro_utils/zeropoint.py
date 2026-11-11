@@ -2,6 +2,7 @@ from __future__ import annotations  # "type1 | type2" syntax in Python <3.9
 
 import numpy as np
 import numpy.typing as npt
+from citation_compass import cite_function
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 
@@ -24,6 +25,7 @@ def sky_bg_adu_to_electrons(sky_bg_adu, gain):
     return sky_bg_adu * gain
 
 
+@cite_function
 def magnitude_electron_zeropoint(
     *,
     filter: npt.ArrayLike,

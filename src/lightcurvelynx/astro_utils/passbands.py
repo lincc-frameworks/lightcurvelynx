@@ -229,8 +229,9 @@ class PassbandGroup:
         units: Literal["nm", "A"] | None = "A",
     ) -> "PassbandGroup":
         """Load the passbands from a directory where the directorty name corresponds
-        to the survey and the file names correspond to the filters:
-        path_to_survey_dir/survey_name/filter_name.dat
+        to the survey and the file names correspond to the filters::
+
+            path_to_survey_dir/survey_name/filter_name.dat
 
         Parameters
         ----------
@@ -438,8 +439,8 @@ class PassbandGroup:
 
         References
         ----------
-        This research has made use of the SVO Filter Profile Service "Carlos Rodrigo",
-        funded by MCIN/AEI/10.13039/501100011033/ through grant PID2023-146210NB-I00
+        * This research has made use of the SVO Filter Profile Service "Carlos Rodrigo",
+          funded by MCIN/AEI/10.13039/501100011033/ through grant PID2023-146210NB-I00
         * Rodrigo, C., Cruz, P., Aguilar, J.F., et al. 2024; https://ui.adsabs.harvard.edu/abs/2024A%26A...689A..93R/abstract
         * Rodrigo, C., Solano, E., Bayo, A., 2012; https://ui.adsabs.harvard.edu/abs/2012ivoa.rept.1015R/abstract
         * Rodrigo, C., Solano, E., 2020; https://ui.adsabs.harvard.edu/abs/2020sea..confE.182R/abstract
