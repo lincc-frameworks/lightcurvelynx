@@ -8,7 +8,7 @@ Realistic light curve simulations are essential to many time-domain problems.
 Simulations are needed to evaluate observing strategy, characterize biases, 
 and test pipelines. LightCurveLynx aims to provide a flexible, scalable, and user-friendly time-domain simulation software with realistic effects and survey strategies.
 
-For an introduction to the package see our recent `LINCC Frameworks Tech Talk on YouTube <https://www.youtube.com/watch?reload=9&v=H0HqXD2iS94>`_.
+For an introduction to the package see our recent `LINCC Frameworks Tech Talk on YouTube <https://www.youtube.com/watch?reload=9&v=H0HqXD2iS94>`__.
 
 .. figure:: _static/lightcurvelynx-intro.png
    :class: no-scaled-link
@@ -21,7 +21,7 @@ The main simulation components in LightCurveLynx include:
 
 * A statistical simulation step where the hyperparameters of the model are drawn
   from one or more prior distributions. This can include existing packages such as
-  `pzflow <https://jfcrenshaw.github.io/pzflow/>`_ or custom distributions.
+  `pzflow <https://jfcrenshaw.github.io/pzflow/>`__ or custom distributions.
 * A model that defines the properties of the time-domain light source, which can
   also include a host-galaxy model, and is used to generate the noise-free light curves.
 * ``ObsTable`` contains the survey information such as survey strategy and observing
@@ -40,14 +40,14 @@ component is used to produce realistic light curves using the above components. 
 In addition to built-in and user-defined models, LightCurveLynx is designed to build off the
 many excellent existing modeling packages. Wrappers are provided for popular packages including:
 
-* `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`_ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
-* `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/bayeSN_example>`).
-* `MOSFiT <https://github.com/guillochon/MOSFiT>`_ - A package of semi-analytic models for a wide range of transients, including superluminous supernovae, kilonovae and tidal disruption events.
-* `PyLIMA <https://github.com/ebachelet/pyLIMA>`_ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
-* `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
-* `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`_ - A package for simulating supernovae.
-* `synphot <https://synphot.readthedocs.io/en/latest/>`_ - A package for simulating photometric observations (:doc:`example <notebooks/pre_executed/synphot_example>`).
-* `VBMicrolensing <https://github.com/valboz/VBMicrolensing>`_ - A package for gravitational microlensing events using the advanced contour integration method (:doc:`example <notebooks/pre_executed/wrapping_vbmicrolensing>`).
+* `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`__ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
+* `bayesn <https://github.com/bayesn/bayesn>`__ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/bayeSN_example>`).
+* `MOSFiT <https://github.com/guillochon/MOSFiT>`__ - A package of semi-analytic models for a wide range of transients, including superluminous supernovae, kilonovae and tidal disruption events.
+* `PyLIMA <https://github.com/ebachelet/pyLIMA>`__ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
+* `redback <https://github.com/nikhil-sarin/redback>`__ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
+* `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`__ - A package for simulating supernovae.
+* `synphot <https://synphot.readthedocs.io/en/latest/>`__ - A package for simulating photometric observations (:doc:`example <notebooks/pre_executed/synphot_example>`).
+* `VBMicrolensing <https://github.com/valboz/VBMicrolensing>`__ - A package for gravitational microlensing events using the advanced contour integration method (:doc:`example <notebooks/pre_executed/wrapping_vbmicrolensing>`).
 
 LightCurveLynx also allows users to load and sample pre-generated light curves, such as the
 ``LCLIB`` (:doc:`example <notebooks/pre_executed/lclib_example>`) and
@@ -55,7 +55,7 @@ LightCurveLynx also allows users to load and sample pre-generated light curves, 
 
 For an overview of the package, we recommend starting with the notebooks in the "Getting Started" section of the :doc:`notebooks page <notebooks>`. The :doc:`glossary and index <glossary>` provides definitions of key terms, such as *GraphState*, *Node*, *Parameter*, *ParameterizedNode*, *BasePhysicalModel*, *BandfluxModel*, and *SEDModel*. It also provides links to relevant documentation throughout the package.
 
-The `full source code <https://github.com/lincc-frameworks/lightcurvelynx>`_ is available on GitHub.
+The `full source code <https://github.com/lincc-frameworks/lightcurvelynx>`__ is available on GitHub.
 
 If you are interested in installing from `source <https://github.com/lincc-frameworks/lightcurvelynx>`_,
 or contributing to the package, see the :doc:`contribution guide <contributing>`. For additional questions, see the :doc:`FAQ page <faq>` or the :doc:`getting help page <getting_help>`.

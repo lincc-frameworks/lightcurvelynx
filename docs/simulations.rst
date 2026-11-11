@@ -53,14 +53,14 @@ The core idea behind LightCurveLynx is that we want to generate light curves fro
 
 In addition to the built-in models, the software provides wrappers to common modeling packages such as:
 
-* `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`_ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
-* `bayesn <https://github.com/bayesn/bayesn>`_ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/bayeSN_example>`).
-* `MOSFiT <https://github.com/guillochon/MOSFiT>`_ - A package of semi-analytic models for a wide range of transients, including superluminous supernovae, kilonovae and tidal disruption events.
-* `PyLIMA <https://github.com/ebachelet/pyLIMA>`_ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
-* `redback <https://github.com/nikhil-sarin/redback>`_ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
-* `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`_ - A package for simulating supernovae.
-* `synphot <https://synphot.readthedocs.io/en/latest/>`_ - A package for simulating photometric observations (:doc:`example <notebooks/pre_executed/synphot_example>`).
-* `VBMicrolensing <https://github.com/valboz/VBMicrolensing>`_ - A package for gravitational microlensing events using the advanced contour integration method (:doc:`example <notebooks/pre_executed/wrapping_vbmicrolensing>`).
+* `BAGLE <https://github.com/MovingUniverseLab/BAGLE_Microlensing>`__ - a package for gravitational microlensing events modelling (:doc:`example <notebooks/pre_executed/wrapping_bagle>`).
+* `bayesn <https://github.com/bayesn/bayesn>`__ - A package for hierarchical modeling of a Type Ia supernova (:doc:`example <notebooks/pre_executed/bayeSN_example>`).
+* `MOSFiT <https://github.com/guillochon/MOSFiT>`__ - A package of semi-analytic models for a wide range of transients, including superluminous supernovae, kilonovae and tidal disruption events.
+* `PyLIMA <https://github.com/ebachelet/pyLIMA>`__ - A package for flexible micro-lensing event simulations (:doc:`example <notebooks/pre_executed/pylima_example>`).
+* `redback <https://github.com/nikhil-sarin/redback>`__ - A package for simulating and fitting a range of cosmological phenomena (:doc:`example <notebooks/pre_executed/redback_example>`).
+* `sncosmo <https://sncosmo.readthedocs.io/en/stable/>`__ - A package for simulating supernovae.
+* `synphot <https://synphot.readthedocs.io/en/latest/>`__ - A package for simulating photometric observations (:doc:`example <notebooks/pre_executed/synphot_example>`).
+* `VBMicrolensing <https://github.com/valboz/VBMicrolensing>`__ - A package for gravitational microlensing events using the advanced contour integration method (:doc:`example <notebooks/pre_executed/wrapping_vbmicrolensing>`).
 
 LightCurveLynx also allows users to load and sample pre-generated light curves, such as the
 ``LCLIB`` (:doc:`example <notebooks/pre_executed/lclib_example>`) and
@@ -243,10 +243,10 @@ Simulations can be performed in parallel by providing a ``concurrent.futures.Exe
 For more control, the users can instantiate their own executor object and pass it as a parameter. For example, you can use:
 
 * `ProcessPoolExecutor` with a specified number of workers. The context should be set as "spawn" or "forkserver" to avoid incompatibility issues with certain libraries and modules.
-* `Dask <https://docs.dask.org/en/latest/>`_ clients. You should always use ``threads_per_worker=1`` and ``processes=True`` to ensure each process runs in a separate thread-safe process.
-* `Joblib <https://joblib.readthedocs.io/en/stable/>`_ clients. We provide the ``lightcurvelynx.utils.parallelization_utils.JoblibExecutor`` wrapper for using joblib with the simulation framework.
-* `Loky <https://loky.readthedocs.io/en/stable/API.html>`_ clients.
-* `Ray <https://docs.ray.io/en/latest/>`_ clients.
+* `Dask <https://docs.dask.org/en/latest/>`__ clients. You should always use ``threads_per_worker=1`` and ``processes=True`` to ensure each process runs in a separate thread-safe process.
+* `Joblib <https://joblib.readthedocs.io/en/stable/>`__ clients. We provide the ``lightcurvelynx.utils.parallelization_utils.JoblibExecutor`` wrapper for using joblib with the simulation framework.
+* `Loky <https://loky.readthedocs.io/en/stable/API.html>`__ clients.
+* `Ray <https://docs.ray.io/en/latest/>`__ clients.
 
 Because we cannot guarantee that all libraries and modules we use are thread safe (and some of our own models are **not** thread safe), we do not support ``ThreadPoolExecutor`` or other multi-threaded approaches such as ``dask.distributed.Client(threads_per_worker>1)``. Please use single threaded executors such as ``concurrent.futures.ProcessPoolExecutor`` (with a context of spawn) or a ``dask.distributed.Client`` with ``threads_per_worker=1``. For more information see the :doc:`parallelization notebook <notebooks/parallel_runs>`.
 
@@ -262,4 +262,4 @@ LightCurveLynx to run simulations in parallel including using dask and ray.
 Results and Output
 -------------------------------------------------------------------------------
 
-The results of a simulation are returned as a `nested-pandas DataFrame <https://nested-pandas.readthedocs.io/en/latest/>`_. For details on the structure of the output and how to save it, see the :doc:`Results and Output documentation page <results_and_output>`.
+The results of a simulation are returned as a `nested-pandas DataFrame <https://nested-pandas.readthedocs.io/en/latest/>`__. For details on the structure of the output and how to save it, see the :doc:`Results and Output documentation page <results_and_output>`.

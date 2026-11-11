@@ -1,7 +1,7 @@
 Contributing to LightCurveLynx
 ===============================================================================
 
-You may want to start by reading the `LIGHTCURVELYNX_GUIDE.md <https://github.com/lincc-frameworks/lightcurvelynx/blob/main/LIGHTCURVELYNX_GUIDE.md>`_ file in the root repository.
+You may want to start by reading the `LIGHTCURVELYNX_GUIDE.md <https://github.com/lincc-frameworks/lightcurvelynx/blob/main/LIGHTCURVELYNX_GUIDE.md>`__ file in the root repository.
 This file provides an overview of the design principles and core abstractions for the project.
 Although it was written for AI coding assistants, it is a great resource for any new contributor.
 
@@ -9,7 +9,7 @@ The code
 --------------------------------------------------------------------------------
 
 The LightCurveLynx code is hosted on GitHub at
-`https://github.com/lincc-frameworks/lightcurvelynx <https://github.com/lincc-frameworks/lightcurvelynx>`_.
+`https://github.com/lincc-frameworks/lightcurvelynx <https://github.com/lincc-frameworks/lightcurvelynx>`__.
 
 Find (or make) a new GitHub issue
 -------------------------------------------------------------------------------
@@ -57,11 +57,11 @@ Notes:
 2) ``pre-commit install`` will initialize pre-commit for this local repository, so
    that a set of tests will be run prior to completing a local commit. For more
    information, see the Python Project Template documentation on
-   `pre-commit <https://lincc-ppt.readthedocs.io/en/stable/practices/precommit.html>`_.
+   `pre-commit <https://lincc-ppt.readthedocs.io/en/stable/practices/precommit.html>`__.
 3) Install ``pandoc`` allows you to verify that automatic rendering of Jupyter notebooks
    into documentation for ReadTheDocs works as expected. For more information, see
    the Python Project Template documentation on
-   `Sphinx and Python Notebooks <https://lincc-ppt.readthedocs.io/en/stable/practices/sphinx.html#python-notebooks>`_.
+   `Sphinx and Python Notebooks <https://lincc-ppt.readthedocs.io/en/stable/practices/sphinx.html#python-notebooks>`__.
 
 .. tip::
     Installing on Mac
