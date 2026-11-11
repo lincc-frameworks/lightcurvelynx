@@ -511,11 +511,11 @@ def _simulate_lightcurves_batch(simulation_info):
                 )
 
         # Finish this object and append it to the main results.
-        results_builder.finish()
+        results_builder.append_current_object()
 
     # Create the nested frame and either save it to a file or return it directly.
     logger.info("Compiling results.")
-    results = results_builder.build_nested_frame(state=sample_states)
+    results = results_builder.build_results(state=sample_states)
 
     # Drop any rows that have neither lightcurve nor spectra data.
     if simulation_info.drop_empty_rows:

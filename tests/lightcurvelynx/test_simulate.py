@@ -407,7 +407,7 @@ def test_simulate_lightcurves(test_data_dir):
     )
     assert len(results) == 5
     assert "lightcurve" in results
-    assert "spectra" not in results
+    assert "spectra" in results  # We include it even though it is empty
 
     assert np.all(results["nobs"].to_numpy() >= 1)
     assert np.allclose(results["ra"].to_numpy(), opsim_db["ra"].to_numpy()[0:5])

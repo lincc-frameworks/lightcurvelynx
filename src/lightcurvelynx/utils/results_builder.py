@@ -68,7 +68,7 @@ class SimulationResultBuilder:
             "ra": ra.tolist(),
             "dec": dec.tolist(),
             "t0": t0.tolist(),
-            "redshift": redshift.tolist(),
+            "z": redshift.tolist(),
             "nobs": [0] * self.realized_num_samples,
         }
         self.results_dtypes = {
@@ -76,7 +76,7 @@ class SimulationResultBuilder:
             "ra": float,
             "dec": float,
             "t0": float,
-            "redshift": float,
+            "z": float,
             "nobs": int,
         }
 
@@ -148,13 +148,17 @@ class SimulationResultBuilder:
             )
         self.results_dict[column_name] = column_values
 
-        # Use the given dtype if provided, otherwise infer it from the first value.
+        # Use the given dtype if provided, otherwise infer it from the set of values.
         if dtype is not None:
             self.results_dtypes[column_name] = dtype
         else:
-            inferred_dtype = type(column_values[0]) if column_values else None
-            logger.info(f"Inferred dtype for column {column_name} as {inferred_dtype}")
-            self.results_dtypes[column_name] = inferred_dtype
+            # Check whether there is a single consistent type.
+            all_types = set(type(val) for val in column_values)
+            if len(all_types) == 1:
+                inferred_type = all_types.pop()
+            else:
+                inferred_type = object
+            self.results_dtypes[column_name] = inferred_type
 
     def add_param_column(self, param_name, sample_states):
         """
@@ -201,22 +205,25 @@ class SimulationResultBuilder:
         # Save the dtype of the column.
         if dtype is not None:
             self.lightcurve_dtypes[column_name] = dtype
-        elif obs_table_list is None and len(obs_table_list) == 0:
+        elif obs_table_list is None or len(obs_table_list) == 0:
             raise ValueError("Must either provide a dtype or a list of ObsTables.")
         else:
-            dtypes = [
-                obs_table[column_name].dtype for obs_table in obs_table_list if column_name in obs_table
+            # Collect the dtypes of the column from each observation table. If the column is missing,
+            # use object.
+            all_dtypes = [
+                obs_table[column_name].dtype if column_name in obs_table else object
+                for obs_table in obs_table_list
             ]
-            if len(dtypes) == 0:
+            if len(all_dtypes) == 0:
                 # Don't store the column if it will have no values. But produce a warning.
                 logger.warning(f"No observation tables contain column {column_name}.")
                 return
 
             # Make sure we can determine a consistent dtype for the column.
-            if np.unique(dtypes).size == 1:
-                self.lightcurve_dtypes[column_name] = dtypes[0]
+            if len(set(all_dtypes)) == 1:
+                self.lightcurve_dtypes[column_name] = all_dtypes[0]
             else:
-                raise ValueError(f"Inconsistent dtypes for column {column_name} in observation tables.")
+                self.lightcurve_dtypes[column_name] = object
 
         # Add the empty column.
         self.lightcurve_dict[column_name] = []
@@ -340,7 +347,7 @@ class SimulationResultBuilder:
         self.current_spectra = None
         self.current_index = None
 
-    def build_nested_frame(self, state=None):
+    def build_results(self, state=None):
         """Construct the nested results data frame.
 
         Parameters
