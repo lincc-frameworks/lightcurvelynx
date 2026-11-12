@@ -9,7 +9,7 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **Bandflux** - A flux density averaged over passband transmission, in nJy. It is given by this equation (we always assume "photon counter" detector): :math:`\frac{\int_0^\infty F_\nu(\lambda) T(\lambda) \mathrm{d}\lambda/\lambda}{\int_0^\infty T(\lambda) \mathrm{d}\lambda/\lambda}`, where :math:`\lambda` is the wavelength, :math:`F_\nu(\lambda)` is the source flux density, and :math:`T(\lambda)` is the passband transmission.
 
-**BandfluxModel** - A ``BandfluxModel`` is a subclass of the ``BasePhysicalModel`` class that represents broadband photometry in specific bands (band fluxes), such as the g-band or r-band (instead of a full spectral energy distribution). See also :doc:`Adding New Models Notebook <notebooks/adding_models>`, :doc:`LightcurveTemplateModel Notebook <notebooks/lightcurve_source_demo>`, or :doc:`Custom Models and Effects <custom_models>`.
+**BandfluxModel** - A ``BandfluxModel`` is a subclass of the ``BasePhysicalModel`` class that represents broadband photometry in specific bands (observer-frame band fluxes), such as the g-band or r-band, instead of a full spectral energy distribution. See also :doc:`Adding New Models Notebook <notebooks/adding_models>`, :doc:`LightcurveTemplateModel Notebook <notebooks/lightcurve_source_demo>`, or :doc:`Custom Models and Effects <custom_models>`.
 
 **BasePhysicalModel** - ``BasePhysicalModel`` is a superclass for all nodes that represent physical phenomena that produce flux. ``BasePhysicalModel`` itself is a subclass of ``ParameterizedNode``. See also :doc:`Introduction Notebook <notebooks/introduction>` and :doc:`Adding New Models Notebook <notebooks/adding_models>`.
 

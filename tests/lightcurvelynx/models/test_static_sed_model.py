@@ -264,6 +264,17 @@ def test_single_static_bandflux() -> None:
         _ = model.evaluate_spectra(times, sg_pbg, state)
 
 
+def test_single_static_bandflux_warns() -> None:
+    """Test that a Bandflux model warns the user if they try to use redshift or wave extrapolation."""
+    bandflux = {"r": 10.0, "g": 20.0, "b": 30.0}
+
+    with pytest.warns():
+        _ = StaticBandfluxModel(bandflux, redshift=1.0)
+
+    with pytest.warns():
+        _ = StaticBandfluxModel(bandflux, wave_extrapolation=LinearDecay(decay_width=10.0))
+
+
 def test_multiple_static_bandflux() -> None:
     """Test that we can create and sample a StaticBandfluxModel object with multiple bandfluxes."""
     bandflux0 = {"r": 10.0, "g": 20.0, "b": 30.0}
