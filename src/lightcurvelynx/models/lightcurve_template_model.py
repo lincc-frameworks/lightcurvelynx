@@ -517,11 +517,15 @@ class BaseLightcurveBandTemplateModel(BandfluxModel, ABC):
 
 
 class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
-    """A model that generates either the SED or bandflux of a source based on
-    given light curves in each band. When generating the bandflux, it interpolates
-    the light curves directly. When generating the SED, the model uses a box-shaped SED
-    for each filter such that the resulting flux density is equal to the light curve's
-    value after passing through the passband filter.
+    """A model that generates either the bandflux of a source based on given (observer frame)
+    light curves in each band. When generating the bandflux, it interpolates the light curves
+    directly. Since the input light curves are provided in the observer frame, the model does
+    not apply redshift.
+
+    This model can also approximate an SED using a box-shaped SED for each filter
+    such that the resulting flux density is equal to the light curve's value after passing
+    through the passband filter. This is generally not recommended as it can introduce
+    artifacts in the resulting SED.
 
     LightcurveTemplateModel supports both periodic and non-periodic light curves. If the
     light curve is not periodic then each light curve's given values will be interpolated
