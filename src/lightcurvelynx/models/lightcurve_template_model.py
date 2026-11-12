@@ -1,10 +1,6 @@
-"""Model that generate the SED or bandflux of a source based on given observer frame
-light curves of fluxes in each band.
-
-If we are generating the bandfluxes directly, the models interpolate the given light curves
-at the requested times and filters. If we are generating an SED for a given set of
-wavelengths, the model computes a box-shaped SED basis function for each filter that
-will produce the same bandflux after being passed through the passband filter.
+"""Model that generate the bandflux of a source based on given observer-frame
+light curves of fluxes in each band. The models interpolate the given light curves
+at the requested times and filters.
 
 Note: If you are interested in generating SED-level data, use the SEDTemplateModel in
 src/lightcurvelynx/models/sed_template_model.py instead.
@@ -669,7 +665,7 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             return None
 
     def compute_sed(self, times, wavelengths, graph_state):
-        """Draw effect-free observer frame flux densities.
+        """Not supported for LightcurveTemplateModel.
 
         Parameters
         ----------
@@ -679,13 +675,6 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             A length N array of observer frame wavelengths (in angstroms).
         graph_state : GraphState
             An object mapping graph parameters to their values.
-
-        Returns
-        -------
-        flux_density : numpy.ndarray
-            A length T x N matrix of observer frame SED values (in nJy). These are generated
-            from non-overlapping box-shaped SED basis functions for each filter and
-            scaled by the light curve values.
         """
         raise NotImplementedError(
             "compute_sed is no longer implemented for LightcurveTemplateModel. "
@@ -981,7 +970,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             return None
 
     def compute_sed(self, times, wavelengths, graph_state):
-        """Draw effect-free observer frame flux densities.
+        """Not supported for MultiLightcurveTemplateModel.
 
         Parameters
         ----------
@@ -991,13 +980,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             A length N array of observer frame wavelengths (in angstroms).
         graph_state : GraphState
             An object mapping graph parameters to their values.
-
-        Returns
-        -------
-        flux_density : numpy.ndarray
-            A length T x N matrix of observer frame SED values (in nJy). These are generated
-            from non-overlapping box-shaped SED basis functions for each filter and
-            scaled by the light curve values.
         """
         raise NotImplementedError(
             "compute_sed is no longer implemented for MultiLightcurveTemplateModel. "
