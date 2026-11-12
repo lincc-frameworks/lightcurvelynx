@@ -196,9 +196,9 @@ class SimulationResultBuilder:
         logger.debug(f"Adding parameter column {param_name} as {new_name}")
         self.add_result_column(new_name, np.atleast_1d(sample_states[param_name]).tolist())
 
-    def add_light_curve_column(self, column_name, obs_table_list=None, dtype=None):
+    def add_per_observation_column(self, column_name, obs_table_list=None, dtype=None):
         """
-        Add a new empty column to the light curve nested dictionary.
+        Add a new empty column to the per-observation (light curve and spectra) nested dictionaries.
 
         Parameters
         ----------
@@ -217,7 +217,7 @@ class SimulationResultBuilder:
 
         # Save the dtype of the column.
         if dtype is not None:
-            self.lightcurve_dtypes[column_name] = dtype
+            use_dtype = dtype
         elif obs_table_list is None or len(obs_table_list) == 0:
             raise ValueError("Must either provide a dtype or a list of ObsTables.")
         elif np.all([column_name not in obs_table for obs_table in obs_table_list]):
@@ -243,14 +243,19 @@ class SimulationResultBuilder:
             present_dtypes = [dt for dt in all_dtypes if dt != object]
             if len(present_dtypes) > 0 and len(set(present_dtypes)) == 1:
                 # All tables where the column exists have the same dtype.
-                self.lightcurve_dtypes[column_name] = present_dtypes[0]
+                use_dtype = present_dtypes[0]
             else:
                 # Inconsistent dtypes where the column exists, all columns are object,
                 # or the column is missing from all tables.
-                self.lightcurve_dtypes[column_name] = object
+                use_dtype = object
 
-        # Add the empty column.
+        # Add the empty column and set the dtypes.
+        print(f"Adding new light curve column: {column_name} with dtype {use_dtype}")
         self.lightcurve_dict[column_name] = []
+        self.lightcurve_dtypes[column_name] = use_dtype
+        if column_name != "full_filter_name":  # full_filter_name has no meaning for spectra
+            self.spectra_dict[column_name] = []
+            self.spectra_dtypes[column_name] = use_dtype
 
     def start_new_object(self, index):
         """
@@ -371,6 +376,41 @@ class SimulationResultBuilder:
         self.current_spectra = None
         self.current_index = None
 
+    def _build_typed_data(self, data_dict, dtypes_dict, index=None):
+        """Build a typed pandas Series for each column in the data dictionary.
+
+        Parameters
+        ----------
+        data_dict : dict
+            Dictionary containing the column data.
+        dtypes_dict : dict
+            Dictionary containing the column dtypes.
+        index : list or None, optional
+            Index to use for the resulting Series. If None, the default index is used.
+
+        Returns
+        -------
+        dict
+            Dictionary containing the typed pandas Series for each column.
+        """
+        typed_data = {}
+        for col in data_dict:
+            col_dtype = dtypes_dict[col]
+            if pd.api.types.is_string_dtype(col_dtype):
+                series_dtype = pd.StringDtype()
+            elif pd.api.types.is_integer_dtype(col_dtype):
+                # Use nullable integer dtype to support NaN values
+                series_dtype = pd.Int64Dtype()
+            elif pd.api.types.is_bool_dtype(col_dtype):
+                # Use nullable boolean dtype to support NA values
+                series_dtype = pd.BooleanDtype()
+            else:
+                # Float, datetime, and other types handle NaN/NaT naturally
+                series_dtype = col_dtype
+
+            typed_data[col] = pd.Series(data_dict[col], dtype=series_dtype, index=index)
+        return typed_data
+
     def build_results(self, state=None):
         """Construct the nested results data frame.
 
@@ -385,45 +425,30 @@ class SimulationResultBuilder:
             The constructed nested results data frame.
         """
         # Create the outer results data frame (with appropriate dtypes)
-        results_data = {}
-        for col in self.results_dict:
-            results_data[col] = pd.Series(self.results_dict[col], dtype=self.results_dtypes[col])
+        results_data = self._build_typed_data(
+            data_dict=self.results_dict,
+            dtypes_dict=self.results_dtypes,
+        )
         results_df = NestedFrame(
             data=results_data,
             index=list(range(self.realized_num_samples)),
         )
 
         # Create the light curve data frame (with appropriate dtypes) and merge it in.
-        light_curve_data = {}
-        for col in self.lightcurve_dict:
-            col_dtype = self.lightcurve_dtypes[col]
-            if pd.api.types.is_string_dtype(col_dtype):
-                series_dtype = pd.StringDtype()
-            elif pd.api.types.is_integer_dtype(col_dtype):
-                # Use nullable integer dtype to support NaN values
-                series_dtype = pd.Int64Dtype()
-            elif pd.api.types.is_bool_dtype(col_dtype):
-                # Use nullable boolean dtype to support NA values
-                series_dtype = pd.BooleanDtype()
-            else:
-                # Float, datetime, and other types handle NaN/NaT naturally
-                series_dtype = col_dtype
-            light_curve_data[col] = pd.Series(
-                self.lightcurve_dict[col],
-                dtype=series_dtype,
-                index=self.lightcurve_index,
-            )
+        light_curve_data = self._build_typed_data(
+            data_dict=self.lightcurve_dict,
+            dtypes_dict=self.lightcurve_dtypes,
+            index=self.lightcurve_index,
+        )
         lightcurve_frame = pd.DataFrame(data=light_curve_data)
         results_df = results_df.join_nested(lightcurve_frame, "lightcurve")
 
         # Create the spectra data frame (with appropriate dtypes) and merge it in.
-        spectra_data = {}
-        for col in self.spectra_dict:
-            spectra_data[col] = pd.Series(
-                self.spectra_dict[col],
-                dtype=self.spectra_dtypes[col],
-                index=self.spectra_index,
-            )
+        spectra_data = self._build_typed_data(
+            data_dict=self.spectra_dict,
+            dtypes_dict=self.spectra_dtypes,
+            index=self.spectra_index,
+        )
         spectra_frame = pd.DataFrame(data=spectra_data)
         results_df = results_df.join_nested(spectra_frame, "spectra")
 

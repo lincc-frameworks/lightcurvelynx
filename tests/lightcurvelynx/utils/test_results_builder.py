@@ -186,11 +186,11 @@ def test_simulation_results_builder_add_column():
     assert isinstance(df["correct_length_column"].dtype, pd.StringDtype)
 
     # Check that we can override the dtype.
-    builder.add_result_column("overridden_dtype_column", ["str"], dtype=object)
-    assert builder.results_dtypes["overridden_dtype_column"] == object
+    builder.add_result_column("overridden_dtype_column", ["1"], dtype=int)
+    assert builder.results_dtypes["overridden_dtype_column"] == int
 
     df = builder.build_results()
-    assert df["overridden_dtype_column"].dtype == object
+    assert isinstance(df["overridden_dtype_column"].dtype, pd.Int64Dtype)
 
 
 def test_simulation_results_builder_add_mixed_column():
@@ -402,12 +402,12 @@ def test_basic_simulation_results_add_spectra():
     assert np.array_equal(spectra2["instrument"], ["inst1"])
 
 
-def test_simulation_results_builder_add_light_curve_column():
+def test_simulation_results_builder_add_per_observation_column():
     """Test that we can add columns for the light curves."""
     builder = _create_basic_builder(10)
 
     # We add a column with a given dtype.
-    builder.add_light_curve_column("num_trees_in_fov", dtype=int)
+    builder.add_per_observation_column("num_trees_in_fov", dtype=int)
     assert "num_trees_in_fov" in builder.lightcurve_dict
     assert builder.lightcurve_dtypes["num_trees_in_fov"] == int
 
@@ -424,13 +424,13 @@ def test_simulation_results_builder_add_light_curve_column():
             "custom_col3": [1.1, 1.2, 1.3],
         }
     )
-    builder.add_light_curve_column("custom_col1", obs_table_list=[obstable1])
+    builder.add_per_observation_column("custom_col1", obs_table_list=[obstable1])
     assert "custom_col1" in builder.lightcurve_dict
     assert builder.lightcurve_dtypes["custom_col1"] == int
 
     # We can't add a column twice.
     with pytest.raises(KeyError):
-        builder.add_light_curve_column("custom_col1", obs_table_list=[obstable1])
+        builder.add_per_observation_column("custom_col1", obs_table_list=[obstable1])
 
     # If we have different dtypes for the same column across different observation tables,
     # we should default to object.
@@ -444,24 +444,24 @@ def test_simulation_results_builder_add_light_curve_column():
             "custom_col2": [1],
         }
     )
-    builder.add_light_curve_column("custom_col2", obs_table_list=[obstable1, obstable2])
+    builder.add_per_observation_column("custom_col2", obs_table_list=[obstable1, obstable2])
     assert "custom_col2" in builder.lightcurve_dict
     assert builder.lightcurve_dtypes["custom_col2"] == object
 
     # If we add a column that is only present in one observation table, it should be float
     # because they can handle Nones.
-    builder.add_light_curve_column("custom_col3", obs_table_list=[obstable1, obstable2])
+    builder.add_per_observation_column("custom_col3", obs_table_list=[obstable1, obstable2])
     assert "custom_col3" in builder.lightcurve_dict
     assert builder.lightcurve_dtypes["custom_col3"] == float
 
     # If we add a column that is not present in any observation table, it should produce a warning
     # and not add the column.
     with pytest.warns(UserWarning):
-        builder.add_light_curve_column("custom_col4", obs_table_list=[obstable1, obstable2])
+        builder.add_per_observation_column("custom_col4", obs_table_list=[obstable1, obstable2])
     assert "custom_col4" not in builder.lightcurve_dict
 
 
-def test_simulation_results_builder_add_light_curve_column_in_progress():
+def test_simulation_results_builder_add_per_observation_column_in_progress():
     """Test that we cannot add columns for the light curves after we have started
     constructing the data set."""
     builder = _create_basic_builder(4)
@@ -480,7 +480,7 @@ def test_simulation_results_builder_add_light_curve_column_in_progress():
     builder.append_current_object()
 
     with pytest.raises(RuntimeError):
-        builder.add_light_curve_column("new_column", dtype=int)
+        builder.add_per_observation_column("new_column", dtype=int)
 
 
 def test_simulation_results_builder_light_curve_string_column():
@@ -500,7 +500,7 @@ def test_simulation_results_builder_light_curve_string_column():
     )
 
     # Add the string column to light curves
-    builder.add_light_curve_column("instrument_name", obs_table_list=[obstable])
+    builder.add_per_observation_column("instrument_name", obs_table_list=[obstable])
     assert "instrument_name" in builder.lightcurve_dict
 
     # Add observations and build results to test the StringDtype conversion on line 391
@@ -559,9 +559,9 @@ def test_simulation_results_builder_light_curve_columns_with_nan():
     )
 
     # Add each of the columns to the "lightcurve" columns.
-    builder.add_light_curve_column("int_col", obs_table_list=[obstable1, obstable2])
-    builder.add_light_curve_column("float_col", obs_table_list=[obstable1, obstable2])
-    builder.add_light_curve_column("bool_col", obs_table_list=[obstable1, obstable2])
+    builder.add_per_observation_column("int_col", obs_table_list=[obstable1, obstable2])
+    builder.add_per_observation_column("float_col", obs_table_list=[obstable1, obstable2])
+    builder.add_per_observation_column("bool_col", obs_table_list=[obstable1, obstable2])
 
     # Check that the columns are there.
     assert "int_col" in builder.lightcurve_dict
