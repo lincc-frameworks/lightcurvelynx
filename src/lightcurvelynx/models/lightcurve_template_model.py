@@ -522,11 +522,6 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     directly. Since the input light curves are provided in the observer frame, the model does
     not apply redshift.
 
-    This model can also approximate an SED using a box-shaped SED for each filter
-    such that the resulting flux density is equal to the light curve's value after passing
-    through the passband filter. This is generally not recommended as it can introduce
-    artifacts in the resulting SED.
-
     LightcurveTemplateModel supports both periodic and non-periodic light curves. If the
     light curve is not periodic then each light curve's given values will be interpolated
     during the time range of the light curve. Values outside the time range (before and
@@ -692,11 +687,9 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             from non-overlapping box-shaped SED basis functions for each filter and
             scaled by the light curve values.
         """
-        return self.compute_sed_given_lc(
-            self.lightcurves,
-            times,
-            wavelengths,
-            graph_state,
+        raise NotImplementedError(
+            "compute_sed is no longer implemented for LightcurveTemplateModel. "
+            "Please use the SEDTemplateModel model for computing SEDs."
         )
 
     def compute_bandflux(self, times, filter, state, **kwargs):
@@ -752,12 +745,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     curve at each evaluation and computes the flux from that source. If the 'indices' parameter
     is provided, the model uses those indices to select the light curve (in order). Otherwise,
     the model randomly samples from the available light curves (with replacement).
-
-    The models can generate either the SED or bandflux of a source based of given light curves
-    in each band. When generating the bandflux, the model interpolates the light curves directly.
-    When generating the SED, the model uses a box-shaped SED for each filter such that the
-    resulting flux density is equal to the light curve's value after passing through the passband
-    filter.
 
     MultiLightcurveTemplateModel supports both periodic and non-periodic light curves. If the
     light curve is not periodic then each light curve's given values will be interpolated
@@ -1012,13 +999,9 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
             from non-overlapping box-shaped SED basis functions for each filter and
             scaled by the light curve values.
         """
-        # Use the light curve selected by the sampler node to compute the flux density.
-        model_ind = self.get_param(graph_state, "selected_lightcurve")
-        return self.compute_sed_given_lc(
-            self.lightcurves[model_ind],
-            times,
-            wavelengths,
-            graph_state,
+        raise NotImplementedError(
+            "compute_sed is no longer implemented for MultiLightcurveTemplateModel. "
+            "Please use the MultiSEDTemplateModel model for computing SEDs."
         )
 
     def compute_bandflux(self, times, filter, state, **kwargs):

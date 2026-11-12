@@ -385,7 +385,7 @@ def test_create_lightcurve_template_model_no_pb() -> None:
     assert np.allclose(fluxes, [0.0, 0.0, 2.0, 1.2, 2.0, 1.4, 0.0, 0.0])
 
     # We fail if we try to compute and SED or plot the basis functions.
-    with pytest.raises(ValueError):
+    with pytest.raises(NotImplementedError):
         lc_model.compute_sed(query_times, np.array([5000.0, 6000.0]), graph_state)
     with pytest.raises(ValueError):
         lc_model.plot_sed_basis()
