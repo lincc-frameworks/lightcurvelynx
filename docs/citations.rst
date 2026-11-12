@@ -3,8 +3,8 @@ Citations / Acknowledgements
 
 If you use LightCurveLynx in your research, we ask that you cite the following papers:
 
-  * Dai et. al. 2026 "LightCurveLynx: Forward Modeling of Time-Domain Surveys with Application to ZTF SN Ia DR2" (in review; see `arxiv.org/abs/2604.07134 <https://arxiv.org/abs/2604.07134>`__)
-  * Kubica et. al. 2026 "LightCurveLynx: Fast and Nimble Time Domain Simulation for Astronomical Surveys" (`in review <https://joss.theoj.org/papers/01344d3b6112431d1a4e49e41389e587>`__)
+  * Dai et. al. 2026 "LightCurveLynx: Forward Modeling of Time-Domain Surveys with Application to ZTF SN Ia DR2" (accepted by ApJ; see `arxiv.org/abs/2604.07134 <https://arxiv.org/abs/2604.07134>`__)
+  * Kubica et. al. 2026 "LightCurveLynx: Fast and Nimble Time Domain Simulation for Astronomical Surveys" (`pdf at JOSS <https://joss.theoj.org/papers/01344d3b6112431d1a4e49e41389e587>`__)
 
 LightCurveLynx relies on numerous open source packages to perform the computation. Please make sure to cite the packages that your study uses.
 
