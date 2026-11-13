@@ -20,7 +20,7 @@ from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.lightcurve_template_model import LightcurveTemplateModel
 from lightcurvelynx.models.multi_object_model import AdditiveMultiObjectModel
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
-from lightcurvelynx.models.static_sed_model import StaticSEDModel
+from lightcurvelynx.models.static_models import StaticSEDModel
 from lightcurvelynx.noise_models.base_noise_models import PoissonFluxNoiseModel
 
 # I have no idea why this is next line necessary, but it seems that if we import
