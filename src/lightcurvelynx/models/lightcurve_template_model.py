@@ -7,6 +7,7 @@ src/lightcurvelynx/models/sed_template_model.py instead.
 """
 
 import logging
+import warnings
 from abc import ABC
 
 import matplotlib.pyplot as plt
@@ -16,7 +17,6 @@ from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.mag_flux import mag2flux
 from lightcurvelynx.astro_utils.passbands import Passband, PassbandGroup
-from lightcurvelynx.astro_utils.sed_basis_models import SEDBasisModel
 from lightcurvelynx.consts import lsst_filter_plot_colors
 from lightcurvelynx.math_nodes.given_sampler import (
     GivenValueList,
@@ -406,11 +406,6 @@ class LightcurveBandData:
 class BaseLightcurveBandTemplateModel(BandfluxModel, ABC):
     """A base class for light curve template models. This class is not meant to be used directly,
     but rather as a base for other light curve template models that may have additional functionality.
-    It provides the basic structure (primarily SED basis functions) and validation for
-    light curve-based SED models.
-
-    The set of passbands used to configure the model MUST be the same as used
-    to generate the SED (the wavelengths must match).
 
     Parameterized values include:
 
@@ -418,98 +413,26 @@ class BaseLightcurveBandTemplateModel(BandfluxModel, ABC):
     * ra - The object's right ascension in degrees.
     * t0 - The t0 of the zero phase (if applicable), date.
 
-    Attributes
-    ----------
-    sed_basis: SEDBasisModel, optional
-        An SEDBasisModel mapping representing the fake SED basis functions for each filter.
-        Only generated if passbands are provided.
-
     Parameters
     ----------
-    passbands : Passband or PassbandGroup, optional
-        The passband or passband group to use for defining the light curve. If provided, they
-        will be used to create box-shaped SED basis functions for each filter.
-    filters : list, optional
-        A list of filter names that the model supports. If None then
-        all available filters will be used.
+    kwargs : dict
+        Additional keyword arguments. Must include 't0' for the zero phase (if applicable), date.
     """
 
-    def __init__(self, *, passbands=None, filters=None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Convert a single passband to a PassbandGroup.
-        if isinstance(passbands, Passband):
-            passbands = PassbandGroup(given_passbands=[passbands])
-
-        # Create the SED basis functions for each filter.
-        if passbands is not None:
-            self.sed_basis = SEDBasisModel.from_box_approximation(passbands, filters=filters)
-        else:
-            self.sed_basis = None
+        # If passbands or filters are provided, issue a deprecation warning.
+        if "passbands" in kwargs and kwargs["passbands"] is not None:  # pragma: no cover
+            warnings.warn("The 'passbands' argument is deprecated and will be ignored.", DeprecationWarning)
+            _ = kwargs.pop("passbands")
+        if "filters" in kwargs and kwargs["filters"] is not None:  # pragma: no cover
+            warnings.warn("The 'filters' argument is deprecated and will be ignored.", DeprecationWarning)
+            _ = kwargs.pop("filters")
 
         # Check that t0 is set.
         if "t0" not in kwargs or kwargs["t0"] is None:
             raise ValueError("Light curve models require a t0 parameter.")
-
-    def compute_sed_given_lc(self, lc, times, wavelengths, graph_state):
-        """Compute the flux density for a given light curve at specified times and wavelengths.
-
-        Parameters
-        ----------
-        lc : LightcurveBandData
-            The light curve data to use for computing the flux density.
-        times : numpy.ndarray
-            A length T array of observer frame timestamps in MJD.
-        wavelengths : numpy.ndarray, optional
-            A length N array of observer frame wavelengths (in angstroms).
-        graph_state : GraphState
-            An object mapping graph parameters to their values.
-
-        Returns
-        -------
-        flux_density : numpy.ndarray
-            A length T x N matrix of observer frame SED values (in nJy).
-        """
-        if self.sed_basis is None:
-            raise ValueError("SED basis functions are not defined for this model.")
-
-        params = self.get_local_params(graph_state)
-
-        # Shift the times for the model's t0 aligned with the light curve's reference epoch.
-        shifted_times = times - params["t0"]
-
-        flux_density = np.zeros((len(times), len(wavelengths)))
-        for filter in lc.filters:
-            # Compute the SED values for the wavelengths we are actually sampling.
-            sed_waves = self.sed_basis.compute_sed(filter, wavelengths=wavelengths)
-
-            # Compute the multipliers for the SEDs at different time steps along this light curve.
-            # We use the light curve's baseline value for all times outside the light curve's range.
-            sed_time_mult = lc.evaluate_bandfluxes(shifted_times, filter)
-
-            # The contribution of this filter to the overall SED is the light curve's (interpolated)
-            # value at each time multiplied by the SED values at each query wavelength.
-            sed_flux = np.outer(sed_time_mult, sed_waves)
-            flux_density += sed_flux
-
-        # Return the total flux density from all light curves.
-        return flux_density
-
-    def plot_sed_basis(self, ax=None, figure=None):
-        """Plot the basis functions for the SED.  This is a debugging
-        function to help the user understand the SEDs produced by this
-        model.
-
-        Parameters
-        ----------
-        ax : matplotlib.pyplot.Axes or None, optional
-            Axes, None by default.
-        figure : matplotlib.pyplot.Figure or None
-            Figure, None by default.
-        """
-        if self.sed_basis is None:
-            raise ValueError("SED basis functions are not defined for this model.")
-        self.sed_basis.plot(ax=ax, figure=figure)
 
 
 class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
@@ -527,9 +450,6 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     and that the value at the end of the light curve is equal to the value at the start
     of the light curve. The light curve epoch (lc_data_t0) is automatically set to the first
     time so that the t0 parameter corresponds to the shift in phase.
-
-    The set of passbands used to configure the model MUST be the same as used
-    to generate the SED (the wavelengths must match).
 
     Parameterized values include:
 
@@ -563,9 +483,6 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
            where the first column is time and the second column is the flux density (in nJy), or
         3) a numpy array of shape (T, 3) array where the first column is time (in days), the
            second column is the bandflux (in nJy), and the third column is the filter.
-    passbands : Passband or PassbandGroup or None
-        The passband or passband group to use for defining the light curve. If provided (not None),
-        these will be used to create box-shaped SED basis functions for each filter.
     lc_data_t0 : float
         The reference epoch of the input light curve. This is the time stamp of the input
         array that will correspond to t0 in the model. For periodic light curves, this either
@@ -584,13 +501,20 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     def __init__(
         self,
         lightcurves,
-        passbands,
         lc_data_t0,
         *,
         periodic=False,
         baseline=None,
         **kwargs,
     ):
+        # Check for deprecated arguments. If the user is passing passbands as a positional argument,
+        # we catch that and raise a helpful error.
+        if isinstance(lc_data_t0, Passband | PassbandGroup):  # pragma: no cover
+            raise TypeError("Passing passbands is no longer supported. Please remove this argument.")
+        if "passbands" in kwargs and kwargs["passbands"] is not None:  # pragma: no cover
+            warnings.warn("The 'passbands' argument is deprecated and will be ignored.", DeprecationWarning)
+            _ = kwargs.pop("passbands")
+
         # Store the light curve data, parsing out different formats if needed.
         if isinstance(lightcurves, LightcurveBandData):
             self.lightcurves = lightcurves
@@ -602,7 +526,7 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
                 baseline=baseline,
             )
         self.filters = self.lightcurves.filters
-        super().__init__(passbands=passbands, filters=self.filters, **kwargs)
+        super().__init__(**kwargs)
 
         # Raise a warning if time extrapolation is provided but cannot be used.
         if "time_extrapolation" in kwargs and kwargs["time_extrapolation"] is not None:
@@ -745,9 +669,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     of the light curve. The light curve epoch is automatically set to the first time
     so that the t0 parameter corresponds to the shift in phase.
 
-    The set of passbands used to configure the model MUST be the same as used
-    to generate the SED (the wavelengths must match).
-
     Parameterized values include:
 
     * dec - The object's declination in degrees.
@@ -771,10 +692,6 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     lightcurves : list of LightcurveBandData
         The data for each set of light curves. One light curve will be randomly selected
         at each evaluation.
-    passbands : Passband or PassbandGroup or None, optional
-        The passband or passband group to use for defining the light curve. If provided (not None),
-        these will be used to create box-shaped SED basis functions for each filter.
-        Default: None
     weights : numpy.ndarray, optional
         A length N array indicating the relative weight from which to select
         a light curve at random. Cannot be used if the 'indices' parameter is provided.
@@ -790,12 +707,16 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     def __init__(
         self,
         lightcurves,
-        passbands=None,
         *,
         weights=None,
         indices=None,
         **kwargs,
     ):
+        # Check for deprecated arguments.
+        if "passbands" in kwargs:  # pragma: no cover
+            warnings.warn("The 'passbands' argument is deprecated and will be ignored.", DeprecationWarning)
+            _ = kwargs.pop("passbands")
+
         # Validate the light curve input and create a union of all filters used.
         all_filters = set()
         for lc in lightcurves:
@@ -805,7 +726,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         self.filters = list(all_filters)
         self.lightcurves = lightcurves
 
-        super().__init__(passbands=passbands, filters=self.filters, **kwargs)
+        super().__init__(**kwargs)
 
         # Either choose from the indices (in order) or use a sampler.
         if indices is not None:
@@ -849,15 +770,13 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         return len(self.lightcurves)
 
     @classmethod
-    def from_lclib_file(cls, lightcurves_file, passbands, *, forced_lc_t0=None, filters=None, **kwargs):
+    def from_lclib_file(cls, lightcurves_file, *, forced_lc_t0=None, filters=None, **kwargs):
         """Create a MultiLightcurveTemplateModel from a light curves file in LCLIB format.
 
         Parameters
         ----------
         lightcurves_file : str
             The path to the light curves file in LCLIB format.
-        passbands : Passband or PassbandGroup
-            The passband or passband group to use for defining the light curve.
         forced_lc_t0 : float or ndarray, optional
             By default we use the LCLIB convention of storing the light curves so the first time
             corresponds to the reference epoch (lc_data_t0) of the light curve. This can be overridden
@@ -877,6 +796,14 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         MultiLightcurveTemplateModel
             An instance of MultiLightcurveTemplateModel with the loaded light curves.
         """
+        # Check if the passbands argument is provided in kwargs and remove it, as it is deprecated.
+        if "passbands" in kwargs:
+            warnings.warn(
+                "The 'passbands' argument is deprecated and will be ignored.",
+                DeprecationWarning,
+            )
+            _ = kwargs.pop("passbands")
+
         lightcurve_tables = read_lclib_data(lightcurves_file)
         if lightcurve_tables is None or len(lightcurve_tables) == 0:
             raise ValueError(f"Could not read light curves from file: {lightcurves_file}")
@@ -901,7 +828,7 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         # Add a citation for LCLIB if we loaded from an LCLIB file.
         cite_inline("LCLIB Data", f"LCLIB Data from the file {lightcurves_file}")
 
-        return cls(lightcurves, passbands, **kwargs)
+        return cls(lightcurves, **kwargs)
 
     def minphase(self, filter=None, graph_state=None, **kwargs):
         """Get the minimum supported phase of the model (for this filter) in days.
