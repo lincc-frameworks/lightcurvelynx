@@ -1521,6 +1521,7 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
         "skybrightness": [20.0, 20.0, 20.0, 20.0],
         "exptime": [29.2, 29.2, 29.2, 29.2],
         "nexposure": [2, 2, 2, 2],
+        "custom_col2": [2, 2, 2, 2],
     }
     obstable2 = OpSim(obsdata2)
     spectrograph = Spectrograph.from_regular_grid(2000.0, 10000.0, 100.0, instrument="survey2")
@@ -1551,6 +1552,7 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
         model,
         1,
         [survey_info1, survey_info2, survey_info3],
+        obstable_save_cols=["custom_col", "custom_col2"],
         progress_bar=False,  # Disable progress bar for testing
     )
     assert len(results) == 1
@@ -1565,6 +1567,13 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
     assert np.array_equal(lightcurve["filter"], np.array(["g", "r"]))
     assert np.array_equal(lightcurve["survey_idx"], np.array([0, 0]))
 
+    # Check that we saved the information for the custom columns. This should be all
+    # NaN for custom_col2 since it was not present filter-based ObsTables.
+    assert "custom_col" in lightcurve
+    assert "custom_col2" in lightcurve
+    assert np.array_equal(lightcurve["custom_col"], np.array([1, 1]))
+    assert np.all(np.isnan(lightcurve["custom_col2"]))
+
     # Check that the spectra were simulated correctly. Waves and measured fluxes should have
     # an array per-nested entry. The measured_flux_perfect should all be around 100 (since we used
     # a constant SED model with brightness=100.0) and measured_flux_error should all be 1.0.
@@ -1576,6 +1585,17 @@ def test_simulate_multiple_surveys_spectra(test_data_dir):
     assert np.shape(spectra.iloc[0]["measured_flux"]) == (80,)
     assert np.shape(spectra.iloc[1]["measured_flux"]) == (80,)
     assert np.shape(spectra.iloc[2]["measured_flux"]) == (60,)
+
+    # Check that we saved the information for the custom columns. This should be all
+    # NaN for custom_col since it was not present spectra-based ObsTables.
+    assert "custom_col" in spectra
+    assert "custom_col2" in spectra
+    assert np.all(np.isnan(spectra["custom_col"]))
+    assert np.array_equal(
+        spectra["custom_col2"],
+        np.array([2, 2, np.nan]),
+        equal_nan=True,
+    )
 
     expected_spectro_0 = (
         fnu_to_flam(

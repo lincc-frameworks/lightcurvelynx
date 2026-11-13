@@ -369,9 +369,9 @@ def _simulate_lightcurves_batch(simulation_info):
     if obstable_save_cols is None:
         obstable_save_cols = []
     for col in obstable_save_cols:
-        results_builder.add_light_curve_column(col, obs_table_list=obstable)
+        results_builder.add_per_observation_column(col, obs_table_list=obstable)
     if simulation_info.save_full_filter_names:
-        results_builder.add_light_curve_column("full_filter_name", dtype=str)
+        results_builder.add_per_observation_column("full_filter_name", dtype=str)
 
     # Determine which of the of the simulated positions match the pointings from each ObsTable.
     logger.info("Performing range searches to find matching observations.")
@@ -444,6 +444,12 @@ def _simulate_lightcurves_batch(simulation_info):
 
                 # We append each spectral as a separate entry in the spectra nested dictionary.
                 for obs_idx, obs_time in enumerate(obs_times):
+                    # Because we are processing one observation at a time, we can save the extra columns
+                    # as individual values.
+                    extra_cols = {
+                        col: obstable[survey_idx].get_value_per_row(col, indices=obs_index, default=None)[0]
+                        for col in obstable_save_cols
+                    }
                     results_builder.add_spectra_observations(
                         mjd=obs_time,
                         waves=passbands[survey_idx].bin_centers,
@@ -451,6 +457,7 @@ def _simulate_lightcurves_batch(simulation_info):
                         measured_flux=measured_flux[obs_idx],
                         measured_flux_error=measured_flux_error[obs_idx],
                         instrument=passbands[survey_idx].instrument,
+                        **extra_cols,
                     )
             else:
                 # This is a PassbandGroup integrator, so we compute the bandfluxes for the lightcurves column.
