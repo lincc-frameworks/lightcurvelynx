@@ -27,7 +27,7 @@ from lightcurvelynx.math_nodes.state_expansion_node import StateExpansionNode
 from lightcurvelynx.models.basic_models import ConstantSEDModel, SinWaveModel, StepModel
 from lightcurvelynx.models.physical_model import SEDModel
 from lightcurvelynx.models.sncosmo_models import SncosmoWrapperModel
-from lightcurvelynx.models.static_sed_model import StaticBandfluxModel
+from lightcurvelynx.models.static_models import StaticBandfluxModel
 from lightcurvelynx.noise_models.base_noise_models import GivenNoiseModel
 from lightcurvelynx.noise_models.spectrograph_noise_models import ConstantSpectrographNoiseModel
 from lightcurvelynx.obstable.fake_obs_table import FakeObsTable

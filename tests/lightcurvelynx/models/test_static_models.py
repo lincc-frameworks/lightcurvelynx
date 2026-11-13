@@ -5,7 +5,7 @@ from astropy import units as u
 from lightcurvelynx.astro_utils.sed import SED
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
-from lightcurvelynx.models.static_sed_model import StaticBandfluxModel, StaticSEDModel
+from lightcurvelynx.models.static_models import StaticBandfluxModel, StaticSEDModel
 from lightcurvelynx.utils.extrapolate import LinearDecay
 from lightcurvelynx.utils.io_utils import write_numpy_data
 
