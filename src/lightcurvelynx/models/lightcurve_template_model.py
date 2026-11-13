@@ -424,10 +424,18 @@ class BaseLightcurveBandTemplateModel(BandfluxModel, ABC):
 
         # If passbands or filters are provided, issue a deprecation warning.
         if "passbands" in kwargs and kwargs["passbands"] is not None:  # pragma: no cover
-            warnings.warn("The 'passbands' argument is deprecated and will be ignored.", DeprecationWarning)
+            warnings.warn(
+                "The 'passbands' argument is deprecated and will be ignored. "
+                "See https://github.com/lincc-frameworks/lightcurvelynx/issues/1062 for details.",
+                DeprecationWarning,
+            )
             _ = kwargs.pop("passbands")
         if "filters" in kwargs and kwargs["filters"] is not None:  # pragma: no cover
-            warnings.warn("The 'filters' argument is deprecated and will be ignored.", DeprecationWarning)
+            warnings.warn(
+                "The 'filters' argument is deprecated and will be ignored. "
+                "See https://github.com/lincc-frameworks/lightcurvelynx/issues/1062 for details.",
+                DeprecationWarning,
+            )
             _ = kwargs.pop("filters")
 
         # Check that t0 is set.
@@ -510,9 +518,16 @@ class LightcurveTemplateModel(BaseLightcurveBandTemplateModel):
         # Check for deprecated arguments. If the user is passing passbands as a positional argument,
         # we catch that and raise a helpful error.
         if isinstance(lc_data_t0, Passband | PassbandGroup):  # pragma: no cover
-            raise TypeError("Passing passbands is no longer supported. Please remove this argument.")
+            raise TypeError(
+                "Passing passbands is no longer supported. Please remove this argument. "
+                "See https://github.com/lincc-frameworks/lightcurvelynx/issues/1062 for details."
+            )
         if "passbands" in kwargs and kwargs["passbands"] is not None:  # pragma: no cover
-            warnings.warn("The 'passbands' argument is deprecated and will be ignored.", DeprecationWarning)
+            warnings.warn(
+                "The 'passbands' argument is deprecated and will be ignored. "
+                "See https://github.com/lincc-frameworks/lightcurvelynx/issues/1062 for details.",
+                DeprecationWarning,
+            )
             _ = kwargs.pop("passbands")
 
         # Store the light curve data, parsing out different formats if needed.
@@ -714,7 +729,11 @@ class MultiLightcurveTemplateModel(BaseLightcurveBandTemplateModel):
     ):
         # Check for deprecated arguments.
         if "passbands" in kwargs:  # pragma: no cover
-            warnings.warn("The 'passbands' argument is deprecated and will be ignored.", DeprecationWarning)
+            warnings.warn(
+                "The 'passbands' argument is deprecated and will be ignored. "
+                "See https://github.com/lincc-frameworks/lightcurvelynx/issues/1062 for details.",
+                DeprecationWarning,
+            )
             _ = kwargs.pop("passbands")
 
         # Validate the light curve input and create a union of all filters used.
