@@ -71,6 +71,7 @@ in roughly alphabetical order of simulation package or simulation type).
     BayeSN Supernova Ia Model <notebooks/pre_executed/bayeSN_example>
     EzTaoX <notebooks/pre_executed/eztaox_example>
     GoPreaux <notebooks/pre_executed/gopreaux_example>
+    Kasen (2010) SN Ia Companion Interaction <notebooks/pre_executed/kasen_ia_companion>
     Lightcurve Template Model Demo <notebooks/lightcurve_source_demo>
     M-Dwarf Flares <notebooks/mdwarf_flares>
     Microlensing Effect Example <notebooks/pre_executed/microlensing>
