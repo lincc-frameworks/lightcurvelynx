@@ -4,8 +4,6 @@ https://github.com/sncosmo/sncosmo/blob/v2.10.1/sncosmo/models.py
 https://sncosmo.readthedocs.io/en/stable/models.html
 """
 
-import copy
-
 from astropy import units as u
 from citation_compass import CiteClass
 
@@ -25,6 +23,10 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
     * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
 
     Additional parameterized values are used for specific sncosmo models.
+
+    Note
+    ----
+    This model maintains cached state and is not thread-safe.
 
     References
     ----------
@@ -101,17 +103,20 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
                 self.add_parameter(key, value, description="Parameter for sncosmo model.")
             if key in self.source.param_names:
                 self.source_param_names.append(key)
+        self._cached_state = None
 
     @property
     def param_names(self):
         """Return a list of the model's parameter names."""
         return self.source.param_names
 
-    def minphase(self, **kwargs):
+    def minphase(self, *, graph_state=None, **kwargs):
         """Get the minimum phase of the model (in days relative to t0).
 
         Parameters
         ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values.
         **kwargs : dict
             Additional keyword arguments, not used in this method.
 
@@ -121,13 +126,17 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             The minimum phase of the model (in days relative to t0) or None
             if the model does not have a defined minimum phase.
         """
+        if graph_state is not None:
+            self._update_sncosmo_model_parameters(graph_state)
         return self.source.minphase()
 
-    def maxphase(self, **kwargs):
+    def maxphase(self, *, graph_state=None, **kwargs):
         """Get the maximum phase of the model (in days relative to t0).
 
         Parameters
         ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values.
         **kwargs : dict
             Additional keyword arguments, not used in this method.
 
@@ -137,13 +146,17 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             The maximum phase of the model (in days relative to t0) or None
             if the model does not have a defined maximum phase.
         """
+        if graph_state is not None:
+            self._update_sncosmo_model_parameters(graph_state)
         return self.source.maxphase()
 
-    def minwave(self, **kwargs):
+    def minwave(self, *, graph_state=None, **kwargs):
         """Get the minimum wavelength of the model.
 
         Parameters
         ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values.
         **kwargs : dict
             Additional keyword arguments, not used in this method.
 
@@ -153,13 +166,17 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
+        if graph_state is not None:
+            self._update_sncosmo_model_parameters(graph_state)
         return self.source.minwave()
 
-    def maxwave(self, **kwargs):
+    def maxwave(self, *, graph_state=None, **kwargs):
         """Get the maximum wavelength of the model.
 
         Parameters
         ----------
+        graph_state : GraphState, optional
+            An object mapping graph parameters to their values.
         **kwargs : dict
             Additional keyword arguments, not used in this method.
 
@@ -169,7 +186,31 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             The maximum wavelength of the model (in angstroms) or None
             if the model does not have a defined maximum wavelength.
         """
+        if graph_state is not None:
+            self._update_sncosmo_model_parameters(graph_state)
         return self.source.maxwave()
+
+    def _update_sncosmo_model_parameters(self, graph_state):
+        """Update the parameters for the wrapped sncosmo model based on the graph state.
+
+        Parameters
+        ----------
+        graph_state : GraphState
+            An object mapping graph parameters to their values.
+        """
+        # Check if we are using the exact same GraphState object, in which case
+        # we don't need to update the parameters again.
+        if self._cached_state is graph_state:
+            return
+
+        if graph_state.num_samples != 1:  # pragma: no cover
+            raise ValueError("GraphState must have exactly one sample.")
+
+        # Set the parameters for the wrapped sncosmo model and save the current local parameters.
+        local_params = self.get_local_params(graph_state)
+        sn_params = {name: local_params[name] for name in self.source_param_names}
+        self.source.set(**sn_params)
+        self._cached_state = graph_state
 
     def compute_sed(self, times, wavelengths, graph_state=None, **kwargs):
         """Draw effect-free observations for this object.
@@ -190,26 +231,23 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         flux_density : numpy.ndarray
             A length T x N matrix of SED values (in nJy).
         """
+        self._update_sncosmo_model_parameters(graph_state)
         params = self.get_local_params(graph_state)
 
-        # Create a local copy of the source to avoid modifying the original one
-        # and set the sampled parameters for this local copy.
-        local_source = copy.deepcopy(self.source)
-        sn_params = {name: params[name] for name in self.source_param_names}
-        local_source.set(**sn_params)
-
         # Provide debugging information about the wavelength range if the wavelengths are out of bounds.
-        if wavelengths.min() < self.minwave() or wavelengths.max() > self.maxwave():
+        minwave = self.minwave(graph_state=graph_state)
+        maxwave = self.maxwave(graph_state=graph_state)
+        if (wavelengths.min() < minwave) or (wavelengths.max() > maxwave):
             raise ValueError(
                 "Wavelengths are out of the sncosmo model's valid range. "
-                f"Model wavelength range: [{self.minwave()}, {self.maxwave()}], "
+                f"Model wavelength range: [{minwave}, {maxwave}], "
                 f"Query wavelength range: [{wavelengths.min()}, {wavelengths.max()}]. Use the "
                 "'wave_extrapolation' parameter specify how to handle out-of-bounds wavelengths."
             )
 
         # Query the model and convert the output to nJy.
         phase = times - params["t0"]
-        model_flam = local_source.flux(phase, wavelengths)
+        model_flam = self.source.flux(phase, wavelengths)
         model_fnu = flam_to_fnu(
             model_flam,
             wavelengths,
@@ -217,4 +255,15 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             flam_unit=self._FLAM_UNIT,
             fnu_unit=u.nJy,
         )
+
+        # As a safety check we confirm that the cached state is still the same as the provided
+        # graph_state. This is meant to detect cases where the model is used in threaded contexts
+        # and the cached state might have been inadvertently changed by another thread.
+        if self._cached_state is not graph_state:
+            raise RuntimeError(
+                "Cached state does not match the provided graph_state. "
+                "This may indicate that the model is being used in a threaded context "
+                "and the cached state was changed by another thread."
+            )  # pragma: no cover
+
         return model_fnu
