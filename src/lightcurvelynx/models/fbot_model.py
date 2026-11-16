@@ -140,7 +140,7 @@ class FBOTModel(SEDModel):
         self.add_parameter("alpha", value=alpha, description="Disk viscosity")
         self.add_parameter("theta0", value=theta0, description="Aspect ratio")
         self.add_parameter("p", value=p, description="Outflow index")
-        self.add_parameter("eta", value=eta, description="Engine efficiency")
+        self.add_parameter("eta", value=eta, description="Engine efficiency factor")
         self.add_parameter("Mslow", value=Mslow, description="Mass of 'slow' part of system")
         self.add_parameter("vslow", value=vslow, description="Velocity of slow outflow")
         self.add_parameter("kap_slow", value=kap_slow, description="Opacity of slow outflow")
@@ -327,25 +327,29 @@ class FBOTModel(SEDModel):
         Brian D. Metzger (2022) DOI: 10.3847/1538-4357/ac6d59
         """
         params = self.get_local_params(state)
-        print("pre solve", times)
-        print([np.log(times[0]), np.log(times[-1])])
+        # print("pre solve", times)
+        # print([np.log(times[0]), np.log(times[-1])])
         sol = solve_ivp(
             self._rhs,
             [np.log(times[0]), np.log(times[-1])],
             [0.0, 0.0],
             args=state,
-            method="LSODA",  # method = "RK45", #,
+            method="DOP853",  # method="LSODA",  # method = "RK45", #,
             rtol=1e-8,
             atol=1e30,
+            # t_eval = np.linspace(np.log(times[0]), np.log(times[-1]), len(times)),
             dense_output=True,
+            # dense_output=True,
         )
 
         # t = np.logspace(np.log10(times[0]), np.log10(times[-1]), 800)
         R_slow, R_fast = params["vslow"] * times, params["vfast"] * const.c.cgs.value * times
         # print(times/86400)
 
-        E_eq, E_pol = sol.sol(np.log(times))
+        # print(sol.y)
+        E_eq, E_pol = sol.sol(np.log(times))  # sol.y #sol.sol(np.log(times))
         # print(E_eq[0:10], E_pol[0:10])
+
         L_slow = E_eq / (
             params["Mslow"] * params["kap_slow"] / (4 * np.pi * R_slow * const.c.cgs.value)
             + (R_slow / const.c.cgs.value)
@@ -359,6 +363,7 @@ class FBOTModel(SEDModel):
             )
             + (R_fast / const.c.cgs.value)
         )
+        # print((R_fast / const.c.cgs.value))
         # L_slow = L_slow.decompose().value
         # L_fast = L_fast.decompose().value
         # print(L_slow[0:10], L_fast[0:10])
@@ -387,14 +392,14 @@ class FBOTModel(SEDModel):
         state = graph_state
         params = self.get_local_params(graph_state)
 
-        print("original times", len(times))
+        # print("original times", len(times))
 
         times_new = np.array(times - params["t0"]) * 86400.0  # time from merger in days to seconds
 
-        print("new t", len(times_new))
+        # print("new t", times_new)
 
         Rs, Ls = self._fbot_luminosity(times_new, state)
-        # print("hi", Rs[0][0], Ls[0][8])
+        # print("hi", Rs[0][1], Ls[0][1])
         T_slow = (Ls[0] / (4 * np.pi * (Rs[0] ** 2) * const.sigma_sb.cgs.value)) ** 0.25
         T_fast = (Ls[1] / (4 * np.pi * (Rs[1] ** 2) * const.sigma_sb.cgs.value)) ** 0.25
 
