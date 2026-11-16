@@ -366,3 +366,50 @@ def results_use_full_filter_names(results, passbands):
     results["lightcurve.filter"] = filter_names
 
     return results
+
+
+def results_expand_array_to_lightcurves(results, data_array):
+    """
+    Expand an array (with one entry per row in the top-level results) to have
+    one entry per corresponding light curve observation. The array can be a
+    column from the results data frame itself, an array of parameters, or any other
+    array-like structure with one entry per top-level row in the results.
+
+    An example of using another column (e.g. t0) to count out the light curve
+    observations that occur before the object's t0:
+        .. code-block:: python
+
+            t0_array = results_expand_array_to_lightcurves(results, results["t0"])
+            time_mask = results["lightcurve"]["mjd"] >= t0_array
+            filtered_lightcurve = results["lightcurve"][time_mask]
+
+    Note that the above block does not update other columns, such as 'nobs'.
+
+    An example of finding all observations with a base brightness above half of the
+    model's parameter "model.base_brightness":
+        .. code-block:: python
+
+            graph_state = GraphState.from_list(results["params"])
+            data_array = graph_state["model.base_brightness"]
+            all_base_brightness = results_expand_array_to_lightcurves(results, data_array)
+            flux_mask = results["lightcurve"]["flux"] >= 0.5 * all_base_brightness
+
+    Parameters
+    ----------
+    results : pandas.DataFrame or nested_pandas.NestedFrame
+        The DataFrame containing lightcurve data.
+    data_array : array-like
+        The array to expand, with one entry per top-level row in the results.
+
+    Returns
+    -------
+    expanded_array : numpy.ndarray
+        The array expanded to have one entry per light curve observation.
+    """
+    if len(data_array) != len(results):
+        raise ValueError("data_array must have the same length as the top-level rows in results.")
+
+    lc_indices = np.asarray(results["lightcurve"]["flux"].index)
+    expanded_array = np.asarray(data_array)[lc_indices]
+
+    return expanded_array

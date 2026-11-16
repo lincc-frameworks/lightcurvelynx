@@ -18,6 +18,7 @@ from lightcurvelynx.utils.post_process_results import (
     results_append_param_as_col,
     results_augment_lightcurves,
     results_drop_empty,
+    results_expand_array_to_lightcurves,
     results_use_full_filter_names,
 )
 
@@ -807,3 +808,49 @@ def test_results_use_full_filter_names_no_survey():
         results["lightcurve.filter"][1].tolist(),
         ["survey1_g", "survey1_g", "survey1_r", "survey1_r"],
     )
+
+
+def test_results_results_expand_array_to_lightcurves():
+    """Test the results_expand_array_to_lightcurve function."""
+    # Create a NestedFrame with some empty lightcurves.
+    source_data = {
+        "object_id": [0, 1, 2, 3, 4],
+        "ra": [
+            10.0,
+            20.0,
+            30.0,
+            40.0,
+            50.0,
+        ],
+        "dec": [-10.0, -20.0, -30.0, -40.0, -50.0],
+        "z": [0.1, 0.2, 0.3, 0.4, 0.5],
+    }
+    results = NestedFrame(data=source_data, index=[0, 1, 2, 3, 4])
+    nested_data = {
+        "mjd": [59000, 59001, 59002, 59003, 59004, 59005, 59006, 59007, 59008],
+        "flux": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        "fluxerr": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+        "filter": ["a", "b", "c", "d", "e", "f", "g", "h", "i"],
+    }
+    nested_frame = pd.DataFrame(
+        data=nested_data,
+        index=[0, 0, 0, 2, 2, 3, 3, 3, 3],
+    )
+    results = results.join_nested(nested_frame, "lightcurve")
+    assert len(results) == 5
+    assert len(results["lightcurve"]["flux"]) == 9
+
+    # We create a per-obs threshold that picks up 1 obs in row 0, 0 obs in row 2,
+    # and 3 obs in row 3. Rows 1 and 4 don't have observations anyway.
+    threshold = np.array([2.5, 0.0, 6.0, 6.5, 0.0])
+    lc_threshold = results_expand_array_to_lightcurves(results, threshold)
+    assert np.allclose(lc_threshold, [2.5, 2.5, 2.5, 6.0, 6.0, 6.5, 6.5, 6.5, 6.5])
+
+    # Check that we can filter the lightcurve table based on this.
+    bright_mask = results["lightcurve"]["flux"] >= lc_threshold
+    filtered = results["lightcurve"][bright_mask]
+    assert len(filtered) == 5  # Top level table is unchanged
+    assert len(filtered["flux"]) == 4  # nested table has a total for 4 obs
+    assert np.allclose(filtered["flux"], [3.0, 7.0, 8.0, 9.0])
+    assert np.allclose(filtered["fluxerr"], [0.3, 0.7, 0.8, 0.9])
+    assert np.array_equal(filtered["filter"], ["c", "g", "h", "i"])
