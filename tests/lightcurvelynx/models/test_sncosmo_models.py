@@ -27,9 +27,7 @@ def test_sncosmo_models_hsiao() -> None:
     assert model.get_param(state, "amplitude") == 2.0e10
     assert model.get_param(state, "t0") == 0.0
     assert str(model) == "SncosmoWrapperModel_0"
-
     assert np.array_equal(model.param_names, ["amplitude"])
-    assert np.array_equal(model.parameter_values, [2.0e10])
 
     # Test against a manual query from sncosmo with no redshift and an
     # unrealistically high amplitude.
@@ -54,9 +52,7 @@ def test_sncosmo_models_hsiao_t0() -> None:
     state = model.sample_parameters()
     assert model.get_param(state, "amplitude") == 2.0e10
     assert model.get_param(state, "t0") == 55000.0
-
     assert np.array_equal(model.param_names, ["amplitude"])
-    assert np.array_equal(model.parameter_values, [2.0e10])
 
     # Test against a manual query from sncosmo with no redshift and an unrealistically high amplitude.
     #     model = sncosmo.Model(source='hsiao')
@@ -161,23 +157,6 @@ def test_sncosmo_models_linear_extrapolate() -> None:
     assert np.all(fluxes_fnu[:, 6] < fluxes_fnu[:, 5])
 
 
-def test_sncosmo_models_set() -> None:
-    """Test that we can create and evalue a 'hsiao' model and set parameter."""
-    pytest.importorskip("sncosmo")
-    model = SncosmoWrapperModel("hsiao", t0=0.0, redshift=0.5)
-
-    # sncosmo parameters exist at default values.
-    assert np.array_equal(model.param_names, ["amplitude"])
-    assert np.array_equal(model.parameter_values, [1.0])
-
-    model.set(amplitude=100.0)
-    state = model.sample_parameters()
-
-    assert model.get_param(state, "amplitude") == 100.0
-    assert np.array_equal(model.param_names, ["amplitude"])
-    assert np.array_equal(model.parameter_values, [100.0])
-
-
 def test_sncosmo_models_chained() -> None:
     """Test that we can create and evalue a 'hsiao' model using randomized parameters."""
     pytest.importorskip("sncosmo")
@@ -186,21 +165,18 @@ def test_sncosmo_models_chained() -> None:
     model = SncosmoWrapperModel(
         "hsiao",
         amplitude=NumpyRandomFunc("uniform", low=2.0, high=12.0),
+        node_label="model",
     )
     rng = np.random.default_rng(100)
-    _ = model.sample_parameters(rng_info=rng)
-
+    state = model.sample_parameters(rng_info=rng)
     assert np.array_equal(model.param_names, ["amplitude"])
-    assert 2.0 <= model.parameter_values[0] <= 12.0
+    assert 2.0 <= state["model"]["amplitude"] <= 12.0
 
     # When we resample, we get different model parameters. Create a histogram
     # of 10,000 samples.
-    hist = [0] * 10
-    source_model = model.source
-    for _ in range(10_000):
-        _ = model.sample_parameters(rng_info=rng)
-        bin = int(source_model.parameters[0] - 2.0)
-        hist[bin] += 1
+    state = model.sample_parameters(num_samples=10_000, rng_info=rng)
+    bins = np.floor(state["model"]["amplitude"] - 2.0).astype(int)
+    hist = np.bincount(bins, minlength=10)
 
     # Each bin should have around 1,000 samples.
     for i in range(10):

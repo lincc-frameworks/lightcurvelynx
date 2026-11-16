@@ -4,6 +4,8 @@ https://github.com/sncosmo/sncosmo/blob/v2.10.1/sncosmo/models.py
 https://sncosmo.readthedocs.io/en/stable/models.html
 """
 
+import copy
+
 from astropy import units as u
 from citation_compass import CiteClass
 
@@ -105,11 +107,6 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         """Return a list of the model's parameter names."""
         return self.source.param_names
 
-    @property
-    def parameter_values(self):
-        """Return a list of the model's parameter values."""
-        return self.source.parameters
-
     def minphase(self, **kwargs):
         """Get the minimum phase of the model (in days relative to t0).
 
@@ -174,76 +171,6 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         """
         return self.source.maxwave()
 
-    def _update_sncosmo_model_parameters(self, graph_state):
-        """Update the parameters for the wrapped sncosmo model."""
-        local_params = graph_state.get_node_state(self.node_string, 0)
-        sn_params = {}
-        for name in self.source_param_names:
-            sn_params[name] = local_params[name]
-        self.source.set(**sn_params)
-
-    def get(self, name):
-        """Get the value of a specific parameter.
-
-        Parameters
-        ----------
-        name : str
-            The name of the parameter.
-
-        Returns
-        -------
-        The parameter value.
-        """
-        return self.source.get(name)
-
-    def set(self, **kwargs):
-        """Set the parameters of the model.
-
-        These must all be constants to be compatible with sncosmo.
-
-        Parameters
-        ----------
-        **kwargs : dict
-            The parameters to set and their values.
-        """
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                self.set_parameter(key, value)
-            else:
-                self.add_parameter(key, value, description="Parameter for sncosmo model.")
-            if key not in self.source_param_names:
-                self.source_param_names.append(key)
-        self.source.set(**kwargs)
-
-    def _sample_helper(self, graph_state, seen_nodes, rng_info=None):
-        """Internal recursive function to sample the model's underlying parameters
-        if they are provided by a function or ParameterizedNode.
-
-        Calls ParameterNode's _sample_helper() then updates the parameters
-        for the sncosmo model.
-
-        Parameters
-        ----------
-        graph_state : GraphState
-            An object mapping graph parameters to their values. This object is modified
-            in place as it is sampled.
-        seen_nodes : dict
-            A dictionary mapping nodes seen during this sampling run to their ID.
-            Used to avoid sampling nodes multiple times and to validity check the graph.
-        num_samples : int
-            A count of the number of samples to compute.
-            Default: 1
-        rng_info : numpy.random._generator.Generator, optional
-            A given numpy random number generator to use for this computation. If not
-            provided, the function uses the node's random number generator.
-
-        Raises
-        ------
-        Raise a ValueError the sampling encounters a problem with the order of dependencies.
-        """
-        super()._sample_helper(graph_state, seen_nodes, rng_info=rng_info)
-        self._update_sncosmo_model_parameters(graph_state)
-
     def compute_sed(self, times, wavelengths, graph_state=None, **kwargs):
         """Draw effect-free observations for this object.
 
@@ -264,7 +191,12 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             A length T x N matrix of SED values (in nJy).
         """
         params = self.get_local_params(graph_state)
-        self._update_sncosmo_model_parameters(graph_state)
+
+        # Create a local copy of the source to avoid modifying the original one
+        # and set the sampled parameters for this local copy.
+        local_source = copy.deepcopy(self.source)
+        sn_params = {name: params[name] for name in self.source_param_names}
+        local_source.set(**sn_params)
 
         # Provide debugging information about the wavelength range if the wavelengths are out of bounds.
         if wavelengths.min() < self.minwave() or wavelengths.max() > self.maxwave():
@@ -277,7 +209,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
 
         # Query the model and convert the output to nJy.
         phase = times - params["t0"]
-        model_flam = self.source.flux(phase, wavelengths)
+        model_flam = local_source.flux(phase, wavelengths)
         model_fnu = flam_to_fnu(
             model_flam,
             wavelengths,
