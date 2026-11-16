@@ -27,6 +27,7 @@ import astropy.units as u
 import numpy as np
 from citation_compass import CiteClass, cite_function
 from scipy.interpolate import interp1d
+from scipy.special import ndtr
 
 from lightcurvelynx import _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR
 from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
@@ -47,7 +48,7 @@ KASEN_COMPANIONS = {
 
 _PRESTOCOLOR_COMMIT = "d368fe67924812723b9d94999040ec0d59813380"
 _PRESTOCOLOR_ZIP_URL = f"https://github.com/fedhere/prestocolor/archive/{_PRESTOCOLOR_COMMIT}.zip"
-"""The URL of the prestocolor repository archive, pinned to a specific commit."""
+"""The URL of the prestocolor repository archive."""
 
 _KASEN_DATA_DIR = _LIGHTCURVELYNX_DOWNLOAD_DATA_DIR / "kasen2010_companion"
 """The default directory for the downloaded and converted Kasen (2010) spectra."""
@@ -201,6 +202,69 @@ def _linear_interp(grid, values, x, axis):
     return interp(x)
 
 
+def _bin_edges(centers):
+    """The edges of the bins around the given centers: midpoints, extended by half a bin at the ends."""
+    mid = 0.5 * (centers[1:] + centers[:-1])
+    return np.concatenate([[2.0 * centers[0] - mid[0]], mid, [2.0 * centers[-1] - mid[-1]]])
+
+
+def _smoothing_matrix(centers, edges, sigma):
+    """The matrix of a Gaussian smoothing of binned energies, which conserves the energy."""
+
+    # [i, j] is the part of the Gaussian centered on bin j that falls between lo[i] and hi[i].
+    def gaussian_fraction(lo, hi):
+        return ndtr((hi[:, None] - centers) / sigma) - ndtr((lo[:, None] - centers) / sigma)
+
+    lo, hi = edges[:-1], edges[1:]
+    matrix = gaussian_fraction(lo, hi)
+    # Reflect the parts outside of the grid back into it.
+    for edge in (edges[0], edges[-1]):
+        # Infinite edges (lg t = -inf at t = 0) have nothing beyond them.
+        if np.isfinite(edge):
+            matrix += gaussian_fraction(2.0 * edge - hi, 2.0 * edge - lo)
+    # Normalize to account for multiple reflections, if the kernel is as wide as the grid.
+    return matrix / matrix.sum(axis=0)
+
+
+def _smooth_luminosity(luminosity, times, wavelengths, wave_smoothing_aa, lg_time_smoothing):
+    """Smooth an (A, T, W) luminosity grid in wavelength and in lg(time), conserving energy.
+
+    Parameters
+    ----------
+    luminosity : numpy.ndarray
+        An A x T x W array of the specific luminosity.
+    times : numpy.ndarray
+        A length T array of the grid times since explosion (in days).
+    wavelengths : numpy.ndarray
+        A length W array of the grid wavelengths (in Angstroms).
+    wave_smoothing_aa : float or None
+        The standard deviation of the Gaussian in wavelength (in Angstroms), or None
+        for no smoothing in wavelength.
+    lg_time_smoothing : float or None
+        The standard deviation of the Gaussian in the decimal logarithm of the time since
+        explosion, lg(t / 1 day), in dex, or None for no smoothing in time.
+
+    Returns
+    -------
+    luminosity : numpy.ndarray
+        The smoothed A x T x W array.
+    """
+    if wave_smoothing_aa is not None:
+        edges = _bin_edges(wavelengths)
+        widths = np.diff(edges)
+        matrix = _smoothing_matrix(wavelengths, edges, wave_smoothing_aa)
+        luminosity = (luminosity * widths) @ matrix.T / widths
+    if lg_time_smoothing is not None:
+        # Nothing is emitted before the explosion, so the first bin starts at t = 0 (lg t = -inf).
+        edges = _bin_edges(times)
+        edges[0] = 0.0
+        widths = np.diff(edges)[:, None]
+        log_edges = np.concatenate([[-np.inf], np.log10(edges[1:])])
+        matrix = _smoothing_matrix(np.log10(times), log_edges, lg_time_smoothing)
+        luminosity = matrix @ (luminosity * widths) / widths
+    return luminosity
+
+
 class KasenIaCompanionModel(SEDModel, CiteClass):
     """A model of the early (first ~10 days) SN Ia emission, including the interaction
     of the ejecta with a non-degenerate companion star, from the Kasen (2010) simulations.
@@ -221,13 +285,20 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
     time, wavelength, and viewing angle (in degrees), and it is zero outside of the grid
     in any of the three dimensions.
 
+    The Monte Carlo spectra are noisy, so by default the grid is smoothed with a Gaussian
+    in wavelength (sigma = 500 Angstroms) and a Gaussian in the decimal logarithm of time
+    (sigma = 0.075 dex). The lg(time) kernel is narrower than the grid step in the first hours,
+    so it keeps the sharp early interaction flash while smoothing the later, slowly
+    evolving epochs. The smoothing redistributes energy between the grid bins, reflecting
+    it at the grid edges, so it conserves the total radiated energy.
+
     The model's t0 is the time of explosion.
 
     Parameterized values include:
 
+    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
     * dec - The object's declination in degrees. [from BasePhysicalModel]
     * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
-    * ra - The object's right ascension in degrees. [from BasePhysicalModel]
     * redshift - The object's redshift. [from BasePhysicalModel]
     * t0 - The time of explosion, MJD. [from BasePhysicalModel]
     * viewing_angle - The viewing angle in degrees. The grid covers 12.84 to 167.16 degrees,
@@ -255,6 +326,12 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
     viewing_angle : parameter, optional
         The viewing angle (in degrees). If not provided, the angle is sampled isotropically
         (uniformly in cosine) within the range covered by the grid.
+    wave_smoothing_aa : float or None, optional
+        The standard deviation of the Gaussian smoothing in wavelength (in Angstroms),
+        or None to disable it. Default: 500.0
+    lg_time_smoothing : float or None, optional
+        The standard deviation of the Gaussian smoothing in the decimal logarithm of the
+        time since explosion, lg(t / 1 day), in dex, or None to disable it. Default: 0.075
     data_dir : str or Path, optional
         The directory in which to store the data. Defaults to the
         "kasen2010_companion" subdirectory of the LightCurveLynx data cache directory.
@@ -265,7 +342,17 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
         Any additional keyword arguments, such as t0, redshift, distance, ra, and dec.
     """
 
-    def __init__(self, companion, viewing_angle=None, *, data_dir=None, force_download=False, **kwargs):
+    def __init__(
+        self,
+        companion,
+        viewing_angle=None,
+        *,
+        wave_smoothing_aa=500.0,
+        lg_time_smoothing=0.075,
+        data_dir=None,
+        force_download=False,
+        **kwargs,
+    ):
         if kwargs.get("t0") is None:
             raise ValueError("KasenIaCompanionModel requires a t0 parameter (the time of explosion).")
         super().__init__(**kwargs)
@@ -276,7 +363,13 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
         self.wavelengths = grid["wavelengths"]
         self.angles = grid["angles"]
         # An (A, T, W) array in erg/s/Angstrom, converted to float64 first to avoid overflow.
-        self._luminosity = grid["luminosity"].astype(np.float64) * _KASEN_FILE_LUM_UNIT
+        self._luminosity = _smooth_luminosity(
+            grid["luminosity"].astype(np.float64) * _KASEN_FILE_LUM_UNIT,
+            self.times,
+            self.wavelengths,
+            wave_smoothing_aa,
+            lg_time_smoothing,
+        )
 
         if viewing_angle is None:
             cos_angle = NumpyRandomFunc(

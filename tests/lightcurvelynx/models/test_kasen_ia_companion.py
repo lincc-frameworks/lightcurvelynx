@@ -88,7 +88,14 @@ def test_kasen_matches_regular_grid_interpolator(kasen_data_dir):
         bounds_error=False,
         fill_value=0.0,
     )
-    model = KasenIaCompanionModel("a5e11", viewing_angle=90.0, t0=0.0, data_dir=kasen_data_dir)
+    model = KasenIaCompanionModel(
+        "a5e11",
+        viewing_angle=90.0,
+        t0=0.0,
+        wave_smoothing_aa=None,
+        lg_time_smoothing=None,
+        data_dir=kasen_data_dir,
+    )
 
     # Include the grid points and points outside of the grid in every dimension.
     rng = np.random.default_rng(100)
@@ -99,6 +106,24 @@ def test_kasen_matches_regular_grid_interpolator(kasen_data_dir):
         expected = reference((tt, ww, np.full_like(tt, angle)))
         # The tolerance accounts for the float32 storage of the grid.
         np.testing.assert_allclose(model.compute_luminosity(times, waves, angle), expected, rtol=1e-7)
+
+
+@pytest.mark.parametrize("wave_smoothing_aa,lg_time_smoothing", [(100.0, None), (None, 0.2), (500.0, 0.1)])
+def test_kasen_smoothing_conserves_energy(kasen_data_dir, wave_smoothing_aa, lg_time_smoothing):
+    """Test that the smoothing changes the grid but conserves the energy at every angle."""
+    raw = KasenIaCompanionModel(
+        "a2e13", t0=0.0, wave_smoothing_aa=None, lg_time_smoothing=None, data_dir=kasen_data_dir
+    )
+    smoothed = KasenIaCompanionModel(
+        "a2e13",
+        t0=0.0,
+        wave_smoothing_aa=wave_smoothing_aa,
+        lg_time_smoothing=lg_time_smoothing,
+        data_dir=kasen_data_dir,
+    )
+    assert not np.allclose(smoothed._luminosity, raw._luminosity)
+    # The fake grid is uniform, so the energy is proportional to the sum over time and wavelength.
+    np.testing.assert_allclose(smoothed._luminosity.sum(axis=(1, 2)), raw._luminosity.sum(axis=(1, 2)))
 
 
 def test_kasen_compute_sed_units(kasen_data_dir):
