@@ -10,7 +10,6 @@ from nested_pandas import NestedFrame
 from tqdm import tqdm
 
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
-from lightcurvelynx.obstable.obs_table import ObsTable
 from lightcurvelynx.survey_info import SurveyInfo
 from lightcurvelynx.utils.parallelization_utils import JoblibExecutor, assert_safe_executor
 from lightcurvelynx.utils.post_process_results import concat_results, results_drop_empty
@@ -584,7 +583,6 @@ def simulate_lightcurves(
     model,
     num_samples,
     survey_info,
-    passbands=None,
     *,
     obstable_save_cols=None,
     param_cols=None,
@@ -625,9 +623,6 @@ def simulate_lightcurves(
         are passed instead, they will be converted to SurveyInfo objects internally using
         the default passband group and noise model information. This functionality is provided for
         API backwards compatibility and will be removed in a future version.
-    passbands : PassbandGroup, Spectrograph or List of (PassbandGroup, Spectrograph), optional
-        This is unused and just provided for API backwards compatibility. It will be removed
-        in a future version.
     obs_time_window_offset : tuple(float, float), optional
         A tuple specifying the observer-frame time window offset (start, end) relative
         to t0 in days. This is used to filter the observations to only those within the
@@ -690,49 +685,15 @@ def simulate_lightcurves(
         output_file_path = Path(output_file_path)
         output_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Raise a meaningful deprecation warning if the user tries to use the passbands argument,
-    # which should now be included in the survey_info.
-    if passbands is not None:
-        warnings.warn(
-            "The passbands argument is deprecated and will be removed from future versions.",
-            category=FutureWarning,
-        )
-        if not isinstance(passbands, list):
-            passbands = [passbands]
-
-    # Preprocess the survey_info to convert it into a list of SurveyInfo objects if needed.
+    # Check the type of the survey_info argument and ensure it contains only SurveyInfo objects.
     if not isinstance(survey_info, list):
         survey_info = [survey_info]
     for idx, obj in enumerate(survey_info):
-        if isinstance(obj, ObsTable):
-            warnings.warn(
-                "Passing ObsTable objects directly in survey_info is deprecated and will be removed "
-                "in future versions. Please use SurveyInfo objects instead.",
-                category=FutureWarning,
-            )
-
-            # If we are given a passband use it. Otherwise fall back to the default.
-            if passbands is not None:
-                if idx >= len(passbands):
-                    raise ValueError(
-                        f"Not enough passbands provided for the number of ObsTables. "
-                        f"Expected at least {idx + 1} passbands, but got {len(passbands)}."
-                    )
-                passband = passbands[idx]
-            else:
-                passband = None
-
-            survey_info[idx] = SurveyInfo(obstable=obj, passbands=passband)
-        elif isinstance(obj, SurveyInfo):
-            if passbands is not None:
-                raise ValueError(
-                    "Cannot provide passbands argument when survey_info already contains SurveyInfo objects. "
-                    "Please include the passbands in the SurveyInfo objects instead."
-                )
-        else:
+        if not isinstance(obj, SurveyInfo):
             raise ValueError(
                 f"Invalid object in survey_info list at index {idx}. "
-                f"Expected ObsTable or SurveyInfo, but got {type(obj)}."
+                f"Expected SurveyInfo, but got {type(obj)}. Note that passing "
+                "ObsTable objects directly is no longer supported."
             )
 
     # Create the simulation info wrapper.
