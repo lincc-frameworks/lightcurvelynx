@@ -126,6 +126,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             The minimum phase of the model (in days relative to t0) or None
             if the model does not have a defined minimum phase.
         """
+        # For some sncosmo sources, the bounds may depend on the model parameters.
         if graph_state is not None:
             self._update_sncosmo_model_parameters(graph_state)
         return self.source.minphase()
@@ -146,6 +147,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             The maximum phase of the model (in days relative to t0) or None
             if the model does not have a defined maximum phase.
         """
+        # For some sncosmo sources, the bounds may depend on the model parameters.
         if graph_state is not None:
             self._update_sncosmo_model_parameters(graph_state)
         return self.source.maxphase()
@@ -166,6 +168,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             The minimum wavelength of the model (in angstroms) or None
             if the model does not have a defined minimum wavelength.
         """
+        # For some sncosmo sources, the bounds may depend on the model parameters.
         if graph_state is not None:
             self._update_sncosmo_model_parameters(graph_state)
         return self.source.minwave()
@@ -186,6 +189,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
             The maximum wavelength of the model (in angstroms) or None
             if the model does not have a defined maximum wavelength.
         """
+        # For some sncosmo sources, the bounds may depend on the model parameters.
         if graph_state is not None:
             self._update_sncosmo_model_parameters(graph_state)
         return self.source.maxwave()
@@ -198,8 +202,8 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         graph_state : GraphState
             An object mapping graph parameters to their values.
         """
-        # Check if we are using the exact same GraphState object, in which case
-        # we don't need to update the parameters again.
+        # Check if we are using the exact same GraphState object we used to last update the
+        # parameter values, in which case we don't need to update the parameters again.
         if self._cached_state is graph_state:
             return
 
@@ -231,6 +235,7 @@ class SncosmoWrapperModel(SEDModel, CiteClass):
         flux_density : numpy.ndarray
             A length T x N matrix of SED values (in nJy).
         """
+        # Update the sncosmo model parameters based on the current graph state.
         self._update_sncosmo_model_parameters(graph_state)
         params = self.get_local_params(graph_state)
 
