@@ -42,7 +42,7 @@ your simulation:
     import logging
     logging.basicConfig(level=logging.INFO)
 
-You can also use `logging.DEBUG` to see even more detailed debug-level messages.
+You can also use ``logging.DEBUG`` to see even more detailed debug-level messages.
 
 
 I Am Seeing Empty Light Curves for Some Entries. Why Is This Happening?
@@ -50,7 +50,7 @@ I Am Seeing Empty Light Curves for Some Entries. Why Is This Happening?
 
 The most common reason that LightCurveLynx produces rows with empty light curves is
 that the object's sampled position (RA, dec) lies outside the area covered by the survey.
-This can happen even if you use one of the predefined samplers, such as the `ApproximateMOCSampler`,
+This can happen even if you use one of the predefined samplers, such as the ``ApproximateMOCSampler``,
 because all of the samplers are approximate.
 
 You can find the empty rows in your results using:
@@ -59,7 +59,7 @@ You can find the empty rows in your results using:
 
     idx = results.lightcurve.isna()
 
-and check whether the row was observed using the `ObsTable.get_observations()` function
+and check whether the row was observed using the ``ObsTable.get_observations()`` function
 with the corresponding RA and dec.
 
 
@@ -67,7 +67,7 @@ Can I Use a Random Seed to Get Reproducible Results?
 -------------------------------------------------------------------------------
 
 Yes. LightCurveLynx allows the user to control randomness by passing in a predefined
-random number generator via the `rng` parameter in the ``simulate_lightcurves()`` function.
+random number generator via the ``rng`` parameter in the ``simulate_lightcurves()`` function.
 If the user provides a random number generator with a fixed seed, then the results of the
 simulation will be reproducible.
 
@@ -136,13 +136,18 @@ It is possible to change the values within the ``GraphState`` object before pass
 Can I Simulate Spectra?
 --------------------------------------------------------------------------------
 
-Yes, with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph, in units of erg/s/cm². This feature is currently in an early stage of development and can only simulate simple noise in the measurements. In addition, spectra simulation can **only** be applied to spectra-level models. It will not work on bandflux-only models. For more details, see :doc:`the spectrograph demo notebook <notebooks/pre_executed/spectrograph_demo>`.
+Yes, with some caveats. LightCurveLynx has built-in support for simulating spectrographs. The measurements returned are bin-integrated fluxes for each bin in the spectrograph, in units of erg/s/cm². Several noise model options are provided in noise_models/spectrograph_noise_models.py, including constant per-bin noise and a Poisson noise model that can read spectrograph files formatted for SNANA.
+
+.. note::
+   Spectra simulation can **only** be applied to spectra-level models. It will not work on bandflux-only models. 
+
+For more details on simulating spectra, see :doc:`the spectrograph demo notebook <notebooks/pre_executed/spectrograph_demo>`.
 
 
 Can I Generate Points from a Catalog?
 --------------------------------------------------------------------------------
 
-Yes. LightCurveLynx allows you to generate light curves for objects in a catalog containing positions using the ``CatalogRADECSampler`` object. This sampler takes a table with at least ``ra`` and ``dec`` columns. The ``from_hats()`` helper function loads catalogs directly from the `HATS format <https://www.ivoa.net/documents/Notes/HATS/>`_.
+Yes. LightCurveLynx allows you to generate light curves for objects in a catalog containing positions using the ``CatalogRADECSampler`` object. This sampler takes a table with at least ``ra`` and ``dec`` columns. The ``from_hats()`` helper function loads catalogs directly from the `HATS format <https://www.ivoa.net/documents/Notes/HATS/>`__.
 
 See the :doc:`sampling positions demo notebook <notebooks/sampling_positions>` for a detailed description of how to sample (RA, dec) positions.
 

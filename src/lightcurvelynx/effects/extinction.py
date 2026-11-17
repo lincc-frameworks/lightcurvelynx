@@ -1,4 +1,5 @@
 """A general extinction effect that wraps multiple backend libraries including:
+
 * dust_extinction (https://github.com/karllark/dust_extinction)
 * sncosmo extinction (https://github.com/sncosmo/extinction)
 """

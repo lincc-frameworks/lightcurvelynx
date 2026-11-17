@@ -9,7 +9,7 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **Bandflux** - A flux density averaged over passband transmission, in nJy. It is given by this equation (we always assume "photon counter" detector): :math:`\frac{\int_0^\infty F_\nu(\lambda) T(\lambda) \mathrm{d}\lambda/\lambda}{\int_0^\infty T(\lambda) \mathrm{d}\lambda/\lambda}`, where :math:`\lambda` is the wavelength, :math:`F_\nu(\lambda)` is the source flux density, and :math:`T(\lambda)` is the passband transmission.
 
-**BandfluxModel** - A ``BandfluxModel`` is a subclass of the ``BasePhysicalModel`` class that represents broadband photometry in specific bands (band fluxes), such as the g-band or r-band (instead of a full spectral energy distribution). See also :doc:`Adding New Models Notebook <notebooks/adding_models>`, :doc:`LightcurveTemplateModel Notebook <notebooks/lightcurve_source_demo>`, or :doc:`Custom Models and Effects <custom_models>`.
+**BandfluxModel** - A ``BandfluxModel`` is a subclass of the ``BasePhysicalModel`` class that represents broadband photometry in specific bands (observer-frame band fluxes), such as the g-band or r-band, instead of a full spectral energy distribution. See also :doc:`Adding New Models Notebook <notebooks/adding_models>`, :doc:`LightcurveTemplateModel Notebook <notebooks/lightcurve_source_demo>`, or :doc:`Custom Models and Effects <custom_models>`.
 
 **BasePhysicalModel** - ``BasePhysicalModel`` is a superclass for all nodes that represent physical phenomena that produce flux. ``BasePhysicalModel`` itself is a subclass of ``ParameterizedNode``. See also :doc:`Introduction Notebook <notebooks/introduction>` and :doc:`Adding New Models Notebook <notebooks/adding_models>`.
 
@@ -20,6 +20,8 @@ This page provides a list of topics with definitions and links to corresponding 
 **CCD-Level Observation Tables** - Observation tables that contain viewing information at the individual detector level. See also :doc:`CCD-Level Observation Tables Notebook <notebooks/ccd_obstables>`.
 
 **CatalogRADECSampler** - A node that samples positions (RA, Dec) from a table. See also :doc:`Sampling Positions Notebook <notebooks/sampling_positions>`.
+
+**Citation-Compass** - The `citation_compass <https://github.com/lincc-frameworks/citation-compass>`__ package from the LINCC Frameworks, used to track specifically annotated citations encountered during simulations. See also :doc:`Citations Notebook <notebooks/citations>`.
 
 **Dependency Graph (Parameters)** - A graph that represents the dependencies between parameters in the simulation. See also :doc:`Debugging Notebook <notebooks/debugging>`.
 
@@ -51,7 +53,7 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **MilkyWayCoordSampler** - A parameterized node used to sample positions in the Milky Way in (RA, Dec, distance). See also :doc:`Sampling Positions Notebook <notebooks/sampling_positions>`.
 
-**MOC** - A Multi-Order Coverage map (MOC) is a data structure for efficiently representing a spatial region on a sphere. See the `MOC IVOA note <https://www.ivoa.net/documents/MOC/>`_ for more details.
+**MOC** - A Multi-Order Coverage map (MOC) is a data structure for efficiently representing a spatial region on a sphere. See the `MOC IVOA note <https://www.ivoa.net/documents/MOC/>`__ for more details.
 
 **Model** - The term model refers to any physical phenomenon that produces flux. All models are implemented as subclasses of the ``SEDModel`` or ``BandfluxModel`` classes. Also called a *physical model*.
 
@@ -73,7 +75,7 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **ObsTable** - The ``ObsTable`` represents the set of data about the individual observations being simulated, including where the telescope is pointing (RA, Dec), footprint, and conditions affecting the detector noise. See also: :doc:`Survey Data <survey_data>` and :doc:`Introduction Notebook <notebooks/introduction>`.
 
-**OpSim** - A specific version of the ``ObsTable`` that stores data for the Rubin Observatory's LSST `Operations Simulator <https://www.lsst.org/scientists/simulations/opsim>`_ outputs. See also :doc:`Survey Data <survey_data>` and :doc:`OpSim Notebook <notebooks/opsim_notebook>`.
+**OpSim** - A specific version of the ``ObsTable`` that stores data for the Rubin Observatory's LSST `Operations Simulator <https://www.lsst.org/scientists/simulations/opsim>`__ outputs. See also :doc:`Survey Data <survey_data>` and :doc:`OpSim Notebook <notebooks/opsim_notebook>`.
 
 **Parameter** - A parameter within the model corresponds to a variable in the mathematical equations for simulating flux. Each run of the simulation effectively samples the parameters in the model and uses them to compute the flux for a given model. Parameters may themselves be the result of computations performed with other parameters. For example we may choose an object's brightness parameter from a Gaussian distribution that is parameterized by mean and standard deviation. Parameters are generated by nodes (``ParameterizedNode`` objects) and stored in the ``GraphState`` objects.
 

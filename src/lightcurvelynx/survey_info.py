@@ -3,13 +3,14 @@ where the survey was pointing, instrument characteristics, and bandpass informat
 a data class that is used to keep the pieces of information together.
 
 Key components of the SurveyInfo class include:
-- `obstable`: An `ObsTable` object that contains the observation information, such as pointing coordinates,
+
+- ``obstable``: An `ObsTable` object that contains the observation information, such as pointing coordinates,
   time of observation, and other relevant metadata. This also contains instrument information,
   such as the detector footprint and pixel scale.
-- `passbands`: A `PassbandGroup` object that contains the information about the bandpass of the instrument,
+- ``passbands``: A `PassbandGroup` object that contains the information about the bandpass of the instrument,
   including the wavelength range and the transmission curve, or a `Spectrograph` object for spectroscopic
   surveys. This is optional and will use a default if not provided.
-- `noise_model`: A computation class for calculating the noise from characteristics of the survey.
+- ``noise_model``: A computation class for calculating the noise from characteristics of the survey.
 """
 
 import logging

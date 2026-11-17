@@ -179,7 +179,7 @@ class ConstantHemisphereDustMap:
         return self.compute_ebv(coords.ra.deg, coords.dec.deg)
 
 
-class SFDMap(DustEBV):
+class SFDMap(DustEBV, CiteClass):
     """A dustmap using the sfdmap2 package.
 
     This does not need to be used with DustmapWrapper, but rather is
@@ -191,11 +191,11 @@ class SFDMap(DustEBV):
     it will automatically be downloaded there when the class is
     instantiated.
 
-    Citations
-    ---------
-    Software https://github.com/AmpelAstro/sfdmap2
-    Forked from https://github.com/kbarbary/sfdmap
-    Dust map data from Schlegel, Finkbeiner and Davis (1998).
+    References
+    ----------
+    * Software https://github.com/AmpelAstro/sfdmap2
+    * Forked from https://github.com/kbarbary/sfdmap
+    * Dust map data from Schlegel, Finkbeiner and Davis (1998).
 
     Attributes
     ----------

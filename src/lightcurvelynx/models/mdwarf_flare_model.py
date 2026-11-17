@@ -61,7 +61,6 @@ class MDwarfFlareModel(SEDModel):
         If not provided, uniform-randomly sampled between 9000 and 14000 K.
     balmer_jump_ratio : parameter, optional
         the ratio of the spectral intensity below the balmer jump to above the balmer jump
-        (which is a blackbody at flare_temp). Defaults to 2
     """
 
     def __init__(
@@ -73,6 +72,7 @@ class MDwarfFlareModel(SEDModel):
         flare_amplitude=None,
         flare_temp=None,
         balmer_jump_ratio=None,
+        MOC=None,
         **kwargs,
     ):
         # Check for cases where distance will be auto-computed from redshift and cosmology.
@@ -87,6 +87,10 @@ class MDwarfFlareModel(SEDModel):
                 "Distance is not provided, but will be computed from redshift "
                 "and cosmology. This may not match the expected distribution for "
                 "Galactic m-dwarf flares."
+            )
+        if kwargs.get("MOC") is not None and kwargs.get("distance") is not None:
+            warnings.warn(
+                "MOC is provided, but will not be used. To use MOC, set distance, ra, and dec to None"
             )
 
         super().__init__(**kwargs)
@@ -149,7 +153,7 @@ class MDwarfFlareModel(SEDModel):
             description="The temperature of the cold part of the flare in kelvins.",
         )
         if not self.has_valid_param("distance"):
-            sampler = MilkyWayCoordSampler()
+            sampler = MilkyWayCoordSampler(survey_footprint=MOC)
             self.set_parameter("distance", value=sampler.distance_pc)
             if self.has_valid_param("ra") or self.has_valid_param("dec"):
                 warnings.warn(

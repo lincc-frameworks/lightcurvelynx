@@ -5,7 +5,7 @@ from astropy import units as u
 from lightcurvelynx.astro_utils.sed import SED
 from lightcurvelynx.astro_utils.spectrograph import Spectrograph
 from lightcurvelynx.astro_utils.unit_utils import fnu_to_flam
-from lightcurvelynx.models.static_sed_model import StaticBandfluxModel, StaticSEDModel
+from lightcurvelynx.models.static_models import StaticBandfluxModel, StaticSEDModel
 from lightcurvelynx.utils.extrapolate import LinearDecay
 from lightcurvelynx.utils.io_utils import write_numpy_data
 
@@ -262,6 +262,17 @@ def test_single_static_bandflux() -> None:
     sg_pbg = Spectrograph.from_regular_grid(wave_start=150.0, wave_end=475.0, bin_width=50.0)
     with pytest.raises(NotImplementedError):
         _ = model.evaluate_spectra(times, sg_pbg, state)
+
+
+def test_single_static_bandflux_warns() -> None:
+    """Test that a Bandflux model warns the user if they try to use redshift or wave extrapolation."""
+    bandflux = {"r": 10.0, "g": 20.0, "b": 30.0}
+
+    with pytest.warns():
+        _ = StaticBandfluxModel(bandflux, redshift=1.0)
+
+    with pytest.warns():
+        _ = StaticBandfluxModel(bandflux, wave_extrapolation=LinearDecay(decay_width=10.0))
 
 
 def test_multiple_static_bandflux() -> None:

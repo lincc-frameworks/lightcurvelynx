@@ -999,6 +999,13 @@ class BandfluxModel(BasePhysicalModel, ABC):
         else:
             raise TypeError("time_extrapolation must be a FluxExtrapolationModel or a tuple of two models.")
 
+        redshift_setting = kwargs.get("redshift")
+        if redshift_setting is not None and redshift_setting != 0.0:
+            warnings.warn(
+                f"{self.__class__.__name__} is a BandfluxModel and thus does not support redshift, "
+                "but a non-zero redshift was provided."
+            )
+
         if "wave_extrapolation" in kwargs and kwargs["wave_extrapolation"] is not None:
             warnings.warn("BandfluxModel does not support wave_extrapolation, but value provided.")
 

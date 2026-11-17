@@ -6,7 +6,7 @@ from lightcurvelynx.effects.basic_effects import ScaleFluxEffect
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.basic_models import ConstantSEDModel, StepModel
 from lightcurvelynx.models.multi_object_model import AdditiveMultiObjectModel, RandomMultiObjectModel
-from lightcurvelynx.models.static_sed_model import StaticBandfluxModel, StaticSEDModel
+from lightcurvelynx.models.static_models import StaticBandfluxModel, StaticSEDModel
 
 
 def test_additive_multi_object_node() -> None:

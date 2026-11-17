@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 import astropy.units as u
 import numpy as np
 from astropy.coordinates import ICRS, Galactocentric
+from citation_compass import CiteClass
 
 
 class MilkyWayDensityBase(ABC):
@@ -174,7 +175,7 @@ class MilkyWayDensityBase(ABC):
         return gc.transform_to(ICRS())
 
 
-class MilkyWayDensityJuric2008(MilkyWayDensityBase):
+class MilkyWayDensityJuric2008(MilkyWayDensityBase, CiteClass):
     """Milky Way stellar density model from Juric et al. (2008).
 
     Implements the smooth stellar number-density model described in Table 10 of

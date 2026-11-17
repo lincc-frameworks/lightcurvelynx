@@ -71,6 +71,7 @@ def concat_results(results_list):
 
 def results_drop_empty(results):
     """Drop empty lightcurves from the results DataFrame.
+    Resets the index of the resulting DataFrame after dropping empty rows.
 
     Parameters
     ----------
@@ -88,7 +89,10 @@ def results_drop_empty(results):
         has_results |= ~results["lightcurve"].isna()
     if "spectra" in results.columns:
         has_results |= ~results["spectra"].isna()
-    return results.loc[has_results]
+
+    results = results.loc[has_results]
+    results = results.reset_index(drop=True)
+    return results
 
 
 def results_append_param_as_col(results, param_name):

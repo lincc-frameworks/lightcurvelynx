@@ -446,8 +446,8 @@ class DetectorFootprint:
 
         References
         ----------
-        Merritt et al., 2025, https://arxiv.org/abs/2506.02804
-        Holman et al., 2025, https://arxiv.org/abs/2506.02140
+        * Merritt et al., 2025, https://arxiv.org/abs/2506.02804
+        * Holman et al., 2025, https://arxiv.org/abs/2506.02140
 
         Parameters
         ----------
@@ -509,9 +509,10 @@ class DetectorFootprint:
         Create a detector footprint from a preset survey name.
 
         Supported presets are:
-        - "lsst": The LSST (Rubin Observatory) detector footprint (all 189 detectors)
-        - "lsst-approx": An approximate LSST detector footprint (much faster)
-        - "lsst-ccd": A single CCD of the LSST detector array.
+
+            - "lsst": The LSST (Rubin Observatory) detector footprint (all 189 detectors)
+            - "lsst-approx": An approximate LSST detector footprint (much faster)
+            - "lsst-ccd": A single CCD of the LSST detector array.
 
         Parameters
         ----------

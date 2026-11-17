@@ -19,8 +19,8 @@ class BilbyPriorNode(FunctionNode, CiteClass):
     prior : dict or bilby.prior.PriorDict
         A dictionary mapping the names of the parameters to their prior distributions.
 
-    Citations
-    ---------
+    References
+    ----------
     Cite as::
 
           @article{bilby_paper,

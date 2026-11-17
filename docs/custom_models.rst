@@ -18,7 +18,7 @@ for computing the noise-free light curves given values for a set of parameters. 
 is subclassed into:
 
 * ``SEDModel``: for models that simulate the full spectral energy distributions (SEDs).
-* ``BandfluxModel``: for models that simulate band fluxes directly.
+* ``BandfluxModel``: for models that simulate observer-frame band fluxes directly.
 
 Users creating their own models will start by subclassing one of these two classes, depending on
 the type of model they want to create.
