@@ -57,6 +57,7 @@ dev = [
     "pytest",
     "pytest-cov", # Used to report total code coverage
     "pzflow>=4.0",
+    "redback>=1.18.0",  # Used for the Arnett model in KasenIaCompanionModel
     "ruff", # Used for static linting of files
     "synphot", # Used for SED modeling tests
     "VBMicrolensing",  # used for microlensing tests
