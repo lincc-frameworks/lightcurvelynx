@@ -36,7 +36,7 @@ def try_import_redback():
         import redback
     except ImportError as err:  # pragma: no cover
         raise ImportError(
-            "redback package is not installed by default. You can install it with `pip install redback`."
+            "redback is not installed by default. You can install it with `pip install redback`."
         ) from err
 
     # Restore the saved matplotlib settings after importing redback.
