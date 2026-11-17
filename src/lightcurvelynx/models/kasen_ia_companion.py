@@ -297,23 +297,24 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
     time, wavelength, and viewing angle (in degrees), and it is zero outside of the grid
     in any of the three dimensions.
 
-    The Monte Carlo spectra are noisy, so by default the grid is smoothed with a Gaussian
-    in wavelength (sigma = 500 Angstroms) and a Gaussian in the decimal logarithm of time
-    (sigma = 0.075 dex). The lg(time) kernel is narrower than the grid step in the first hours,
-    so it keeps the sharp early interaction flash while smoothing the later, slowly
-    evolving epochs. The smoothing redistributes energy between the grid bins, reflecting
-    it at the grid edges, so it conserves the total radiated energy.
+    By default the grid is smoothed with a Gaussian in the decimal logarithm of time
+    (sigma = 0.075 dex), and optionally with a Gaussian in wavelength. The lg(time) kernel is
+    narrower than the grid step in the first hours, so it keeps the sharp early interaction
+    flash while smoothing the later, slowly evolving epochs. The smoothing redistributes
+    energy between the grid bins, reflecting it at the grid edges, so it conserves the total
+    radiated energy.
 
     The model continues past the end of the grid as the Arnett (1982) model of the
-    supernova, computed with redback. The model is (1 - alpha) K(t) + alpha A(t), where K is
-    the Kasen model, A is the Arnett model, and alpha rises smoothly from 0 at the explosion
-    to 1 at the end of the grid (a smoothstep in time). The default Arnett parameters follow
-    the Kasen (2010) ejecta: 0.6 M_sun of 56Ni in a Chandrasekhar mass ejecta with a kinetic
-    energy of 1e51 erg. The default optical opacity is that of the Doppler-broadened iron
-    group lines that dominate SNe Ia (Kasen & Woosley 2007), and the default gamma-ray opacity
-    is 0.06 Y_e cm^2/g with Y_e = 0.5 (Swartz et al. 1995). The spectrum is a blackbody at the
-    photosphere, which expands with the ejecta, R = v t, where E = 3/10 M v^2, until its
-    temperature reaches the floor.
+    supernova, computed with redback. The model is (1 - alpha(t)) K(t) + alpha(t) A(t), where
+    K is the Kasen model, A is the Arnett model, t is the time since explosion, and
+    alpha(t) = 3 x^2 - 2 x^3 with x = min(max(t / t_end, 0), 1), where t_end = 9.95 days is
+    the last epoch of the grid. The default Arnett parameters follow the Kasen (2010) ejecta:
+    0.6 M_sun of 56Ni in a Chandrasekhar mass ejecta with a kinetic energy of 1e51 erg. The
+    default optical opacity is that of the Doppler-broadened iron group lines that dominate
+    SNe Ia (Kasen & Woosley 2007), and the default gamma-ray opacity is 0.06 Y_e cm^2/g with
+    Y_e = 0.5 (Swartz et al. 1995). The spectrum is a blackbody at the photosphere, which
+    expands with the ejecta, R = v t, where E = 3/10 M v^2, until its temperature reaches the
+    floor.
 
     The model's t0 is the time of explosion.
 
@@ -358,7 +359,9 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
         (uniformly in cosine) within the range covered by the grid.
     wave_smoothing_aa : float or None, optional
         The standard deviation of the Gaussian smoothing in wavelength (in Angstroms),
-        or None to disable it. Default: 500.0
+        or None to disable it. The smoothing barely changes the passband fluxes, so it is
+        needed only for smoother spectra, for which we recommend a value of about 200 Angstroms.
+        Default: None
     lg_time_smoothing : float or None, optional
         The standard deviation of the Gaussian smoothing in the decimal logarithm of the
         time since explosion, lg(t / 1 day), in dex, or None to disable it. Default: 0.075
@@ -398,7 +401,7 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
         companion,
         viewing_angle=None,
         *,
-        wave_smoothing_aa=500.0,
+        wave_smoothing_aa=None,
         lg_time_smoothing=0.075,
         ejecta_mass=1.4,
         nickel_mass=0.6,
