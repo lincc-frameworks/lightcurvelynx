@@ -2,6 +2,10 @@
 
 https://github.com/nikhil-sarin/redback
 https://redback.readthedocs.io/en/latest/
+
+Note that if you are using redback outside of this class (such as passing in a predefined
+source), you may want to use the `try_import_redback()` method, which imports redback
+without changing the matplotlib settings.
 """
 
 import astropy.units as uu
@@ -12,6 +16,34 @@ from lightcurvelynx.astro_utils.unit_utils import flam_to_fnu
 from lightcurvelynx.math_nodes.bilby_priors import BilbyPriorNode
 from lightcurvelynx.models.physical_model import SEDModel
 from lightcurvelynx.utils.extrapolate import ZeroPadding
+
+
+def try_import_redback():
+    """Import the redback library, handling the case where it is not installed,
+    but also preventing the matplotlib settings from being overridden.
+
+    Returns
+    -------
+    redback : module
+        The imported redback module.
+    """
+    # Save the matplotlib settings before importing redback, as it may override them.
+    from matplotlib import rcParams
+
+    saved_rc_params = rcParams.copy()
+
+    try:
+        import redback
+    except ImportError as err:  # pragma: no cover
+        raise ImportError(
+            "redback package is not installed by default. To use the RedbackWrapperModel, "
+            "please install redback. For example, you can install it with "
+            "`pip install redback`."
+        ) from err
+
+    # Restore the saved matplotlib settings after importing redback.
+    rcParams.update(saved_rc_params)
+    return redback
 
 
 class RedbackWrapperModel(SEDModel, CiteClass):
@@ -138,14 +170,7 @@ class RedbackWrapperModel(SEDModel, CiteClass):
 
         # Create the source itself.
         if isinstance(source, str):
-            try:
-                import redback
-            except ImportError as err:  # pragma: no cover
-                raise ImportError(
-                    "redback package is not installed by default. To use the RedbackWrapperModel, "
-                    "please install redback. For example, you can install it with "
-                    "`pip install redback`."
-                ) from err
+            redback = try_import_redback()
 
             self.source_name = source
             if source not in redback.model_library.all_models_dict:  # pragma: no cover
