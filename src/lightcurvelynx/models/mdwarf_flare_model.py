@@ -441,8 +441,8 @@ class MDwarfSamplerKowalski2013(ParameterizedNode, CiteClass):
 
     * t_peak: Blackbody temperature of the flare component (in Kelvin). Estimated using a normal
       distribution with mean=11111 and standard deviation=1744 based on Kowalski et al. (2013).
-    * balmer_jump_ratio: Balmer jump ratio of the flare component. Estimated using a normal
-      distribution with mean=0.24 and standard deviation=0.12 based on Kowalski et al. (2013).
+    * balmer_jump_ratio: Balmer jump ratio of the flare component. Estimated using a uniform
+      distribution with low=0.03 and high=0.51 based on Kowalski et al. (2013).
 
     References
     ----------
@@ -459,6 +459,6 @@ class MDwarfSamplerKowalski2013(ParameterizedNode, CiteClass):
         )
         self.add_parameter(
             "balmer_jump_ratio",
-            NumpyRandomFunc("normal", loc=0.24, scale=0.12),
+            NumpyRandomFunc("uniform", low=0.03, high=0.51),
             description="Balmer jump ratio of the flare component.",
         )
