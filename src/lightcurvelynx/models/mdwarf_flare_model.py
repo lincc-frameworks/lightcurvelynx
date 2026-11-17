@@ -5,12 +5,13 @@ import warnings
 import numpy as np
 from astropy import units as u  # angstroms, nanojanskies for flux density
 from astropy.modeling.models import BlackBody
-from citation_compass import cite_function
+from citation_compass import CiteClass, cite_function
 from scipy import special
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
 from lightcurvelynx.astro_utils.passbands import Passband
 from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
+from lightcurvelynx.base_models import ParameterizedNode
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayCoordSampler
@@ -431,3 +432,33 @@ class MDwarfFlareModel(SEDModel):
         total_flux_at_earth = total_no_distance / ((distance.to(u.cm)) ** 2)
         flux_density = (total_flux_at_earth).to(u.nJy, equivalencies=u.spectral_density(wavelengths[:, None]))
         return flux_density
+
+
+class MDwarfSamplerKowalski2013(ParameterizedNode, CiteClass):
+    """Sampler for M dwarf flare parameters based on Kowalski et al. (2013).
+
+    This is a node that samples and generates values for the following parameters:
+
+    * t_peak: Blackbody temperature of the flare component (in Kelvin). Estimated using a normal
+      distribution with mean=11111 and standard deviation=1744 based on Kowalski et al. (2013).
+    * balmer_jump_ratio: Balmer jump ratio of the flare component. Estimated using a normal
+      distribution with mean=0.24 and standard deviation=0.12 based on Kowalski et al. (2013).
+
+    References
+    ----------
+    Parameters sampled from Kowalski et al. (2013).
+    DOI: 10.1088/0067-0049/207/1/15
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.add_parameter(
+            "t_peak",
+            NumpyRandomFunc("normal", loc=11111, scale=1744),
+            description="Blackbody temperature of the flare component (in Kelvin).",
+        )
+        self.add_parameter(
+            "balmer_jump_ratio",
+            NumpyRandomFunc("normal", loc=0.24, scale=0.12),
+            description="Balmer jump ratio of the flare component.",
+        )
