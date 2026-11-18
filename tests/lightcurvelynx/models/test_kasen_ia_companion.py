@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 from astropy import constants as const
 from astropy import units as u
-from redback.transient_models.supernova_models import arnett_bolometric
 from scipy.interpolate import RegularGridInterpolator
 
 from lightcurvelynx.models import kasen_ia_companion
@@ -13,6 +12,7 @@ from lightcurvelynx.models.kasen_ia_companion import (
     KasenIaCompanionModel,
     _load_kasen_companion_grid,
 )
+from lightcurvelynx.models.redback_models import try_import_redback
 
 # A small fake grid in the format of the prestocolor per-angle spectrum files.
 _FAKE_TIMES = np.array([0.05, 0.15, 0.25, 0.35])
@@ -80,10 +80,12 @@ def test_load_kasen_companion_grid(tmp_path, kasen_data_dir, monkeypatch):
 
 
 def test_kasen_matches_regular_grid_interpolator(kasen_data_dir):
-    """Test that the interpolation is identical to the notebook's RegularGridInterpolator."""
-    sort_idx = np.argsort(_FAKE_ANGLES)
+    """Test that the interpolation is identical to a RegularGridInterpolator in cos(angle)."""
+    # Sort by the cosine of the angle, which is the interpolation coordinate.
+    cos_angles = np.cos(np.radians(_FAKE_ANGLES))
+    sort_idx = np.argsort(cos_angles)
     reference = RegularGridInterpolator(
-        (_FAKE_TIMES, _FAKE_WAVES, _FAKE_ANGLES[sort_idx]),
+        (_FAKE_TIMES, _FAKE_WAVES, cos_angles[sort_idx]),
         _fake_file_values(0)[:, :, sort_idx] * 1e36,
         method="linear",
         bounds_error=False,
@@ -104,7 +106,7 @@ def test_kasen_matches_regular_grid_interpolator(kasen_data_dir):
     waves = np.concatenate([rng.uniform(3900.0, 4600.0, 20), _FAKE_WAVES])
     tt, ww = np.meshgrid(times, waves, indexing="ij")
     for angle in np.concatenate([rng.uniform(5.0, 175.0, 10), _FAKE_ANGLES]):
-        expected = reference((tt, ww, np.full_like(tt, angle)))
+        expected = reference((tt, ww, np.full_like(tt, np.cos(np.radians(angle)))))
         # The tolerance accounts for the float32 storage of the grid.
         np.testing.assert_allclose(model._compute_kasen_luminosity(times, waves, angle), expected, rtol=1e-7)
 
@@ -176,7 +178,8 @@ def test_kasen_arnett_sed(kasen_data_dir):
     velocity = np.sqrt(
         10.0 * params["kinetic_energy"] / (3.0 * params["ejecta_mass"] * const.M_sun.cgs.value)
     )
-    expected = arnett_bolometric(
+    redback = try_import_redback()
+    expected = redback.transient_models.supernova_models.arnett_bolometric(
         phases[1:],
         f_nickel=params["nickel_mass"] / params["ejecta_mass"],
         mej=params["ejecta_mass"],

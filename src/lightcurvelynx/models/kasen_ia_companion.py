@@ -40,6 +40,7 @@ from lightcurvelynx.consts import ANGSTROM_TO_CM, CGS_FNU_UNIT_TO_NJY, M_SUN_G, 
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
 from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.models.physical_model import SEDModel
+from lightcurvelynx.models.redback_models import try_import_redback
 from lightcurvelynx.utils.data_download import download_data_file_if_needed
 from lightcurvelynx.utils.extrapolate import ZeroPadding
 
@@ -294,8 +295,8 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
     degrees, equally spaced in cosine). A viewing angle of 0 degrees places the companion
     between the observer and the exploding white dwarf, which gives the strongest
     interaction signal. The model linearly interpolates the specific luminosity in
-    time, wavelength, and viewing angle (in degrees), and it is zero outside of the grid
-    in any of the three dimensions.
+    time, wavelength, and the cosine of the viewing angle, and it is zero outside of the
+    grid in any of the three dimensions.
 
     By default the grid is smoothed with a Gaussian in the decimal logarithm of time
     (sigma = 0.075 dex), and optionally with a Gaussian in wavelength. The lg(time) kernel is
@@ -420,15 +421,9 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
             time_extrapolation = ZeroPadding()
         super().__init__(time_extrapolation=time_extrapolation, **kwargs)
 
-        try:
-            from redback.model_library import get_model_metadata
-        except ImportError as err:  # pragma: no cover
-            raise ImportError(
-                "redback package is not installed by default. To use the KasenIaCompanionModel, "
-                "please install redback. For example, you can install it with `pip install redback`."
-            ) from err
+        redback = try_import_redback()
         # The maximum time of the redback Arnett model (in days).
-        self._arnett_max_time = get_model_metadata("arnett").max_time_days
+        self._arnett_max_time = redback.model_library.get_model_metadata("arnett").max_time_days
 
         self.add_parameter("ejecta_mass", ejecta_mass, description="The ejecta mass in M_sun.")
         self.add_parameter("nickel_mass", nickel_mass, description="The 56Ni mass in M_sun.")
@@ -442,10 +437,11 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
         grid = _load_kasen_companion_grid(companion, data_dir=data_dir, force_download=force_download)
         self._times = grid["times"]
         self._wavelengths = grid["wavelengths"]
-        self._angles = grid["angles"]
+        # The angles are sorted in increasing order, so their cosines are reversed to be increasing.
+        self._cos_angles = np.cos(np.radians(grid["angles"][::-1]))
         # An (A, T, W) array in erg/s/Angstrom, converted to float64 first to avoid overflow.
         self._luminosity = _smooth_luminosity(
-            grid["luminosity"].astype(np.float64) * _KASEN_FILE_LUM_UNIT,
+            grid["luminosity"][::-1].astype(np.float64) * _KASEN_FILE_LUM_UNIT,
             self._times,
             self._wavelengths,
             wave_smoothing_aa,
@@ -455,8 +451,8 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
         if viewing_angle is None:
             cos_angle = NumpyRandomFunc(
                 "uniform",
-                low=np.cos(np.radians(self._angles[-1])),
-                high=np.cos(np.radians(self._angles[0])),
+                low=self._cos_angles[0],
+                high=self._cos_angles[-1],
             )
             viewing_angle = BasicMathNode("degrees(acos(cos_angle))", cos_angle=cos_angle, backend="numpy")
         self.add_parameter("viewing_angle", viewing_angle, description="The viewing angle in degrees.")
@@ -525,9 +521,9 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
     def _compute_kasen_luminosity(self, phases, wavelengths, viewing_angle):
         """Compute the specific luminosity of the Kasen (2010) grid by linear interpolation.
 
-        The interpolation is separable: first in viewing angle, then in time, then in
-        wavelength. This is mathematically identical to trilinear interpolation over
-        (time, wavelength, angle) and to scipy's ``RegularGridInterpolator`` with
+        The interpolation is separable: first in the cosine of the viewing angle, then in
+        time, then in wavelength. This is mathematically identical to trilinear interpolation
+        over (time, wavelength, cos(angle)) and to scipy's ``RegularGridInterpolator`` with
         ``method="linear"``, ``bounds_error=False``, and ``fill_value=0.0``.
 
         Parameters
@@ -544,7 +540,8 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
         luminosity : numpy.ndarray
             A T x N matrix of the specific luminosity L_lambda (in erg/s/Angstrom).
         """
-        lum = _linear_interp(self._angles, self._luminosity, viewing_angle, axis=0)
+        cos_angle = np.cos(np.radians(viewing_angle))
+        lum = _linear_interp(self._cos_angles, self._luminosity, cos_angle, axis=0)
         lum = _linear_interp(self._times, lum, phases, axis=0)
         return _linear_interp(self._wavelengths, lum, wavelengths, axis=1)
 
@@ -569,8 +566,7 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
         flux_density : numpy.ndarray
             A T x N matrix of rest frame SED values (in nJy), zero before the explosion.
         """
-        from redback.photosphere import TemperatureFloor
-        from redback.transient_models.supernova_models import arnett_bolometric
+        redback = try_import_redback()
 
         params = self.get_local_params(graph_state)
         phases = np.asarray(phases, dtype=float)
@@ -581,7 +577,7 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
 
         # The ejecta velocity in km/s.
         velocity = np.sqrt(10.0 * params["kinetic_energy"] / (3.0 * params["ejecta_mass"] * M_SUN_G)) / 1e5
-        lbol = arnett_bolometric(
+        lbol = redback.transient_models.supernova_models.arnett_bolometric(
             time=phases[after],
             f_nickel=params["nickel_mass"] / params["ejecta_mass"],
             mej=params["ejecta_mass"],
@@ -589,7 +585,7 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
             kappa=params["kappa"],
             kappa_gamma=params["kappa_gamma"],
         )
-        photosphere = TemperatureFloor(
+        photosphere = redback.photosphere.TemperatureFloor(
             time=phases[after],
             luminosity=lbol,
             vej=velocity,
