@@ -283,6 +283,9 @@ class FBOTModel(SEDModel):
         )
         Lopt_sh = E_eq / (tdiff + R / const.c.cgs.value)
         # Lopt_sh = Lopt_sh.decompose().value
+
+        # print("lopt", self._lum_shock(t, state))
+
         dE_eq = -E_eq / t - Lopt_sh + self._lum_shock(t, state)
 
         R = params["vfast"] * const.c.cgs.value * t
@@ -292,13 +295,16 @@ class FBOTModel(SEDModel):
         )
 
         Lopt_rep = E_pol / (tdiff + R / const.c.cgs.value)
+        # print("lrep", Lopt_rep)
         tauX = params["Mfast"] * const.M_sun.cgs.value * kapX / (4 * np.pi * R**2)
         Lth = (1 - params["phi0"]) * (1 - np.exp(-tauX)) * self._lum_acc(t, state) + params[
             "phi0"
         ] * self._lum_acc(t, state)
         # Lth = Lth.decompose().value
         # Lopt_rep = Lopt_rep.decompose().value
+        # print("lth",Lth)
         dE_pol = -E_pol / t - Lopt_rep + Lth
+        # print(dE_eq, dE_pol)
         return [t * dE_eq, t * dE_pol]
 
     def _fbot_luminosity(self, times, state):
@@ -335,7 +341,7 @@ class FBOTModel(SEDModel):
             [0.0, 0.0],
             args=state,
             method="DOP853",  # method="LSODA",  # method = "RK45", #,
-            rtol=1e-8,
+            rtol=1e-6,
             atol=1e30,
             # t_eval = np.linspace(np.log(times[0]), np.log(times[-1]), len(times)),
             dense_output=True,
@@ -351,9 +357,15 @@ class FBOTModel(SEDModel):
         # print(E_eq[0:10], E_pol[0:10])
 
         L_slow = E_eq / (
-            params["Mslow"] * params["kap_slow"] / (4 * np.pi * R_slow * const.c.cgs.value)
+            (
+                params["Mslow"]
+                * const.M_sun.cgs.value
+                * params["kap_slow"]
+                / (4 * np.pi * R_slow * const.c.cgs.value)
+            )
             + (R_slow / const.c.cgs.value)
         )
+
         L_fast = E_pol / (
             (
                 params["Mfast"]
@@ -363,7 +375,7 @@ class FBOTModel(SEDModel):
             )
             + (R_fast / const.c.cgs.value)
         )
-        # print((R_fast / const.c.cgs.value))
+        # print( (R_fast / const.c.cgs.value))
         # L_slow = L_slow.decompose().value
         # L_fast = L_fast.decompose().value
         # print(L_slow[0:10], L_fast[0:10])
@@ -391,15 +403,19 @@ class FBOTModel(SEDModel):
         """
         state = graph_state
         params = self.get_local_params(graph_state)
+        wavelengths = wavelengths * u.AA
 
         # print("original times", len(times))
 
         times_new = np.array(times - params["t0"]) * 86400.0  # time from merger in days to seconds
 
+        if np.any(times_new <= 0.0):
+            raise ValueError("The FBOTModel is only defined for times > t0.")
+
         # print("new t", times_new)
 
         Rs, Ls = self._fbot_luminosity(times_new, state)
-        # print("hi", Rs[0][1], Ls[0][1])
+        # print("hi", max(Rs[0]), max(Ls[0]))
         T_slow = (Ls[0] / (4 * np.pi * (Rs[0] ** 2) * const.sigma_sb.cgs.value)) ** 0.25
         T_fast = (Ls[1] / (4 * np.pi * (Rs[1] ** 2) * const.sigma_sb.cgs.value)) ** 0.25
 
@@ -427,4 +443,5 @@ class FBOTModel(SEDModel):
             array_fast[i] = F_fast.to(u.nJy)
 
         tot_flux_array = array_slow + array_fast
+        # print(tot_flux_array[1:10])
         return tot_flux_array
