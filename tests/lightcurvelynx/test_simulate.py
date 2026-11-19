@@ -1,5 +1,6 @@
 import multiprocessing
 import tempfile
+import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from pathlib import Path
 
@@ -131,6 +132,65 @@ def test_get_time_windows():
     with pytest.raises(ValueError):
         # t0 and z are incompatible shapes
         result = get_time_windows(np.array([1.0, 2.0, 3.0]), np.array([0.1, 0.2]), None, (-1.0, 2.0))
+
+
+def test_get_time_windows_warning():
+    """If we pass survey time bounds to get_time_windows(), it will check
+    against them and warning if the time windows fall outside the survey range."""
+
+    # No bounds -> no warnings.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _ = get_time_windows(
+            None,  # t0
+            None,  # z
+            None,  # obs_time_window_offset
+            None,  # rest_time_window_offset
+            first_survey_time=0.0,
+            last_survey_time=1.0,
+        )
+        _ = get_time_windows(
+            np.array([1.0, 2.0]),  # t0
+            np.array([0.01, 0.01]),  # z
+            None,  # obs_time_window_offset
+            None,  # rest_time_window_offset
+            first_survey_time=0.0,
+            last_survey_time=1.0,
+        )
+
+    # Everything within the window -> no warnings.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _ = get_time_windows(
+            np.array([0.5, 0.51, 0.52]),  # t0
+            np.array([0.01, 0.01, 0.01]),  # z
+            None,  # obs_time_window_offset
+            (-1.0, 1.0),  # rest_time_window_offset
+            first_survey_time=0.0,
+            last_survey_time=1.0,
+        )
+
+    # Warning when everything occurs before the surveys.
+    with pytest.warns():
+        _ = get_time_windows(
+            np.array([10.5, 10.51, 10.52]),  # t0
+            np.array([0.01, 0.01, 0.01]),  # z
+            None,  # obs_time_window_offset
+            (-1.0, 1.0),  # rest_time_window_offset
+            first_survey_time=0.0,
+            last_survey_time=1.0,
+        )
+
+    # Warning when everything occurs after the surveys.
+    with pytest.warns():
+        _ = get_time_windows(
+            np.array([0.5, 0.51, 0.52]),  # t0
+            np.array([0.01, 0.01, 0.01]),  # z
+            None,  # obs_time_window_offset
+            (-1.0, 1.0),  # rest_time_window_offset
+            first_survey_time=10.0,
+            last_survey_time=11.0,
+        )
 
 
 def test_simulation_info():

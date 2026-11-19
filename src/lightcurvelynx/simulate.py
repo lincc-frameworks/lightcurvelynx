@@ -222,7 +222,15 @@ class SimulationInfo:
         return batches
 
 
-def get_time_windows(t0, z, obs_time_window_offset, rest_time_window_offset):
+def get_time_windows(
+    t0,
+    z,
+    obs_time_window_offset,
+    rest_time_window_offset,
+    *,
+    first_survey_time=None,
+    last_survey_time=None,
+):
     """Get the time windows for each sample state based on the time window offset.
 
     Parameters
@@ -237,6 +245,14 @@ def get_time_windows(t0, z, obs_time_window_offset, rest_time_window_offset):
     rest_time_window_offset : tuple(float, float), optional
         A tuple specifying the rest-frame time window offset (start, end) relative
         to t0 in days. If None, no time window is applied.
+    first_survey_time : float or None optional
+        The time of the first survey in the observer frame. This is used to check
+        for samples that have no observations in the range. If not provided, no such
+        check is performed.
+    last_survey_time : float or None, optional
+        The time of the last survey in the observer frame. This is used to check
+        for samples that have no observations in the range. If not provided, no such
+        check is performed.
 
     Returns
     -------
@@ -292,6 +308,28 @@ def get_time_windows(t0, z, obs_time_window_offset, rest_time_window_offset):
         t0 = np.array([t0])
     start_times = t0 + before if before is not None else None
     end_times = t0 + after if after is not None else None
+
+    # If we have survey bounds, check and warn if objects are outside of that range.
+    if last_survey_time is not None and start_times is not None:
+        count = np.sum(start_times > last_survey_time)
+        total = len(start_times)
+        if count > 0:
+            print("Should warn.")
+            warnings.warn(
+                f"{count} of the {total} restricted time windows start after the "
+                f"last survey time ({last_survey_time}). These object will have no "
+                f"observations within the survey bounds."
+            )
+    if first_survey_time is not None and end_times is not None:
+        count = np.sum(end_times < first_survey_time)
+        total = len(end_times)
+        if count > 0:
+            print("Should warn.")
+            warnings.warn(
+                f"{count} of the {total} restricted time windows end before the "
+                f"first survey time ({first_survey_time}). These object will have no "
+                f"observations within the survey bounds."
+            )
 
     return start_times, end_times
 
@@ -372,14 +410,24 @@ def _simulate_lightcurves_batch(simulation_info):
     if simulation_info.save_full_filter_names:
         results_builder.add_per_observation_column("full_filter_name", dtype=str)
 
-    # Determine which of the of the simulated positions match the pointings from each ObsTable.
-    logger.info("Performing range searches to find matching observations.")
+    # Determine which of the of the simulated positions match the pointings from each
+    # ObsTable. We warn if any of the time windows fall completely outside the surveys.
+    first_start = np.min([np.min(obstable[i]["time"]) for i in range(num_surveys)])
+    last_end = np.max([np.max(obstable[i]["time"]) for i in range(num_surveys)])
+    logger.info(
+        f"Performing range searches to find matching observations and comparing "
+        f"with the survey time range [{first_start}, {last_end}]."
+    )
     start_times, end_times = get_time_windows(
         model.get_param(sample_states, "t0"),
         model.get_param(sample_states, "redshift"),
         simulation_info.obs_time_window_offset,
         simulation_info.rest_time_window_offset,
+        first_survey_time=first_start,
+        last_survey_time=last_end,
     )
+
+    # Do the range searches to find matching observations for each object in each survey.
     all_obs_matches = [
         obstable[i].range_search(ra, dec, t_min=start_times, t_max=end_times) for i in range(num_surveys)
     ]
