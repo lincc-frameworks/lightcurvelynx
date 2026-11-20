@@ -44,6 +44,7 @@ dependencies = [
 dev = [
     "asv==0.6.6", # Used to compute performance benchmarks
     "bilby",  # Used for Bayesian inference
+    "caskade",  # Used for interfacing with Caskade nodes
     "dust_extinction",
     "extinction>=0.4.7",
     "fsspec[http]",  # Read OpSim file from the web with utils/make_opsim_shorten.py
