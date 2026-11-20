@@ -47,11 +47,13 @@ This page provides a list of topics with definitions and links to corresponding 
 
 **GivenValueSelector** - A node that takes a single input parameter, an index, and uses it to look up the corresponding value in a given list. See also :doc:`Advanced Sampling Notebook <notebooks/advanced_sampling>`.
 
-**HATS** - A catalog data format that can be used to store LightCurveLynx results. See also `HATS Page <https://docs.lsdb.io/en/latest/data-access/hats.html>`_, :doc:`Frequently Asked Questions <faq>`, :doc:`Results and Output <results_and_output>`.
+**HATS** - A catalog data format that can be used to store LightCurveLynx results. See also `HATS Page <https://docs.lsdb.io/en/latest/data-access/hats.html>`__, :doc:`Frequently Asked Questions <faq>`, :doc:`Results and Output <results_and_output>`.
 
 **LightcurveTemplateModel** - A model that uses a predefined light curve as a template and interpolates it. See also :doc:`LightcurveTemplateModel Notebook <notebooks/lightcurve_source_demo>`.
 
 **LocationFreeObsTable** - An observation table that does not perform spatial filtering, e.g., all observations match any model's RA and Dec. See also :doc:`LocationFreeObsTable Notebook <notebooks/location_free_obstable>`.
+
+**MAF** - `Rubin Sim's Metric Analysis Framework (MAF) <https://rubin-sim.lsst.io/index.html>`__, is a tool used for evaluating the performance of survey strategies. To see how to run LightCurveLynx in conjunction with MAF, see :doc:`MAF Running LightCurveLynx Through Rubin's Metric Analysis Framework notebook <notebooks/pre_executed/maf_lynx>`.
 
 **MilkyWayCoordSampler** - A parameterized node used to sample positions in the Milky Way in (RA, Dec, distance). See also :doc:`Sampling Positions Notebook <notebooks/sampling_positions>`.
 

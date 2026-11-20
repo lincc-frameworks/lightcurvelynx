@@ -44,6 +44,7 @@ features and models of the LightCurveLynx package.
     Using Learned PZFlow Noise Models <notebooks/pre_executed/pzflow_noise_models>
     Data-Driven Noise from Rubin DP1 <notebooks/pre_executed/data_driven_noise_dp1>
     SN Ia Intrinsic Scatter Models <notebooks/intrinsic_scatter>
+    Metric Analysis Framework (MAF) Integration <notebooks/pre_executed/maf_lynx>
 
 Citations
 -----------------------------------------------------------------------------------------
