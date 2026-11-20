@@ -1,5 +1,5 @@
-"""Wrapper class for interfacing with the caskade package, which provides tools for
-defining and sampling a directed acyclic graph (DAG) of parameters.
+"""Wrapper class for an initial interface that allows caskade to pass a module
+full of parameters to LightCurveLynx.
 
 This code uses the `caskade` package (https://github.com/ConnorStoneAstro/caskade),
 which is not installed by default. Users who want to use this functionality must
@@ -75,27 +75,33 @@ class CaskadeParameterNode(FunctionNode, CiteClass):
 
             # Get the values of the current parameter.
             param = param_data[key]
+            print(f"Processing parameter: {key}")
             values = param.npvalue
-            batch_size = 1 if not param.batched else param.batch_size
-            print(f"Parameter {key}: values = {values}, batch_size = {batch_size}")
-
-            if graph_state.num_samples == 1:
-                # If we need a single sample, check the batch size is 1 and extract the
-                # single value (from a 0-dimensional array) if necessary.
-                if batch_size != 1:
-                    raise ValueError(f"Parameter {key} has batch size {batch_size} but num_samples is 1")
+            if not param.batched:
+                print(f"Parameter {key} is not batched.")
+                # If there is no batching, treat this as a constant value for all samples
                 if len(values.shape) == 0:
+                    # Get rid of 0-dimensional array by converting it to a scalar.
                     values = values.item()
-            elif batch_size == 1:
-                # If we have a batch size of 1 and need more samples, repeat the values
-                # while ensuring the first dimension is num_samples.
-                values = np.repeat(np.expand_dims(values, axis=0), graph_state.num_samples, axis=0)
-            elif batch_size != graph_state.num_samples:
-                # If we have a batch size that does not match the number of samples, raise an error.
-                raise ValueError(
-                    f"Parameter {key} has batch size {batch_size} but num_samples "
-                    f"is {graph_state.num_samples}"
-                )
+
+                # If we need more than one sample, repeat the values to match the number
+                # of samples.
+                if graph_state.num_samples > 1:
+                    values = np.repeat(
+                        np.expand_dims(values, axis=0),
+                        graph_state.num_samples,
+                        axis=0,
+                    )
+            else:
+                # If is a batched parameter, we want to extract the appropriate slice.
+                start_idx = graph_state.sample_offset
+                end_idx = start_idx + graph_state.num_samples
+                if end_idx > param.batch_shape[0]:
+                    raise ValueError(
+                        f"Parameter {key} has batch size {param.batch_shape[0]} but requested slice "
+                        f"from {start_idx} to {end_idx} exceeds the batch size."
+                    )
+                values = param.npvalue[start_idx:end_idx]
 
             # Values should be the correct shape now. Add it to our results list.
             results.append(values)
@@ -103,3 +109,39 @@ class CaskadeParameterNode(FunctionNode, CiteClass):
         # Save and return the values.
         self._save_results(results, graph_state)
         return results
+
+
+class CaskadeFunctionNode(FunctionNode, CiteClass):
+    """The base class for sampling from the function of a Caskade module.
+    https://github.com/ConnorStoneAstro/caskade
+
+    Note
+    ----
+    The caskade package is not installed by default. To use the caskade functionality, users will
+    need to install the caskade package separately with `pip install caskade`.
+
+    Parameters
+    ----------
+    caskade_node : ck.Module
+        The Caskade node whose parameters are being accessed.
+    function_name : str
+        The name of the function within the Caskade module to be wrapped.
+    **kwargs : dict, optional
+        Any additional keyword arguments.
+
+    References
+    ----------
+    * Stone et al., (2025). caskade: building Pythonic scientific simulators.
+      Journal of Open Source Software, 10(113), 8786,
+      https://doi.org/10.21105/joss.08786
+    * https://github.com/ConnorStoneAstro/caskade
+    """
+
+    def __init__(self, caskade_module, function_name, **kwargs):
+        # Keep a reference to the original Caskade node
+        self._node = caskade_module
+        self._function_name = function_name
+        self._func = getattr(caskade_module, function_name, None)
+        if self._func is None:
+            raise ValueError(f"Failed to retrieve the function '{function_name}' from the Caskade module.")
+        super().__init__(self._func, outputs=[function_name], **kwargs)
