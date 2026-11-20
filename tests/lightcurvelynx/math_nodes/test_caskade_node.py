@@ -138,5 +138,6 @@ def test_caskade_function_node():
 
     # If we change the values, the sampled result should reflect the new values.
     test_module.x = -2.0
+    test_module.y = 5.0
     sample = node.sample_parameters(num_samples=1)
-    assert sample["test"]["my_test_fn"] == 0.0
+    assert sample["test"]["my_test_fn"] == 3.0
