@@ -75,10 +75,8 @@ class CaskadeParameterNode(FunctionNode, CiteClass):
 
             # Get the values of the current parameter.
             param = param_data[key]
-            print(f"Processing parameter: {key}")
             values = param.npvalue
             if not param.batched:
-                print(f"Parameter {key} is not batched.")
                 # If there is no batching, treat this as a constant value for all samples
                 if len(values.shape) == 0:
                     # Get rid of 0-dimensional array by converting it to a scalar.
@@ -93,6 +91,13 @@ class CaskadeParameterNode(FunctionNode, CiteClass):
                         axis=0,
                     )
             else:
+                # LightCurveLynx only supports batching along a single dimension (the first dimension).
+                if len(param.batch_shape) != 1:
+                    raise ValueError(
+                        f"Parameter {key} has batch shape {param.batch_shape}, but only "
+                        f"single-dimension batching is supported."
+                    )  # pragma: no cover
+
                 # If is a batched parameter, we want to extract the appropriate slice.
                 start_idx = graph_state.sample_offset
                 end_idx = start_idx + graph_state.num_samples

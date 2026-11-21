@@ -18,7 +18,7 @@ def test_caskade_parameter_node():
             self.x = ck.Param("x", x)
             self.y = ck.Param("y", y)
             self.z = ck.Param("z", z, shape=(3,))
-            self.w = ck.Param("w", self.my_test_fn, dynamic=True)
+            self.w = ck.Param("w", self.my_test_fn)
 
         @ck.forward
         def my_test_fn(self, x, y):
@@ -138,6 +138,6 @@ def test_caskade_function_node():
 
     # If we change the values, the sampled result should reflect the new values.
     test_module.x = -2.0
-    test_module.y = 5.0
+    test_module.y = 10.0
     sample = node.sample_parameters(num_samples=1)
-    assert sample["test"]["my_test_fn"] == 3.0
+    assert sample["test"]["my_test_fn"] == 8.0
