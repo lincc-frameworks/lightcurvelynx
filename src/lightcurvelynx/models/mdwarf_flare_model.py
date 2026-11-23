@@ -4,11 +4,11 @@ import warnings
 
 import numpy as np
 from astropy import units as u  # angstroms, nanojanskies for flux density
-from astropy.modeling.models import BlackBody
 from citation_compass import cite_function
 from scipy import special
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
+from lightcurvelynx.astro_utils.black_body import eval_blackbody
 from lightcurvelynx.astro_utils.passbands import Passband
 from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
 from lightcurvelynx.math_nodes.basic_math_node import BasicMathNode
@@ -165,7 +165,7 @@ class MDwarfFlareModel(SEDModel):
 
         # Download the passband once to use later and extract the wavelengths.
         self._tess_band = Passband.from_svo("TESS/TESS.Red")
-        self._tess_waves = self._tess_band.waves * u.AA
+        self._tess_waves = self._tess_band.waves
 
         # The peak of the flare is the flare equation at time 0. Since it is
         # independent of the parameters, we can evaluate it once and cache it.
@@ -291,12 +291,12 @@ class MDwarfFlareModel(SEDModel):
 
         Parameters
         ----------
-        wavelengths : np.ndarray or None
-            Wavelength values in angstroms.
-        temp_low : float or int
-            temperature for the blackbody spectrum in Kelvin.
+        wavelengths : np.ndarray
+            Wavelength values in Angstroms.
+        temp_low : float
+            Temperature for the blackbody spectrum in Kelvin.
             default: 9000
-        balmer_jump_ratio : float or int
+        balmer_jump_ratio : float
             the multiplicative factor that the blackbody spectrum is multiplied by below
             the Balmer jump wavelength of 3645Å
             default: 2
@@ -306,17 +306,10 @@ class MDwarfFlareModel(SEDModel):
         Intensity : np.ndarray
             flare spectrum. units: erg / (Hz s sr cm**2 )
         """
-        if not isinstance(wavelengths, u.Quantity):
-            wavelengths = wavelengths * u.AA
-
-        if not isinstance(temp_low, u.Quantity):
-            temp_low = temp_low * u.K
-
-        bb_low = BlackBody(temperature=temp_low)
-        intensity = bb_low(wavelengths)
-        balmer_jump = 3645 * u.AA  # angstroms
+        intensity = eval_blackbody(temp_low, wavelengths)
+        balmer_jump = 3645  # angstroms
         intensity[wavelengths < balmer_jump] *= balmer_jump_ratio
-        return intensity
+        return intensity * u.erg / u.s / u.cm**2 / u.Hz / u.steradian
 
     def _tess_band_integrate(self, spectrum):
         """
@@ -341,23 +334,18 @@ class MDwarfFlareModel(SEDModel):
 
         Parameters
         ----------
-        temp_star : float or Quantity
-            assumed Kelvin if plain float
+        temp_star : float
+            The temperature of the star in Kelvin.
         wavelengths : np.ndarray or None
-            Wavelength values; shape matches spectrum's wave axis
+            Wavelength values in angstroms.
 
         Returns
         -------
         Quantity, shape (n_wave,), units erg/(Hz s sr cm^2)
         it is now in terms of frequency and not wavelength
         """
-        if not isinstance(wavelengths, u.Quantity):
-            wavelengths = wavelengths * u.AA  # otherwise it assumes frequency
-        if not isinstance(temp_star, u.Quantity):
-            temp_star = temp_star * u.K
-        bb = BlackBody(temperature=temp_star)
-        I_lam = bb(wavelengths)
-        return I_lam
+        I_lam = eval_blackbody(temp_star, wavelengths)
+        return I_lam * u.erg / u.s / u.cm**2 / u.Hz / u.steradian
 
     def compute_sed(self, times, wavelengths, graph_state):
         """Draw effect-free observer frame flux densities.
@@ -385,7 +373,6 @@ class MDwarfFlareModel(SEDModel):
             A length T x N matrix of observer frame SED values (in nJy).
         """
         params = self.get_local_params(graph_state)  # has everything that was instantiated
-        wavelengths = wavelengths * u.AA  # angstroms
 
         # adding the units for radius
         constants = np.pi * params["star_radius"] ** 2 * u.sr * (u.cm**2)
@@ -429,5 +416,7 @@ class MDwarfFlareModel(SEDModel):
             distance = distance * u.parsec
 
         total_flux_at_earth = total_no_distance / ((distance.to(u.cm)) ** 2)
-        flux_density = (total_flux_at_earth).to(u.nJy, equivalencies=u.spectral_density(wavelengths[:, None]))
+        flux_density = (total_flux_at_earth).to(
+            u.nJy, equivalencies=u.spectral_density(wavelengths[:, None] * u.AA)
+        )
         return flux_density
