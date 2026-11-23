@@ -61,7 +61,8 @@ class MDwarfFlareModel(SEDModel):
         The temperature of the cold part of the flare in Kelvins.
         If not provided, uniform-randomly sampled between 9000 and 14000 K.
     balmer_jump_ratio : parameter, optional
-        the ratio of the spectral intensity below the balmer jump to above the balmer jump
+        The ratio of the spectral intensity below the balmer jump to above the
+        balmer line (3645Å). If not provided, the model uses a default of 2.0.
     """
 
     def __init__(
@@ -440,13 +441,14 @@ class MDwarfSamplerKowalski2013(ParameterizedNode, CiteClass):
     This is a node that samples and generates values for the following parameters:
 
     * t_peak: Blackbody temperature of the flare component (in Kelvin). Estimated using a normal
-      distribution with mean=11111 and standard deviation=1744 based on Kowalski et al. (2013).
+      distribution with mean=11111 and standard deviation=1744 based on Table 7 of
+      Kowalski et al. (2013).
     * balmer_jump_ratio: Balmer jump ratio of the flare component. Estimated using a uniform
-      distribution with low=0.03 and high=0.51 based on Kowalski et al. (2013).
+      distribution with low=1.03 and high=2.04 based on Kowalski et al. (2013).
 
     References
     ----------
-    Parameters sampled from Kowalski et al. (2013).
+    Parameters sampled from Table 7 and 8 of Kowalski et al. (2013).
     DOI: 10.1088/0067-0049/207/1/15
     """
 
@@ -457,8 +459,16 @@ class MDwarfSamplerKowalski2013(ParameterizedNode, CiteClass):
             NumpyRandomFunc("normal", loc=11111, scale=1744),
             description="Blackbody temperature of the flare component (in Kelvin).",
         )
+
+        # Table 8 of Kowalski et al. (2013) gives a samples of HB flux/Total flux. If we
+        # denote the extra Balmer flux as b and the base flux as a, then the given ratio
+        # is r = b / (b + a). The Balmer jump ratio we need is R = (b + a) / a. We can
+        # then express the Balmer jump ratio in terms of r as R = 1 / (1 - r) and use this
+        # relation to convert the bounds from r in [0.03, 0.51] to the corresponding bounds
+        # for R in (1.03, 2.04). Since Table 8 has too few points to reliably determine the
+        # distribution, we just sample uniformly from this range.
         self.add_parameter(
             "balmer_jump_ratio",
-            NumpyRandomFunc("uniform", low=0.03, high=0.51),
+            NumpyRandomFunc("uniform", low=1.03, high=2.04),
             description="Balmer jump ratio of the flare component.",
         )

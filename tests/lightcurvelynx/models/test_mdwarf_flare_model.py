@@ -215,8 +215,8 @@ def test_mdwarf_sampler_kowalski2013():
     assert np.all(states["test_node.t_peak"] < 20000)
 
     assert len(np.unique(states["test_node.balmer_jump_ratio"])) > 80
-    assert np.all(states["test_node.balmer_jump_ratio"] >= 0.03)
-    assert np.all(states["test_node.balmer_jump_ratio"] <= 0.51)
+    assert np.all(states["test_node.balmer_jump_ratio"] >= 1.03)
+    assert np.all(states["test_node.balmer_jump_ratio"] <= 2.04)
 
     # Test that we can chain it with a simple model.
     node = SingleVariableNode("t_peak", sampler.t_peak, node_label="sv")
