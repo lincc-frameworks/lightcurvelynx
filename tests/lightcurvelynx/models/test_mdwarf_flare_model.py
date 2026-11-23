@@ -9,7 +9,11 @@ from astropy.cosmology import Planck18
 
 from lightcurvelynx.astro_utils.passbands import check_connect_to_svo
 from lightcurvelynx.math_nodes.given_sampler import GivenValueList
-from lightcurvelynx.models.mdwarf_flare_model import MDwarfFlareModel
+from lightcurvelynx.math_nodes.single_value_node import SingleVariableNode
+from lightcurvelynx.models.mdwarf_flare_model import (
+    MDwarfFlareModel,
+    MDwarfSamplerKowalski2013,
+)
 
 # The test values with known output. first, no sampling
 wavelengths = np.linspace(3000, 12000, 4000)
@@ -196,3 +200,25 @@ def test_mdwarf_flare_model_with_balmer_jump():
     assert not np.allclose(fluxes[2], fluxes[3])
     assert not np.allclose(fluxes[2], fluxes[4])
     assert not np.allclose(fluxes[3], fluxes[4])
+
+
+def test_mdwarf_sampler_kowalski2013():
+    """
+    Test the MDwarfSamplerKowalski2013 class.
+    """
+    rng = np.random.default_rng(100)
+    sampler = MDwarfSamplerKowalski2013(node_label="test_node")
+    states = sampler.sample_parameters(num_samples=100, rng_info=rng)
+
+    assert len(np.unique(states["test_node.t_peak"])) > 80
+    assert np.all(states["test_node.t_peak"] > 0)
+    assert np.all(states["test_node.t_peak"] < 20000)
+
+    assert len(np.unique(states["test_node.balmer_jump_ratio"])) > 80
+    assert np.all(states["test_node.balmer_jump_ratio"] >= 1.03)
+    assert np.all(states["test_node.balmer_jump_ratio"] <= 2.04)
+
+    # Test that we can chain it with a simple model.
+    node = SingleVariableNode("t_peak", sampler.t_peak, node_label="sv")
+    sv_states = node.sample_parameters(num_samples=100, rng_info=rng)
+    assert len(np.unique(sv_states["sv.t_peak"])) > 80
