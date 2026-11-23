@@ -7,7 +7,7 @@ from scipy.integrate import trapezoid
 
 from lightcurvelynx.astro_utils.black_body import (
     black_body_luminosity_density_per_solid,
-    eval_blackbody,
+    eval_blackbody_aa_k,
 )
 
 
@@ -23,7 +23,7 @@ def test_eval_blackbody(temp):
     sed_astropy = bb(waves * u.AA)
 
     # Compute our custom implementation of the SED.
-    sed_custom = eval_blackbody(temp, waves)
+    sed_custom = eval_blackbody_aa_k(temp, waves)
 
     # Compare the two SEDs.
     assert np.allclose(sed_custom, sed_astropy.value, rtol=1e-6)

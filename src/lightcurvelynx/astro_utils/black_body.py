@@ -52,14 +52,15 @@ def black_body_luminosity_density_per_solid(temperature, radius, wavelengths):
     return surface_flux * surface_area_per_solid_angle
 
 
-def eval_blackbody(temp, wave):
+def eval_blackbody_aa_k(temp, wave):
     """Evaluate the blackbody flux density for a given temperature and at
     given wavelengths using the Planck function in terms of frequency.
 
     Note
     ----
     This function is faster than astropy's BlackBody evaluation, but requires
-    the input to be in the correct units already.
+    the input to be in the correct units already (wavelengths in Angstroms
+    and temperature in kelvins).
 
     Parameters
     ----------

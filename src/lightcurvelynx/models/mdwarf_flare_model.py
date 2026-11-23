@@ -8,7 +8,7 @@ from citation_compass import CiteClass, cite_function
 from scipy import special
 
 from lightcurvelynx import _LIGHTCURVELYNX_BASE_DATA_DIR
-from lightcurvelynx.astro_utils.black_body import eval_blackbody
+from lightcurvelynx.astro_utils.black_body import eval_blackbody_aa_k
 from lightcurvelynx.astro_utils.passbands import Passband
 from lightcurvelynx.astro_utils.pzflow_node import PZFlowNode
 from lightcurvelynx.base_models import ParameterizedNode
@@ -308,7 +308,7 @@ class MDwarfFlareModel(SEDModel):
         Intensity : np.ndarray
             flare spectrum. units: erg / (Hz s sr cm**2 )
         """
-        intensity = eval_blackbody(temp_low, wavelengths)
+        intensity = eval_blackbody_aa_k(temp_low, wavelengths)
         balmer_jump = 3645  # angstroms
         intensity[wavelengths < balmer_jump] *= balmer_jump_ratio
         return intensity * u.erg / u.s / u.cm**2 / u.Hz / u.steradian
@@ -346,7 +346,7 @@ class MDwarfFlareModel(SEDModel):
         Quantity, shape (n_wave,), units erg/(Hz s sr cm^2)
         it is now in terms of frequency and not wavelength
         """
-        I_lam = eval_blackbody(temp_star, wavelengths)
+        I_lam = eval_blackbody_aa_k(temp_star, wavelengths)
         return I_lam * u.erg / u.s / u.cm**2 / u.Hz / u.steradian
 
     def compute_sed(self, times, wavelengths, graph_state):
