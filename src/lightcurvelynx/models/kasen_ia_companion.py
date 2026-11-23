@@ -1,6 +1,6 @@
 """SN Ia models with ejecta-companion interaction from Kasen (2010).
 
-The spectral time series were computed by Dan Kasen for single-degenerate SN Ia
+The spectral time series were computed by Kasen (2010) for single-degenerate SN Ia
 progenitor systems in which the supernova ejecta collide with a non-degenerate
 companion star. The collision produces excess emission in the first days after
 explosion whose strength depends on the companion (and thus the binary separation)
@@ -12,9 +12,10 @@ repository. On first use the repository's archive is downloaded once, the spectr
 converted into a single ``.npz`` file per companion and stored in the LightCurveLynx
 data cache directory, and the archive is removed.
 
-The spectra cover only the first 10 days after explosion, so the model blends them into
-the Arnett (1982) model of the supernova, computed with redback, which continues the light
-curve to later times.
+The spectra cover only the first 10 days after explosion, so the model blends them with
+the Arnett (1982) model of the supernova, computed with redback. The weight of the Arnett
+model rises smoothly from 0 at the explosion to 1 at the end of the grid, and the Arnett
+model continues the light curve to later times.
 
 This model is based on the `original notebook
 <https://colab.research.google.com/drive/1uSY8vTTeYLaTkDIKMSkLtSHDAQsoam5p>`_.
@@ -272,12 +273,6 @@ def _smooth_luminosity(luminosity, times, wavelengths, wave_smoothing_aa, lg_tim
     return luminosity
 
 
-def _smoothstep(x):
-    """A smooth step from 0 at x <= 0 to 1 at x >= 1, with zero slope at both ends."""
-    x = np.clip(x, 0.0, 1.0)
-    return x * x * (3.0 - 2.0 * x)
-
-
 class KasenIaCompanionModel(SEDModel, CiteClass):
     """A model of SN Ia emission with the interaction of the ejecta with a non-degenerate
     companion star in the first ~10 days, from the Kasen (2010) simulations.
@@ -305,8 +300,9 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
     energy between the grid bins, reflecting it at the grid edges, so it conserves the total
     radiated energy.
 
-    The model continues past the end of the grid as the Arnett (1982) model of the
-    supernova, computed with redback. The model is (1 - alpha(t)) K(t) + alpha(t) A(t), where
+    The model blends the grid with the Arnett (1982) model of the supernova, computed with
+    redback, which continues past the end of the grid. The model is
+    (1 - alpha(t)) K(t) + alpha(t) A(t), where
     K is the Kasen model, A is the Arnett model, t is the time since explosion, and
     alpha(t) = 3 x^2 - 2 x^3 with x = min(max(t / t_end, 0), 1), where t_end = 9.95 days is
     the last epoch of the grid. The default Arnett parameters follow the Kasen (2010) ejecta:
@@ -545,6 +541,26 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
         lum = _linear_interp(self._times, lum, phases, axis=0)
         return _linear_interp(self._wavelengths, lum, wavelengths, axis=1)
 
+    def _arnett_weight(self, phases):
+        """Compute the weight of the Arnett model in the blend, alpha(t).
+
+        alpha(t) = 3 x^2 - 2 x^3 with x = min(max(t / t_end, 0), 1), where t_end is the last
+        epoch of the grid. It rises smoothly from 0 at the explosion to 1 at t_end, with
+        zero slope at both ends.
+
+        Parameters
+        ----------
+        phases : numpy.ndarray
+            A length T array of rest frame times since explosion (in days).
+
+        Returns
+        -------
+        weight : numpy.ndarray
+            A length T array of the weights of the Arnett model.
+        """
+        x = np.clip(np.asarray(phases) / self._times[-1], 0.0, 1.0)
+        return x * x * (3.0 - 2.0 * x)
+
     def _compute_arnett_sed(self, phases, wavelengths, graph_state):
         """Compute the rest frame flux density of the redback Arnett (1982) model.
 
@@ -637,6 +653,6 @@ class KasenIaCompanionModel(SEDModel, CiteClass):
             flam_unit=u.erg / u.second / u.cm**2 / u.AA,
             fnu_unit=u.nJy,
         )
-        alpha = _smoothstep(phases / self._times[-1])[:, None]
+        alpha = self._arnett_weight(phases)[:, None]
         arnett = self._compute_arnett_sed(phases, wavelengths, graph_state)
         return (1.0 - alpha) * flux_density + alpha * arnett
