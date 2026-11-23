@@ -2,23 +2,25 @@ import warnings
 
 import numpy as np
 from astropy import constants as const
-from astropy import units as u  # angstroms, nanojanskies for flux density
+from astropy import units as u
 from astropy.modeling.models import BlackBody
 from scipy.integrate import solve_ivp
 
+from lightcurvelynx.math_nodes.np_random import NumpyRandomFunc
 from lightcurvelynx.math_nodes.ra_dec_sampler import MilkyWayCoordSampler
 from lightcurvelynx.models.physical_model import SEDModel
 
 
-class FBOTModel(SEDModel):
-    """FBOT model
-    A Luminous Fast Blow Optical Transient (LFBOT) Model.
+class LFBOTModel(SEDModel):
+    """LFBOT model
+    A Luminous Fast Blue Optical Transient (LFBOT) Model.
 
     The time evolution of the LFBOT is as modeled in Metzger 2022,
     which models a LFBOT as a merger between a Wolf-Rayet star
-    and a black hole. The spectrum of the LFBOT is considered to
-    be from the combined
-
+    and a black hole. The energy produced in this merger comes from
+    a slow, equatorial outflow of mass and a fast, polar outflow of
+    mass, so there are a slow and fast component contributing to the
+    luminosity.
 
     Parameterized values include:
 
@@ -26,98 +28,97 @@ class FBOTModel(SEDModel):
     * distance - The object's luminosity distance in pc. [from BasePhysicalModel]
     * ra - The object's right ascension in degrees. [from BasePhysicalModel]
     * redshift - The object's redshift. [from BasePhysicalModel]
-    * t0 - The t0 of the zero phase, date. [from BasePhysicalModel]
+    * t0 - The time of the merger, date. [from BasePhysicalModel]
     * WR_mass - The mass of the progenitor Wolf-Rayet star in solar masses.
     * BH_mass - The mass of the progenitor black hole in solar masses.
-    * alpha - The viscosity of the
-    * theta0 -
+    * alpha - The viscosity of the accretion disk.
+    * theta0 - The aspect ratio of the accretion disk.
     * p - The outflow index which helps describe the mass loss rate
     * eta - Engine efficiency
-    * Mslow - in solar masses
-    * vslow - in cm/s
-    * kap_slow - opacity of the slow in cm^2/g
-    * Mfast - in solar masses
-    * vfast - fraction of the speed of light c
-    * kap_fast - opacity of the fast in cm^2/g
-    * phi0 - solid angle fraction of slow outflow
-    * N_orb - the number of orbits before the Wolf-Rayet-black hole merger
+    * Mslow - Mass of the slow outflow in solar masses
+    * vslow - Velocity of the slow outflow in cm/s
+    * kap_slow - Opacity of the slow outflow in cm^2/g
+    * Mfast - Mass of the fast outflow in solar masses
+    * vfast - Velocity of the fast outflow as a fraction of the speed of light c
+    * kap_fast - Opacity of the fast outflow in cm^2/g
+    * phi0 - Solid angle fraction of slow outflow
+    * N_orb - The number of orbits before the Wolf-Rayet-black hole merger
 
     Parameters
     ----------
     WR_mass : parameter, optional
         The mass of the Wolf-Rayet progenitor in solar masses
-        If not provided, the model uses
+        If not provided, uniform-randomly sampled from the range
+        10-40 solar masses.
     BH_mass : parameter, optional
-
+        The mass of the black hole progenitor in solar masses
+        If not provided, uniform-randomly sampled from the range
+        1-20 solar masses.
     alpha : parameter, optional
-
+        The effective viscosity of the accretion disk.
+        Defaults to 0.03.
     theta0 : parameter, optional
-
+        The aspect ratio of the accretion disk.
+        Defaults to 0.33.
     p : parameter, optional
-
+        The outflow index, defining the exponential relationship
+        between mass loss and radius: dM/dt ~ r^p
+        Defaults to 0.6.
     eta: parameter, optional
-
+        Efficiency of conversion of mass into energy of accreted matter
+        in E_acc ~ eta*M_acc*c^2
+        Defaults to 0.03.
     Mslow: parameter, optional
-        In solar masses
-
+        The mass of the slow-moving equatorial outflow
+        in solar masses.
+        Defaults to 9.8 solar mass.
     vslow: parameter, optional
+        The speed of the slow-moving equatorial outflow
         in cm/s
-
+        Defaults to 3.0e8 cm/s.
     kap_slow: parameter, optional
+        The opacity of the slow-moving equatorial outflow
         in cm^2/g
-
+        Defaults to 0.03 cm^2/g.
     Mfast: parameter, optional
-        In solar masses
-
+        The mass of the fast-moving polar outflow
+        in solar masses, constrained to be less than
+        or equal to 1 solar mass.
+        Defaults to 0.1 solar mass.
     vfast: parameter, optional
-        fraction of the speed of light
-
+        The speed of the fast-moving polar outflow
+        as a fraction of the speed of light
+        Defaults to 0.2.
     kap_fast: parameter, optional
-        in cm^2/g
-
+        The opacity of the fast-moving polar outflow
+        in cm^2/g.
+        Defaults to 0.2 cm^2/g.
     phi0: parameter, optional
-
+        Solid angle fraction of the slow outflow.
+        Defaults to 0.5
     N_orb: parameter, optional
-
-
-    star_temp : parameter, optional
-        The temperature of the star in Kelvins.
-        If not provided, the model uses samples from the default pzflow model.
-    star_radius : parameter, optional
-        The radius of the star in cm.
-        If not provided, the model uses samples from the default pzflow model.
-    flare_fwhm : parameter, optional
-        The full width half max of the flare in time (days).
-        If not provided, the model uses samples from the default pzflow model.
-    flare_amplitude: parameter, optional
-        The maximum amplitude of the flare, relative to star flux.
-        If not provided, the model uses samples from the default pzflow model.
-    flare_temp : parameter, optional
-        The temperature of the cold part of the flare in Kelvins.
-        If not provided, uniform-randomly sampled between 9000 and 14000 K.
-    balmer_jump_ratio : parameter, optional
-        the ratio of the spectral intensity below the balmer jump to above the balmer jump
-        (which is a blackbody at flare_temp). Defaults to 2
+        Number of orbits before merger.
+        Defaults to 30.
 
     """
 
     def __init__(
         self,
         *,
-        WR_mass=10,  # wolf-rayet star mass in solar masses
-        BH_mass=10,  # in solar masses
-        alpha=0.03,  # disk viscosity
-        theta0=0.33,  # aspect ratio
-        p=0.6,  # outflow index, Mdot(r) ~ r^p
-        eta=0.03,  # engine efficiency
-        Mslow=9.8,
-        vslow=3.0e8,  # in cm/s
-        kap_slow=0.03,  # cm2/g
-        Mfast=0.1,  # * const.M_sun,
-        vfast=0.2,  # * const.c,
-        kap_fast=0.2,  # cm2/g
-        phi0=0.5,  # solid-angle fraction of slow outflow
-        N_orb=30,  # number of orbits before merger
+        WR_mass=None,  # wolf-rayet star mass in solar masses
+        BH_mass=None,  # in solar masses
+        alpha=None,  # disk viscosity
+        theta0=None,  # aspect ratio
+        p=None,  # outflow index, Mdot(r) ~ r^p
+        eta=None,  # engine efficiency
+        Mslow=None,
+        vslow=None,  # in cm/s
+        kap_slow=None,  # cm2/g
+        Mfast=None,  # * const.M_sun,
+        vfast=None,  # * const.c,
+        kap_fast=None,  # cm2/g
+        phi0=None,  # solid-angle fraction of slow outflow
+        N_orb=None,  # number of orbits before merger
         **kwargs,
     ):
         if (
@@ -129,14 +130,45 @@ class FBOTModel(SEDModel):
 
         super().__init__(**kwargs)
 
+        if WR_mass is None:
+            WR_mass = NumpyRandomFunc("uniform", low=10, high=40)
+        if BH_mass is None:
+            BH_mass = NumpyRandomFunc("uniform", low=1, high=20)
+        if alpha is None:
+            alpha = 0.03
+        if theta0 is None:
+            theta0 = 0.33
+        if p is None:
+            p = 0.6
+        if eta is None:
+            eta = 0.03
+        if Mslow is None:
+            Mslow = 9.8
+        if vslow is None:
+            vslow = 3.0e8
+        if kap_slow is None:
+            kap_slow = 0.03
+        if Mfast is None:
+            Mfast = 0.1
+        if vfast is None:
+            vfast = 0.2
+        if kap_fast is None:
+            kap_fast = 0.2
+        if phi0 is None:
+            phi0 = 0.5
+        if N_orb is None:
+            N_orb = 30
+        if Mfast > 1:
+            raise ValueError("Mfast must be less than or equal to 1 solar mass.")
+
         self.add_parameter(
             "WR_mass",
             value=WR_mass,
             description="The mass of the progenitor Wolf-Rayet star, in solar masses",
-        )  # has to be between 10-40 Msun
+        )
         self.add_parameter(
             "BH_mass", value=BH_mass, description="The mass of the progenitor black hole, in solar masses"
-        )  # has to be between 1-20 Msun
+        )
         self.add_parameter("alpha", value=alpha, description="Disk viscosity")
         self.add_parameter("theta0", value=theta0, description="Aspect ratio")
         self.add_parameter("p", value=p, description="Outflow index")
@@ -151,7 +183,7 @@ class FBOTModel(SEDModel):
         self.add_parameter("N_orb", value=N_orb, description="Number of orbits before merger")
         self.add_parameter(
             "WR_R",
-            value=0.8 * (WR_mass / 10) ** 0.58,  # * const.R_sun,
+            value=0.8 * (WR_mass / 10) ** 0.58,  # Rsun,
             description="Radius of the WR star (pre-merger)",
         )
 
@@ -168,21 +200,22 @@ class FBOTModel(SEDModel):
 
     def _lum_acc(self, t, state):
         """
-        The equation describing the luminosity of the fast-outflow disk.
+        The equation describing the luminosity of the fast-outflow disk
+        resulting from the Wolf Rayet star-black hole merger.
         From Brian D. Metzger (2022) DOI: 10.3847/1538-4357/ac6d59
-
 
         Parameters
         ----------
         t : float
-            The time to evaluate the luminosity at, seconds
+            The time at which to evaluate the luminosity, seconds
         state : GraphState
             An object mapping graph parameters to their values.
 
         Returns
         -------
         L_acc : float
-            The luminosity from the fast outflow at time, t
+            The luminosity from the fast outflow at time t,
+            ergs/s
 
         References
         -----------
@@ -195,7 +228,7 @@ class FBOTModel(SEDModel):
         t_visc0 = (1 / (params["alpha"] * params["theta0"] ** 2)) * np.sqrt(
             Rd0**3 / (const.G.cgs.value * params["BH_mass"] * const.M_sun.cgs.value)
         )
-        # t_visc0 = t_visc0.decompose().value
+
         tt = np.maximum(t, t_visc0)
         Mdot0 = params["WR_mass"] * const.M_sun.cgs.value / (t_visc0)
 
@@ -208,20 +241,21 @@ class FBOTModel(SEDModel):
     def _lum_shock(self, t, state):
         """
         The equation describing the luminosity from the shock interaction of
-        the wolf-Rayet ejecta and the CSM.
+        the Wolf-Rayet ejecta and the CSM.
         From Brian D. Metzger (2022) DOI: 10.3847/1538-4357/ac6d59
 
         Parameters
         ----------
         t : float
-            The time to evaluate the luminosity at, seconds
+            The time at which to evaluate the luminosity, seconds
         state : GraphState
             An object mapping graph parameters to their values.
 
         Returns
         -------
         L_sh : float
-            The luminosity from the shock interaction at time t
+            The luminosity from the shock interaction at time t,
+            ergs/s
 
         References
         -----------
@@ -242,7 +276,7 @@ class FBOTModel(SEDModel):
             )
         )
         t_run = params["N_orb"] * P_orb
-        # t_run = t_run.decompose().value
+
         L_sh = (
             0.5 * Mpre * params["vslow"] ** 3 / (vpre * t_run) * np.exp(-params["vslow"] * t / (vpre * t_run))
         )
@@ -250,16 +284,18 @@ class FBOTModel(SEDModel):
 
     def _rhs(self, lnt, y, state):
         """
-        The righthand side of equation describing the luminosity of the fast-outflow disk.
+        The right hand side of equation describing the gradient of thermal
+        energy resulting from the merger.
         From Brian D. Metzger (2022) DOI: 10.3847/1538-4357/ac6d59
 
 
         Parameters
         ----------
         lnt : float
-            The natural log of the time to evaluate the luminosity at, seconds
+            The natural log of the time at which to evaluate the
+            luminosity, seconds
         y : list
-            The values of E_eq and E_pol to evaluate the equation at
+            The initial values of E_eq and E_pol
         state : GraphState
              An object mapping graph parameters to their values.
 
@@ -267,7 +303,10 @@ class FBOTModel(SEDModel):
         Returns
         -------
         [t * dE_eq, t * dE_pol] : list
-            The luminosity from the fast outflow at time, t
+            Incremental change in thermal energy, from equatorial mass flow
+            and polar mass flow.
+            ergs * s
+
 
         References
         -----------
@@ -282,9 +321,6 @@ class FBOTModel(SEDModel):
             params["Mslow"] * const.M_sun.cgs.value * params["kap_slow"] / (4 * np.pi * R * const.c.cgs.value)
         )
         Lopt_sh = E_eq / (tdiff + R / const.c.cgs.value)
-        # Lopt_sh = Lopt_sh.decompose().value
-
-        # print("lopt", self._lum_shock(t, state))
 
         dE_eq = -E_eq / t - Lopt_sh + self._lum_shock(t, state)
 
@@ -295,27 +331,22 @@ class FBOTModel(SEDModel):
         )
 
         Lopt_rep = E_pol / (tdiff + R / const.c.cgs.value)
-        # print("lrep", Lopt_rep)
         tauX = params["Mfast"] * const.M_sun.cgs.value * kapX / (4 * np.pi * R**2)
         Lth = (1 - params["phi0"]) * (1 - np.exp(-tauX)) * self._lum_acc(t, state) + params[
             "phi0"
         ] * self._lum_acc(t, state)
-        # Lth = Lth.decompose().value
-        # Lopt_rep = Lopt_rep.decompose().value
-        # print("lth",Lth)
         dE_pol = -E_pol / t - Lopt_rep + Lth
-        # print(dE_eq, dE_pol)
         return [t * dE_eq, t * dE_pol]
 
     def _fbot_luminosity(self, times, state):
         """
         Calculates FBOT luminosity by solving differential equation described
-
+        in Metzger 2022 for thermal energy and luminosity.
 
         Parameters
         ----------
         times : 1-d numpy.ndarray
-            The time to evaluate the luminosity at, seconds
+            The times at which to evaluate the luminosity, seconds
 
         state : GraphState
             An object mapping graph parameters to their values.
@@ -323,38 +354,32 @@ class FBOTModel(SEDModel):
         Returns
         -------
         [R_slow, R_fast] : list
-            The radii of the slow and fast outflow
+            Contains the lists of radii of the slow and fast outflow.
+            cm
 
         [L_slow, L_fast] : list
-            The luminosities of the slow and fast outflow
+            Contains the lists of luminosities of the slow and fast outflow.
+            ergs/s
 
         References
         -----------
         Brian D. Metzger (2022) DOI: 10.3847/1538-4357/ac6d59
         """
         params = self.get_local_params(state)
-        # print("pre solve", times)
-        # print([np.log(times[0]), np.log(times[-1])])
         sol = solve_ivp(
             self._rhs,
             [np.log(times[0]), np.log(times[-1])],
             [0.0, 0.0],
             args=state,
-            method="DOP853",  # method="LSODA",  # method = "RK45", #,
+            method="DOP853",
             rtol=1e-6,
             atol=1e30,
-            # t_eval = np.linspace(np.log(times[0]), np.log(times[-1]), len(times)),
             dense_output=True,
-            # dense_output=True,
         )
 
-        # t = np.logspace(np.log10(times[0]), np.log10(times[-1]), 800)
         R_slow, R_fast = params["vslow"] * times, params["vfast"] * const.c.cgs.value * times
-        # print(times/86400)
 
-        # print(sol.y)
-        E_eq, E_pol = sol.sol(np.log(times))  # sol.y #sol.sol(np.log(times))
-        # print(E_eq[0:10], E_pol[0:10])
+        E_eq, E_pol = sol.sol(np.log(times))
 
         L_slow = E_eq / (
             (
@@ -375,16 +400,13 @@ class FBOTModel(SEDModel):
             )
             + (R_fast / const.c.cgs.value)
         )
-        # print( (R_fast / const.c.cgs.value))
-        # L_slow = L_slow.decompose().value
-        # L_fast = L_fast.decompose().value
-        # print(L_slow[0:10], L_fast[0:10])
         return [R_slow, R_fast], [L_slow, L_fast]
 
     def compute_sed(self, times, wavelengths, graph_state):
         """
-        Finds the SED
-
+        Constructs the SED by finding the blackbody temperature from luminosoities
+        of the slow and fast outflows over the times in the times array and finding
+        the flux for a blackbody at those temperatures and the distance of the model
 
         Parameters
         ----------
@@ -405,24 +427,14 @@ class FBOTModel(SEDModel):
         params = self.get_local_params(graph_state)
         wavelengths = wavelengths * u.AA
 
-        # print("original times", len(times))
-
         times_new = np.array(times - params["t0"]) * 86400.0  # time from merger in days to seconds
 
         if np.any(times_new <= 0.0):
             raise ValueError("The FBOTModel is only defined for times > t0.")
 
-        # print("new t", times_new)
-
         Rs, Ls = self._fbot_luminosity(times_new, state)
-        # print("hi", max(Rs[0]), max(Ls[0]))
         T_slow = (Ls[0] / (4 * np.pi * (Rs[0] ** 2) * const.sigma_sb.cgs.value)) ** 0.25
         T_fast = (Ls[1] / (4 * np.pi * (Rs[1] ** 2) * const.sigma_sb.cgs.value)) ** 0.25
-
-        # T_slow = T_slow.decompose().value
-        # T_fast = T_fast.decompose().value
-
-        # print("Temps",max(T_slow), max(T_fast))
 
         distance = params["distance"]
         if not isinstance(distance, u.Quantity):
@@ -443,5 +455,4 @@ class FBOTModel(SEDModel):
             array_fast[i] = F_fast.to(u.nJy)
 
         tot_flux_array = array_slow + array_fast
-        # print(tot_flux_array[1:10])
         return tot_flux_array
