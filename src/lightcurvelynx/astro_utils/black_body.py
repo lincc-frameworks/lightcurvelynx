@@ -4,9 +4,9 @@ from astropy import units as u
 from astropy.modeling.physical_models import BlackBody
 
 # Precompute the scale factor to convert Angstrom to Hz. The full equation
-# is freq = _ang_to_hz_scale / wavelength, where wavelength is in Angstroms
+# is freq = _ANG_TO_HZ_SCALE / wavelength, where wavelength is in Angstroms
 # and freq is in Hz.
-_ang_to_hz_scale = (const.c / (1 * u.AA)).to_value(u.Hz)
+_ANG_TO_HZ_SCALE = (const.c / (1 * u.AA)).to_value(u.Hz)
 
 
 def black_body_luminosity_density_per_solid(temperature, radius, wavelengths):
@@ -75,12 +75,15 @@ def eval_blackbody(temp, wave):
         Output is in CGS units of erg/s/cm^2/Hz/steradian.
     """
     # Compute the frequency corresponding to each wavelength in Angstroms in Hz.
-    freq_hz = _ang_to_hz_scale / wave
+    freq_hz = _ANG_TO_HZ_SCALE / wave
 
     # Evaluate the Planck function in terms of frequency with the following units:
     # frequency (freq_hz) is in Hz, temperature (temp) is in K, Planck constant (h)
-    # is in J s, Boltzmann constant (k_B) is in J/K, and the output will be in
-    # erg/s/cm^2/Hz/steradian.
+    # is in J s, Boltzmann constant (k_B) is in J/K. The formula gives the ouput
+    # in SI units of W/m^2/Hz/steradian.
     inner_value = np.expm1(const.h.value * freq_hz / (const.k_B.value * temp))
-    bb_nu = 2.0 * const.h.value * freq_hz**3 / (const.c.value**2 * inner_value)
-    return bb_nu
+    bb_si = 2.0 * const.h.value * freq_hz**3 / (const.c.value**2 * inner_value)
+
+    # Return the results in CGS units of erg/s/cm^2/Hz/steradian by
+    # multipling by 1000 (10^7 for W->erg/s and 1/10^4 for m^2->cm^2).
+    return bb_si * 1000.0
