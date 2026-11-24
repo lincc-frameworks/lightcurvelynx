@@ -1,6 +1,12 @@
 import numpy as np
+from astropy import constants as const
 from astropy import units as u
 from astropy.modeling.physical_models import BlackBody
+
+# Precompute the scale factor to convert Angstrom to Hz. The full equation
+# is freq = _SPEED_OF_LIGHT_AA_HZ / wavelength, where wavelength is in
+# Angstroms and freq is in Hz.
+_SPEED_OF_LIGHT_AA_HZ = const.c.to_value(u.Hz * u.AA)
 
 
 def black_body_luminosity_density_per_solid(temperature, radius, wavelengths):
@@ -44,3 +50,39 @@ def black_body_luminosity_density_per_solid(temperature, radius, wavelengths):
     # e.g. multiply by r^2.
     surface_area_per_solid_angle = radius**2
     return surface_flux * surface_area_per_solid_angle
+
+
+def eval_blackbody_aa_k(temp, wave):
+    """Evaluate the blackbody flux density for a given temperature and at
+    given wavelengths using the Planck function in terms of frequency.
+
+    Note
+    ----
+    This function is faster than astropy's BlackBody evaluation, but requires
+    the input to be in the correct units already (wavelengths in Angstroms
+    and temperature in kelvins).
+
+    Parameters
+    ----------
+    temp : float
+        The effective temperature of the blackbody, in kelvins.
+    wave : numpy.ndarray
+        A length N array of wavelengths, in Angstroms.
+
+    Returns
+    -------
+    flux_density : numpy.ndarray
+        A length N array of blackbody flux density values.
+        Output is in CGS units of erg/s/cm^2/Hz/steradian.
+    """
+    # Compute the frequency corresponding to each wavelength in Angstroms in Hz.
+    # (Hz * Angstrom) / Angstrom = Hz.
+    freq_hz = _SPEED_OF_LIGHT_AA_HZ / wave
+
+    # Evaluate the Planck function in terms of frequency with the following units:
+    # frequency (freq_hz) is in Hz, temperature (temp) is in K, Planck constant (h)
+    # is in erg s, Boltzmann constant (k_B) is in erg/K. The formula gives the ouput
+    # in CGS units of erg/s/cm^2/Hz/steradian.
+    inner_value = np.expm1(const.h.cgs.value * freq_hz / (const.k_B.cgs.value * temp))
+    bb_cgs = 2.0 * const.h.cgs.value * freq_hz**3 / (const.c.cgs.value**2 * inner_value)
+    return bb_cgs

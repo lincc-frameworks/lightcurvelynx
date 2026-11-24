@@ -1,8 +1,32 @@
 import astropy.constants as const
 import numpy as np
+import pytest
+from astropy import units as u
+from astropy.modeling.physical_models import BlackBody
 from scipy.integrate import trapezoid
 
-from lightcurvelynx.astro_utils.black_body import black_body_luminosity_density_per_solid
+from lightcurvelynx.astro_utils.black_body import (
+    black_body_luminosity_density_per_solid,
+    eval_blackbody_aa_k,
+)
+
+
+@pytest.mark.parametrize("temp", [1000, 3100, 5500, 6003, 8050, 9000])
+def test_eval_blackbody(temp):
+    """Test that eval_blackbody function returns the same values as we would
+    get from astropy's BlackBody class.
+    """
+    waves = np.linspace(1000, 10000, 101)
+
+    # Compute astropy's version of the SED.
+    bb = BlackBody(temperature=temp * u.K)
+    sed_astropy = bb(waves * u.AA)
+
+    # Compute our custom implementation of the SED.
+    sed_custom = eval_blackbody_aa_k(temp, waves)
+
+    # Compare the two SEDs.
+    assert np.allclose(sed_custom, sed_astropy.value, rtol=1e-6)
 
 
 def test_bolometric_luminosity():
