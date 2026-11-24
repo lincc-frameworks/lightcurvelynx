@@ -54,6 +54,16 @@ def test_create_maf_query_table():
     query2 = query_table.range_search(np.array([0.0, 15.0]), np.array([0.0, -10.0]))
     assert all(np.allclose(result, all_inds) for result in query2)
 
+    # We can limit the range search by time.
+    query3 = query_table.range_search(0.0, 0.0, t_min=0.9, t_max=3.1)
+    assert np.allclose(query3, np.array([1, 2, 3]))
+
+    query4 = query_table.range_search(0.0, 0.0, t_min=5.1, t_max=None)
+    assert np.allclose(query4, np.array([]))
+
+    query5 = query_table.range_search(0.0, 0.0, t_min=None, t_max=2.0)
+    assert np.allclose(query5, np.array([0, 1, 2]))
+
 
 def test_execute_maf_query():
     """Test that we can execute a MAF Query."""
@@ -121,3 +131,53 @@ def test_execute_maf_query_empty_table():
 
     with pytest.raises(ValueError, match="The MAF query table is empty."):
         execute_maf_query(toy_model, empty_maf_query_data)
+
+
+def test_execute_maf_query_time_bounds():
+    """Test that we can execute a MAF Query with time bounds."""
+    # Assemble the minimum information for a MAF query. Note that this
+    # needs to include the information for our default noise model.
+    maf_query_data = {
+        "time": np.arange(10),
+        "ra": np.full(10, 15.0),
+        "dec": np.full(10, -10.0),
+        "band": np.array(["r"] * 10),
+        "zp": np.full(10, 1.0),
+        "seeing": [1.12] * 10,
+        "skybrightness": [20.0] * 10,
+        "exptime": [29.2] * 10,
+        "nexposure": [1] * 10,
+    }
+
+    # Create a toy model for the simulation. Because we use a redshift of 1.0, the
+    # end time of the model will be stretched in time by a factor of (1 + redshift).
+    toy_model = StepModel(
+        brightness=1000.0,
+        ra=15.0,
+        dec=-10.0,
+        t0=5.0,
+        t1=5.6,
+        redshift=1.0,
+    )
+
+    # Do the simulation with a rest-frame time window. We should get
+    # results at times [4.0, 5.0, 6.0].
+    result, __import__ = execute_maf_query(
+        toy_model,
+        maf_query_data,
+        obs_time_window_offset=(-1.0, 1.0),
+    )
+    assert len(result) == 3
+    assert np.allclose(result["mjd"], [4.0, 5.0, 6.0])
+    assert np.array_equal(result["flux_perfect"] > 0, [False, True, True])
+
+    # Do the simulation with an observer-frame time window. Given the redshift of 1.0,
+    # the observer-frame time window (-1.0, 1.0) should expand to (-2.0, 2.0).
+    result_obs, _ = execute_maf_query(
+        toy_model,
+        maf_query_data,
+        rest_time_window_offset=(-1.0, 1.0),
+    )
+    assert len(result_obs) == 5
+    assert np.allclose(result_obs["mjd"], [3.0, 4.0, 5.0, 6.0, 7.0])
+    assert np.array_equal(result_obs["flux_perfect"] > 0, [False, False, True, True, False])
