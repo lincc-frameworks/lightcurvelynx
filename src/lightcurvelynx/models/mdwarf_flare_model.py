@@ -326,7 +326,8 @@ class MDwarfFlareModel(SEDModel):
         Returns
         -------
         Quantity
-            The spectrum with the wavelength axis integrated out (tess's wavelengths)
+            The spectrum with the wavelength axis integrated out
+            (tess's wavelengths) in units of erg/(Hz s sr cm^2)
         """
         return self._tess_band.fluxes_to_bandflux(np.r_[[spectrum]]).item()
 
@@ -338,13 +339,13 @@ class MDwarfFlareModel(SEDModel):
         ----------
         temp_star : float
             The temperature of the star in Kelvin.
-        wavelengths : np.ndarray or None
-            Wavelength values in angstroms.
+        wavelengths : np.ndarray
+            Wavelength values in Angstroms.
 
         Returns
         -------
-        Quantity, shape (n_wave,), units erg/(Hz s sr cm^2)
-        it is now in terms of frequency and not wavelength
+        Quantity
+            The spectrum in units of erg/(Hz s sr cm^2).
         """
         I_lam = eval_blackbody_aa_k(temp_star, wavelengths)
         return I_lam * u.erg / u.s / u.cm**2 / u.Hz / u.steradian

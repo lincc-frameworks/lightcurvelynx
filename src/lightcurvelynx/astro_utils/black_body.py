@@ -5,8 +5,8 @@ from astropy.modeling.physical_models import BlackBody
 
 # Precompute the scale factor to convert Angstrom to Hz. The full equation
 # is freq = _ANG_TO_HZ_SCALE / wavelength, where wavelength is in Angstroms
-# and freq is in Hz.
-_ANG_TO_HZ_SCALE = (const.c / (1 * u.AA)).to_value(u.Hz)
+# and freq is in Hz. The units of _ANG_TO_HZ_SCALE
+_ANG_TO_HZ_SCALE = const.c.to_value(u.Hz * u.AA)
 
 
 def black_body_luminosity_density_per_solid(temperature, radius, wavelengths):
@@ -76,6 +76,7 @@ def eval_blackbody_aa_k(temp, wave):
         Output is in CGS units of erg/s/cm^2/Hz/steradian.
     """
     # Compute the frequency corresponding to each wavelength in Angstroms in Hz.
+    # (Hz * Angstrom) / Angstrom = Hz.
     freq_hz = _ANG_TO_HZ_SCALE / wave
 
     # Evaluate the Planck function in terms of frequency with the following units:
