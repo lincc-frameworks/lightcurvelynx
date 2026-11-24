@@ -43,7 +43,7 @@ class MAFQueryTable(OpSim):
         # The MAFQueryTable does not do spatial filtering.
         self._spatial_data = None
 
-    def range_search(self, query_ra, query_dec, **kwargs):
+    def range_search(self, query_ra, query_dec, *, t_min=None, t_max=None, **kwargs):
         """Return all the indices in the table because a MAF query is
         meant to represent a single batch of observations that should
         always be simulated.
@@ -54,6 +54,10 @@ class MAFQueryTable(OpSim):
             The query right ascension (in degrees).
         query_dec : float or numpy.ndarray
             The query declination (in degrees).
+        t_min : float or None
+            The minimum time for the range search. If None, no lower bound is applied.
+        t_max : float or None
+            The maximum time for the range search. If None, no upper bound is applied.
         **kwargs : dict
             Additional keywords for API compatibility. These are not used in the
             range search.
@@ -65,14 +69,35 @@ class MAFQueryTable(OpSim):
             point or a list of arrays (of indices) for an array of query points.
         """
         all_inds = np.arange(len(self))
+        all_times = np.array(self["observationStartMJD"])
 
         is_scalar = np.isscalar(query_ra) and np.isscalar(query_dec)
         query_ra, query_dec = validate_ra_dec_degrees(query_ra, query_dec)
 
+        # Ensure t_min and t_max are arrays of the same length as query_ra and query_dec.
+        if t_min is None:
+            t_min = np.full(len(query_ra), -np.inf)
+        elif np.isscalar(t_min):
+            t_min = np.full(len(query_ra), t_min)
+        elif len(t_min) != len(query_ra):
+            raise ValueError("t_min must be a scalar or have the same length as query_ra and query_dec.")
+
+        if t_max is None:
+            t_max = np.full(len(query_ra), np.inf)
+        elif np.isscalar(t_max):
+            t_max = np.full(len(query_ra), t_max)
+        elif len(t_max) != len(query_ra):
+            raise ValueError("t_max must be a scalar or have the same length as query_ra and query_dec.")
+
+        # Apply the time bounds to each query point individually.
+        results = []
+        for idx in range(len(query_ra)):
+            mask = (all_times >= t_min[idx]) & (all_times <= t_max[idx])
+            results.append(all_inds[mask])
+
         if is_scalar:
-            return all_inds
-        else:
-            return [all_inds] * len(query_ra)
+            results = results[0]
+        return results
 
 
 def execute_maf_query(
@@ -83,6 +108,7 @@ def execute_maf_query(
     passbands=None,
     noise_model=None,
     rng_info=None,
+    **kwargs,
 ):
     """Run a single query from Rubin's metric analysis framework.
 
@@ -107,6 +133,8 @@ def execute_maf_query(
     rng_info : numpy.random._generator.Generator, optional
         The random number generator to use for parameter sampling and noise.
         Default: None
+    **kwargs
+        Additional keyword arguments passed to the simulation functions.
 
     Returns
     -------
@@ -158,5 +186,6 @@ def execute_maf_query(
         rng=rng_info,
         progress_bar=False,
         graph_state=graph_state,
+        **kwargs,
     )
     return results["lightcurve"].iloc[0], results["params"].iloc[0]

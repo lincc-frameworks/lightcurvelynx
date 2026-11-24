@@ -84,19 +84,19 @@ def test_get_time_windows():
         get_time_windows(0.0, None, (1.0, 2.0, 3.0), None)
 
     # t0 = array, z=1.5
-    # time_window = (inf, 2.0) in rest frame = (inf, 5.0) in rest frame
+    # time_window = (inf, 2.0) in rest frame -> (inf, 5.0) in observer frame
     result = get_time_windows(np.array([0.0, 1.0, 2.0]), 1.5, None, (None, 2.0))
     assert result[0] is None
     assert np.array_equal(result[1], np.array([5.0, 6.0, 7.0]))
 
     # t0 = array, z=2.0
-    # time_window = (-1.0, inf) in rest frame = (-3.0, inf) in rest frame
+    # time_window = (-1.0, inf) in rest frame -> (-3.0, inf) in observer frame
     result = get_time_windows(np.array([0.0, 1.0, 2.0]), 2.0, None, (-1.0, None))
     assert np.array_equal(result[0], np.array([-3.0, -2.0, -1.0]))
     assert result[1] is None
 
     # t0 = array, z=1.0
-    # time_window = (-1.0, 2.0) in rest frame = (-2.0, 4.0) in rest frame
+    # time_window = (-1.0, 2.0) in rest frame -> (-2.0, 4.0) in observer frame
     result = get_time_windows(np.array([0.0, 1.0, 2.0]), 1.0, None, (-1.0, 2.0))
     assert np.array_equal(result[0], np.array([-2.0, -1.0, 0.0]))
     assert np.array_equal(result[1], np.array([4.0, 5.0, 6.0]))
